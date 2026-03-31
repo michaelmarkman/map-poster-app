@@ -1,0 +1,63 @@
+<h2>Three Architectural Approaches</h2>
+<p class="subtitle">How the app should work under the hood. Each has different trade-offs for quality, complexity, and flexibility.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>SVG Pipeline — Recommended</h3>
+      <p style="margin-bottom: 12px;">Fetch vector map data (OpenStreetMap via Overpass API), convert to SVG layers, apply CSS-driven styles and transforms, export to high-res PNG/PDF via headless rendering.</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Vector = infinite resolution</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">CSS styles = easy presets</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Clean layer separation</span>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">OSM data can be messy</span>
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Large cities = lots of SVG paths</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Mapbox/MapLibre Styled Tiles</h3>
+      <p style="margin-bottom: 12px;">Use MapLibre GL JS with custom style JSONs for each preset. The map library handles rendering, you customize the style. Export by capturing the canvas at high resolution.</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Battle-tested rendering</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Handles any zoom/location</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Fastest to prototype</span>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Limited to what map styles can do</span>
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Hard to add masks/shapes/overlays</span>
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Canvas export has DPI ceiling</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: MapLibre for Data + Canvas/SVG for Art</h3>
+      <p style="margin-bottom: 12px;">Use MapLibre to fetch and display the map for selection/framing, but once the user "captures" a view, extract the vector data and switch to a separate SVG/Canvas rendering pipeline for the poster composition. Best of both worlds.</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Familiar map UX for selection</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Full creative control for output</span>
+        <span style="background:rgba(46,204,113,0.15); color:#2ecc71; padding:2px 8px; border-radius:4px; font-size:12px;">Print-quality vector export</span>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Two rendering systems to maintain</span>
+        <span style="background:rgba(231,76,60,0.15); color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:12px;">Data extraction step adds complexity</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:2rem; padding:16px; background:rgba(255,255,255,0.05); border-radius:8px; border-left:3px solid #3498db;">
+  <h3 style="margin-top:0; color:#3498db;">My recommendation: A (SVG Pipeline)</h3>
+  <p style="margin:0; opacity:0.85;">Option B (MapLibre styles) is the fastest to prototype, but you'll hit a ceiling fast — masks, shapes, typography overlays, and grain textures all live outside what a map style can do. You'd end up building a compositing layer on top anyway. Option C is smart but adds complexity you don't need yet — MapLibre's interactive map is nice for framing, but a simple search + bounding box gets you there too. The SVG pipeline gives you full control from day one, clean layer separation, and infinite resolution for print. The trade-off is you need to wrangle OSM data into clean paths, but that's a solved problem.</p>
+</div>

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D vs 2.5D vs 3D — Map Poster Approaches</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #111113;
+    color: #e8e8ec;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 28px;
+  }
+  .comparison {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .poster-card {
+    background: #18181b;
+    border-radius: 12px;
+    padding: 14px;
+    width: 340px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .poster-card:hover { border-color: rgba(255,255,255,0.1); }
+  .poster-card h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .poster-card .desc {
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .poster-frame {
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .poster-label {
+    position: absolute;
+    bottom: 16px;
+    left: 0;
+    right: 0;
+    text-align: center;
+  }
+  .poster-label .title {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #f0f0f0;
+  }
+  .poster-label .coords {
+    font-family: 'Space Mono', monospace;
+    font-size: 6px;
+    letter-spacing: 1.5px;
+    color: rgba(240,240,240,0.3);
+    margin-top: 2px;
+  }
+  .tags { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+  .tag-pro { background: rgba(46,204,113,0.12); color: #2ecc71; }
+  .tag-con { background: rgba(231,76,60,0.12); color: #e74c3c; }
+  .tag-rec { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  .complexity {
+    margin-top: 10px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+  }
+  .complexity-bar {
+    margin-top: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+  }
+  .complexity-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Three Rendering Approaches — Same Brooklyn Data</h1>
+<p class="subtitle">Which one makes you want to put it on a wall?</p>
+
+<div class="comparison">
+
+<!-- OPTION 1: 2D Dense Flat -->
+<div class="poster-card" data-choice="2d-flat" onclick="toggleSelect && toggleSelect(this)">
+  <h2>Option 1: 2D Flat — Dense SVG</h2>
+  <div class="desc">Top-down vector map. Every street, coastline, park rendered as crisp paths. This is what real OSM data looks like as flat art.</div>
+  <div class="poster-frame">
+    <svg viewBox="0 0 312 416" width="312" height="416" xmlns="http://www.w3.org/2000/svg">
+      <rect width="312" height="416" fill="#0a0a0c"/>
+
+      <!-- Water - detailed coastline -->
+      <path d="M0,48 Q12,45 24,47 Q36,43 45,46 Q56,42 68,45 Q80,41 92,44 Q104,40 116,43 Q128,47 140,50 Q152,54 164,58 Q174,61 182,59 Q192,56 204,58 Q216,61 228,57 Q240,54 252,56 Q264,53 276,55 Q288,58 300,61 Q310,63 312,65 L312,92 Q304,95 292,93 Q280,89 268,92 Q256,96 244,93 Q232,89 220,94 Q208,98 196,95 Q184,91 172,88 Q160,85 148,82 Q136,79 124,76 Q112,73 100,70 Q88,67 76,69 Q64,72 52,70 Q40,67 28,69 Q16,72 8,70 L0,72 Z" fill="#111c2c" opacity="0.75"/>
+      <!-- Harbor / bay -->
+      <path d="M268,120 Q280,135 276,152 Q272,170 278,188 Q286,205 282,222 Q276,240 282,258 Q290,276 286,294 Q282,312 288,330 Q295,348 290,366 Q286,380 292,395 Q298,408 296,416 L312,416 L312,120 Z" fill="#111c2c" opacity="0.55"/>
+      <!-- Gowanus -->
+      <path d="M72,168 Q71,185 72,200 Q73,218 72,235 Q71,252 72,268 Q73,285 72,302 Q71,318 72,335 Q73,350 72,365" stroke="#162638" stroke-width="4" fill="none" opacity="0.7"/>
+      <path d="M72,168 Q71,185 72,200 Q73,218 72,235 Q71,252 72,268 Q73,285 72,302 Q71,318 72,335 Q73,350 72,365" stroke="#1a2a3a" stroke-width="2.5" fill="none" opacity="0.6"/>
+
+      <!-- Parks -->
+      <path d="M112,96 Q118,93 126,95 Q134,98 140,96 Q144,100 142,107 Q140,114 142,120 Q139,126 132,128 Q124,130 116,128 Q112,123 110,115 Q108,107 112,96 Z" fill="#0c1c0c" opacity="0.65"/>
+      <path d="M196,215 Q208,211 220,214 Q232,217 242,215 Q252,218 256,228 Q258,240 256,252 Q252,260 242,262 Q232,264 220,261 Q208,259 200,254 Q192,246 190,234 Q188,224 196,215 Z" fill="#0c1c0c" opacity="0.55"/>
+      <path d="M5,114 Q13,110 22,113 Q28,118 30,128 Q28,138 22,144 Q14,147 6,144 Q2,138 3,128 Q4,120 5,114 Z" fill="#0c1c0c" opacity="0.5"/>
+      <path d="M150,268 Q160,264 168,268 Q172,276 170,286 Q164,292 156,290 Q150,286 148,278 Q146,271 150,268 Z" fill="#0c1c0c" opacity="0.45"/>
+
+      <!-- ═══ MAJOR ROADS ═══ -->
+      <path d="M0,141 Q40,142 80,141 Q120,140 160,141 Q200,142 240,141 Q268,140 272,142" stroke="#f0f0f0" stroke-width="1.8" opacity="0.95" fill="none"/>
+      <path d="M126,55 Q128,78 131,100 Q134,122 137,145 Q140,168 143,190 Q146,212 150,235 Q154,258 157,280 Q160,302 164,325 Q168,348 171,370 Q174,392 178,416" stroke="#f0f0f0" stroke-width="2" opacity="0.95" fill="none"/>
+      <path d="M82,82 Q80,106 78,130 Q76,154 74,178 Q72,200 70,224 Q68,248 66,272 Q64,296 62,320 Q60,344 58,368 Q56,392 54,416" stroke="#f0f0f0" stroke-width="1.7" opacity="0.9" fill="none"/>
+      <path d="M0,189 Q32,188 64,187 Q96,186 128,188 Q160,190 192,189 Q224,187 242,188" stroke="#f0f0f0" stroke-width="1.5" opacity="0.9" fill="none"/>
+      <path d="M0,112 Q32,111 64,112 Q96,114 128,112 Q160,111 192,112 Q224,114 242,112" stroke="#f0f0f0" stroke-width="1.3" opacity="0.85" fill="none"/>
+      <!-- BQE -->
+      <path d="M0,89 Q24,91 48,93 Q72,95 96,93 Q120,89 144,87 Q168,84 192,89 Q216,97 240,106 Q264,115 288,120 Q300,123 312,125" stroke="#f0f0f0" stroke-width="1.7" opacity="0.75" fill="none"/>
+      <path d="M46,222 Q54,238 66,252 Q78,264 92,268 Q106,270 122,266" stroke="#f0f0f0" stroke-width="1.3" opacity="0.7" fill="none"/>
+
+      <!-- ═══ SECONDARY STREETS ═══ -->
+      <g stroke="rgba(240,240,240,0.42)" fill="none">
+        <line x1="0" y1="100" x2="262" y2="100" stroke-width="0.7"/>
+        <line x1="0" y1="125" x2="262" y2="125" stroke-width="0.6"/>
+        <line x1="0" y1="152" x2="262" y2="152" stroke-width="0.6"/>
+        <line x1="0" y1="163" x2="262" y2="163" stroke-width="0.6"/>
+        <line x1="0" y1="175" x2="262" y2="175" stroke-width="0.6"/>
+        <line x1="0" y1="200" x2="240" y2="200" stroke-width="0.6"/>
+        <line x1="0" y1="212" x2="240" y2="212" stroke-width="0.6"/>
+        <line x1="0" y1="224" x2="240" y2="224" stroke-width="0.55"/>
+        <line x1="0" y1="236" x2="240" y2="236" stroke-width="0.55"/>
+        <line x1="0" y1="248" x2="240" y2="248" stroke-width="0.55"/>
+        <line x1="0" y1="260" x2="240" y2="260" stroke-width="0.5"/>
+        <line x1="0" y1="272" x2="240" y2="272" stroke-width="0.5"/>
+        <line x1="0" y1="284" x2="240" y2="284" stroke-width="0.5"/>
+        <line x1="0" y1="296" x2="240" y2="296" stroke-width="0.45"/>
+        <line x1="0" y1="308" x2="240" y2="308" stroke-width="0.45"/>
+        <line x1="0" y1="320" x2="240" y2="320" stroke-width="0.45"/>
+        <line x1="0" y1="332" x2="240" y2="332" stroke-width="0.4"/>
+        <line x1="0" y1="344" x2="240" y2="344" stroke-width="0.4"/>
+        <line x1="0" y1="356" x2="240" y2="356" stroke-width="0.4"/>
+        <line x1="0" y1="368" x2="240" y2="368" stroke-width="0.35"/>
+        <line x1="0" y1="380" x2="240" y2="380" stroke-width="0.35"/>
+        <line x1="0" y1="392" x2="240" y2="392" stroke-width="0.35"/>
+      </g>
+      <!-- Vertical avenues -->
+      <g stroke="rgba(240,240,240,0.4)" fill="none">
+        <line x1="16" y1="75" x2="10" y2="416" stroke-width="0.6"/>
+        <line x1="34" y1="75" x2="30" y2="416" stroke-width="0.5"/>
+        <line x1="50" y1="75" x2="46" y2="416" stroke-width="0.6"/>
+        <line x1="100" y1="75" x2="96" y2="416" stroke-width="0.6"/>
+        <line x1="114" y1="150" x2="110" y2="416" stroke-width="0.5"/>
+        <line x1="176" y1="75" x2="184" y2="416" stroke-width="0.6"/>
+        <line x1="192" y1="75" x2="200" y2="416" stroke-width="0.5"/>
+        <line x1="210" y1="75" x2="216" y2="416" stroke-width="0.5"/>
+        <line x1="228" y1="75" x2="232" y2="416" stroke-width="0.5"/>
+        <line x1="246" y1="75" x2="250" y2="416" stroke-width="0.45"/>
+      </g>
+
+      <!-- ═══ RESIDENTIAL GRID (dense) ═══ -->
+      <!-- Left blocks -->
+      <g opacity="0.55" stroke="rgba(240,240,240,0.2)" fill="none">
+        <line x1="6" y1="195" x2="62" y2="195" stroke-width="0.25"/>
+        <line x1="6" y1="200" x2="62" y2="200" stroke-width="0.2"/>
+        <line x1="6" y1="205" x2="62" y2="205" stroke-width="0.25"/>
+        <line x1="6" y1="210" x2="62" y2="210" stroke-width="0.2"/>
+        <line x1="6" y1="215" x2="62" y2="215" stroke-width="0.25"/>
+        <line x1="6" y1="220" x2="62" y2="220" stroke-width="0.2"/>
+        <line x1="6" y1="225" x2="62" y2="225" stroke-width="0.25"/>
+        <line x1="6" y1="230" x2="62" y2="230" stroke-width="0.2"/>
+        <line x1="6" y1="235" x2="62" y2="235" stroke-width="0.25"/>
+        <line x1="6" y1="240" x2="62" y2="240" stroke-width="0.2"/>
+        <line x1="6" y1="245" x2="62" y2="245" stroke-width="0.25"/>
+        <line x1="6" y1="250" x2="62" y2="250" stroke-width="0.2"/>
+        <line x1="6" y1="255" x2="62" y2="255" stroke-width="0.25"/>
+        <line x1="6" y1="260" x2="62" y2="260" stroke-width="0.2"/>
+        <line x1="6" y1="265" x2="62" y2="265" stroke-width="0.25"/>
+        <line x1="6" y1="270" x2="62" y2="270" stroke-width="0.2"/>
+        <line x1="6" y1="275" x2="62" y2="275" stroke-width="0.25"/>
+        <line x1="6" y1="280" x2="62" y2="280" stroke-width="0.2"/>
+        <line x1="6" y1="285" x2="62" y2="285" stroke-width="0.25"/>
+        <line x1="6" y1="290" x2="62" y2="290" stroke-width="0.2"/>
+        <line x1="6" y1="295" x2="62" y2="295" stroke-width="0.25"/>
+        <line x1="6" y1="300" x2="62" y2="300" stroke-width="0.2"/>
+        <line x1="16" y1="192" x2="16" y2="305" stroke-width="0.2"/>
+        <line x1="26" y1="192" x2="26" y2="305" stroke-width="0.15"/>
+        <line x1="36" y1="192" x2="36" y2="305" stroke-width="0.2"/>
+        <line x1="46" y1="192" x2="46" y2="305" stroke-width="0.15"/>
+        <line x1="56" y1="192" x2="56" y2="305" stroke-width="0.2"/>
+      </g>
+      <!-- Center blocks -->
+      <g opacity="0.55" stroke="rgba(240,240,240,0.2)" fill="none">
+        <line x1="94" y1="195" x2="170" y2="195" stroke-width="0.25"/>
+        <line x1="94" y1="200" x2="170" y2="200" stroke-width="0.2"/>
+        <line x1="94" y1="205" x2="170" y2="205" stroke-width="0.25"/>
+        <line x1="94" y1="210" x2="170" y2="210" stroke-width="0.2"/>
+        <line x1="94" y1="215" x2="170" y2="215" stroke-width="0.25"/>
+        <line x1="94" y1="220" x2="170" y2="220" stroke-width="0.2"/>
+        <line x1="94" y1="225" x2="170" y2="225" stroke-width="0.25"/>
+        <line x1="94" y1="230" x2="170" y2="230" stroke-width="0.2"/>
+        <line x1="94" y1="235" x2="170" y2="235" stroke-width="0.25"/>
+        <line x1="94" y1="240" x2="170" y2="240" stroke-width="0.2"/>
+        <line x1="94" y1="245" x2="170" y2="245" stroke-width="0.25"/>
+        <line x1="94" y1="250" x2="170" y2="250" stroke-width="0.2"/>
+        <line x1="94" y1="255" x2="170" y2="255" stroke-width="0.25"/>
+        <line x1="94" y1="260" x2="170" y2="260" stroke-width="0.2"/>
+        <line x1="94" y1="265" x2="170" y2="265" stroke-width="0.25"/>
+        <line x1="94" y1="270" x2="170" y2="270" stroke-width="0.2"/>
+        <line x1="94" y1="275" x2="170" y2="275" stroke-width="0.25"/>
+        <line x1="94" y1="280" x2="170" y2="280" stroke-width="0.2"/>
+        <line x1="94" y1="285" x2="170" y2="285" stroke-width="0.25"/>
+        <line x1="94" y1="290" x2="170" y2="290" stroke-width="0.2"/>
+        <line x1="94" y1="295" x2="170" y2="295" stroke-width="0.25"/>
+        <line x1="94" y1="300" x2="170" y2="300" stroke-width="0.2"/>
+        <line x1="104" y1="192" x2="104" y2="305" stroke-width="0.2"/>
+        <line x1="114" y1="192" x2="114" y2="305" stroke-width="0.15"/>
+        <line x1="124" y1="192" x2="124" y2="305" stroke-width="0.2"/>
+        <line x1="134" y1="192" x2="134" y2="305" stroke-width="0.15"/>
+        <line x1="144" y1="192" x2="144" y2="305" stroke-width="0.2"/>
+        <line x1="154" y1="192" x2="154" y2="305" stroke-width="0.15"/>
+        <line x1="164" y1="192" x2="164" y2="305" stroke-width="0.2"/>
+      </g>
+      <!-- Right blocks -->
+      <g opacity="0.5" stroke="rgba(240,240,240,0.18)" fill="none">
+        <line x1="182" y1="145" x2="258" y2="145" stroke-width="0.25"/>
+        <line x1="182" y1="150" x2="258" y2="150" stroke-width="0.2"/>
+        <line x1="182" y1="155" x2="258" y2="155" stroke-width="0.25"/>
+        <line x1="182" y1="160" x2="258" y2="160" stroke-width="0.2"/>
+        <line x1="182" y1="165" x2="258" y2="165" stroke-width="0.25"/>
+        <line x1="182" y1="170" x2="258" y2="170" stroke-width="0.2"/>
+        <line x1="182" y1="175" x2="258" y2="175" stroke-width="0.25"/>
+        <line x1="182" y1="180" x2="258" y2="180" stroke-width="0.2"/>
+        <line x1="182" y1="270" x2="258" y2="270" stroke-width="0.25"/>
+        <line x1="182" y1="275" x2="258" y2="275" stroke-width="0.2"/>
+        <line x1="182" y1="280" x2="258" y2="280" stroke-width="0.25"/>
+        <line x1="182" y1="285" x2="258" y2="285" stroke-width="0.2"/>
+        <line x1="182" y1="290" x2="258" y2="290" stroke-width="0.25"/>
+        <line x1="182" y1="295" x2="258" y2="295" stroke-width="0.2"/>
+        <line x1="182" y1="300" x2="258" y2="300" stroke-width="0.25"/>
+        <line x1="182" y1="305" x2="258" y2="305" stroke-width="0.2"/>
+        <line x1="182" y1="310" x2="258" y2="310" stroke-width="0.25"/>
+        <line x1="182" y1="315" x2="258" y2="315" stroke-width="0.2"/>
+        <line x1="182" y1="320" x2="258" y2="320" stroke-width="0.25"/>
+        <line x1="182" y1="325" x2="258" y2="325" stroke-width="0.2"/>
+        <line x1="182" y1="330" x2="258" y2="330" stroke-width="0.25"/>
+        <line x1="182" y1="335" x2="258" y2="335" stroke-width="0.2"/>
+        <line x1="190" y1="140" x2="190" y2="340" stroke-width="0.2"/>
+        <line x1="200" y1="140" x2="200" y2="340" stroke-width="0.15"/>
+        <line x1="210" y1="140" x2="210" y2="340" stroke-width="0.2"/>
+        <line x1="220" y1="140" x2="220" y2="340" stroke-width="0.15"/>
+        <line x1="230" y1="140" x2="230" y2="340" stroke-width="0.2"/>
+        <line x1="240" y1="140" x2="240" y2="340" stroke-width="0.15"/>
+        <line x1="250" y1="140" x2="250" y2="340" stroke-width="0.2"/>
+      </g>
+      <!-- South fill -->
+      <g opacity="0.4" stroke="rgba(240,240,240,0.16)" fill="none">
+        <line x1="6" y1="310" x2="62" y2="310" stroke-width="0.25"/>
+        <line x1="6" y1="315" x2="62" y2="315" stroke-width="0.2"/>
+        <line x1="6" y1="320" x2="62" y2="320" stroke-width="0.25"/>
+        <line x1="6" y1="325" x2="62" y2="325" stroke-width="0.2"/>
+        <line x1="6" y1="330" x2="62" y2="330" stroke-width="0.25"/>
+        <line x1="6" y1="335" x2="62" y2="335" stroke-width="0.2"/>
+        <line x1="6" y1="340" x2="62" y2="340" stroke-width="0.25"/>
+        <line x1="6" y1="345" x2="62" y2="345" stroke-width="0.2"/>
+        <line x1="6" y1="350" x2="62" y2="350" stroke-width="0.25"/>
+        <line x1="6" y1="355" x2="62" y2="355" stroke-width="0.2"/>
+        <line x1="6" y1="360" x2="62" y2="360" stroke-width="0.25"/>
+        <line x1="94" y1="310" x2="170" y2="310" stroke-width="0.25"/>
+        <line x1="94" y1="315" x2="170" y2="315" stroke-width="0.2"/>
+        <line x1="94" y1="320" x2="170" y2="320" stroke-width="0.25"/>
+        <line x1="94" y1="325" x2="170" y2="325" stroke-width="0.2"/>
+        <line x1="94" y1="330" x2="170" y2="330" stroke-width="0.25"/>
+        <line x1="94" y1="335" x2="170" y2="335" stroke-width="0.2"/>
+        <line x1="94" y1="340" x2="170" y2="340" stroke-width="0.25"/>
+        <line x1="94" y1="345" x2="170" y2="345" stroke-width="0.2"/>
+        <line x1="94" y1="350" x2="170" y2="350" stroke-width="0.25"/>
+        <line x1="94" y1="355" x2="170" y2="355" stroke-width="0.2"/>
+        <line x1="94" y1="360" x2="170" y2="360" stroke-width="0.25"/>
+      </g>
+
+      <!-- Diagonals -->
+      <path d="M0,222 Q32,208 64,192 Q96,178 128,164 Q148,155 160,148" stroke="rgba(240,240,240,0.3)" stroke-width="0.6" fill="none"/>
+      <path d="M38,416 Q70,385 102,348 Q134,315 166,290 Q198,268 224,254 Q244,244 262,238" stroke="rgba(240,240,240,0.25)" stroke-width="0.5" fill="none"/>
+
+      <!-- Buildings -->
+      <g opacity="0.16">
+        <rect x="86" y="145" width="5" height="7" fill="#f0f0f0" rx="0.4"/>
+        <rect x="93" y="143" width="7" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="102" y="145" width="4" height="8" fill="#f0f0f0" rx="0.4"/>
+        <rect x="86" y="155" width="6" height="4" fill="#f0f0f0" rx="0.4"/>
+        <rect x="94" y="153" width="5" height="7" fill="#f0f0f0" rx="0.4"/>
+        <rect x="155" y="102" width="5" height="6" fill="#f0f0f0" rx="0.4"/>
+        <rect x="162" y="100" width="4" height="8" fill="#f0f0f0" rx="0.4"/>
+        <rect x="168" y="103" width="6" height="4" fill="#f0f0f0" rx="0.4"/>
+        <rect x="155" y="112" width="8" height="4" fill="#f0f0f0" rx="0.4"/>
+        <rect x="165" y="111" width="5" height="6" fill="#f0f0f0" rx="0.4"/>
+        <rect x="22" y="106" width="4" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="28" y="104" width="5" height="4" fill="#f0f0f0" rx="0.4"/>
+        <rect x="22" y="113" width="6" height="3" fill="#f0f0f0" rx="0.4"/>
+        <rect x="30" y="112" width="4" height="6" fill="#f0f0f0" rx="0.4"/>
+        <rect x="188" y="153" width="4" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="194" y="151" width="5" height="4" fill="#f0f0f0" rx="0.4"/>
+        <rect x="201" y="153" width="4" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="188" y="160" width="6" height="3" fill="#f0f0f0" rx="0.4"/>
+        <rect x="196" y="160" width="5" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="210" y="152" width="5" height="5" fill="#f0f0f0" rx="0.4"/>
+        <rect x="217" y="150" width="4" height="7" fill="#f0f0f0" rx="0.4"/>
+      </g>
+
+      <!-- Transit -->
+      <path d="M108,55 Q110,90 113,130 Q116,170 120,210 Q124,250 128,290 Q132,330 136,370 Q138,390 140,416" stroke="#a78bfa" stroke-width="1" opacity="0.28" stroke-dasharray="3,2.5" fill="none"/>
+      <path d="M142,55 Q144,90 147,130 Q150,170 153,210 Q156,250 160,290 Q164,330 168,370 Q170,390 172,416" stroke="#a78bfa" stroke-width="0.9" opacity="0.22" stroke-dasharray="3,2.5" fill="none"/>
+      <path d="M84,215 Q86,240 88,262 Q90,285 92,308 Q94,332 96,355 Q98,378 100,400 Q101,408 102,416" stroke="#6bc96b" stroke-width="0.7" opacity="0.22" stroke-dasharray="2.5,2.5" fill="none"/>
+    </svg>
+    <div class="poster-label">
+      <div class="title">Brooklyn</div>
+      <div class="coords">40.6782° N, 73.9442° W</div>
+    </div>
+  </div>
+  <div class="tags">
+    <span class="tag tag-pro">Print-perfect vectors</span>
+    <span class="tag tag-pro">Full style control</span>
+    <span class="tag tag-pro">Simplest architecture</span>
+    <span class="tag tag-con">Flat — no depth</span>
+  </div>
+  <div class="complexity">
+    Engineering complexity
+    <div class="complexity-bar"><div class="complexity-fill" style="width:35%; background: #2ecc71;"></div></div>
+  </div>
+</div>
+
+<!-- OPTION 2: 2.5D Pitched View -->
+<div class="poster-card" data-choice="2-5d-pitched" onclick="toggleSelect && toggleSelect(this)">
+  <h2>Option 2: 2.5D — Pitched + Extruded</h2>
+  <div class="desc">Tilted camera angle with extruded buildings. The "looking across the skyline" feel. MapLibre can do this natively.</div>
+  <div class="poster-frame">
+    <svg viewBox="0 0 312 416" width="312" height="416" xmlns="http://www.w3.org/2000/svg">
+      <rect width="312" height="416" fill="#0a0a0c"/>
+
+      <!-- Sky gradient (subtle) -->
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#0f1520"/>
+          <stop offset="100%" stop-color="#0a0a0c"/>
+        </linearGradient>
+      </defs>
+      <rect width="312" height="200" fill="url(#sky)"/>
+
+      <!-- Horizon area - compressed perspective grid -->
+      <!-- Far distance streets (heavily compressed, thin) -->
+      <g opacity="0.3" stroke="rgba(240,240,240,0.25)" fill="none">
+        <line x1="80" y1="120" x2="232" y2="120" stroke-width="0.2"/>
+        <line x1="70" y1="125" x2="242" y2="125" stroke-width="0.2"/>
+        <line x1="60" y1="130" x2="252" y2="130" stroke-width="0.25"/>
+        <line x1="50" y1="136" x2="262" y2="136" stroke-width="0.25"/>
+        <line x1="40" y1="143" x2="272" y2="143" stroke-width="0.3"/>
+        <line x1="30" y1="151" x2="282" y2="151" stroke-width="0.3"/>
+        <line x1="20" y1="160" x2="292" y2="160" stroke-width="0.35"/>
+        <line x1="10" y1="170" x2="302" y2="170" stroke-width="0.35"/>
+      </g>
+
+      <!-- Perspective converging verticals (far) -->
+      <g opacity="0.2" stroke="rgba(240,240,240,0.2)" fill="none">
+        <line x1="120" y1="115" x2="90" y2="180" stroke-width="0.2"/>
+        <line x1="140" y1="115" x2="120" y2="180" stroke-width="0.2"/>
+        <line x1="156" y1="115" x2="150" y2="180" stroke-width="0.25"/>
+        <line x1="172" y1="115" x2="180" y2="180" stroke-width="0.2"/>
+        <line x1="192" y1="115" x2="210" y2="180" stroke-width="0.2"/>
+      </g>
+
+      <!-- Mid-ground - perspective streets (wider spacing, thicker) -->
+      <g stroke="rgba(240,240,240,0.4)" fill="none">
+        <line x1="0" y1="182" x2="312" y2="182" stroke-width="0.5"/>
+        <line x1="0" y1="196" x2="312" y2="196" stroke-width="0.6"/>
+        <line x1="0" y1="212" x2="312" y2="212" stroke-width="0.7"/>
+        <line x1="0" y1="230" x2="312" y2="230" stroke-width="0.8"/>
+        <line x1="0" y1="252" x2="312" y2="252" stroke-width="0.9"/>
+        <line x1="0" y1="278" x2="312" y2="278" stroke-width="1.0"/>
+      </g>
+
+      <!-- Major roads in perspective -->
+      <path d="M156,115 Q156,180 156,250 Q156,320 156,416" stroke="#f0f0f0" stroke-width="2" opacity="0.9" fill="none"/>
+      <path d="M0,195 Q78,193 156,195 Q234,197 312,195" stroke="#f0f0f0" stroke-width="1.6" opacity="0.9" fill="none"/>
+      <path d="M130,115 Q100,180 70,260 Q40,340 0,416" stroke="#f0f0f0" stroke-width="1.8" opacity="0.85" fill="none"/>
+      <path d="M182,115 Q212,180 242,260 Q272,340 312,416" stroke="#f0f0f0" stroke-width="1.5" opacity="0.8" fill="none"/>
+
+      <!-- Foreground streets (wide, perspective) -->
+      <g stroke="rgba(240,240,240,0.35)" fill="none">
+        <line x1="0" y1="310" x2="312" y2="310" stroke-width="1.2"/>
+        <line x1="0" y1="348" x2="312" y2="348" stroke-width="1.4"/>
+        <line x1="0" y1="394" x2="312" y2="394" stroke-width="1.6"/>
+      </g>
+
+      <!-- Converging verticals (foreground) -->
+      <g stroke="rgba(240,240,240,0.3)" fill="none">
+        <line x1="40" y1="180" x2="0" y2="416" stroke-width="0.7"/>
+        <line x1="80" y1="180" x2="40" y2="416" stroke-width="0.8"/>
+        <line x1="110" y1="180" x2="80" y2="416" stroke-width="0.7"/>
+        <line x1="200" y1="180" x2="230" y2="416" stroke-width="0.7"/>
+        <line x1="230" y1="180" x2="270" y2="416" stroke-width="0.8"/>
+        <line x1="260" y1="180" x2="312" y2="416" stroke-width="0.7"/>
+      </g>
+
+      <!-- Water (East River - in perspective) -->
+      <path d="M0,140 Q50,135 100,142 Q150,150 200,145 Q250,138 312,148 L312,168 Q250,160 200,165 Q150,172 100,164 Q50,158 0,162 Z" fill="#111c2c" opacity="0.7"/>
+
+      <!-- 3D BUILDINGS - extruded rectangles with simple isometric faces -->
+      <!-- Tall buildings (downtown, near horizon) -->
+      <g>
+        <!-- Tall tower 1 -->
+        <rect x="140" y="158" width="10" height="24" fill="#1a1a22"/>
+        <rect x="139" y="156" width="12" height="3" fill="#252530"/>
+        <line x1="140" y1="158" x2="140" y2="182" stroke="rgba(240,240,240,0.08)" stroke-width="0.3"/>
+        <line x1="145" y1="158" x2="145" y2="182" stroke="rgba(240,240,240,0.06)" stroke-width="0.2"/>
+        <line x1="150" y1="158" x2="150" y2="182" stroke="rgba(240,240,240,0.08)" stroke-width="0.3"/>
+        <!-- Lit windows -->
+        <rect x="141" y="160" width="2" height="1.5" fill="rgba(255,220,140,0.25)" rx="0.2"/>
+        <rect x="144" y="160" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="147" y="160" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="141" y="164" width="2" height="1.5" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="147" y="164" width="2" height="1.5" fill="rgba(255,220,140,0.25)" rx="0.2"/>
+        <rect x="141" y="168" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="144" y="168" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="141" y="172" width="2" height="1.5" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="147" y="172" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="144" y="176" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+
+        <!-- Tall tower 2 -->
+        <rect x="160" y="162" width="8" height="20" fill="#181820"/>
+        <rect x="159" y="160" width="10" height="3" fill="#222230"/>
+        <rect x="161" y="164" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="164" y="164" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="161" y="168" width="2" height="1.5" fill="rgba(255,220,140,0.25)" rx="0.2"/>
+        <rect x="164" y="172" width="2" height="1.5" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="161" y="176" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+
+        <!-- Tall tower 3 -->
+        <rect x="120" y="165" width="7" height="17" fill="#1c1c24"/>
+        <rect x="119" y="163" width="9" height="3" fill="#24242e"/>
+        <rect x="121" y="167" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="124" y="167" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="121" y="171" width="2" height="1.5" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="124" y="175" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+
+        <!-- Medium buildings cluster -->
+        <rect x="175" y="170" width="9" height="12" fill="#1a1a22"/>
+        <rect x="176" y="172" width="2" height="1.2" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="180" y="172" width="2" height="1.2" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="176" y="176" width="2" height="1.2" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+
+        <rect x="100" y="172" width="8" height="10" fill="#181822"/>
+        <rect x="101" y="174" width="2" height="1.2" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="104" y="174" width="2" height="1.2" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="101" y="178" width="2" height="1.2" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+
+        <!-- Mid-ground shorter buildings -->
+        <rect x="60" y="192" width="12" height="8" fill="#181820"/>
+        <rect x="85" y="190" width="10" height="10" fill="#1a1a22"/>
+        <rect x="195" y="192" width="11" height="8" fill="#181820"/>
+        <rect x="220" y="194" width="9" height="6" fill="#1c1c24"/>
+        <rect x="240" y="193" width="10" height="7" fill="#181820"/>
+
+        <!-- Foreground buildings (larger, more detail) -->
+        <rect x="30" y="268" width="18" height="12" fill="#1a1a22"/>
+        <polygon points="30,268 35,262 53,262 48,268" fill="#222230"/>
+        <rect x="32" y="270" width="3" height="2.5" fill="rgba(255,220,140,0.2)" rx="0.3"/>
+        <rect x="37" y="270" width="3" height="2.5" fill="rgba(255,220,140,0.12)" rx="0.3"/>
+        <rect x="42" y="270" width="3" height="2.5" fill="rgba(255,220,140,0.18)" rx="0.3"/>
+        <rect x="32" y="274" width="3" height="2.5" fill="rgba(255,220,140,0.1)" rx="0.3"/>
+        <rect x="42" y="274" width="3" height="2.5" fill="rgba(255,220,140,0.22)" rx="0.3"/>
+
+        <rect x="200" y="264" width="22" height="16" fill="#181820"/>
+        <polygon points="200,264 206,256 228,256 222,264" fill="#20202a"/>
+        <rect x="203" y="267" width="3" height="2.5" fill="rgba(255,220,140,0.15)" rx="0.3"/>
+        <rect x="208" y="267" width="3" height="2.5" fill="rgba(255,220,140,0.22)" rx="0.3"/>
+        <rect x="213" y="267" width="3" height="2.5" fill="rgba(255,220,140,0.1)" rx="0.3"/>
+        <rect x="203" y="272" width="3" height="2.5" fill="rgba(255,220,140,0.18)" rx="0.3"/>
+        <rect x="213" y="272" width="3" height="2.5" fill="rgba(255,220,140,0.12)" rx="0.3"/>
+
+        <rect x="120" y="290" width="25" height="18" fill="#1a1a22"/>
+        <polygon points="120,290 128,280 153,280 145,290" fill="#222230"/>
+        <rect x="123" y="293" width="4" height="3" fill="rgba(255,220,140,0.2)" rx="0.3"/>
+        <rect x="129" y="293" width="4" height="3" fill="rgba(255,220,140,0.12)" rx="0.3"/>
+        <rect x="135" y="293" width="4" height="3" fill="rgba(255,220,140,0.18)" rx="0.3"/>
+        <rect x="123" y="299" width="4" height="3" fill="rgba(255,220,140,0.1)" rx="0.3"/>
+        <rect x="129" y="299" width="4" height="3" fill="rgba(255,220,140,0.22)" rx="0.3"/>
+        <rect x="135" y="299" width="4" height="3" fill="rgba(255,220,140,0.15)" rx="0.3"/>
+
+        <!-- Big foreground building -->
+        <rect x="55" y="336" width="30" height="22" fill="#1a1a22"/>
+        <polygon points="55,336 64,324 94,324 85,336" fill="#222230"/>
+        <rect x="58" y="340" width="4" height="3.5" fill="rgba(255,220,140,0.22)" rx="0.3"/>
+        <rect x="65" y="340" width="4" height="3.5" fill="rgba(255,220,140,0.1)" rx="0.3"/>
+        <rect x="72" y="340" width="4" height="3.5" fill="rgba(255,220,140,0.18)" rx="0.3"/>
+        <rect x="79" y="340" width="4" height="3.5" fill="rgba(255,220,140,0.12)" rx="0.3"/>
+        <rect x="58" y="348" width="4" height="3.5" fill="rgba(255,220,140,0.15)" rx="0.3"/>
+        <rect x="65" y="348" width="4" height="3.5" fill="rgba(255,220,140,0.25)" rx="0.3"/>
+        <rect x="72" y="348" width="4" height="3.5" fill="rgba(255,220,140,0.08)" rx="0.3"/>
+        <rect x="79" y="348" width="4" height="3.5" fill="rgba(255,220,140,0.2)" rx="0.3"/>
+
+        <rect x="230" y="330" width="28" height="20" fill="#181820"/>
+        <polygon points="230,330 238,320 266,320 258,330" fill="#20202a"/>
+        <rect x="233" y="334" width="4" height="3" fill="rgba(255,220,140,0.18)" rx="0.3"/>
+        <rect x="240" y="334" width="4" height="3" fill="rgba(255,220,140,0.1)" rx="0.3"/>
+        <rect x="247" y="334" width="4" height="3" fill="rgba(255,220,140,0.22)" rx="0.3"/>
+        <rect x="233" y="342" width="4" height="3" fill="rgba(255,220,140,0.12)" rx="0.3"/>
+        <rect x="247" y="342" width="4" height="3" fill="rgba(255,220,140,0.15)" rx="0.3"/>
+      </g>
+
+      <!-- Park in perspective -->
+      <path d="M60,200 Q80,196 100,200 Q104,208 100,218 Q80,222 60,218 Q56,210 60,200 Z" fill="#0c1c0c" opacity="0.5"/>
+      <path d="M180" fill="#0c1c0c" opacity="0.4"/>
+
+      <!-- Atmospheric glow on horizon -->
+      <rect x="0" y="110" width="312" height="40" fill="url(#sky)" opacity="0.3"/>
+
+      <!-- Transit (pitched) -->
+      <path d="M140,120 Q142,170 148,230 Q154,300 162,380 Q166,400 170,416" stroke="#a78bfa" stroke-width="0.9" opacity="0.25" stroke-dasharray="3,2.5" fill="none"/>
+    </svg>
+    <div class="poster-label">
+      <div class="title">Brooklyn</div>
+      <div class="coords">40.6782° N, 73.9442° W</div>
+    </div>
+  </div>
+  <div class="tags">
+    <span class="tag tag-pro">Dramatic depth</span>
+    <span class="tag tag-pro">Lit windows feel alive</span>
+    <span class="tag tag-pro">MapLibre does this natively</span>
+    <span class="tag tag-con">Harder print export</span>
+    <span class="tag tag-con">Hybrid architecture needed</span>
+  </div>
+  <div class="complexity">
+    Engineering complexity
+    <div class="complexity-bar"><div class="complexity-fill" style="width:60%; background: #f39c12;"></div></div>
+  </div>
+</div>
+
+<!-- OPTION 3: 3D Terrain -->
+<div class="poster-card" data-choice="3d-terrain" onclick="toggleSelect && toggleSelect(this)">
+  <h2>Option 3: 3D Terrain + Elevation</h2>
+  <div class="desc">Full 3D with hills, elevation shading, and terrain relief. Stunning for mountain/coastal cities. WebGL required.</div>
+  <div class="poster-frame">
+    <svg viewBox="0 0 312 416" width="312" height="416" xmlns="http://www.w3.org/2000/svg">
+      <rect width="312" height="416" fill="#0a0a0c"/>
+
+      <!-- Sky -->
+      <defs>
+        <linearGradient id="sky3" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#121828"/>
+          <stop offset="100%" stop-color="#0a0a0c"/>
+        </linearGradient>
+        <linearGradient id="terrain-light" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.06)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0.1)"/>
+        </linearGradient>
+        <radialGradient id="glow" cx="0.5" cy="0.35" r="0.5">
+          <stop offset="0%" stop-color="rgba(167,139,250,0.08)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+      </defs>
+      <rect width="312" height="200" fill="url(#sky3)"/>
+      <rect width="312" height="416" fill="url(#glow)"/>
+
+      <!-- Terrain mesh - rolling hills rendered as stacked perspective layers -->
+      <!-- Far ridge -->
+      <path d="M0,135 Q30,120 60,125 Q90,115 120,128 Q150,110 180,122 Q210,108 240,118 Q270,112 300,120 L312,118 L312,145 Q270,140 240,145 Q210,138 180,148 Q150,140 120,150 Q90,143 60,148 Q30,145 0,150 Z" fill="#12141a" stroke="rgba(240,240,240,0.06)" stroke-width="0.3"/>
+      <!-- Mid ridge -->
+      <path d="M0,155 Q40,140 80,148 Q120,132 160,145 Q200,128 240,140 Q280,133 312,142 L312,172 Q280,165 240,170 Q200,160 160,172 Q120,162 80,175 Q40,168 0,178 Z" fill="#14161e" stroke="rgba(240,240,240,0.08)" stroke-width="0.3"/>
+      <!-- Near ridge -->
+      <path d="M0,180 Q50,162 100,172 Q150,155 200,168 Q250,152 312,165 L312,200 Q250,188 200,198 Q150,185 100,200 Q50,192 0,205 Z" fill="#161820" stroke="rgba(240,240,240,0.1)" stroke-width="0.4"/>
+
+      <!-- Terrain contour lines (subtle) -->
+      <path d="M0,145 Q60,130 120,140 Q180,125 240,135 Q280,128 312,135" stroke="rgba(240,240,240,0.04)" stroke-width="0.5" fill="none"/>
+      <path d="M0,165 Q60,150 120,158 Q180,142 240,152 Q280,146 312,155" stroke="rgba(240,240,240,0.05)" stroke-width="0.5" fill="none"/>
+      <path d="M0,190 Q60,174 120,182 Q180,168 240,178 Q280,170 312,180" stroke="rgba(240,240,240,0.06)" stroke-width="0.5" fill="none"/>
+
+      <!-- Flat area / valley with street grid -->
+      <rect x="0" y="200" width="312" height="216" fill="#0e1014"/>
+
+      <!-- Hillshade overlay (light from top-left) -->
+      <path d="M0,200 Q50,185 100,195 Q150,180 200,192 Q250,178 312,190 L312,220 Q250,210 200,218 Q150,208 100,220 Q50,212 0,225 Z" fill="url(#terrain-light)" opacity="0.5"/>
+
+      <!-- Streets on the terrain surface (slightly warped) -->
+      <!-- Major -->
+      <path d="M0,240 Q78,237 156,240 Q234,243 312,240" stroke="#f0f0f0" stroke-width="1.6" opacity="0.9" fill="none"/>
+      <path d="M156,200 Q156,250 156,300 Q156,350 156,416" stroke="#f0f0f0" stroke-width="1.8" opacity="0.9" fill="none"/>
+      <path d="M0,280 Q78,278 156,280 Q234,282 312,280" stroke="#f0f0f0" stroke-width="1.4" opacity="0.85" fill="none"/>
+      <path d="M80,200 Q76,260 72,320 Q68,380 64,416" stroke="#f0f0f0" stroke-width="1.5" opacity="0.85" fill="none"/>
+      <path d="M230,200 Q234,260 238,320 Q242,380 246,416" stroke="#f0f0f0" stroke-width="1.3" opacity="0.8" fill="none"/>
+
+      <!-- Secondary grid -->
+      <g stroke="rgba(240,240,240,0.35)" fill="none">
+        <line x1="0" y1="215" x2="312" y2="215" stroke-width="0.6"/>
+        <line x1="0" y1="228" x2="312" y2="228" stroke-width="0.5"/>
+        <line x1="0" y1="254" x2="312" y2="254" stroke-width="0.6"/>
+        <line x1="0" y1="268" x2="312" y2="268" stroke-width="0.5"/>
+        <line x1="0" y1="295" x2="312" y2="295" stroke-width="0.6"/>
+        <line x1="0" y1="310" x2="312" y2="310" stroke-width="0.5"/>
+        <line x1="0" y1="328" x2="312" y2="328" stroke-width="0.5"/>
+        <line x1="0" y1="345" x2="312" y2="345" stroke-width="0.5"/>
+        <line x1="0" y1="365" x2="312" y2="365" stroke-width="0.45"/>
+        <line x1="0" y1="385" x2="312" y2="385" stroke-width="0.45"/>
+        <line x1="0" y1="402" x2="312" y2="402" stroke-width="0.4"/>
+      </g>
+      <g stroke="rgba(240,240,240,0.3)" fill="none">
+        <line x1="30" y1="200" x2="24" y2="416" stroke-width="0.5"/>
+        <line x1="55" y1="200" x2="50" y2="416" stroke-width="0.45"/>
+        <line x1="110" y1="200" x2="106" y2="416" stroke-width="0.5"/>
+        <line x1="130" y1="200" x2="128" y2="416" stroke-width="0.45"/>
+        <line x1="185" y1="200" x2="188" y2="416" stroke-width="0.5"/>
+        <line x1="205" y1="200" x2="210" y2="416" stroke-width="0.45"/>
+        <line x1="260" y1="200" x2="266" y2="416" stroke-width="0.5"/>
+        <line x1="285" y1="200" x2="290" y2="416" stroke-width="0.45"/>
+      </g>
+
+      <!-- Residential infill -->
+      <g opacity="0.45" stroke="rgba(240,240,240,0.15)" fill="none">
+        <line x1="6" y1="245" x2="68" y2="245" stroke-width="0.25"/>
+        <line x1="6" y1="250" x2="68" y2="250" stroke-width="0.2"/>
+        <line x1="6" y1="258" x2="68" y2="258" stroke-width="0.25"/>
+        <line x1="6" y1="263" x2="68" y2="263" stroke-width="0.2"/>
+        <line x1="6" y1="270" x2="68" y2="270" stroke-width="0.25"/>
+        <line x1="6" y1="275" x2="68" y2="275" stroke-width="0.2"/>
+        <line x1="110" y1="245" x2="148" y2="245" stroke-width="0.25"/>
+        <line x1="110" y1="250" x2="148" y2="250" stroke-width="0.2"/>
+        <line x1="110" y1="258" x2="148" y2="258" stroke-width="0.25"/>
+        <line x1="110" y1="263" x2="148" y2="263" stroke-width="0.2"/>
+        <line x1="110" y1="270" x2="148" y2="270" stroke-width="0.25"/>
+        <line x1="165" y1="245" x2="225" y2="245" stroke-width="0.25"/>
+        <line x1="165" y1="250" x2="225" y2="250" stroke-width="0.2"/>
+        <line x1="165" y1="258" x2="225" y2="258" stroke-width="0.25"/>
+        <line x1="165" y1="263" x2="225" y2="263" stroke-width="0.2"/>
+        <line x1="165" y1="270" x2="225" y2="270" stroke-width="0.25"/>
+        <line x1="165" y1="275" x2="225" y2="275" stroke-width="0.2"/>
+      </g>
+
+      <!-- Water on terrain -->
+      <path d="M0,218 Q40,212 80,220 Q120,210 160,222 Q200,215 240,225 Q280,218 312,228 L312,248 Q280,240 240,246 Q200,238 160,244 Q120,236 80,242 Q40,236 0,240 Z" fill="#111c2c" opacity="0.6"/>
+
+      <!-- Elevation-based building heights -->
+      <g>
+        <!-- Buildings on hills are taller perspective -->
+        <rect x="95" y="204" width="10" height="14" fill="#181822"/>
+        <rect x="95" y="202" width="10" height="3" fill="#222230"/>
+        <rect x="96" y="206" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="100" y="206" width="2" height="1.5" fill="rgba(255,220,140,0.12)" rx="0.2"/>
+        <rect x="96" y="210" width="2" height="1.5" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="100" y="214" width="2" height="1.5" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+
+        <rect x="170" y="208" width="8" height="10" fill="#1a1a22"/>
+        <rect x="171" y="210" width="2" height="1.5" fill="rgba(255,220,140,0.18)" rx="0.2"/>
+        <rect x="175" y="210" width="2" height="1.5" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="171" y="214" width="2" height="1.5" fill="rgba(255,220,140,0.22)" rx="0.2"/>
+
+        <!-- Valley buildings shorter -->
+        <rect x="40" y="258" width="14" height="8" fill="#1a1a22"/>
+        <rect x="42" y="260" width="2.5" height="2" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+        <rect x="46" y="260" width="2.5" height="2" fill="rgba(255,220,140,0.2)" rx="0.2"/>
+        <rect x="50" y="260" width="2.5" height="2" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+
+        <rect x="200" y="255" width="16" height="10" fill="#181820"/>
+        <rect x="202" y="257" width="3" height="2" fill="rgba(255,220,140,0.18)" rx="0.2"/>
+        <rect x="207" y="257" width="3" height="2" fill="rgba(255,220,140,0.12)" rx="0.2"/>
+        <rect x="212" y="257" width="3" height="2" fill="rgba(255,220,140,0.22)" rx="0.2"/>
+        <rect x="202" y="261" width="3" height="2" fill="rgba(255,220,140,0.1)" rx="0.2"/>
+        <rect x="207" y="261" width="3" height="2" fill="rgba(255,220,140,0.15)" rx="0.2"/>
+      </g>
+
+      <!-- Contour lines in the valley (subtle topographic feel) -->
+      <g opacity="0.08" stroke="#a78bfa" fill="none">
+        <ellipse cx="156" cy="300" rx="120" ry="30" stroke-width="0.5"/>
+        <ellipse cx="156" cy="300" rx="90" ry="22" stroke-width="0.4"/>
+        <ellipse cx="156" cy="300" rx="60" ry="14" stroke-width="0.3"/>
+      </g>
+
+      <!-- Parks -->
+      <path d="M250" y1="282" fill="#0c1c0c" opacity="0.5"/>
+      <ellipse cx="260" cy="290" rx="25" ry="15" fill="#0c1c0c" opacity="0.4"/>
+      <ellipse cx="50" cy="310" rx="18" ry="12" fill="#0c1c0c" opacity="0.45"/>
+    </svg>
+    <div class="poster-label">
+      <div class="title">Brooklyn</div>
+      <div class="coords">40.6782° N, 73.9442° W</div>
+    </div>
+  </div>
+  <div class="tags">
+    <span class="tag tag-pro">Most dramatic</span>
+    <span class="tag tag-pro">Stunning for hilly cities</span>
+    <span class="tag tag-con">WebGL dependency</span>
+    <span class="tag tag-con">Brooklyn is flat — bad demo</span>
+    <span class="tag tag-con">Hardest to build</span>
+  </div>
+  <div class="complexity">
+    Engineering complexity
+    <div class="complexity-bar"><div class="complexity-fill" style="width:90%; background: #e74c3c;"></div></div>
+  </div>
+</div>
+
+</div>
+
+<div style="text-align:center; margin-top:28px; padding: 16px 24px; max-width:800px; margin-left:auto; margin-right:auto; background: rgba(167,139,250,0.06); border-radius: 8px; border: 1px solid rgba(167,139,250,0.15);">
+  <p style="font-size:13px; color:rgba(255,255,255,0.6); margin:0;">
+    <strong style="color:#a78bfa;">Note:</strong> These are still hand-drawn SVG approximations. The real versions would use actual map data.
+    The 2D flat option is underselling itself the most — real OSM data for Brooklyn has <strong>thousands</strong> of curved streets, and the density creates a beautiful textile-like texture that's hard to fake by hand.
+  </p>
+</div>
+
+</body>
+</html>

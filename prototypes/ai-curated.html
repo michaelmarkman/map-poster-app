@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster — AI-Curated Concepts</title>
+<link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111113; color: #e4e4e7; font-family: 'Inter', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  #sidebar {
+    width: 340px; min-width: 340px; background: #18181b; border-right: 1px solid #27272a;
+    display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: #3f3f46 transparent;
+  }
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+
+  .sidebar-section { padding: 16px 18px; border-bottom: 1px solid #27272a; }
+  .sidebar-section:last-child { border-bottom: none; }
+  .section-title {
+    font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #71717a; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-title svg { width: 14px; height: 14px; opacity: 0.5; }
+
+  /* Logo */
+  .logo { padding: 18px 18px 14px; border-bottom: 1px solid #27272a; }
+  .logo-text { font-family: 'Inter'; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-text .map { color: #fff; }
+  .logo-text .poster { color: #a78bfa; }
+  .logo-sub { font-size: 11px; color: #52525b; margin-top: 2px; }
+
+  /* Location */
+  .location-address {
+    font-size: 18px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;
+  }
+  .location-address .edit-icon { cursor: pointer; opacity: 0.3; transition: opacity 0.2s; }
+  .location-address .edit-icon:hover { opacity: 0.7; }
+  .location-hood { font-size: 13px; color: #a1a1aa; margin-top: 4px; }
+  .location-coords { font-family: 'Space Mono'; font-size: 11px; color: #52525b; margin-top: 6px; }
+
+  /* Concept cards */
+  .concept-card {
+    background: #1c1c20; border: 1px solid #27272a; border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: all 0.25s ease; margin-bottom: 8px;
+  }
+  .concept-card:last-child { margin-bottom: 0; }
+  .concept-card:hover { background: #222228; border-color: #3f3f46; }
+  .concept-card.active { border-color: #a78bfa; background: #1e1b2e; box-shadow: 0 0 16px rgba(167,139,250,0.08); }
+  .concept-card .card-header { display: flex; align-items: center; gap: 8px; }
+  .concept-icon {
+    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+  .concept-card.active .concept-icon { box-shadow: 0 0 10px rgba(167,139,250,0.3); }
+  .concept-name { font-size: 13px; font-weight: 600; color: #f4f4f5; }
+  .concept-desc { font-size: 11px; color: #71717a; margin-top: 5px; line-height: 1.4; padding-left: 40px; }
+
+  /* Sliders */
+  .control-row { margin-bottom: 10px; }
+  .control-row:last-child { margin-bottom: 0; }
+  .control-label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: #a1a1aa; margin-bottom: 5px;
+  }
+  .control-value { font-family: 'Space Mono'; font-size: 11px; color: #71717a; }
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px;
+    background: #27272a; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #a78bfa; cursor: pointer; border: 2px solid #18181b;
+  }
+
+  /* Toggles */
+  .toggle-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; font-size: 12px; color: #a1a1aa;
+  }
+  .toggle {
+    width: 36px; height: 20px; border-radius: 10px; background: #27272a;
+    position: relative; cursor: pointer; transition: background 0.2s;
+  }
+  .toggle.on { background: #a78bfa; }
+  .toggle::after {
+    content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* Color scheme chips */
+  .scheme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .scheme-chip {
+    padding: 8px 10px; border-radius: 8px; border: 1px solid #27272a; cursor: pointer;
+    font-size: 11px; font-weight: 500; text-align: center; transition: all 0.2s;
+  }
+  .scheme-chip:hover { border-color: #3f3f46; }
+  .scheme-chip.active { border-color: #a78bfa; background: #1e1b2e; }
+  .scheme-chip .swatch {
+    display: flex; gap: 3px; justify-content: center; margin-bottom: 5px;
+  }
+  .scheme-chip .swatch span { width: 12px; height: 12px; border-radius: 3px; display: block; }
+
+  /* Text inputs */
+  .text-input {
+    width: 100%; background: #111113; border: 1px solid #27272a; border-radius: 6px;
+    padding: 8px 10px; color: #e4e4e7; font-family: 'Inter'; font-size: 12px;
+    outline: none; margin-bottom: 8px; transition: border-color 0.2s;
+  }
+  .text-input:focus { border-color: #a78bfa; }
+  .text-input:last-child { margin-bottom: 0; }
+  .text-pos-toggle { display: flex; gap: 6px; margin-top: 8px; }
+  .text-pos-btn {
+    flex: 1; padding: 6px; border-radius: 6px; border: 1px solid #27272a; background: transparent;
+    color: #71717a; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s;
+  }
+  .text-pos-btn.active { border-color: #a78bfa; color: #a78bfa; background: #1e1b2e; }
+
+  /* Export */
+  .size-grid { display: flex; gap: 6px; margin-bottom: 10px; }
+  .size-btn {
+    flex: 1; padding: 8px 4px; border-radius: 6px; border: 1px solid #27272a; background: transparent;
+    color: #71717a; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s;
+  }
+  .size-btn.active { border-color: #a78bfa; color: #a78bfa; background: #1e1b2e; }
+  .export-btn {
+    width: 100%; padding: 12px; border-radius: 8px; border: none;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff;
+    font-family: 'Inter'; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.2s; letter-spacing: 0.3px;
+  }
+  .export-btn:hover { opacity: 0.9; }
+
+  /* Main area */
+  #main {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #111113; padding: 20px; position: relative;
+  }
+
+  /* Poster frame */
+  #poster-frame {
+    position: relative; border: 1px solid #27272a; border-radius: 4px;
+    overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    width: min(calc((100vh - 40px) * 0.75), calc(100vw - 400px));
+    height: min(calc(100vh - 40px), calc((100vw - 400px) / 0.75));
+    max-width: 600px; max-height: 800px;
+    display: flex; flex-direction: column;
+  }
+
+  #map-container { flex: 1; position: relative; overflow: hidden; }
+  #map { width: 100%; height: 100%; }
+
+  /* Location marker */
+  .location-marker { width: 16px; height: 16px; position: relative; }
+  .marker-dot {
+    width: 10px; height: 10px; background: #a78bfa; border-radius: 50%;
+    border: 2px solid #fff; position: absolute; top: 3px; left: 3px; z-index: 2;
+  }
+  .marker-pulse {
+    width: 30px; height: 30px; border-radius: 50%; background: rgba(167,139,250,0.3);
+    position: absolute; top: -7px; left: -7px; animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+
+  /* Text overlay */
+  #text-overlay {
+    padding: 20px 24px 18px; text-align: center; background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px); position: absolute; left: 0; right: 0;
+    z-index: 10; transition: all 0.3s;
+  }
+  #text-overlay.bottom { bottom: 0; top: auto; }
+  #text-overlay.top { top: 0; bottom: auto; }
+  #text-overlay .poster-title {
+    font-family: 'Playfair Display'; font-size: 22px; font-weight: 600;
+    letter-spacing: 6px; text-transform: uppercase; color: #fff;
+  }
+  #text-overlay .poster-subtitle {
+    font-size: 11px; color: #a1a1aa; margin-top: 6px; letter-spacing: 1px;
+  }
+  #text-overlay .poster-coords {
+    font-family: 'Space Mono'; font-size: 10px; color: #52525b; margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Size badge */
+  .size-badge {
+    position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); border: 1px solid #27272a; border-radius: 4px;
+    padding: 3px 8px; font-family: 'Space Mono'; font-size: 9px; color: #52525b;
+    z-index: 11;
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div class="logo">
+    <div class="logo-text"><span class="map">map</span><span class="poster">poster</span></div>
+    <div class="logo-sub">AI-curated poster concepts</div>
+  </div>
+
+  <!-- Location -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Location
+    </div>
+    <div class="location-address">
+      <span>250 1st Ave</span>
+      <svg class="edit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </div>
+    <div class="location-hood">East Village, Manhattan</div>
+    <div class="location-coords">40.7323&#176; N, 73.9812&#176; W</div>
+  </div>
+
+  <!-- Poster Concepts -->
+  <div class="sidebar-section" id="concepts-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Poster Concepts
+    </div>
+    <div id="concept-cards"></div>
+  </div>
+
+  <!-- Camera -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="4"/><path d="M5 7h2l2-3h6l2 3h2a2 2 0 012 2v9a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2"/></svg>
+      Camera
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Pitch</span><span class="control-value" id="pitch-val">50&#176;</span></div>
+      <input type="range" id="pitch-slider" min="0" max="85" step="1" value="50">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Bearing</span><span class="control-value" id="bearing-val">-30&#176;</span></div>
+      <input type="range" id="bearing-slider" min="-180" max="180" step="1" value="-30">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Zoom</span><span class="control-value" id="zoom-val">15.5</span></div>
+      <input type="range" id="zoom-slider" min="10" max="19" step="0.1" value="15.5">
+    </div>
+  </div>
+
+  <!-- Buildings -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22V12h6v10M9 6h.01M15 6h.01M9 10h.01M15 10h.01"/></svg>
+      Buildings
+    </div>
+    <div class="toggle-row">
+      <span>Show buildings</span>
+      <div class="toggle on" id="toggle-buildings"></div>
+    </div>
+    <div class="control-row" style="margin-top:10px">
+      <div class="control-label"><span>Height</span><span class="control-value" id="height-val">1.0x</span></div>
+      <input type="range" id="height-slider" min="0.5" max="3" step="0.1" value="1">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Opacity</span><span class="control-value" id="opacity-val">70%</span></div>
+      <input type="range" id="opacity-slider" min="0" max="100" step="5" value="70">
+    </div>
+  </div>
+
+  <!-- Style -->
+  <div class="sidebar-section" id="style-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12a10 10 0 005 8.66"/></svg>
+      Style
+    </div>
+    <div class="scheme-grid" id="scheme-grid"></div>
+  </div>
+
+  <!-- Layers -->
+  <div class="sidebar-section" id="layers-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      Layers
+    </div>
+    <!-- Built dynamically -->
+  </div>
+
+  <!-- Text -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+      Text
+    </div>
+    <input class="text-input" id="text-title" value="East Village" placeholder="Title">
+    <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
+    <input class="text-input" id="text-coords" value="40.7323&#176; N, 73.9812&#176; W" placeholder="Coordinates">
+    <div class="text-pos-toggle" id="text-pos-toggle"></div>
+  </div>
+
+  <!-- Export -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </div>
+    <div class="size-grid" id="size-grid"></div>
+    <button class="export-btn" id="export-btn">Download PNG</button>
+  </div>
+</div>
+
+<!-- Main poster area -->
+<div id="main">
+  <div id="poster-frame">
+    <div class="size-badge" id="size-badge">18 x 24"</div>
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+    <div id="text-overlay" class="bottom">
+      <div class="poster-title" id="overlay-title">East Village</div>
+      <div class="poster-subtitle" id="overlay-subtitle">250 1st Avenue</div>
+      <div class="poster-coords" id="overlay-coords">40.7323&#176; N, 73.9812&#176; W</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var CENTER = [-73.9812, 40.7323];
+
+  var concepts = [
+    {
+      id: 'grid-ovals', name: 'The Grid & The Ovals', icon: '\u229E',
+      iconBg: '#2d1f5e',
+      desc: "Manhattan's rigid street grid meets Stuy Town's organic oval loops \u2014 a stunning urban contrast.",
+      center: [-73.9785, 40.7330], zoom: 15.5, pitch: 50, bearing: -30,
+      heightMult: 1, buildingColor: '#1a1a2e'
+    },
+    {
+      id: 'east-river', name: 'East River Lookout', icon: '\u223C',
+      iconBg: '#0c2d48',
+      desc: 'The waterfront, FDR Drive, and East River Park seen from above \u2014 where city meets water.',
+      center: [-73.9740, 40.7320], zoom: 14.5, pitch: 60, bearing: 90,
+      heightMult: 1.5, buildingColor: '#1a2a3e'
+    },
+    {
+      id: 'texture', name: 'Neighborhood Texture', icon: '\u25A1',
+      iconBg: '#2a2a2a',
+      desc: 'Pure top-down view of the East Village blocks \u2014 every cross street and avenue in fine detail.',
+      center: [-73.9812, 40.7323], zoom: 16.5, pitch: 0, bearing: 0,
+      heightMult: 0, buildingColor: '#1a1a2e'
+    },
+    {
+      id: 'downtown', name: 'Downtown Skyline', icon: '\u25B2',
+      iconBg: '#2e1a3e',
+      desc: "East Village in foreground, Lower Manhattan's towers rising dramatically in the distance.",
+      center: [-73.9860, 40.7380], zoom: 13.5, pitch: 65, bearing: 160,
+      heightMult: 2.5, buildingColor: '#1a1a2e'
+    },
+    {
+      id: 'full-island', name: 'The Full Island', icon: '\u2316',
+      iconBg: '#1a2e1a',
+      desc: 'Manhattan\'s narrow island shape between two rivers \u2014 see how your neighborhood fits in.',
+      center: [-73.9812, 40.7500], zoom: 11.5, pitch: 45, bearing: -15,
+      heightMult: 1, buildingColor: '#1a1a2e'
+    },
+    {
+      id: 'night-walk', name: 'Night Walk', icon: '\u2605',
+      iconBg: '#1a0a2e',
+      desc: 'Street-level perspective \u2014 like walking through the neighborhood and looking up at buildings.',
+      center: [-73.9812, 40.7323], zoom: 16, pitch: 70, bearing: -45,
+      heightMult: 2, buildingColor: '#12082e'
+    }
+  ];
+
+  // Color schemes
+  var schemeData = [
+    { key: 'dark-bold', label: 'Dark Bold', colors: ['#111', '#fff', '#1a1a2e'] },
+    { key: 'minimal-light', label: 'Minimal Light', colors: ['#f5f5f0', '#333', '#ccc'] },
+    { key: 'midnight-neon', label: 'Midnight Neon', colors: ['#0a0a1a', '#00ffcc', '#ff00ff'] },
+    { key: 'blueprint', label: 'Blueprint', colors: ['#0d1b2a', '#4cc9f0', '#1a3a5c'] }
+  ];
+
+  var schemes = {
+    'dark-bold': {
+      bg: '#111113', road: '#ffffff', roadOp: 0.6, building: '#1a1a2e', buildingOp: 0.7,
+      water: '#0a1628', park: '#0a1e0a', label: '#ffffff'
+    },
+    'minimal-light': {
+      bg: '#f5f5f0', road: '#333333', roadOp: 0.5, building: '#d4d4cc', buildingOp: 0.5,
+      water: '#c8d8e8', park: '#d8e8d0', label: '#333333'
+    },
+    'midnight-neon': {
+      bg: '#0a0a1a', road: '#00ffcc', roadOp: 0.5, building: '#1a0a3e', buildingOp: 0.8,
+      water: '#000a1e', park: '#001a10', label: '#ff00ff'
+    },
+    'blueprint': {
+      bg: '#0d1b2a', road: '#4cc9f0', roadOp: 0.5, building: '#1a3a5c', buildingOp: 0.6,
+      water: '#081828', park: '#0a2a28', label: '#4cc9f0'
+    }
+  };
+
+  var currentScheme = 'dark-bold';
+  var currentConcept = concepts[0];
+  var buildingSourceName = null;
+  var buildingsLayerAdded = false;
+
+  // --- Build concept cards ---
+  var cardsEl = document.getElementById('concept-cards');
+  concepts.forEach(function(c, i) {
+    var card = document.createElement('div');
+    card.className = 'concept-card' + (i === 0 ? ' active' : '');
+    card.dataset.id = c.id;
+
+    var header = document.createElement('div');
+    header.className = 'card-header';
+
+    var iconEl = document.createElement('div');
+    iconEl.className = 'concept-icon';
+    iconEl.style.background = c.iconBg;
+    iconEl.textContent = c.icon;
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'concept-name';
+    nameEl.textContent = c.name;
+
+    header.appendChild(iconEl);
+    header.appendChild(nameEl);
+
+    var descEl = document.createElement('div');
+    descEl.className = 'concept-desc';
+    descEl.textContent = c.desc;
+
+    card.appendChild(header);
+    card.appendChild(descEl);
+    card.addEventListener('click', function() { selectConcept(c); });
+    cardsEl.appendChild(card);
+  });
+
+  // --- Build scheme chips ---
+  var schemeGrid = document.getElementById('scheme-grid');
+  schemeData.forEach(function(s, i) {
+    var chip = document.createElement('div');
+    chip.className = 'scheme-chip' + (i === 0 ? ' active' : '');
+    chip.dataset.scheme = s.key;
+
+    var swatch = document.createElement('div');
+    swatch.className = 'swatch';
+    s.colors.forEach(function(color) {
+      var span = document.createElement('span');
+      span.style.background = color;
+      swatch.appendChild(span);
+    });
+
+    chip.appendChild(swatch);
+    chip.appendChild(document.createTextNode(s.label));
+    chip.addEventListener('click', function() {
+      document.querySelectorAll('.scheme-chip').forEach(function(c) { c.classList.remove('active'); });
+      chip.classList.add('active');
+      applyScheme(s.key);
+    });
+    schemeGrid.appendChild(chip);
+  });
+
+  // --- Build layer toggles ---
+  var layersSection = document.getElementById('layers-section');
+  var layerDefs = [
+    { key: 'streets', label: 'Streets' },
+    { key: 'water', label: 'Water' },
+    { key: 'parks', label: 'Parks' },
+    { key: 'building-fills', label: 'Buildings' },
+    { key: 'labels', label: 'Labels' }
+  ];
+  layerDefs.forEach(function(ld) {
+    var row = document.createElement('div');
+    row.className = 'toggle-row';
+    var label = document.createElement('span');
+    label.textContent = ld.label;
+    var toggle = document.createElement('div');
+    toggle.className = 'toggle on';
+    toggle.dataset.layer = ld.key;
+    toggle.addEventListener('click', function() {
+      this.classList.toggle('on');
+      toggleLayer(ld.key, this.classList.contains('on'));
+    });
+    row.appendChild(label);
+    row.appendChild(toggle);
+    layersSection.appendChild(row);
+  });
+
+  // --- Build text position toggle ---
+  var textPosToggle = document.getElementById('text-pos-toggle');
+  ['Top', 'Bottom'].forEach(function(pos) {
+    var btn = document.createElement('button');
+    btn.className = 'text-pos-btn' + (pos === 'Bottom' ? ' active' : '');
+    btn.dataset.pos = pos.toLowerCase();
+    btn.textContent = pos;
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.text-pos-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var overlay = document.getElementById('text-overlay');
+      overlay.classList.remove('top', 'bottom');
+      overlay.classList.add(pos.toLowerCase());
+    });
+    textPosToggle.appendChild(btn);
+  });
+
+  // --- Build size buttons ---
+  var sizeGrid = document.getElementById('size-grid');
+  var sizes = ['12 x 16"', '18 x 24"', '24 x 36"'];
+  sizes.forEach(function(sz) {
+    var btn = document.createElement('button');
+    btn.className = 'size-btn' + (sz === '18 x 24"' ? ' active' : '');
+    btn.textContent = sz;
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.size-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('size-badge').textContent = sz;
+    });
+    sizeGrid.appendChild(btn);
+  });
+
+  // --- Export button ---
+  document.getElementById('export-btn').addEventListener('click', function() {
+    alert('Export functionality coming soon! This will generate a high-resolution PNG of your poster.');
+  });
+
+  // --- Init map ---
+  var map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    center: concepts[0].center,
+    zoom: concepts[0].zoom,
+    pitch: concepts[0].pitch,
+    bearing: concepts[0].bearing,
+    antialias: true,
+    attributionControl: false
+  });
+
+  // Add pulsing marker
+  var markerEl = document.createElement('div');
+  markerEl.className = 'location-marker';
+  var pulse = document.createElement('div');
+  pulse.className = 'marker-pulse';
+  var dot = document.createElement('div');
+  dot.className = 'marker-dot';
+  markerEl.appendChild(pulse);
+  markerEl.appendChild(dot);
+  new maplibregl.Marker({ element: markerEl, anchor: 'center' })
+    .setLngLat(CENTER)
+    .addTo(map);
+
+  map.on('load', function() {
+    var sources = map.getStyle().sources;
+    var sourceNames = Object.keys(sources);
+    console.log('Available sources:', sourceNames);
+
+    for (var i = 0; i < sourceNames.length; i++) {
+      if (sources[sourceNames[i]].type === 'vector') {
+        buildingSourceName = sourceNames[i];
+        break;
+      }
+    }
+    console.log('Using source:', buildingSourceName);
+    if (buildingSourceName) { addBuildingsLayer(); }
+  });
+
+  function addBuildingsLayer() {
+    if (buildingsLayerAdded) return;
+    try {
+      map.addLayer({
+        id: '3d-buildings',
+        source: buildingSourceName,
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        minzoom: 13,
+        paint: {
+          'fill-extrusion-color': schemes[currentScheme].building,
+          'fill-extrusion-height': [
+            '*',
+            ['coalesce', ['get', 'render_height'], 10],
+            currentConcept.heightMult || 1
+          ],
+          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-opacity': schemes[currentScheme].buildingOp
+        }
+      });
+      buildingsLayerAdded = true;
+    } catch (e) {
+      console.warn('Could not add buildings layer:', e);
+    }
+  }
+
+  // --- Concept selection ---
+  function selectConcept(concept) {
+    currentConcept = concept;
+    document.querySelectorAll('.concept-card').forEach(function(c) { c.classList.remove('active'); });
+    document.querySelector('.concept-card[data-id="' + concept.id + '"]').classList.add('active');
+
+    map.flyTo({
+      center: concept.center,
+      zoom: concept.zoom,
+      pitch: concept.pitch,
+      bearing: concept.bearing,
+      duration: 2000,
+      essential: true
+    });
+
+    if (buildingsLayerAdded) {
+      map.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
+        '*',
+        ['coalesce', ['get', 'render_height'], 10],
+        concept.heightMult || 1
+      ]);
+      var vis = concept.heightMult > 0;
+      map.setLayoutProperty('3d-buildings', 'visibility', vis ? 'visible' : 'none');
+      document.getElementById('toggle-buildings').classList.toggle('on', vis);
+    }
+
+    document.getElementById('height-slider').value = concept.heightMult || 1;
+    document.getElementById('height-val').textContent = (concept.heightMult || 1).toFixed(1) + 'x';
+  }
+
+  // --- Sync sliders with map ---
+  var pitchSlider = document.getElementById('pitch-slider');
+  var bearingSlider = document.getElementById('bearing-slider');
+  var zoomSlider = document.getElementById('zoom-slider');
+
+  map.on('move', function() {
+    pitchSlider.value = map.getPitch();
+    bearingSlider.value = map.getBearing();
+    zoomSlider.value = map.getZoom();
+    document.getElementById('pitch-val').textContent = Math.round(map.getPitch()) + '\u00B0';
+    document.getElementById('bearing-val').textContent = Math.round(map.getBearing()) + '\u00B0';
+    document.getElementById('zoom-val').textContent = map.getZoom().toFixed(1);
+  });
+
+  pitchSlider.addEventListener('input', function(e) {
+    map.setPitch(+e.target.value);
+    document.getElementById('pitch-val').textContent = e.target.value + '\u00B0';
+  });
+  bearingSlider.addEventListener('input', function(e) {
+    map.setBearing(+e.target.value);
+    document.getElementById('bearing-val').textContent = e.target.value + '\u00B0';
+  });
+  zoomSlider.addEventListener('input', function(e) {
+    map.setZoom(+e.target.value);
+    document.getElementById('zoom-val').textContent = (+e.target.value).toFixed(1);
+  });
+
+  // --- Building controls ---
+  document.getElementById('toggle-buildings').addEventListener('click', function() {
+    this.classList.toggle('on');
+    if (buildingsLayerAdded) {
+      map.setLayoutProperty('3d-buildings', 'visibility', this.classList.contains('on') ? 'visible' : 'none');
+    }
+  });
+
+  document.getElementById('height-slider').addEventListener('input', function(e) {
+    var v = +e.target.value;
+    document.getElementById('height-val').textContent = v.toFixed(1) + 'x';
+    if (buildingsLayerAdded) {
+      map.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
+        '*', ['coalesce', ['get', 'render_height'], 10], v
+      ]);
+    }
+  });
+
+  document.getElementById('opacity-slider').addEventListener('input', function(e) {
+    var v = +e.target.value;
+    document.getElementById('opacity-val').textContent = v + '%';
+    if (buildingsLayerAdded) {
+      map.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', v / 100);
+    }
+  });
+
+  // --- Layer toggle logic ---
+  function toggleLayer(layerType, visible) {
+    var layers = map.getStyle().layers;
+    layers.forEach(function(layer) {
+      try {
+        var match = false;
+        if (layerType === 'streets' && layer.type === 'line' && (layer.id.indexOf('road') >= 0 || layer.id.indexOf('street') >= 0 || layer.id.indexOf('highway') >= 0 || layer.id.indexOf('tunnel') >= 0 || layer.id.indexOf('bridge') >= 0 || layer.id.indexOf('path') >= 0 || layer.id.indexOf('rail') >= 0)) match = true;
+        if (layerType === 'water' && layer.id.indexOf('water') >= 0) match = true;
+        if (layerType === 'parks' && (layer.id.indexOf('park') >= 0 || layer.id.indexOf('green') >= 0 || layer.id.indexOf('grass') >= 0)) match = true;
+        if (layerType === 'building-fills' && layer.type === 'fill' && layer.id.indexOf('building') >= 0) match = true;
+        if (layerType === 'labels' && layer.type === 'symbol') match = true;
+        if (match) {
+          map.setLayoutProperty(layer.id, 'visibility', visible ? 'visible' : 'none');
+        }
+      } catch (e) {}
+    });
+  }
+
+  // --- Color scheme ---
+  function applyScheme(schemeName) {
+    currentScheme = schemeName;
+    var s = schemes[schemeName];
+    var layers = map.getStyle().layers;
+
+    layers.forEach(function(layer) {
+      try {
+        if (layer.type === 'background') {
+          map.setPaintProperty(layer.id, 'background-color', s.bg);
+        }
+        if (layer.type === 'line' && (layer.id.indexOf('road') >= 0 || layer.id.indexOf('street') >= 0 || layer.id.indexOf('highway') >= 0 || layer.id.indexOf('tunnel') >= 0 || layer.id.indexOf('bridge') >= 0 || layer.id.indexOf('path') >= 0)) {
+          map.setPaintProperty(layer.id, 'line-color', s.road);
+          map.setPaintProperty(layer.id, 'line-opacity', s.roadOp);
+        }
+        if (layer.type === 'fill' && layer.id.indexOf('water') >= 0) {
+          map.setPaintProperty(layer.id, 'fill-color', s.water);
+        }
+        if (layer.type === 'fill' && (layer.id.indexOf('park') >= 0 || layer.id.indexOf('green') >= 0 || layer.id.indexOf('grass') >= 0)) {
+          map.setPaintProperty(layer.id, 'fill-color', s.park);
+        }
+        if (layer.type === 'symbol') {
+          map.setPaintProperty(layer.id, 'text-color', s.label);
+        }
+        if (layer.type === 'fill' && (layer.id.indexOf('landuse') >= 0 || layer.id.indexOf('land') >= 0)) {
+          map.setPaintProperty(layer.id, 'fill-color', s.bg);
+        }
+      } catch (e) {}
+    });
+
+    if (buildingsLayerAdded) {
+      map.setPaintProperty('3d-buildings', 'fill-extrusion-color', s.building);
+      map.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', s.buildingOp);
+    }
+  }
+
+  // --- Text controls ---
+  document.getElementById('text-title').addEventListener('input', function(e) {
+    document.getElementById('overlay-title').textContent = e.target.value;
+  });
+  document.getElementById('text-subtitle').addEventListener('input', function(e) {
+    document.getElementById('overlay-subtitle').textContent = e.target.value;
+  });
+  document.getElementById('text-coords').addEventListener('input', function(e) {
+    document.getElementById('overlay-coords').textContent = e.target.value;
+  });
+
+})();
+</script>
+</body>
+</html>

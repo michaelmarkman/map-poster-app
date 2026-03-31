@@ -1,0 +1,195 @@
+<h2>Single-Pin vs Multi-Pin — What ships in v1?</h2>
+<p class="subtitle">Compare the two poster types. Is multi-pin a launch feature or a fast-follow?</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">Single Location Poster</div>
+    <div class="mockup-body" style="padding:0; display:flex; align-items:center; justify-content:center;">
+      <div style="width:260px; height:370px; background:#0a0a0a; border-radius:4px; position:relative; display:flex; flex-direction:column; align-items:center; padding:16px; overflow:hidden;">
+
+        <!-- Map area -->
+        <div style="flex:1; width:100%; position:relative; margin-bottom:12px;">
+          <!-- Street grid -->
+          <svg viewBox="0 0 228 260" style="width:100%; height:100%;">
+            <!-- Water body -->
+            <path d="M0,180 Q60,160 120,175 Q180,190 228,170 L228,260 L0,260 Z" fill="#0d2137" opacity="0.6"/>
+
+            <!-- Major roads -->
+            <line x1="80" y1="0" x2="80" y2="260" stroke="#333" stroke-width="2"/>
+            <line x1="150" y1="0" x2="150" y2="260" stroke="#333" stroke-width="2"/>
+            <line x1="0" y1="70" x2="228" y2="70" stroke="#333" stroke-width="2"/>
+            <line x1="0" y1="130" x2="228" y2="130" stroke="#333" stroke-width="2"/>
+
+            <!-- Minor roads -->
+            <line x1="40" y1="0" x2="40" y2="260" stroke="#222" stroke-width="0.8"/>
+            <line x1="115" y1="0" x2="115" y2="260" stroke="#222" stroke-width="0.8"/>
+            <line x1="190" y1="0" x2="190" y2="260" stroke="#222" stroke-width="0.8"/>
+            <line x1="0" y1="30" x2="228" y2="30" stroke="#222" stroke-width="0.8"/>
+            <line x1="0" y1="100" x2="228" y2="100" stroke="#222" stroke-width="0.8"/>
+            <line x1="0" y1="155" x2="228" y2="155" stroke="#222" stroke-width="0.8"/>
+
+            <!-- Diagonal road -->
+            <line x1="0" y1="200" x2="160" y2="40" stroke="#333" stroke-width="1.5"/>
+
+            <!-- Park -->
+            <rect x="85" y="75" width="58" height="48" rx="3" fill="#0a2a1a" stroke="#1a4a2a" stroke-width="0.5"/>
+
+            <!-- Pin -->
+            <g transform="translate(114, 95)">
+              <circle cx="0" cy="0" r="6" fill="#e74c3c" opacity="0.3"/>
+              <circle cx="0" cy="0" r="3" fill="#e74c3c"/>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Text area -->
+        <div style="text-align:center; width:100%;">
+          <div style="font-size:14px; font-weight:300; letter-spacing:6px; color:#f0f0f0; text-transform:uppercase; margin-bottom:4px;">The Wren</div>
+          <div style="font-size:7px; letter-spacing:2px; color:rgba(255,255,255,0.35); text-transform:uppercase; margin-bottom:2px;">Bowery, New York</div>
+          <div style="font-size:6px; font-family:monospace; letter-spacing:1.5px; color:rgba(255,255,255,0.25);">40.7234° N, 73.9934° W</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px;">
+      <h3 style="margin-bottom:8px;">What it takes</h3>
+      <ul style="font-size:13px; color:rgba(255,255,255,0.6); line-height:1.8; padding-left:16px;">
+        <li>Search → pick location → done</li>
+        <li>One zoom level to get right</li>
+        <li>Pin placement is automatic (center)</li>
+        <li>Text: place name + subtitle + coords</li>
+        <li>Style presets apply cleanly</li>
+      </ul>
+      <div style="margin-top:12px; padding:8px 12px; background:rgba(46,204,113,0.1); border-radius:6px; border-left:3px solid #2ecc71;">
+        <div style="font-size:11px; color:#2ecc71; font-weight:600;">Complexity: Low</div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px;">Core product. Must ship in v1.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Multi-Pin Story Map</div>
+    <div class="mockup-body" style="padding:0; display:flex; align-items:center; justify-content:center;">
+      <div style="width:260px; height:370px; background:#0a0a0a; border-radius:4px; position:relative; display:flex; flex-direction:column; align-items:center; padding:16px; overflow:hidden;">
+
+        <!-- Map area - wider zoom -->
+        <div style="flex:1; width:100%; position:relative; margin-bottom:12px;">
+          <svg viewBox="0 0 228 260" style="width:100%; height:100%;">
+            <!-- Water bodies -->
+            <path d="M180,0 Q200,40 195,80 Q190,120 210,160 L228,160 L228,0 Z" fill="#0d2137" opacity="0.5"/>
+            <path d="M0,200 Q40,190 80,210 Q120,220 160,200 Q200,185 228,195 L228,260 L0,260 Z" fill="#0d2137" opacity="0.4"/>
+
+            <!-- Major roads - city scale -->
+            <line x1="60" y1="0" x2="60" y2="260" stroke="#2a2a2a" stroke-width="1.5"/>
+            <line x1="120" y1="0" x2="120" y2="260" stroke="#2a2a2a" stroke-width="1.5"/>
+            <line x1="170" y1="0" x2="170" y2="260" stroke="#2a2a2a" stroke-width="1"/>
+            <line x1="0" y1="50" x2="228" y2="50" stroke="#2a2a2a" stroke-width="1.5"/>
+            <line x1="0" y1="110" x2="228" y2="110" stroke="#2a2a2a" stroke-width="1.5"/>
+            <line x1="0" y1="170" x2="228" y2="170" stroke="#2a2a2a" stroke-width="1"/>
+
+            <!-- Minor grid -->
+            <line x1="30" y1="0" x2="30" y2="260" stroke="#1a1a1a" stroke-width="0.5"/>
+            <line x1="90" y1="0" x2="90" y2="260" stroke="#1a1a1a" stroke-width="0.5"/>
+            <line x1="145" y1="0" x2="145" y2="260" stroke="#1a1a1a" stroke-width="0.5"/>
+            <line x1="0" y1="80" x2="228" y2="80" stroke="#1a1a1a" stroke-width="0.5"/>
+            <line x1="0" y1="140" x2="228" y2="140" stroke="#1a1a1a" stroke-width="0.5"/>
+
+            <!-- Diagonal avenues -->
+            <line x1="0" y1="180" x2="140" y2="0" stroke="#2a2a2a" stroke-width="1"/>
+            <line x1="40" y1="260" x2="228" y2="60" stroke="#2a2a2a" stroke-width="0.8"/>
+
+            <!-- Parks -->
+            <rect x="65" y="55" width="45" height="35" rx="2" fill="#0a2a1a" stroke="#1a4a2a" stroke-width="0.5"/>
+            <rect x="125" y="115" width="25" height="20" rx="2" fill="#0a2a1a" stroke="#1a4a2a" stroke-width="0.5"/>
+
+            <!-- Connecting path (dashed) -->
+            <path d="M50,40 C70,60 85,90 100,100 C115,110 130,135 140,150 C150,165 100,175 85,195" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+            <!-- Pin 1 -->
+            <g transform="translate(50, 40)">
+              <circle cx="0" cy="0" r="8" fill="#e74c3c" opacity="0.2"/>
+              <circle cx="0" cy="0" r="4" fill="#e74c3c"/>
+              <text x="12" y="3" fill="#e74c3c" font-size="7" font-weight="600">1</text>
+            </g>
+
+            <!-- Pin 2 -->
+            <g transform="translate(100, 100)">
+              <circle cx="0" cy="0" r="8" fill="#3498db" opacity="0.2"/>
+              <circle cx="0" cy="0" r="4" fill="#3498db"/>
+              <text x="12" y="3" fill="#3498db" font-size="7" font-weight="600">2</text>
+            </g>
+
+            <!-- Pin 3 -->
+            <g transform="translate(140, 150)">
+              <circle cx="0" cy="0" r="8" fill="#2ecc71" opacity="0.2"/>
+              <circle cx="0" cy="0" r="4" fill="#2ecc71"/>
+              <text x="12" y="3" fill="#2ecc71" font-size="7" font-weight="600">3</text>
+            </g>
+
+            <!-- Pin 4 -->
+            <g transform="translate(85, 195)">
+              <circle cx="0" cy="0" r="8" fill="#f39c12" opacity="0.2"/>
+              <circle cx="0" cy="0" r="4" fill="#f39c12"/>
+              <text x="12" y="3" fill="#f39c12" font-size="7" font-weight="600">4</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Legend + Text area -->
+        <div style="text-align:center; width:100%;">
+          <div style="font-size:14px; font-weight:300; letter-spacing:6px; color:#f0f0f0; text-transform:uppercase; margin-bottom:6px;">Our Story</div>
+          <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+            <div style="font-size:5.5px; color:rgba(255,255,255,0.5); display:flex; align-items:center; gap:3px;"><span style="width:5px; height:5px; background:#e74c3c; border-radius:50%; display:inline-block;"></span>Where we met</div>
+            <div style="font-size:5.5px; color:rgba(255,255,255,0.5); display:flex; align-items:center; gap:3px;"><span style="width:5px; height:5px; background:#3498db; border-radius:50%; display:inline-block;"></span>First date</div>
+            <div style="font-size:5.5px; color:rgba(255,255,255,0.5); display:flex; align-items:center; gap:3px;"><span style="width:5px; height:5px; background:#2ecc71; border-radius:50%; display:inline-block;"></span>First apartment</div>
+            <div style="font-size:5.5px; color:rgba(255,255,255,0.5); display:flex; align-items:center; gap:3px;"><span style="width:5px; height:5px; background:#f39c12; border-radius:50%; display:inline-block;"></span>Our spot</div>
+          </div>
+          <div style="font-size:6px; font-family:monospace; letter-spacing:1.5px; color:rgba(255,255,255,0.25);">New York City • 2019–2024</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px;">
+      <h3 style="margin-bottom:8px;">What it takes</h3>
+      <ul style="font-size:13px; color:rgba(255,255,255,0.6); line-height:1.8; padding-left:16px;">
+        <li>Search + add multiple locations</li>
+        <li>Auto-fit zoom to contain all pins</li>
+        <li>Pin colors, numbering, labels</li>
+        <li>Optional connecting path between pins</li>
+        <li>Legend layout that scales (2–8 pins?)</li>
+        <li>Pin management UI (reorder, remove, edit)</li>
+      </ul>
+      <div style="margin-top:12px; padding:8px 12px; background:rgba(243,156,18,0.1); border-radius:6px; border-left:3px solid #f39c12;">
+        <div style="font-size:11px; color:#f39c12; font-weight:600;">Complexity: Medium-High</div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px;">Differentiator. But adds real scope to v1.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:24px;">
+  <h3 style="margin-bottom:12px;">The question:</h3>
+  <div class="options">
+    <div class="option" data-choice="v1-single-only" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>v1 = Single Pin only</h3>
+        <p>Ship fast with single-location posters. Multi-pin is the big v2 feature that brings people back. Covers most use cases (Our Spot, First Home, Where We Met, Trip Memento).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="v1-both" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>v1 = Both, multi-pin is basic</h3>
+        <p>Ship single-pin polished + a simpler multi-pin (max 4–5 pins, auto-layout, no route lines). Good enough to differentiate, save the fancy stuff for v2.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="v1-multi-focus" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>v1 = Multi-pin is the hero</h3>
+        <p>Lead with multi-pin as the differentiator. Single-pin is just multi-pin with one pin. More ambitious, longer to build, but competitors don't have this.</p>
+      </div>
+    </div>
+  </div>
+</div>

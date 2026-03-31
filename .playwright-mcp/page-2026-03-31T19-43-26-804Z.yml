@@ -1,0 +1,132 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: mapposter
+    - generic [ref=e4]:
+      - generic [ref=e5] [cursor=pointer]: Place ✓
+      - generic [ref=e6]: →
+      - generic [ref=e7] [cursor=pointer]: Style
+      - generic [ref=e8]: →
+      - generic [ref=e9] [cursor=pointer]: Export
+    - generic [ref=e10]:
+      - button "Reset" [ref=e11] [cursor=pointer]
+      - button "Export" [ref=e12] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e15]:
+      - generic: 18 × 24 in
+      - generic [ref=e16]:
+        - generic [ref=e18]:
+          - region "Map" [ref=e19]
+          - generic:
+            - generic [ref=e20]:
+              - button "Zoom in" [ref=e21] [cursor=pointer]
+              - button "Zoom out" [ref=e23] [cursor=pointer]
+              - button "Reset bearing to north" [ref=e25]
+            - group [ref=e27]:
+              - generic "Toggle attribution" [ref=e28] [cursor=pointer]
+              - generic [ref=e29]:
+                - link "MapLibre" [ref=e30] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+                - text: "| ©"
+                - link "CARTO" [ref=e31] [cursor=pointer]:
+                  - /url: https://carto.com/about-carto/
+                - text: ", ©"
+                - link "OpenStreetMap" [ref=e32] [cursor=pointer]:
+                  - /url: http://www.openstreetmap.org/about/
+                - text: contributors
+        - generic [ref=e33]:
+          - generic [ref=e34]: BROOKLYN
+          - generic [ref=e35]: New York, United States
+          - generic [ref=e36]: 40.6782° N / 73.9442° W
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e39]: Style
+        - generic [ref=e40]:
+          - generic [ref=e41] [cursor=pointer]:
+            - generic [ref=e42]: 🌃
+            - generic [ref=e43]: Dark Bold
+          - generic [ref=e44] [cursor=pointer]:
+            - generic [ref=e45]: 🏙️
+            - generic [ref=e46]: Minimal
+          - generic [ref=e47] [cursor=pointer]:
+            - generic [ref=e48]: 🌌
+            - generic [ref=e49]: Midnight
+          - generic [ref=e50] [cursor=pointer]:
+            - generic [ref=e51]: 🌿
+            - generic [ref=e52]: Earth Tone
+      - generic [ref=e54]: Palette
+      - generic [ref=e60]:
+        - generic [ref=e61]: Camera
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - text: Pitch
+            - generic [ref=e64]: 55°
+          - slider [ref=e65]: "55"
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - text: Bearing
+            - generic [ref=e68]: "-20°"
+          - slider [ref=e69]: "-20"
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - text: Zoom
+            - generic [ref=e72]: "14.5"
+          - slider [ref=e73]: "14.5"
+      - generic [ref=e74]:
+        - generic [ref=e75]: Buildings
+        - generic [ref=e76]:
+          - generic [ref=e77]: Show buildings
+          - button [ref=e78] [cursor=pointer]
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - text: Height multiplier
+            - generic [ref=e81]: 1.0x
+          - slider [ref=e82]: "1"
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - text: Opacity
+            - generic [ref=e85]: "0.85"
+          - slider [ref=e86]: "0.85"
+      - generic [ref=e87]:
+        - generic [ref=e88]: Layers
+        - generic [ref=e89]:
+          - generic [ref=e90]:
+            - generic [ref=e91]: Streets
+            - button [ref=e92] [cursor=pointer]
+          - generic [ref=e93]:
+            - generic [ref=e94]: Water
+            - button [ref=e95] [cursor=pointer]
+          - generic [ref=e96]:
+            - generic [ref=e97]: Parks
+            - button [ref=e98] [cursor=pointer]
+          - generic [ref=e99]:
+            - generic [ref=e100]: Buildings
+            - button [ref=e101] [cursor=pointer]
+          - generic [ref=e102]:
+            - generic [ref=e103]: Labels
+            - button [ref=e104] [cursor=pointer]
+          - generic [ref=e105]:
+            - generic [ref=e106]: Transit
+            - button [ref=e107] [cursor=pointer]
+      - generic [ref=e108]:
+        - generic [ref=e109]: Text
+        - textbox "Place name" [ref=e110]: BROOKLYN
+        - textbox "Subtitle" [ref=e111]: New York, United States
+        - generic [ref=e112]:
+          - generic [ref=e113]: Coordinates
+          - button [ref=e114] [cursor=pointer]
+        - generic [ref=e115]: Position
+        - generic [ref=e116]:
+          - generic [ref=e117] [cursor=pointer]: Top
+          - generic [ref=e118] [cursor=pointer]: Bottom
+      - generic [ref=e119]:
+        - generic [ref=e120]: Border & Margin
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - text: Margin
+            - generic [ref=e123]: 8px
+          - slider [ref=e124]: "8"
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - text: Border
+            - generic [ref=e127]: 1px
+          - slider [ref=e128]: "1"

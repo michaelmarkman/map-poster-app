@@ -1,0 +1,24 @@
+{"type":"server-started","port":56465,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:56465","screen_dir":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content","state_dir":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/state"}
+{"type":"screen-added","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/map-elements.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/map-elements.html"}
+{"source":"user-event","type":"click","text":"1\n    \n      Street Network\n      Roads, highways, alleys — the skeleton of a place. Different widths for major vs minor streets. This is what most map posters are built on.","choice":"streets","id":null,"timestamp":1774976994022}
+{"source":"user-event","type":"click","text":"3\n    \n      Parks & Green Space\n      Parks, gardens, forests. Adds organic shapes and a second layer of fill that breaks up the street grid.","choice":"parks","id":null,"timestamp":1774976994992}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/map-elements.html"}
+{"source":"user-event","type":"click","text":"3\n    \n      Parks & Green Space\n      Parks, gardens, forests. Adds organic shapes and a second layer of fill that breaks up the street grid.","choice":"parks","id":null,"timestamp":1774976996271}
+{"source":"user-event","type":"click","text":"1\n    \n      Street Network\n      Roads, highways, alleys — the skeleton of a place. Different widths for major vs minor streets. This is what most map posters are built on.","choice":"streets","id":null,"timestamp":1774976996705}
+{"source":"user-event","type":"click","text":"2\n    \n      Water Bodies\n      Rivers, lakes, coastlines, harbors. Filled shapes that create strong negative space and instantly make a map recognizable.","choice":"water","id":null,"timestamp":1774977009138}
+{"source":"user-event","type":"click","text":"6\n    \n      Place Labels / Street Names\n      Actual text from the map — neighborhood names, street labels. Can add authenticity but also visual clutter.","choice":"labels","id":null,"timestamp":1774977016155}
+{"source":"user-event","type":"click","text":"7\n    \n      Rail & Transit Lines\n      Subway lines, train tracks, tram routes. Distinctive geometry that's iconic in cities like NYC, London, Tokyo.","choice":"rail","id":null,"timestamp":1774977016821}
+{"source":"user-event","type":"click","text":"4\n    \n      Building Footprints\n      Individual building outlines. Adds incredible density and texture but can be visually noisy. Works best at neighborhood scale.","choice":"buildings","id":null,"timestamp":1774977025146}
+{"type":"screen-added","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/poster-styles.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/poster-styles.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/poster-styles.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/poster-styles.html"}
+{"source":"user-event","type":"click","text":"Brooklyn\n      \n    \n    \n      Vintage / Warm\n      Aged paper tones, muted colors, subtle grain. Feels like a found print or mid-century cartography. Nostalgic.","choice":"vintage","id":null,"timestamp":1774977260621}
+{"source":"user-event","type":"click","text":"BROOKLYN\n      \n    \n    \n      Minimal Line\n      White background, thin black lines, maximum whitespace. Clean, Scandinavian. Like Mapiful/Grafomap.","choice":"minimal-line","id":null,"timestamp":1774977263763}
+{"source":"user-event","type":"click","text":"BROOKLYN\n      \n    \n    \n      Masked / Shaped\n      Map clipped into a circle, hexagon, heart, or custom shape. Clean background outside. Great for gifts and personal prints.","choice":"masked-shape","id":null,"timestamp":1774977266663}
+{"type":"screen-added","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/approaches.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/approaches.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/approaches.html"}
+{"type":"screen-updated","file":"/Users/michaelmarkman/Documents/map-poster-app/.superpowers/brainstorm/57330-1774976697/content/approaches.html"}
+{"type":"server-stopped","reason":"idle timeout"}

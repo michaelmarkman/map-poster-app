@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster — 3D Real Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@300;400;700&family=Space+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111113;
+  color: #e4e4e7;
+  font-family: 'Inter', sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Nav ── */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 20px;
+  background: #18181b;
+  border-bottom: 1px solid #27272a;
+  flex-shrink: 0;
+}
+.logo { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+.logo span { color: #a78bfa; }
+.steps { display: flex; gap: 4px; }
+.step {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border-radius: 20px;
+  font-size: 13px; font-weight: 500; color: #71717a;
+  background: transparent; border: 1px solid transparent;
+  cursor: pointer; transition: all 0.2s;
+}
+.step.done { color: #a78bfa; }
+.step.done::after { content: '✓'; font-size: 11px; }
+.step.active { background: #a78bfa22; color: #a78bfa; border-color: #a78bfa44; }
+.step-arrow { color: #3f3f46; font-size: 12px; }
+.nav-actions { display: flex; gap: 8px; }
+.nav-btn {
+  padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border: 1px solid #3f3f46; background: transparent; color: #e4e4e7;
+  transition: all 0.15s;
+}
+.nav-btn:hover { border-color: #52525b; background: #27272a; }
+.nav-btn.primary { background: #a78bfa; color: #111; border-color: #a78bfa; }
+.nav-btn.primary:hover { background: #b89dfc; }
+
+/* ── Main Layout ── */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Poster Area ── */
+.poster-area {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: #111113; padding: 24px; position: relative;
+}
+.poster-frame {
+  position: relative;
+  aspect-ratio: 18 / 24;
+  height: min(calc(100vh - 120px), 680px);
+  background: #0a0a0c;
+  border: 1px solid #27272a;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.poster-inner {
+  display: flex; flex-direction: column; flex: 1;
+  margin: 8px;
+  border: 1px solid #27272a33;
+}
+.map-container {
+  flex: 1; position: relative; overflow: hidden;
+}
+#map { width: 100%; height: 100%; }
+
+.poster-text-overlay {
+  padding: 14px 16px 12px;
+  background: #0a0a0c;
+}
+.poster-text-overlay.top { order: -1; padding: 12px 16px 14px; }
+.poster-city {
+  font-family: 'Playfair Display', serif;
+  font-weight: 300; font-size: 22px; color: #f4f4f5;
+  letter-spacing: 6px; text-transform: uppercase;
+}
+.poster-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px; color: #71717a; margin-top: 2px;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+.poster-coords {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px; color: #52525b; margin-top: 4px;
+  letter-spacing: 1px;
+}
+.size-badge {
+  position: absolute; top: 16px; right: 16px;
+  background: #18181bcc; backdrop-filter: blur(8px);
+  border: 1px solid #27272a; border-radius: 6px;
+  padding: 4px 10px; font-size: 10px; color: #71717a;
+  font-family: 'Space Mono', monospace;
+  z-index: 5; pointer-events: none;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 320px; flex-shrink: 0;
+  background: #18181b; border-left: 1px solid #27272a;
+  overflow-y: auto; padding: 0;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+
+.section { padding: 16px 16px 12px; border-bottom: 1px solid #27272a; }
+.section-title {
+  font-size: 11px; font-weight: 600; color: #71717a;
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 12px;
+}
+
+/* Style presets */
+.style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.style-card {
+  border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; transition: all 0.2s;
+  background: #27272a;
+}
+.style-card.active { border-color: #a78bfa; }
+.style-card:hover { border-color: #a78bfa88; }
+.style-preview {
+  height: 52px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; position: relative;
+}
+.style-label {
+  font-size: 11px; padding: 6px 8px; color: #a1a1aa; text-align: center;
+}
+.style-card.active .style-label { color: #a78bfa; }
+
+/* Palette */
+.palette-row { display: flex; gap: 8px; }
+.swatch {
+  width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+  border: 2px solid transparent; transition: all 0.15s;
+}
+.swatch.active { border-color: #fff; transform: scale(1.1); }
+.swatch:hover { transform: scale(1.08); }
+
+/* Sliders */
+.control-row { margin-bottom: 10px; }
+.control-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: #a1a1aa; margin-bottom: 4px;
+}
+.control-value { font-family: 'Space Mono', monospace; font-size: 11px; color: #71717a; }
+input[type="range"] {
+  width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+  background: #3f3f46; border-radius: 2px; outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  background: #a78bfa; border-radius: 50%; cursor: pointer;
+  border: 2px solid #18181b;
+}
+
+/* Toggles */
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0;
+}
+.toggle-label { font-size: 13px; color: #d4d4d8; }
+.toggle {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: #3f3f46; cursor: pointer; position: relative;
+  transition: background 0.2s; border: none;
+}
+.toggle.on { background: #a78bfa; }
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(16px); }
+
+/* Text inputs */
+.text-input {
+  width: 100%; padding: 8px 10px; border-radius: 6px;
+  background: #27272a; border: 1px solid #3f3f46; color: #e4e4e7;
+  font-size: 13px; font-family: 'Inter', sans-serif;
+  outline: none; margin-bottom: 8px;
+}
+.text-input:focus { border-color: #a78bfa; }
+
+/* Position selector */
+.pos-row { display: flex; gap: 6px; }
+.pos-btn {
+  flex: 1; padding: 6px; border-radius: 6px; font-size: 12px;
+  background: #27272a; border: 1px solid #3f3f46; color: #a1a1aa;
+  cursor: pointer; text-align: center; transition: all 0.15s;
+}
+.pos-btn.active { background: #a78bfa22; color: #a78bfa; border-color: #a78bfa44; }
+
+/* Layers grid */
+.layers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+/* Dark preview colors for style cards */
+.sp-dark { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+.sp-minimal { background: linear-gradient(135deg, #e8e8e8 0%, #d4d4d4 50%, #c0c0c0 100%); }
+.sp-midnight { background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%); }
+.sp-satellite { background: linear-gradient(135deg, #2d4a2d 0%, #3a5a3a 50%, #1a3a1a 100%); }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="top-nav">
+  <div class="logo">map<span>poster</span></div>
+  <div class="steps">
+    <div class="step done">Place</div>
+    <span class="step-arrow">→</span>
+    <div class="step active">Style</div>
+    <span class="step-arrow">→</span>
+    <div class="step">Export</div>
+  </div>
+  <div class="nav-actions">
+    <button class="nav-btn">Reset</button>
+    <button class="nav-btn primary">Export</button>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <!-- Poster Area -->
+  <div class="poster-area">
+    <div class="poster-frame">
+      <div class="size-badge">18 × 24 in</div>
+      <div class="poster-inner">
+        <div class="map-container">
+          <div id="map"></div>
+        </div>
+        <div class="poster-text-overlay" id="textOverlay">
+          <div class="poster-city" id="cityName">BROOKLYN</div>
+          <div class="poster-subtitle" id="subtitleText">New York, United States</div>
+          <div class="poster-coords" id="coordsText">40.6782° N / 73.9442° W</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Style Presets -->
+    <div class="section">
+      <div class="section-title">Style</div>
+      <div class="style-grid">
+        <div class="style-card active" data-style="dark" onclick="setStyle('dark')">
+          <div class="style-preview sp-dark">🌃</div>
+          <div class="style-label">Dark Bold</div>
+        </div>
+        <div class="style-card" data-style="minimal" onclick="setStyle('minimal')">
+          <div class="style-preview sp-minimal">🏙️</div>
+          <div class="style-label">Minimal</div>
+        </div>
+        <div class="style-card" data-style="midnight" onclick="setStyle('midnight')">
+          <div class="style-preview sp-midnight">🌌</div>
+          <div class="style-label">Midnight</div>
+        </div>
+        <div class="style-card" data-style="satellite" onclick="setStyle('satellite')">
+          <div class="style-preview sp-satellite">🌿</div>
+          <div class="style-label">Earth Tone</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Palette -->
+    <div class="section">
+      <div class="section-title">Palette</div>
+      <div class="palette-row">
+        <div class="swatch active" style="background:#a78bfa" onclick="setPalette(0)" data-palette="0"></div>
+        <div class="swatch" style="background:#60a5fa" onclick="setPalette(1)" data-palette="1"></div>
+        <div class="swatch" style="background:#34d399" onclick="setPalette(2)" data-palette="2"></div>
+        <div class="swatch" style="background:#fb923c" onclick="setPalette(3)" data-palette="3"></div>
+      </div>
+    </div>
+
+    <!-- Camera -->
+    <div class="section">
+      <div class="section-title">Camera</div>
+      <div class="control-row">
+        <div class="control-label">Pitch <span class="control-value" id="pitchVal">55°</span></div>
+        <input type="range" id="pitchSlider" min="0" max="85" value="55" oninput="setCameraPitch(this.value)">
+      </div>
+      <div class="control-row">
+        <div class="control-label">Bearing <span class="control-value" id="bearingVal">-20°</span></div>
+        <input type="range" id="bearingSlider" min="-180" max="180" value="-20" oninput="setCameraBearing(this.value)">
+      </div>
+      <div class="control-row">
+        <div class="control-label">Zoom <span class="control-value" id="zoomVal">14.5</span></div>
+        <input type="range" id="zoomSlider" min="10" max="18" step="0.1" value="14.5" oninput="setCameraZoom(this.value)">
+      </div>
+    </div>
+
+    <!-- Buildings -->
+    <div class="section">
+      <div class="section-title">Buildings</div>
+      <div class="toggle-row">
+        <span class="toggle-label">Show buildings</span>
+        <button class="toggle on" id="buildingToggle" onclick="toggleBuildings()"></button>
+      </div>
+      <div class="control-row" style="margin-top:8px">
+        <div class="control-label">Height multiplier <span class="control-value" id="heightVal">1.0x</span></div>
+        <input type="range" id="heightSlider" min="0.5" max="3" step="0.1" value="1" oninput="setBuildingHeight(this.value)">
+      </div>
+      <div class="control-row">
+        <div class="control-label">Opacity <span class="control-value" id="opacityVal">0.85</span></div>
+        <input type="range" id="opacitySlider" min="0.3" max="1" step="0.05" value="0.85" oninput="setBuildingOpacity(this.value)">
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div class="section">
+      <div class="section-title">Layers</div>
+      <div class="layers-grid">
+        <div class="toggle-row"><span class="toggle-label">Streets</span><button class="toggle on" onclick="toggleLayer('streets', this)"></button></div>
+        <div class="toggle-row"><span class="toggle-label">Water</span><button class="toggle on" onclick="toggleLayer('water', this)"></button></div>
+        <div class="toggle-row"><span class="toggle-label">Parks</span><button class="toggle on" onclick="toggleLayer('parks', this)"></button></div>
+        <div class="toggle-row"><span class="toggle-label">Buildings</span><button class="toggle on" onclick="toggleLayer('buildings-flat', this)"></button></div>
+        <div class="toggle-row"><span class="toggle-label">Labels</span><button class="toggle on" onclick="toggleLayer('labels', this)"></button></div>
+        <div class="toggle-row"><span class="toggle-label">Transit</span><button class="toggle on" onclick="toggleLayer('transit', this)"></button></div>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div class="section">
+      <div class="section-title">Text</div>
+      <input type="text" class="text-input" id="placeInput" value="BROOKLYN" placeholder="Place name" oninput="updateText()">
+      <input type="text" class="text-input" id="subtitleInput" value="New York, United States" placeholder="Subtitle" oninput="updateText()">
+      <div class="toggle-row" style="margin-bottom:8px">
+        <span class="toggle-label">Coordinates</span>
+        <button class="toggle on" id="coordsToggle" onclick="toggleCoords(this)"></button>
+      </div>
+      <div class="control-label" style="margin-bottom:6px">Position</div>
+      <div class="pos-row">
+        <div class="pos-btn" onclick="setTextPosition('top', this)">Top</div>
+        <div class="pos-btn active" onclick="setTextPosition('bottom', this)">Bottom</div>
+      </div>
+    </div>
+
+    <!-- Border & Margin -->
+    <div class="section">
+      <div class="section-title">Border & Margin</div>
+      <div class="control-row">
+        <div class="control-label">Margin <span class="control-value" id="marginVal">8px</span></div>
+        <input type="range" id="marginSlider" min="0" max="24" value="8" oninput="setMargin(this.value)">
+      </div>
+      <div class="control-row">
+        <div class="control-label">Border <span class="control-value" id="borderVal">1px</span></div>
+        <input type="range" id="borderSlider" min="0" max="4" value="1" oninput="setBorder(this.value)">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──
+let map;
+let buildingsVisible = true;
+let heightMultiplier = 1.0;
+let currentStyle = 'dark';
+let currentPalette = 0;
+
+// Layer ID tracking for toggling
+const layerGroups = {
+  streets: [],
+  water: [],
+  parks: [],
+  'buildings-flat': [],
+  labels: [],
+  transit: []
+};
+
+// ── Color palettes ──
+const palettes = [
+  { accent: '#a78bfa', water: '#2a2a5a', streets: '#e4e4e7', bg: '#111113', building: '#3a3a5a', buildingTop: '#4a4a6a', park: '#1a2a1a' },
+  { accent: '#60a5fa', water: '#1e3a5f', streets: '#dbeafe', bg: '#0f172a', building: '#1e3a5f', buildingTop: '#2a4a6f', park: '#1a3a2a' },
+  { accent: '#34d399', water: '#134e4a', streets: '#d1fae5', bg: '#0a1a15', building: '#134e4a', buildingTop: '#1a5e5a', park: '#0a2a1a' },
+  { accent: '#fb923c', water: '#3a2a1a', streets: '#fed7aa', bg: '#1a1008', building: '#5a3a1a', buildingTop: '#6a4a2a', park: '#2a2a0a' }
+];
+
+// ── Style definitions ──
+const styleOverrides = {
+  dark: {
+    bgColor: '#111113',
+    waterColor: '#2a2a5a',
+    streetColor: '#e4e4e7cc',
+    streetMinorColor: '#e4e4e766',
+    parkColor: '#1a2a1a',
+    buildingColor: '#3a3a5a',
+    buildingTopColor: '#4a4a6a',
+    landColor: '#18181b',
+    labelColor: '#a1a1aa'
+  },
+  minimal: {
+    bgColor: '#e8e8e8',
+    waterColor: '#b8cce8',
+    streetColor: '#52525bcc',
+    streetMinorColor: '#52525b44',
+    parkColor: '#c8e8c8',
+    buildingColor: '#c0c0c8',
+    buildingTopColor: '#d0d0d8',
+    landColor: '#e0e0e0',
+    labelColor: '#52525b'
+  },
+  midnight: {
+    bgColor: '#08080f',
+    waterColor: '#0a0a2e',
+    streetColor: '#c084fccc',
+    streetMinorColor: '#818cf866',
+    parkColor: '#0a1a0a',
+    buildingColor: '#1a1a3e',
+    buildingTopColor: '#2a2a4e',
+    landColor: '#0e0e18',
+    labelColor: '#818cf8'
+  },
+  satellite: {
+    bgColor: '#1a1a10',
+    waterColor: '#2a3a2a',
+    streetColor: '#d4c8a8cc',
+    streetMinorColor: '#d4c8a866',
+    parkColor: '#2a3a1a',
+    buildingColor: '#4a4a3a',
+    buildingTopColor: '#5a5a4a',
+    landColor: '#2a2a1a',
+    labelColor: '#c8b888'
+  }
+};
+
+// ── Build the base style object ──
+function buildStyle(preset) {
+  const s = styleOverrides[preset || currentStyle];
+  const p = palettes[currentPalette];
+
+  // Merge palette accent into water if palette selected
+  const waterColor = currentPalette === 0 ? s.waterColor : p.water;
+  const buildingColor = currentPalette === 0 ? s.buildingColor : p.building;
+  const buildingTopColor = currentPalette === 0 ? s.buildingTopColor : p.buildingTop;
+  const streetColor = currentPalette === 0 ? s.streetColor : (p.streets + 'cc');
+  const parkColor = currentPalette === 0 ? s.parkColor : p.park;
+
+  return {
+    version: 8,
+    name: 'MapPoster',
+    sources: {
+      carto: {
+        type: 'vector',
+        tiles: ['https://basemaps.cartocdn.com/gl/dark-matter-gl-style/{z}/{x}/{y}.mvt'],
+        maxzoom: 14
+      },
+      openmaptiles: {
+        type: 'vector',
+        url: 'https://tiles.openfreemap.org/planet-osm',
+        maxzoom: 14
+      }
+    },
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: { 'background-color': s.landColor }
+      },
+      {
+        id: 'water',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'water',
+        paint: { 'fill-color': waterColor, 'fill-opacity': 0.9 }
+      },
+      {
+        id: 'park',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'landuse',
+        filter: ['any',
+          ['==', 'class', 'park'],
+          ['==', 'class', 'cemetery'],
+          ['==', 'class', 'grass'],
+          ['==', 'class', 'wood']
+        ],
+        paint: { 'fill-color': parkColor, 'fill-opacity': 0.6 }
+      },
+      {
+        id: 'road-minor',
+        type: 'line',
+        source: 'openmaptiles',
+        'source-layer': 'transportation',
+        filter: ['all',
+          ['!=', 'class', 'motorway'],
+          ['!=', 'class', 'trunk'],
+          ['!=', 'class', 'primary'],
+          ['!=', 'class', 'secondary'],
+          ['!=', 'class', 'rail']
+        ],
+        paint: {
+          'line-color': s.streetMinorColor,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.2, 14, 1, 18, 4]
+        }
+      },
+      {
+        id: 'road-major',
+        type: 'line',
+        source: 'openmaptiles',
+        'source-layer': 'transportation',
+        filter: ['any',
+          ['==', 'class', 'motorway'],
+          ['==', 'class', 'trunk'],
+          ['==', 'class', 'primary'],
+          ['==', 'class', 'secondary']
+        ],
+        paint: {
+          'line-color': streetColor,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 2, 18, 8]
+        }
+      },
+      {
+        id: 'rail',
+        type: 'line',
+        source: 'openmaptiles',
+        'source-layer': 'transportation',
+        filter: ['==', 'class', 'rail'],
+        paint: {
+          'line-color': '#a78bfa44',
+          'line-width': 1,
+          'line-dasharray': [3, 3]
+        }
+      },
+      {
+        id: 'building-flat',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        paint: {
+          'fill-color': buildingColor,
+          'fill-opacity': 0.4
+        }
+      },
+      {
+        id: 'building-3d',
+        type: 'fill-extrusion',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        paint: {
+          'fill-extrusion-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+            0, buildingColor,
+            60, buildingTopColor
+          ],
+          'fill-extrusion-height': [
+            '*',
+            ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+            heightMultiplier
+          ],
+          'fill-extrusion-base': [
+            '*',
+            ['coalesce', ['get', 'render_min_height'], 0],
+            heightMultiplier
+          ],
+          'fill-extrusion-opacity': 0.85
+        }
+      },
+      {
+        id: 'place-label',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'place',
+        filter: ['==', '$type', 'Point'],
+        layout: {
+          'text-field': '{name}',
+          'text-font': ['Open Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 16],
+          'text-max-width': 8,
+          'text-allow-overlap': false
+        },
+        paint: {
+          'text-color': s.labelColor,
+          'text-halo-color': s.landColor,
+          'text-halo-width': 1
+        }
+      }
+    ]
+  };
+}
+
+// Track layer groups for toggling
+function categorizeLayer(id) {
+  if (id.includes('road') || id.includes('street')) return 'streets';
+  if (id === 'water') return 'water';
+  if (id === 'park') return 'parks';
+  if (id === 'building-flat') return 'buildings-flat';
+  if (id.includes('label') || id.includes('place')) return 'labels';
+  if (id === 'rail') return 'transit';
+  return null;
+}
+
+// ── Initialize Map ──
+function initMap() {
+  // Try OpenFreeMap first, with Carto style as fallback
+  map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    center: [-73.9442, 40.6782],
+    zoom: 14.5,
+    pitch: 55,
+    bearing: -20,
+    antialias: true,
+    maxPitch: 85
+  });
+
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+
+  map.on('load', () => {
+    // Add 3D buildings layer on top of the Carto style
+    addBuildingLayers();
+
+    // Try adding terrain
+    try {
+      map.addSource('terrain-dem', {
+        type: 'raster-dem',
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding: 'terrarium',
+        tileSize: 256,
+        maxzoom: 14
+      });
+      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+    } catch (e) {
+      console.log('Terrain not available, continuing without it');
+    }
+
+    // Categorize existing Carto layers for toggling
+    const layers = map.getStyle().layers;
+    layers.forEach(layer => {
+      const id = layer.id.toLowerCase();
+      if (id.includes('water')) layerGroups.water.push(layer.id);
+      else if (id.includes('park') || id.includes('landuse')) layerGroups.parks.push(layer.id);
+      else if (id.includes('road') || id.includes('highway') || id.includes('street') || id.includes('bridge') || id.includes('tunnel') || id.includes('path')) layerGroups.streets.push(layer.id);
+      else if (id.includes('label') || id.includes('name') || id.includes('place')) layerGroups.labels.push(layer.id);
+      else if (id.includes('rail') || id.includes('transit')) layerGroups.transit.push(layer.id);
+      else if (id.includes('building') && !id.includes('3d')) layerGroups['buildings-flat'].push(layer.id);
+    });
+
+    // Override Carto colors for dark poster aesthetic
+    applyStyleOverrides('dark');
+  });
+
+  // Sync sliders when user interacts with map directly
+  map.on('move', syncSliders);
+  map.on('pitch', syncSliders);
+  map.on('rotate', syncSliders);
+  map.on('zoom', syncSliders);
+}
+
+function addBuildingLayers() {
+  // The Carto style already has an openmaptiles source; find the building source-layer
+  const style = map.getStyle();
+  const sourceIds = Object.keys(style.sources);
+
+  // Use the first vector source available
+  let vectorSource = null;
+  for (const sid of sourceIds) {
+    if (style.sources[sid].type === 'vector') {
+      vectorSource = sid;
+      break;
+    }
+  }
+
+  if (!vectorSource) return;
+
+  // Remove existing building layers from Carto if any, then add our custom ones
+  const existingLayers = style.layers.map(l => l.id);
+
+  // Add our 3D building extrusion layer
+  map.addLayer({
+    id: 'building-3d',
+    type: 'fill-extrusion',
+    source: vectorSource,
+    'source-layer': 'building',
+    minzoom: 13,
+    paint: {
+      'fill-extrusion-color': [
+        'interpolate', ['linear'],
+        ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+        0, '#3a3a5a',
+        40, '#4a4a6a',
+        80, '#5a5a7a'
+      ],
+      'fill-extrusion-height': [
+        '*',
+        ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+        heightMultiplier
+      ],
+      'fill-extrusion-base': [
+        'coalesce', ['get', 'render_min_height'], 0
+      ],
+      'fill-extrusion-opacity': 0.85
+    }
+  });
+}
+
+function applyStyleOverrides(preset) {
+  const s = styleOverrides[preset];
+  const layers = map.getStyle().layers;
+
+  layers.forEach(layer => {
+    const id = layer.id.toLowerCase();
+    try {
+      // Background
+      if (layer.type === 'background') {
+        map.setPaintProperty(layer.id, 'background-color', s.landColor);
+      }
+      // Water
+      if (id.includes('water') && layer.type === 'fill') {
+        map.setPaintProperty(layer.id, 'fill-color', s.waterColor);
+      }
+      // Parks/landuse
+      if ((id.includes('park') || id.includes('landuse') || id.includes('landcover')) && layer.type === 'fill') {
+        map.setPaintProperty(layer.id, 'fill-color', s.parkColor);
+      }
+      // Roads
+      if ((id.includes('road') || id.includes('highway') || id.includes('bridge') || id.includes('tunnel') || id.includes('path')) && layer.type === 'line') {
+        if (id.includes('motorway') || id.includes('trunk') || id.includes('primary') || id.includes('secondary')) {
+          map.setPaintProperty(layer.id, 'line-color', s.streetColor);
+        } else {
+          map.setPaintProperty(layer.id, 'line-color', s.streetMinorColor);
+        }
+      }
+      // Labels
+      if ((id.includes('label') || id.includes('name') || id.includes('place')) && layer.type === 'symbol') {
+        map.setPaintProperty(layer.id, 'text-color', s.labelColor);
+        map.setPaintProperty(layer.id, 'text-halo-color', s.landColor);
+      }
+      // Rail
+      if (id.includes('rail') && layer.type === 'line') {
+        map.setPaintProperty(layer.id, 'line-color', preset === 'midnight' ? '#818cf8' : '#a78bfa44');
+      }
+      // Building 3D
+      if (layer.id === 'building-3d') {
+        map.setPaintProperty('building-3d', 'fill-extrusion-color', [
+          'interpolate', ['linear'],
+          ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+          0, s.buildingColor,
+          40, s.buildingTopColor,
+          80, lightenColor(s.buildingTopColor, 20)
+        ]);
+      }
+      // Flat buildings
+      if (id.includes('building') && layer.type === 'fill' && layer.id !== 'building-3d') {
+        map.setPaintProperty(layer.id, 'fill-color', s.buildingColor);
+      }
+    } catch (e) {
+      // Some properties may not be settable, skip
+    }
+  });
+}
+
+function lightenColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + amount);
+  const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+  const b = Math.min(255, (num & 0xff) + amount);
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+}
+
+// ── Camera Controls ──
+function setCameraPitch(val) {
+  map.setPitch(parseFloat(val));
+  document.getElementById('pitchVal').textContent = val + '°';
+}
+function setCameraBearing(val) {
+  map.setBearing(parseFloat(val));
+  document.getElementById('bearingVal').textContent = val + '°';
+}
+function setCameraZoom(val) {
+  map.setZoom(parseFloat(val));
+  document.getElementById('zoomVal').textContent = parseFloat(val).toFixed(1);
+}
+function syncSliders() {
+  if (!map) return;
+  const pitch = Math.round(map.getPitch());
+  const bearing = Math.round(map.getBearing());
+  const zoom = map.getZoom().toFixed(1);
+  document.getElementById('pitchSlider').value = pitch;
+  document.getElementById('pitchVal').textContent = pitch + '°';
+  document.getElementById('bearingSlider').value = bearing;
+  document.getElementById('bearingVal').textContent = bearing + '°';
+  document.getElementById('zoomSlider').value = zoom;
+  document.getElementById('zoomVal').textContent = zoom;
+}
+
+// ── Building Controls ──
+function toggleBuildings() {
+  const btn = document.getElementById('buildingToggle');
+  buildingsVisible = !buildingsVisible;
+  btn.classList.toggle('on', buildingsVisible);
+  if (map.getLayer('building-3d')) {
+    map.setLayoutProperty('building-3d', 'visibility', buildingsVisible ? 'visible' : 'none');
+  }
+}
+function setBuildingHeight(val) {
+  heightMultiplier = parseFloat(val);
+  document.getElementById('heightVal').textContent = val + 'x';
+  if (map.getLayer('building-3d')) {
+    map.setPaintProperty('building-3d', 'fill-extrusion-height', [
+      '*',
+      ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+      heightMultiplier
+    ]);
+    map.setPaintProperty('building-3d', 'fill-extrusion-base', [
+      '*',
+      ['coalesce', ['get', 'render_min_height'], 0],
+      heightMultiplier
+    ]);
+  }
+}
+function setBuildingOpacity(val) {
+  document.getElementById('opacityVal').textContent = parseFloat(val).toFixed(2);
+  if (map.getLayer('building-3d')) {
+    map.setPaintProperty('building-3d', 'fill-extrusion-opacity', parseFloat(val));
+  }
+}
+
+// ── Style Presets ──
+function setStyle(preset) {
+  currentStyle = preset;
+  document.querySelectorAll('.style-card').forEach(c => c.classList.toggle('active', c.dataset.style === preset));
+  applyStyleOverrides(preset);
+
+  // Update poster text area background
+  const overlay = document.getElementById('textOverlay');
+  if (preset === 'minimal') {
+    overlay.style.background = '#e0e0e0';
+    overlay.querySelector('.poster-city').style.color = '#27272a';
+    overlay.querySelector('.poster-subtitle').style.color = '#52525b';
+    overlay.querySelector('.poster-coords').style.color = '#71717a';
+    document.querySelector('.poster-inner').style.borderColor = '#c0c0c044';
+    document.querySelector('.poster-frame').style.background = '#d4d4d4';
+  } else {
+    overlay.style.background = '#0a0a0c';
+    overlay.querySelector('.poster-city').style.color = '#f4f4f5';
+    overlay.querySelector('.poster-subtitle').style.color = '#71717a';
+    overlay.querySelector('.poster-coords').style.color = '#52525b';
+    document.querySelector('.poster-inner').style.borderColor = '#27272a33';
+    document.querySelector('.poster-frame').style.background = '#0a0a0c';
+  }
+}
+
+// ── Palette ──
+function setPalette(idx) {
+  currentPalette = idx;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', parseInt(s.dataset.palette) === idx));
+
+  const p = palettes[idx];
+  const s = styleOverrides[currentStyle];
+
+  // Override water and building colors with palette
+  const layers = map.getStyle().layers;
+  layers.forEach(layer => {
+    try {
+      const id = layer.id.toLowerCase();
+      if (id.includes('water') && layer.type === 'fill') {
+        map.setPaintProperty(layer.id, 'fill-color', p.water);
+      }
+      if (layer.id === 'building-3d') {
+        map.setPaintProperty('building-3d', 'fill-extrusion-color', [
+          'interpolate', ['linear'],
+          ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+          0, p.building,
+          40, p.buildingTop,
+          80, lightenColor(p.buildingTop, 20)
+        ]);
+      }
+      if ((id.includes('road') || id.includes('highway') || id.includes('bridge') || id.includes('tunnel')) && layer.type === 'line') {
+        if (id.includes('motorway') || id.includes('trunk') || id.includes('primary') || id.includes('secondary')) {
+          map.setPaintProperty(layer.id, 'line-color', p.streets + 'cc');
+        } else {
+          map.setPaintProperty(layer.id, 'line-color', p.streets + '44');
+        }
+      }
+      if ((id.includes('park') || id.includes('landuse') || id.includes('landcover')) && layer.type === 'fill') {
+        map.setPaintProperty(layer.id, 'fill-color', p.park);
+      }
+    } catch (e) {}
+  });
+}
+
+// ── Layer Toggles ──
+function toggleLayer(group, btn) {
+  const isOn = btn.classList.toggle('on');
+  const visibility = isOn ? 'visible' : 'none';
+  const ids = layerGroups[group] || [];
+  ids.forEach(id => {
+    try { map.setLayoutProperty(id, 'visibility', visibility); } catch (e) {}
+  });
+  // For buildings-flat, also handle building-3d
+  if (group === 'buildings-flat' && map.getLayer('building-3d')) {
+    // Only affect flat building layers, not the 3d ones (handled by building toggle)
+  }
+}
+
+// ── Text Controls ──
+function updateText() {
+  document.getElementById('cityName').textContent = document.getElementById('placeInput').value || 'BROOKLYN';
+  document.getElementById('subtitleText').textContent = document.getElementById('subtitleInput').value;
+}
+function toggleCoords(btn) {
+  btn.classList.toggle('on');
+  document.getElementById('coordsText').style.display = btn.classList.contains('on') ? 'block' : 'none';
+}
+function setTextPosition(pos, btn) {
+  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const overlay = document.getElementById('textOverlay');
+  if (pos === 'top') {
+    overlay.classList.add('top');
+  } else {
+    overlay.classList.remove('top');
+  }
+}
+
+// ── Border & Margin ──
+function setMargin(val) {
+  document.getElementById('marginVal').textContent = val + 'px';
+  document.querySelector('.poster-inner').style.margin = val + 'px';
+  // Need to resize map when margin changes
+  setTimeout(() => map.resize(), 100);
+}
+function setBorder(val) {
+  document.getElementById('borderVal').textContent = val + 'px';
+  document.querySelector('.poster-inner').style.borderWidth = val + 'px';
+  setTimeout(() => map.resize(), 100);
+}
+
+// ── Initialize ──
+initMap();
+</script>
+</body>
+</html>
