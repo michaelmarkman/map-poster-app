@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster — 2.5D Pitched + Extruded</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #111113;
+  --sidebar: #18181b;
+  --card: rgba(255,255,255,0.04);
+  --accent: #a78bfa;
+  --accent-dim: rgba(167,139,250,0.15);
+  --border: rgba(255,255,255,0.06);
+  --text: #e4e4e7;
+  --text-dim: #71717a;
+  --text-bright: #fafafa;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Nav */
+.topnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--sidebar);
+}
+
+.logo {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  user-select: none;
+}
+.logo-map { color: #fff; }
+.logo-poster { color: var(--accent); }
+
+.steps {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border-radius: 999px;
+  padding: 4px;
+  border: 1px solid var(--border);
+}
+.step {
+  padding: 6px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.step.done { color: var(--text); }
+.step.done .check { color: #4ade80; }
+.step.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(167,139,250,0.3);
+}
+.step:hover:not(.active) { color: var(--text); }
+
+.nav-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 7px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+.btn:hover { border-color: rgba(255,255,255,0.15); background: var(--card); }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: #8b6ff0; box-shadow: 0 0 20px rgba(167,139,250,0.3); }
+
+/* Main Layout */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Poster Area */
+.poster-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  position: relative;
+  background: radial-gradient(ellipse at center, rgba(167,139,250,0.03) 0%, transparent 70%);
+}
+.poster-wrapper {
+  position: relative;
+  width: auto;
+  height: 100%;
+  max-height: calc(100vh - 120px);
+  aspect-ratio: 18 / 24;
+}
+.poster-wrapper svg {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  transition: all 0.3s;
+}
+.size-badge {
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  background: var(--sidebar);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--sidebar);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 20px;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+.sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+.section { margin-bottom: 24px; }
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Presets */
+.presets-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.preset {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.preset:hover { border-color: rgba(255,255,255,0.12); }
+.preset.active { border-color: var(--accent); box-shadow: 0 0 12px rgba(167,139,250,0.15); }
+.preset svg { width: 100%; height: 60px; border-radius: 4px; margin-bottom: 6px; }
+.preset-name { font-size: 11px; font-weight: 500; color: var(--text); }
+
+/* Palette */
+.palette-row {
+  display: flex;
+  gap: 8px;
+}
+.swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.swatch:hover { transform: scale(1.1); }
+.swatch input[type="color"] {
+  position: absolute;
+  inset: -10px;
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* Sliders */
+.slider-group { margin-bottom: 14px; }
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.slider-value { color: var(--accent); font-family: 'Space Mono', monospace; font-size: 11px; }
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(167,139,250,0.4);
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+/* Toggles */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+.toggle-label { font-size: 13px; }
+.toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  border: none;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(16px); }
+
+/* Radio pills */
+.pill-group {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+.pill {
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-dim);
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+}
+.pill:hover { color: var(--text); }
+.pill.active { background: var(--accent); color: #fff; }
+
+/* Text inputs */
+.text-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 8px;
+}
+.text-input:focus { border-color: var(--accent); }
+
+/* Border options */
+.border-options {
+  display: flex;
+  gap: 8px;
+}
+.border-opt {
+  flex: 1;
+  padding: 8px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  color: var(--text);
+}
+.border-opt:hover { border-color: rgba(255,255,255,0.12); }
+.border-opt.active { border-color: var(--accent); background: var(--accent-dim); }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="topnav">
+  <div class="logo"><span class="logo-map">map</span><span class="logo-poster">poster</span></div>
+  <div class="steps">
+    <div class="step done"><span class="check">&#10003;</span> Place</div>
+    <div class="step active">Style</div>
+    <div class="step">Export</div>
+  </div>
+  <div class="nav-actions">
+    <button class="btn">Back</button>
+    <button class="btn btn-primary">Export</button>
+  </div>
+</nav>
+
+<div class="main">
+  <!-- Poster Preview -->
+  <div class="poster-area">
+    <div class="poster-wrapper">
+      <svg id="poster" viewBox="0 0 540 720" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="size-badge">18 &times; 24 in</div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <!-- Style Presets -->
+    <div class="section">
+      <div class="section-title">Style Presets</div>
+      <div class="presets-grid">
+        <div class="preset" data-preset="minimal" onclick="setPreset('minimal')">
+          <svg viewBox="0 0 100 60"><rect width="100" height="60" fill="#f5f5f5"/><rect x="20" y="20" width="8" height="20" fill="#d4d4d4"/><rect x="32" y="15" width="8" height="25" fill="#d4d4d4"/><rect x="44" y="25" width="8" height="15" fill="#d4d4d4"/><rect x="60" y="10" width="10" height="30" fill="#d4d4d4"/><line x1="10" y1="42" x2="90" y2="42" stroke="#bbb" stroke-width="0.5"/></svg>
+          <div class="preset-name">Minimal</div>
+        </div>
+        <div class="preset active" data-preset="darkbold" onclick="setPreset('darkbold')">
+          <svg viewBox="0 0 100 60"><rect width="100" height="60" fill="#111"/><rect x="20" y="20" width="8" height="20" fill="#a78bfa"/><rect x="32" y="12" width="8" height="28" fill="#7c3aed"/><rect x="44" y="25" width="8" height="15" fill="#a78bfa"/><rect x="60" y="8" width="10" height="32" fill="#7c3aed"/><line x1="10" y1="42" x2="90" y2="42" stroke="#a78bfa" stroke-width="0.5"/></svg>
+          <div class="preset-name">Dark Bold</div>
+        </div>
+        <div class="preset" data-preset="vintage" onclick="setPreset('vintage')">
+          <svg viewBox="0 0 100 60"><rect width="100" height="60" fill="#2c2418"/><rect x="20" y="20" width="8" height="20" fill="#c4956a"/><rect x="32" y="15" width="8" height="25" fill="#a07850"/><rect x="44" y="25" width="8" height="15" fill="#c4956a"/><rect x="60" y="10" width="10" height="30" fill="#a07850"/><line x1="10" y1="42" x2="90" y2="42" stroke="#c4956a" stroke-width="0.5"/></svg>
+          <div class="preset-name">Vintage</div>
+        </div>
+        <div class="preset" data-preset="neon" onclick="setPreset('neon')">
+          <svg viewBox="0 0 100 60"><rect width="100" height="60" fill="#0a0a1a"/><rect x="20" y="20" width="8" height="20" fill="#0ff" opacity="0.8"/><rect x="32" y="12" width="8" height="28" fill="#f0f" opacity="0.8"/><rect x="44" y="25" width="8" height="15" fill="#0ff" opacity="0.8"/><rect x="60" y="8" width="10" height="32" fill="#f0f" opacity="0.8"/><line x1="10" y1="42" x2="90" y2="42" stroke="#0ff" stroke-width="0.5"/></svg>
+          <div class="preset-name">Neon</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Palette -->
+    <div class="section">
+      <div class="section-title">Palette</div>
+      <div class="palette-row">
+        <div class="swatch" id="swatch0" style="background:#a78bfa"><input type="color" value="#a78bfa" onchange="updatePalette(0,this.value)"></div>
+        <div class="swatch" id="swatch1" style="background:#7c3aed"><input type="color" value="#7c3aed" onchange="updatePalette(1,this.value)"></div>
+        <div class="swatch" id="swatch2" style="background:#1e1b4b"><input type="color" value="#1e1b4b" onchange="updatePalette(2,this.value)"></div>
+        <div class="swatch" id="swatch3" style="background:#e2e8f0"><input type="color" value="#e2e8f0" onchange="updatePalette(3,this.value)"></div>
+      </div>
+    </div>
+
+    <!-- Camera -->
+    <div class="section">
+      <div class="section-title">Camera</div>
+      <div class="slider-group">
+        <div class="slider-label"><span>Pitch Angle</span><span class="slider-value" id="pitchVal">35&deg;</span></div>
+        <input type="range" id="pitchSlider" min="20" max="60" value="35" oninput="updatePitch(this.value)">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span>Building Height</span><span class="slider-value" id="heightVal">1.0&times;</span></div>
+        <input type="range" id="heightSlider" min="30" max="200" value="100" oninput="updateHeight(this.value)">
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div class="section">
+      <div class="section-title">Layers</div>
+      <div class="toggle-row"><span class="toggle-label">Streets</span><button class="toggle on" data-layer="streets" onclick="toggleLayer(this)"></button></div>
+      <div class="toggle-row"><span class="toggle-label">Water</span><button class="toggle on" data-layer="water" onclick="toggleLayer(this)"></button></div>
+      <div class="toggle-row"><span class="toggle-label">Parks</span><button class="toggle on" data-layer="parks" onclick="toggleLayer(this)"></button></div>
+      <div class="toggle-row"><span class="toggle-label">Buildings</span><button class="toggle on" data-layer="buildings" onclick="toggleLayer(this)"></button></div>
+      <div class="toggle-row"><span class="toggle-label">Rail</span><button class="toggle on" data-layer="rail" onclick="toggleLayer(this)"></button></div>
+      <div class="toggle-row"><span class="toggle-label">Labels</span><button class="toggle on" data-layer="labels" onclick="toggleLayer(this)"></button></div>
+    </div>
+
+    <!-- Building Style -->
+    <div class="section">
+      <div class="section-title">Building Style</div>
+      <div class="pill-group">
+        <button class="pill active" onclick="setBuildingStyle('solid',this)">Solid</button>
+        <button class="pill" onclick="setBuildingStyle('wireframe',this)">Wireframe</button>
+        <button class="pill" onclick="setBuildingStyle('glass',this)">Glass</button>
+      </div>
+    </div>
+
+    <!-- Street Weight -->
+    <div class="section">
+      <div class="section-title">Street Weight</div>
+      <div class="pill-group">
+        <button class="pill" onclick="setStreetWeight('thin',this)">Thin</button>
+        <button class="pill active" onclick="setStreetWeight('medium',this)">Medium</button>
+        <button class="pill" onclick="setStreetWeight('bold',this)">Bold</button>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div class="section">
+      <div class="section-title">Text</div>
+      <input class="text-input" id="placeName" value="BROOKLYN" placeholder="Place name" oninput="updateText()">
+      <input class="text-input" id="subtitle" value="New York, USA" placeholder="Subtitle" oninput="updateText()">
+      <div class="toggle-row"><span class="toggle-label">Coordinates</span><button class="toggle on" id="coordsToggle" onclick="toggleLayer(this)" data-layer="coords"></button></div>
+      <div style="margin-top:8px">
+        <div class="section-title" style="margin-bottom:8px">Position</div>
+        <div class="pill-group">
+          <button class="pill" onclick="setTextPosition('top',this)">Top</button>
+          <button class="pill active" onclick="setTextPosition('bottom',this)">Bottom</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Atmosphere -->
+    <div class="section">
+      <div class="section-title">Atmosphere</div>
+      <div class="toggle-row"><span class="toggle-label">Depth Fog</span><button class="toggle on" id="fogToggle" data-layer="fog" onclick="toggleFog(this)"></button></div>
+    </div>
+
+    <!-- Border & Margin -->
+    <div class="section">
+      <div class="section-title">Border</div>
+      <div class="border-options">
+        <div class="border-opt" onclick="setBorder('none',this)">None</div>
+        <div class="border-opt active" onclick="setBorder('thin',this)">Thin</div>
+        <div class="border-opt" onclick="setBorder('thick',this)">Thick</div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="slider-group">
+          <div class="slider-label"><span>Margin</span><span class="slider-value" id="marginVal">16px</span></div>
+          <input type="range" id="marginSlider" min="0" max="40" value="16" oninput="updateMargin(this.value)">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+const S = {
+  pitch: 35,
+  heightMul: 1.0,
+  buildingStyle: 'solid',
+  streetWeight: 'medium',
+  placeName: 'BROOKLYN',
+  subtitle: 'New York, USA',
+  textPosition: 'bottom',
+  fog: true,
+  border: 'thin',
+  margin: 16,
+  layers: { streets: true, water: true, parks: true, buildings: true, rail: true, labels: true, coords: true },
+  palette: ['#a78bfa','#7c3aed','#1e1b4b','#e2e8f0'],
+  preset: 'darkbold',
+  bg: '#111113',
+  skyTop: '#0a0a2e',
+  skyMid: '#111133',
+  waterColor: '#0c1a3a',
+  parkColor: '#1a3a1e',
+  streetColor: '#a78bfa',
+  groundColor: '#141418'
+};
+
+const PRESETS = {
+  minimal: {
+    palette: ['#94a3b8','#64748b','#e2e8f0','#1e293b'],
+    bg: '#f8fafc', skyTop: '#c7d2e0', skyMid: '#e2e8f0', waterColor: '#bfdbfe',
+    parkColor: '#bbf7d0', streetColor: '#64748b', groundColor: '#f1f5f9'
+  },
+  darkbold: {
+    palette: ['#a78bfa','#7c3aed','#1e1b4b','#e2e8f0'],
+    bg: '#111113', skyTop: '#0a0a2e', skyMid: '#111133', waterColor: '#0c1a3a',
+    parkColor: '#1a3a1e', streetColor: '#a78bfa', groundColor: '#141418'
+  },
+  vintage: {
+    palette: ['#c4956a','#a07850','#2c2418','#e8d5b7'],
+    bg: '#1f1a14', skyTop: '#1a1510', skyMid: '#2c2418', waterColor: '#1a2030',
+    parkColor: '#2a3a20', streetColor: '#c4956a', groundColor: '#1f1a14'
+  },
+  neon: {
+    palette: ['#00ffff','#ff00ff','#0a0a1a','#ffffff'],
+    bg: '#0a0a1a', skyTop: '#050520', skyMid: '#0a0a1a', waterColor: '#001030',
+    parkColor: '#003020', streetColor: '#00ffff', groundColor: '#0a0a1a'
+  }
+};
+
+// Deterministic pseudo-random
+function makeRng(seed) {
+  let s = seed;
+  return function() {
+    s++;
+    return ((Math.sin(s * 127.1 + seed * 311.7) * 43758.5453) % 1 + 1) % 1;
+  };
+}
+
+// Perspective projection
+function project(x, z) {
+  const pitchF = S.pitch / 45;
+  const horizon = 180 + (1 - pitchF) * 80;
+  const groundBottom = 620;
+  const y = horizon + (groundBottom - horizon) * (1 - z);
+  const cx = 270;
+  const spread = 1 - z * 0.85;
+  const sx = cx + x * 270 * spread;
+  return { x: sx, y: y };
+}
+
+// Escape text for SVG
+function esc(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Build SVG content and set it
+function render() {
+  const svg = document.getElementById('poster');
+  const m = S.margin;
+  const pitchF = S.pitch / 45;
+  const horizon = 180 + (1 - pitchF) * 80;
+  const parts = [];
+
+  // Defs
+  parts.push('<defs>');
+  parts.push('<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">');
+  parts.push('<stop offset="0%" stop-color="' + S.skyTop + '"/>');
+  parts.push('<stop offset="60%" stop-color="' + S.skyMid + '"/>');
+  parts.push('<stop offset="100%" stop-color="' + S.bg + '"/>');
+  parts.push('</linearGradient>');
+  parts.push('<linearGradient id="fogGrad" x1="0" y1="0" x2="0" y2="1">');
+  parts.push('<stop offset="0%" stop-color="' + S.bg + '" stop-opacity="' + (S.fog ? 0.7 : 0) + '"/>');
+  parts.push('<stop offset="40%" stop-color="' + S.bg + '" stop-opacity="' + (S.fog ? 0.3 : 0) + '"/>');
+  parts.push('<stop offset="100%" stop-color="' + S.bg + '" stop-opacity="0"/>');
+  parts.push('</linearGradient>');
+  parts.push('<clipPath id="posterClip"><rect x="' + m + '" y="' + m + '" width="' + (540 - m*2) + '" height="' + (720 - m*2) + '" rx="2"/></clipPath>');
+  parts.push('</defs>');
+
+  // Background
+  parts.push('<rect width="540" height="720" fill="' + S.bg + '"/>');
+
+  // Border
+  if (S.border === 'thin') {
+    parts.push('<rect x="' + m + '" y="' + m + '" width="' + (540-m*2) + '" height="' + (720-m*2) + '" fill="none" stroke="' + S.palette[0] + '" stroke-width="0.5" rx="2" opacity="0.4"/>');
+  } else if (S.border === 'thick') {
+    parts.push('<rect x="' + m + '" y="' + m + '" width="' + (540-m*2) + '" height="' + (720-m*2) + '" fill="none" stroke="' + S.palette[0] + '" stroke-width="2" rx="2" opacity="0.5"/>');
+  }
+
+  // Clipped content
+  parts.push('<g clip-path="url(#posterClip)">');
+
+  // Sky
+  parts.push('<rect x="0" y="0" width="540" height="' + (horizon + 40) + '" fill="url(#sky)"/>');
+
+  // Ground plane
+  parts.push('<rect x="0" y="' + horizon + '" width="540" height="' + (720 - horizon) + '" fill="' + S.groundColor + '"/>');
+
+  // Water (East River - right side)
+  if (S.layers.water) {
+    parts.push('<g>');
+    var wp = [];
+    for (var z = 1; z >= 0; z -= 0.02) {
+      wp.push(project(0.6 + z * 0.3, z));
+    }
+    var waterPath = 'M ' + project(1.2, 1).x + ',' + project(1.2, 1).y;
+    for (var i = 0; i < wp.length; i++) waterPath += ' L ' + wp[i].x + ',' + wp[i].y;
+    waterPath += ' L 560,' + project(0, 0).y + ' L 560,' + project(1, 1).y + ' Z';
+    parts.push('<path d="' + waterPath + '" fill="' + S.waterColor + '" opacity="0.7"/>');
+    for (var z = 0.1; z < 0.95; z += 0.08) {
+      var p = project(0.75 + z * 0.15, z);
+      var w = (1 - z) * 60;
+      var alpha = 0.03 + (1 - z) * 0.04;
+      parts.push('<line x1="' + p.x + '" y1="' + p.y + '" x2="' + (p.x + w) + '" y2="' + p.y + '" stroke="' + S.palette[0] + '" stroke-width="' + ((1-z)*0.8) + '" opacity="' + alpha + '"/>');
+    }
+    parts.push('</g>');
+  }
+
+  // Parks
+  if (S.layers.parks) {
+    parts.push('<g>');
+    var parks = [
+      { cx: -0.3, cz: 0.25, rx: 0.12, rz: 0.06 },
+      { cx: 0.1, cz: 0.55, rx: 0.06, rz: 0.03 },
+      { cx: -0.5, cz: 0.7, rx: 0.08, rz: 0.03 },
+    ];
+    for (var pi = 0; pi < parks.length; pi++) {
+      var park = parks[pi];
+      var pp = '';
+      for (var a = 0; a < Math.PI * 2; a += 0.3) {
+        var px = park.cx + Math.cos(a) * park.rx;
+        var pz = park.cz + Math.sin(a) * park.rz;
+        var pt = project(px, pz);
+        pp += (a === 0 ? 'M' : 'L') + ' ' + pt.x + ',' + pt.y + ' ';
+      }
+      pp += 'Z';
+      var depthAlpha = 0.4 + (1 - park.cz) * 0.4;
+      parts.push('<path d="' + pp + '" fill="' + S.parkColor + '" opacity="' + depthAlpha + '"/>');
+    }
+    parts.push('</g>');
+  }
+
+  // Streets
+  if (S.layers.streets) {
+    var weightMap = { thin: 0.5, medium: 1, bold: 1.8 };
+    var baseW = weightMap[S.streetWeight];
+    parts.push('<g>');
+
+    // Avenues (toward horizon)
+    var avenues = [-0.7, -0.5, -0.3, -0.1, 0.05, 0.2, 0.35, 0.5];
+    for (var ai = 0; ai < avenues.length; ai++) {
+      var ax = avenues[ai];
+      var path = '';
+      for (var z = 0; z <= 1; z += 0.02) {
+        var p = project(ax, z);
+        path += (z === 0 ? 'M' : 'L') + ' ' + p.x + ',' + p.y;
+      }
+      var isMajor = Math.abs(ax - (-0.1)) < 0.06;
+      var sw = isMajor ? baseW * 2.5 : baseW;
+      var sa = isMajor ? 0.7 : 0.3;
+      parts.push('<path d="' + path + '" fill="none" stroke="' + S.streetColor + '" stroke-width="' + sw + '" opacity="' + sa + '"/>');
+    }
+
+    // Cross streets
+    for (var z = 0.05; z < 0.95; z += 0.07) {
+      var pL = project(-0.8, z);
+      var pR = project(0.55, z);
+      var isMajor = Math.abs(z - 0.5) < 0.04;
+      var sw = isMajor ? baseW * 2 : baseW * 0.7;
+      var sa = isMajor ? 0.6 : 0.15 + (1 - z) * 0.2;
+      parts.push('<line x1="' + pL.x + '" y1="' + pL.y + '" x2="' + pR.x + '" y2="' + pR.y + '" stroke="' + S.streetColor + '" stroke-width="' + sw + '" opacity="' + sa + '"/>');
+    }
+    parts.push('</g>');
+  }
+
+  // Rail lines
+  if (S.layers.rail) {
+    parts.push('<g>');
+    var railPath = '';
+    for (var z = 0; z <= 1; z += 0.02) {
+      var p = project(-0.15 + Math.sin(z * 2) * 0.05, z);
+      railPath += (z === 0 ? 'M' : 'L') + ' ' + p.x + ',' + p.y;
+    }
+    parts.push('<path d="' + railPath + '" fill="none" stroke="' + S.palette[0] + '" stroke-width="1.5" opacity="0.25" stroke-dasharray="6,4"/>');
+    var rail2 = '';
+    for (var z = 0; z <= 1; z += 0.02) {
+      var p = project(0.15 + Math.sin(z * 3) * 0.03, z);
+      rail2 += (z === 0 ? 'M' : 'L') + ' ' + p.x + ',' + p.y;
+    }
+    parts.push('<path d="' + rail2 + '" fill="none" stroke="' + S.palette[1] + '" stroke-width="1" opacity="0.2" stroke-dasharray="4,6"/>');
+    parts.push('</g>');
+  }
+
+  // Buildings
+  if (S.layers.buildings) {
+    parts.push('<g>');
+    var rng = makeRng(42);
+    var blds = [];
+
+    // Downtown cluster (far, tall)
+    for (var i = 0; i < 18; i++) {
+      blds.push({ x: -0.4 + rng() * 0.7, z: 0.7 + rng() * 0.25, w: 0.02 + rng() * 0.04, h: 20 + rng() * 55 });
+    }
+    // Mid-range
+    for (var i = 0; i < 25; i++) {
+      blds.push({ x: -0.65 + rng() * 1.0, z: 0.35 + rng() * 0.35, w: 0.02 + rng() * 0.04, h: 10 + rng() * 30 });
+    }
+    // Foreground residential
+    for (var i = 0; i < 30; i++) {
+      blds.push({ x: -0.7 + rng() * 1.1, z: 0.03 + rng() * 0.32, w: 0.015 + rng() * 0.035, h: 5 + rng() * 15 });
+    }
+
+    blds.sort(function(a, b) { return b.z - a.z; });
+
+    for (var bi = 0; bi < blds.length; bi++) {
+      var b = blds[bi];
+      var baseL = project(b.x - b.w / 2, b.z);
+      var baseR = project(b.x + b.w / 2, b.z);
+      var heightPx = b.h * S.heightMul * (0.3 + (1 - b.z) * 0.7);
+      var topL = { x: baseL.x, y: baseL.y - heightPx };
+      var topR = { x: baseR.x, y: baseR.y - heightPx };
+      var depthAlpha = S.fog ? (0.15 + (1 - b.z) * 0.75) : (0.3 + (1 - b.z) * 0.6);
+      var col0 = S.palette[0];
+      var col1 = S.palette[1];
+
+      if (S.buildingStyle === 'solid') {
+        // Front face
+        parts.push('<polygon points="' + baseL.x + ',' + baseL.y + ' ' + baseR.x + ',' + baseR.y + ' ' + topR.x + ',' + topR.y + ' ' + topL.x + ',' + topL.y + '" fill="' + col1 + '" opacity="' + (depthAlpha * 0.8) + '"/>');
+        // Top face
+        var topOff = heightPx * 0.08;
+        parts.push('<polygon points="' + topL.x + ',' + topL.y + ' ' + topR.x + ',' + topR.y + ' ' + (topR.x - topOff*0.5) + ',' + (topR.y - topOff) + ' ' + (topL.x - topOff*0.5) + ',' + (topL.y - topOff) + '" fill="' + col0 + '" opacity="' + (depthAlpha * 0.5) + '"/>');
+        // Right side face
+        var sideOff = (baseR.x - baseL.x) * 0.3;
+        parts.push('<polygon points="' + baseR.x + ',' + baseR.y + ' ' + (baseR.x + sideOff) + ',' + (baseR.y - 2) + ' ' + (topR.x + sideOff) + ',' + (topR.y - 2) + ' ' + topR.x + ',' + topR.y + '" fill="' + col1 + '" opacity="' + (depthAlpha * 0.4) + '"/>');
+      } else if (S.buildingStyle === 'wireframe') {
+        parts.push('<polygon points="' + baseL.x + ',' + baseL.y + ' ' + baseR.x + ',' + baseR.y + ' ' + topR.x + ',' + topR.y + ' ' + topL.x + ',' + topL.y + '" fill="none" stroke="' + col0 + '" stroke-width="0.5" opacity="' + (depthAlpha * 0.6) + '"/>');
+        var topOff = heightPx * 0.08;
+        parts.push('<polygon points="' + topL.x + ',' + topL.y + ' ' + topR.x + ',' + topR.y + ' ' + (topR.x - topOff*0.5) + ',' + (topR.y - topOff) + ' ' + (topL.x - topOff*0.5) + ',' + (topL.y - topOff) + '" fill="none" stroke="' + col0 + '" stroke-width="0.3" opacity="' + (depthAlpha * 0.4) + '"/>');
+        var sideOff = (baseR.x - baseL.x) * 0.3;
+        parts.push('<polygon points="' + baseR.x + ',' + baseR.y + ' ' + (baseR.x + sideOff) + ',' + (baseR.y - 2) + ' ' + (topR.x + sideOff) + ',' + (topR.y - 2) + ' ' + topR.x + ',' + topR.y + '" fill="none" stroke="' + col0 + '" stroke-width="0.3" opacity="' + (depthAlpha * 0.3) + '"/>');
+      } else {
+        // Glass
+        parts.push('<polygon points="' + baseL.x + ',' + baseL.y + ' ' + baseR.x + ',' + baseR.y + ' ' + topR.x + ',' + topR.y + ' ' + topL.x + ',' + topL.y + '" fill="' + col0 + '" opacity="' + (depthAlpha * 0.2) + '" stroke="' + col0 + '" stroke-width="0.3"/>');
+        var topOff = heightPx * 0.08;
+        parts.push('<polygon points="' + topL.x + ',' + topL.y + ' ' + topR.x + ',' + topR.y + ' ' + (topR.x - topOff*0.5) + ',' + (topR.y - topOff) + ' ' + (topL.x - topOff*0.5) + ',' + (topL.y - topOff) + '" fill="' + col0 + '" opacity="' + (depthAlpha * 0.15) + '"/>');
+        // Window floor lines
+        var floors = Math.floor(heightPx / 6);
+        for (var f = 1; f < floors; f++) {
+          var fy = baseL.y - (heightPx / floors) * f;
+          var frac = f / floors;
+          var flx = baseL.x + (topL.x - baseL.x) * frac * 0.1;
+          var frx = baseR.x + (topR.x - baseR.x) * frac * 0.1;
+          parts.push('<line x1="' + flx + '" y1="' + fy + '" x2="' + frx + '" y2="' + fy + '" stroke="' + col0 + '" stroke-width="0.2" opacity="' + (depthAlpha * 0.3) + '"/>');
+        }
+      }
+    }
+    parts.push('</g>');
+  }
+
+  // Street labels
+  if (S.layers.labels) {
+    parts.push('<g>');
+    var flatP = project(-0.1, 0.3);
+    parts.push('<text x="' + (flatP.x + 4) + '" y="' + (flatP.y - 3) + '" font-family="\'Space Mono\', monospace" font-size="6" fill="' + S.palette[3] + '" opacity="0.5" transform="rotate(-72, ' + (flatP.x + 4) + ', ' + (flatP.y - 3) + ')">FLATBUSH AVE</text>');
+    var atlP = project(-0.3, 0.5);
+    parts.push('<text x="' + atlP.x + '" y="' + (atlP.y - 3) + '" font-family="\'Space Mono\', monospace" font-size="5.5" fill="' + S.palette[3] + '" opacity="0.45">ATLANTIC AVE</text>');
+    var dtP = project(0.0, 0.8);
+    parts.push('<text x="' + dtP.x + '" y="' + (dtP.y - 5) + '" font-family="\'Inter\', sans-serif" font-size="4.5" fill="' + S.palette[0] + '" opacity="0.3" text-anchor="middle" font-weight="600">DOWNTOWN</text>');
+    parts.push('</g>');
+  }
+
+  // Fog overlay
+  if (S.fog) {
+    parts.push('<rect x="0" y="' + (horizon - 20) + '" width="540" height="' + (720 - horizon + 20) + '" fill="url(#fogGrad)"/>');
+  }
+
+  // Close clip group
+  parts.push('</g>');
+
+  // Text block
+  var nameEsc = esc(S.placeName);
+  var subEsc = esc(S.subtitle).toUpperCase();
+  if (S.textPosition === 'bottom') {
+    var ty = 720 - m - 15;
+    parts.push('<text x="270" y="' + (ty - 38) + '" text-anchor="middle" font-family="\'Playfair Display\', serif" font-size="28" font-weight="700" fill="' + S.palette[3] + '" letter-spacing="6">' + nameEsc + '</text>');
+    parts.push('<text x="270" y="' + (ty - 18) + '" text-anchor="middle" font-family="\'Inter\', sans-serif" font-size="9" fill="' + S.palette[3] + '" opacity="0.5" letter-spacing="3">' + subEsc + '</text>');
+    if (S.layers.coords) {
+      parts.push('<text x="270" y="' + ty + '" text-anchor="middle" font-family="\'Space Mono\', monospace" font-size="7" fill="' + S.palette[0] + '" opacity="0.4">40.6782\u00B0N  73.9442\u00B0W</text>');
+    }
+  } else {
+    var ty = m + 50;
+    parts.push('<text x="270" y="' + ty + '" text-anchor="middle" font-family="\'Playfair Display\', serif" font-size="28" font-weight="700" fill="' + S.palette[3] + '" letter-spacing="6">' + nameEsc + '</text>');
+    parts.push('<text x="270" y="' + (ty + 20) + '" text-anchor="middle" font-family="\'Inter\', sans-serif" font-size="9" fill="' + S.palette[3] + '" opacity="0.5" letter-spacing="3">' + subEsc + '</text>');
+    if (S.layers.coords) {
+      parts.push('<text x="270" y="' + (ty + 36) + '" text-anchor="middle" font-family="\'Space Mono\', monospace" font-size="7" fill="' + S.palette[0] + '" opacity="0.4">40.6782\u00B0N  73.9442\u00B0W</text>');
+    }
+  }
+
+  // Use DOM methods to set SVG content safely
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  var temp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  // We build the SVG string from controlled state only (no user HTML), parse via DOMParser
+  var parser = new DOMParser();
+  var doc = parser.parseFromString('<svg xmlns="http://www.w3.org/2000/svg">' + parts.join('') + '</svg>', 'image/svg+xml');
+  var nodes = doc.documentElement.childNodes;
+  while (nodes.length > 0) {
+    svg.appendChild(document.importNode(nodes[0], true));
+  }
+}
+
+// Controls
+function setPreset(name) {
+  S.preset = name;
+  var p = PRESETS[name];
+  S.palette = p.palette.slice();
+  S.bg = p.bg; S.skyTop = p.skyTop; S.skyMid = p.skyMid;
+  S.waterColor = p.waterColor; S.parkColor = p.parkColor;
+  S.streetColor = p.streetColor; S.groundColor = p.groundColor;
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('swatch' + i).style.background = S.palette[i];
+    document.getElementById('swatch' + i).querySelector('input').value = S.palette[i];
+  }
+  document.querySelectorAll('.preset').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.preset === name);
+  });
+  render();
+}
+
+function updatePalette(i, val) {
+  S.palette[i] = val;
+  document.getElementById('swatch' + i).style.background = val;
+  if (i === 0) S.streetColor = val;
+  render();
+}
+
+function updatePitch(val) {
+  S.pitch = parseInt(val);
+  document.getElementById('pitchVal').textContent = val + '\u00B0';
+  render();
+}
+
+function updateHeight(val) {
+  S.heightMul = val / 100;
+  document.getElementById('heightVal').textContent = S.heightMul.toFixed(1) + '\u00D7';
+  render();
+}
+
+function toggleLayer(btn) {
+  var layer = btn.dataset.layer;
+  btn.classList.toggle('on');
+  S.layers[layer] = btn.classList.contains('on');
+  render();
+}
+
+function toggleFog(btn) {
+  btn.classList.toggle('on');
+  S.fog = btn.classList.contains('on');
+  render();
+}
+
+function setBuildingStyle(style, btn) {
+  S.buildingStyle = style;
+  btn.parentElement.querySelectorAll('.pill').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  render();
+}
+
+function setStreetWeight(w, btn) {
+  S.streetWeight = w;
+  btn.parentElement.querySelectorAll('.pill').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  render();
+}
+
+function updateText() {
+  S.placeName = document.getElementById('placeName').value || 'BROOKLYN';
+  S.subtitle = document.getElementById('subtitle').value || 'New York, USA';
+  render();
+}
+
+function setTextPosition(pos, btn) {
+  S.textPosition = pos;
+  btn.parentElement.querySelectorAll('.pill').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  render();
+}
+
+function setBorder(type, el) {
+  S.border = type;
+  el.parentElement.querySelectorAll('.border-opt').forEach(function(o) { o.classList.remove('active'); });
+  el.classList.add('active');
+  render();
+}
+
+function updateMargin(val) {
+  S.margin = parseInt(val);
+  document.getElementById('marginVal').textContent = val + 'px';
+  render();
+}
+
+// Initial render
+render();
+</script>
+</body>
+</html>
