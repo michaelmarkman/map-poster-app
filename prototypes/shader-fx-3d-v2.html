@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster — Shader FX (3D Tiles)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111113; color: #e4e4e7; font-family: 'Inter', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  #sidebar {
+    width: 340px; min-width: 340px; background: #18181b; border-right: 1px solid #27272a;
+    display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: #3f3f46 transparent;
+  }
+  #sidebar::-webkit-scrollbar { width: 5px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+
+  .sidebar-section { padding: 16px 18px; border-bottom: 1px solid #27272a; }
+  .sidebar-section:last-child { border-bottom: none; }
+  .section-title {
+    font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #71717a; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-title svg { width: 14px; height: 14px; opacity: 0.5; }
+
+  /* Logo */
+  .logo { padding: 18px 18px 14px; border-bottom: 1px solid #27272a; }
+  .logo-text { font-family: 'Inter'; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-text .map { color: #fff; }
+  .logo-text .poster { color: #a78bfa; }
+  .logo-sub { font-size: 11px; color: #52525b; margin-top: 2px; }
+
+  /* Location */
+  .location-address {
+    font-size: 18px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;
+  }
+  .location-address .edit-icon { cursor: pointer; opacity: 0.3; transition: opacity 0.2s; }
+  .location-address .edit-icon:hover { opacity: 0.7; }
+  .location-hood { font-size: 13px; color: #a1a1aa; margin-top: 4px; }
+  .location-coords { font-family: 'Space Mono'; font-size: 11px; color: #52525b; margin-top: 6px; }
+
+  /* Concept cards */
+  .concept-card {
+    background: #1c1c20; border: 1px solid #27272a; border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: all 0.25s ease; margin-bottom: 8px;
+  }
+  .concept-card:last-child { margin-bottom: 0; }
+  .concept-card:hover { background: #222228; border-color: #3f3f46; }
+  .concept-card.active { border-color: #a78bfa; background: #1e1b2e; box-shadow: 0 0 16px rgba(167,139,250,0.08); }
+  .concept-card .card-header { display: flex; align-items: center; gap: 8px; }
+  .concept-icon {
+    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+  .concept-card.active .concept-icon { box-shadow: 0 0 10px rgba(167,139,250,0.3); }
+  .concept-name { font-size: 13px; font-weight: 600; color: #f4f4f5; }
+  .concept-desc { font-size: 11px; color: #71717a; margin-top: 5px; line-height: 1.4; padding-left: 40px; }
+
+  /* Sliders */
+  .control-row { margin-bottom: 10px; }
+  .control-row:last-child { margin-bottom: 0; }
+  .control-label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: #a1a1aa; margin-bottom: 5px;
+  }
+  .control-value { font-family: 'Space Mono'; font-size: 11px; color: #71717a; }
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px;
+    background: #27272a; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #a78bfa; cursor: pointer; border: 2px solid #18181b;
+  }
+
+  /* Toggles */
+  .toggle-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; font-size: 12px; color: #a1a1aa;
+  }
+  .toggle {
+    width: 36px; height: 20px; border-radius: 10px; background: #27272a;
+    position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle.on { background: #a78bfa; }
+  .toggle::after {
+    content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* Text inputs */
+  .text-input {
+    width: 100%; background: #111113; border: 1px solid #27272a; border-radius: 6px;
+    padding: 8px 10px; color: #e4e4e7; font-family: 'Inter'; font-size: 12px;
+    outline: none; margin-bottom: 8px; transition: border-color 0.2s;
+  }
+  .text-input:focus { border-color: #a78bfa; }
+  .text-input:last-child { margin-bottom: 0; }
+  .text-pos-toggle { display: flex; gap: 6px; margin-top: 8px; }
+  .text-pos-btn {
+    flex: 1; padding: 6px; border-radius: 6px; border: 1px solid #27272a; background: transparent;
+    color: #71717a; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s;
+  }
+  .text-pos-btn.active { border-color: #a78bfa; color: #a78bfa; background: #1e1b2e; }
+
+  /* Export */
+  .size-grid { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .size-btn {
+    flex: 1; padding: 8px 4px; border-radius: 6px; border: 1px solid #27272a; background: transparent;
+    color: #71717a; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s;
+  }
+  .size-btn.active { border-color: #a78bfa; color: #a78bfa; background: #1e1b2e; }
+  .export-btn {
+    width: 100%; padding: 12px; border-radius: 8px; border: none;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff;
+    font-family: 'Inter'; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.2s; letter-spacing: 0.3px;
+  }
+  .export-btn:hover { opacity: 0.9; }
+
+  /* Main area */
+  #main {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #111113; padding: 20px; position: relative;
+  }
+
+  /* Poster frame */
+  #poster-frame {
+    position: relative; border: 1px solid #27272a; border-radius: 4px;
+    overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    --ratio: 1.333;
+    width: min(calc((100vh - 40px) * var(--ratio)), calc(100vw - 400px));
+    height: min(calc(100vh - 40px), calc((100vw - 400px) / var(--ratio)));
+    max-width: 900px; max-height: 900px;
+    display: flex; flex-direction: column;
+    transition: width 0.4s ease, height 0.4s ease;
+  }
+
+  #map-container { flex: 1; position: relative; overflow: hidden; }
+  #cesium-container {
+    position: absolute; inset: 0;
+  }
+  /* Hide Cesium default UI */
+  .cesium-viewer-toolbar,
+  .cesium-viewer-animationContainer,
+  .cesium-viewer-timelineContainer,
+  .cesium-viewer-fullscreenContainer,
+  .cesium-viewer-infoBoxContainer,
+  .cesium-viewer-selectionIndicatorContainer,
+  .cesium-viewer-geocoderContainer,
+  .cesium-viewer-bottom,
+  .cesium-credit-lightbox-overlay,
+  .cesium-widget-credits { display: none !important; }
+
+  /* Text overlay */
+  #text-overlay {
+    padding: 20px 24px 18px; text-align: center; background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px); position: absolute; left: 0; right: 0;
+    z-index: 10; transition: all 0.3s;
+  }
+  #text-overlay.bottom { bottom: 0; top: auto; }
+  #text-overlay.top { top: 0; bottom: auto; }
+  #text-overlay .poster-title {
+    font-family: 'Playfair Display'; font-size: 22px; font-weight: 600;
+    letter-spacing: 6px; text-transform: uppercase; color: #fff;
+  }
+  #text-overlay .poster-subtitle {
+    font-size: 11px; color: #a1a1aa; margin-top: 6px; letter-spacing: 1px;
+  }
+  #text-overlay .poster-coords {
+    font-family: 'Space Mono'; font-size: 10px; color: #52525b; margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Size badge */
+  .size-badge {
+    position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); border: 1px solid #27272a; border-radius: 4px;
+    padding: 3px 8px; font-family: 'Space Mono'; font-size: 9px; color: #52525b;
+    z-index: 11;
+  }
+  .badge-3d {
+    position: absolute; top: 10px; left: 10px; background: rgba(167,139,250,0.15);
+    backdrop-filter: blur(4px); border: 1px solid rgba(167,139,250,0.3); border-radius: 4px;
+    padding: 3px 8px; font-family: 'Space Mono'; font-size: 9px; color: #a78bfa;
+    z-index: 11; letter-spacing: 1px;
+  }
+
+  /* ============ VISUAL EFFECTS ============ */
+  .fx-item { margin-bottom: 12px; }
+  .fx-item:last-child { margin-bottom: 0; }
+  .fx-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;
+  }
+  .fx-name { font-size: 12px; font-weight: 500; color: #e4e4e7; }
+  .fx-desc { font-size: 10px; color: #52525b; margin-top: 2px; margin-bottom: 0; line-height: 1.3; }
+  .fx-slider-row {
+    overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+    max-height: 0; opacity: 0; margin-top: 0;
+  }
+  .fx-slider-row.open { max-height: 400px; opacity: 1; margin-top: 8px; }
+  .fx-slider-label {
+    display: flex; justify-content: space-between; font-size: 10px; color: #71717a; margin-bottom: 4px;
+  }
+  .fx-slider-label .fx-pct { font-family: 'Space Mono'; }
+
+  /* Film grain overlay canvas */
+  #grain-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 6;
+    mix-blend-mode: overlay;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* Tilt-shift — Gaussian stack WebGL post-process */
+  #tilt-shift-canvas {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    width: 100%; height: 100%;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #tilt-vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    background: radial-gradient(ellipse 70% 35% at 50% 42%, transparent 20%, rgba(0,0,0,0.5) 100%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* Color grade overlay */
+  #color-grade-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    opacity: 0; transition: opacity 0.3s;
+  }
+
+  /* Vignette overlay */
+  #vignette-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+    opacity: 0; transition: opacity 0.3s;
+  }
+
+  /* Lens flare */
+  #lens-flare {
+    position: absolute; inset: 0; pointer-events: none; z-index: 7;
+    opacity: 0; transition: opacity 0.4s;
+    overflow: hidden;
+  }
+  #flare-orb {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,240,0.95) 0%, rgba(255,220,150,0.6) 20%, rgba(255,180,80,0.2) 50%, transparent 70%);
+    filter: blur(2px);
+  }
+  #flare-streak {
+    position: absolute; height: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,220,160,0.5) 30%, rgba(255,255,240,0.8) 48%, rgba(255,255,255,0.9) 50%, rgba(255,255,240,0.8) 52%, rgba(255,220,160,0.5) 70%, transparent 100%);
+    filter: blur(1px);
+  }
+  #flare-streak-wide {
+    position: absolute; height: 20px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,200,120,0.08) 20%, rgba(255,220,160,0.15) 45%, rgba(255,240,200,0.2) 50%, rgba(255,220,160,0.15) 55%, rgba(255,200,120,0.08) 80%, transparent 100%);
+    filter: blur(6px);
+  }
+  .flare-dot {
+    position: absolute; border-radius: 50%;
+    filter: blur(1px);
+  }
+  #flare-bloom {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,240,200,0.15) 0%, rgba(255,200,120,0.05) 50%, transparent 70%);
+    filter: blur(20px);
+  }
+
+  /* API key prompt */
+  #api-key-prompt {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: #111113; z-index: 100;
+    gap: 16px; padding: 40px;
+  }
+  #api-key-prompt h2 { font-size: 18px; font-weight: 600; color: #fff; }
+  #api-key-prompt p { font-size: 13px; color: #71717a; text-align: center; max-width: 420px; line-height: 1.6; }
+  #api-key-prompt input {
+    width: 100%; max-width: 420px; padding: 12px 16px; border-radius: 8px;
+    border: 1px solid #27272a; background: #18181b; color: #e4e4e7;
+    font-family: 'Space Mono'; font-size: 13px; outline: none;
+  }
+  #api-key-prompt input:focus { border-color: #a78bfa; }
+  #api-key-prompt button {
+    padding: 12px 32px; border-radius: 8px; border: none;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff;
+    font-family: 'Inter'; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #api-key-prompt .hint { font-size: 11px; color: #52525b; text-align: center; max-width: 420px; line-height: 1.5; }
+  #api-key-prompt a { color: #a78bfa; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div class="logo">
+    <div class="logo-text"><span class="map">map</span><span class="poster">poster</span></div>
+    <div class="logo-sub">Photorealistic 3D tiles + shader FX</div>
+  </div>
+
+  <!-- Location -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Location
+    </div>
+    <div class="location-address">
+      <span>250 1st Ave</span>
+      <svg class="edit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </div>
+    <div class="location-hood">East Village, Manhattan</div>
+    <div class="location-coords">40.7323&#176; N, 73.9812&#176; W</div>
+  </div>
+
+  <!-- Poster Concepts -->
+  <div class="sidebar-section" id="concepts-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Poster Concepts
+    </div>
+    <div id="concept-cards"></div>
+  </div>
+
+  <!-- Camera -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="4"/><path d="M5 7h2l2-3h6l2 3h2a2 2 0 012 2v9a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2"/></svg>
+      Camera
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Tilt</span><span class="control-value" id="tilt-val">55&#176;</span></div>
+      <input type="range" id="tilt-slider" min="0" max="90" step="1" value="55">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Heading</span><span class="control-value" id="heading-val">-30&#176;</span></div>
+      <input type="range" id="heading-slider" min="-180" max="180" step="1" value="-30">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Range (altitude)</span><span class="control-value" id="range-val">800m</span></div>
+      <input type="range" id="range-slider" min="100" max="10000" step="50" value="800">
+    </div>
+    <div class="toggle-row" style="margin-top:10px">
+      <span>Street labels</span>
+      <div class="toggle on" id="toggle-labels"></div>
+    </div>
+  </div>
+
+  <!-- Sun & Light -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      Sun & Light
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Time of day</span><span class="control-value" id="tod-val">Midday</span></div>
+      <input type="range" id="tod-slider" min="0" max="100" step="1" value="50">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Warmth</span><span class="control-value" id="warmth-val">0</span></div>
+      <input type="range" id="warmth-slider" min="-50" max="50" step="1" value="0">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Exposure</span><span class="control-value" id="exposure-val">0</span></div>
+      <input type="range" id="exposure-slider" min="-50" max="50" step="1" value="0">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Shadows</span><span class="control-value" id="shadows-val">0%</span></div>
+      <input type="range" id="shadows-slider" min="0" max="100" step="5" value="0">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Lens flare</span><span class="control-value" id="flare-val">0%</span></div>
+      <input type="range" id="flare-slider" min="0" max="100" step="5" value="0">
+    </div>
+  </div>
+
+  <!-- Visual Effects -->
+  <div class="sidebar-section" id="fx-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Visual Effects
+    </div>
+    <div id="fx-controls"></div>
+  </div>
+
+  <!-- Text -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+      Text
+    </div>
+    <div class="toggle-row" style="margin-bottom:10px">
+      <span>Show text</span>
+      <div class="toggle" id="toggle-text-overlay"></div>
+    </div>
+    <input class="text-input" id="text-title" value="East Village" placeholder="Title">
+    <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
+    <input class="text-input" id="text-coords" value="40.7323&#176; N, 73.9812&#176; W" placeholder="Coordinates">
+    <div class="text-pos-toggle" id="text-pos-toggle"></div>
+  </div>
+
+  <!-- Export -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </div>
+    <div class="size-grid" id="size-grid"></div>
+    <div class="toggle-row" style="margin-bottom:10px">
+      <span>AI enhance (Gemini Flash)</span>
+      <div class="toggle on" id="toggle-ai-enhance"></div>
+    </div>
+    <div id="ai-settings" style="margin-bottom:10px">
+      <div class="control-row">
+        <input class="text-input" id="gemini-api-key" value="AIzaSyDdbPx16PzAl4ybNkvMVG8rqnngKfhLREE" autocomplete="off" style="font-size:11px;">
+      </div>
+      <div class="control-row">
+        <input class="text-input" id="gemini-prompt" placeholder="Enhancement prompt (optional)" style="font-size:11px;" value="Make this look like a real aerial photograph taken from a helicopter with a DSLR camera. Keep the exact same buildings and layout. Just enhance realism, lighting, and detail subtly.">
+      </div>
+    </div>
+    <div id="export-progress" style="display:none;margin-bottom:10px;font-size:11px;color:#a1a1aa;text-align:center;padding:8px 0;">
+      <div id="export-status">Capturing...</div>
+      <div style="height:3px;background:#27272a;border-radius:2px;margin-top:6px;overflow:hidden;">
+        <div id="export-bar" style="height:100%;background:#a78bfa;border-radius:2px;width:0%;transition:width 0.3s;"></div>
+      </div>
+    </div>
+    <button class="export-btn" id="export-btn">Download PNG</button>
+    <button class="export-btn" id="quick-download-btn" style="margin-top:6px;background:#3f3f46;">Quick Download (no AI)</button>
+  </div>
+</div>
+
+<!-- Main poster area -->
+<div id="main">
+  <div id="poster-frame">
+    <div id="map-container">
+      <div id="cesium-container"></div>
+      <!-- Sun & light overlays -->
+      <div id="sun-tint-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;mix-blend-mode:multiply;transition:opacity 0.3s;"></div>
+      <div id="sun-shadow-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity 0.3s;"></div>
+      <!-- Lens flare -->
+      <div id="lens-flare">
+        <div id="flare-bloom"></div>
+        <div id="flare-streak-wide"></div>
+        <div id="flare-streak"></div>
+        <div id="flare-orb"></div>
+        <div class="flare-dot" id="flare-dot-1"></div>
+        <div class="flare-dot" id="flare-dot-2"></div>
+        <div class="flare-dot" id="flare-dot-3"></div>
+        <div class="flare-dot" id="flare-dot-4"></div>
+        <div class="flare-dot" id="flare-dot-5"></div>
+      </div>
+      <!-- FX overlay layers -->
+      <div id="color-grade-overlay"></div>
+      <div id="vignette-overlay"></div>
+      <canvas id="grain-overlay"></canvas>
+      <canvas id="tilt-shift-canvas"></canvas>
+      <div id="tilt-vignette"></div>
+      <div id="paper-shader-container" style="position:absolute;inset:0;pointer-events:none;z-index:8;opacity:0;transition:opacity 0.3s;"></div>
+      <!-- Focus reticle for click-to-focus -->
+      <div id="focus-reticle" style="display:none;position:absolute;pointer-events:none;z-index:20;transform:translate(-50%,-50%);transition:left 0.15s,top 0.15s,opacity 0.5s;">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="20" cy="20" r="14" stroke="white" stroke-width="1.5" opacity="0.9"/>
+          <circle cx="20" cy="20" r="3" fill="white" opacity="0.8"/>
+          <line x1="20" y1="2" x2="20" y2="10" stroke="white" stroke-width="1" opacity="0.6"/>
+          <line x1="20" y1="30" x2="20" y2="38" stroke="white" stroke-width="1" opacity="0.6"/>
+          <line x1="2" y1="20" x2="10" y2="20" stroke="white" stroke-width="1" opacity="0.6"/>
+          <line x1="30" y1="20" x2="38" y2="20" stroke="white" stroke-width="1" opacity="0.6"/>
+        </svg>
+      </div>
+      <!-- Tilt-shift focus band lines -->
+      <div id="tilt-band-top" style="display:none;position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,0.4);pointer-events:none;z-index:20;box-shadow:0 0 6px rgba(255,255,255,0.2);"></div>
+      <div id="tilt-band-bottom" style="display:none;position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,0.4);pointer-events:none;z-index:20;box-shadow:0 0 6px rgba(255,255,255,0.2);"></div>
+    </div>
+    <div id="text-overlay" class="bottom" style="display:none">
+      <div class="poster-title" id="overlay-title">East Village</div>
+      <div class="poster-subtitle" id="overlay-subtitle">250 1st Avenue</div>
+      <div class="poster-coords" id="overlay-coords">40.7323&#176; N, 73.9812&#176; W</div>
+    </div>
+  </div>
+
+  <!-- API Key prompt overlay -->
+  <div id="api-key-prompt">
+    <h2>Cesium Ion Token</h2>
+    <p>This prototype uses CesiumJS with Google Photorealistic 3D Tiles. You need a free Cesium ion access token.</p>
+    <input type="text" id="api-key-input" placeholder="Paste your Cesium ion token here..." autocomplete="off">
+    <button id="api-key-submit">Load 3D Map</button>
+    <span class="hint">Free signup at <a href="https://ion.cesium.com/signup" target="_blank">ion.cesium.com/signup</a> — then copy your default access token from the dashboard. Token is stored in sessionStorage only.</span>
+  </div>
+</div>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Cesium.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var viewer = null; window._getViewer = function() { return viewer; };
+  var currentTarget = null; // current lookAt target
+
+  // Concepts: center (lat/lng), heading (degrees), tilt (0=top-down, 90=horizon), range (meters from target)
+  var concepts = [
+    {
+      id: 'grid-ovals', name: 'The Grid & The Ovals', icon: '\u229E',
+      iconBg: '#2d1f5e',
+      desc: "Manhattan's rigid street grid meets Stuy Town's organic oval loops \u2014 photorealistic.",
+      lat: 40.7330, lng: -73.9785, range: 800, tilt: 55, heading: -30
+    },
+    {
+      id: 'east-river', name: 'East River Lookout', icon: '\u223C',
+      iconBg: '#0c2d48',
+      desc: 'The waterfront, FDR Drive, and East River Park \u2014 where city meets water in full 3D.',
+      lat: 40.7320, lng: -73.9740, range: 1500, tilt: 60, heading: 90
+    },
+    {
+      id: 'texture', name: 'Neighborhood Texture', icon: '\u25A1',
+      iconBg: '#2a2a2a',
+      desc: 'Top-down satellite view of the East Village blocks \u2014 every rooftop and tree visible.',
+      lat: 40.7323, lng: -73.9812, range: 500, tilt: 5, heading: 0
+    },
+    {
+      id: 'downtown', name: 'Downtown Skyline', icon: '\u25B2',
+      iconBg: '#2e1a3e',
+      desc: "East Village foreground, Lower Manhattan's towers rising dramatically behind \u2014 real geometry.",
+      lat: 40.7380, lng: -73.9860, range: 3000, tilt: 65, heading: 160
+    },
+    {
+      id: 'full-island', name: 'The Full Island', icon: '\u2316',
+      iconBg: '#1a2e1a',
+      desc: 'Manhattan\'s narrow island between two rivers \u2014 the real 3D skyline from above.',
+      lat: 40.7500, lng: -73.9812, range: 8000, tilt: 45, heading: -15
+    },
+    {
+      id: 'street-level', name: 'Street-Level Drama', icon: '\u2605',
+      iconBg: '#1a0a2e',
+      desc: 'Low-angle cinematic view between buildings \u2014 like a drone shot through the East Village.',
+      lat: 40.7323, lng: -73.9812, range: 300, tilt: 75, heading: -45
+    }
+  ];
+
+  var currentConcept = concepts[0];
+
+  // FX state
+  var fxState = {
+    neonGlow:    { on: false, intensity: 70 },
+    cinematic:   { on: false, intensity: 50 },
+    filmGrain:   { on: false, intensity: 40 },
+    tiltShift:   { on: false, blur: 5, bandSize: 20, focusPos: 45, falloff: 0, saturation: 55, mode: 'band' },
+    depthDof:    { on: true, focalDist: 90, blurAmount: 10, colorPop: 80, globalPop: true, autoFocus: false },
+    vignette:    { on: false, intensity: 60 },
+    paperTexture:  { on: false, intensity: 50, roughness: 50, crumples: 30, folds: 20, fade: 50 },
+    flutedGlass:   { on: false, intensity: 50, distortion: 50, blur: 30, size: 30, angle: 0 },
+    waterEffect:   { on: false, intensity: 50, waves: 50, caustic: 30, size: 50 },
+    halftone:      { on: false, intensity: 50, size: 30, contrast: 50 },
+    halftoneCmyk:  { on: false, intensity: 50, size: 30, softness: 40 },
+    heatmap:       { on: false, intensity: 50, noise: 50, contour: 30 },
+    dithering:     { on: false, intensity: 50, pxSize: 30, colorSteps: 50 },
+    liquidMetal:   { on: false, intensity: 50, distortion: 50, softness: 40, contour: 30 }
+  };
+
+  // --- Build concept cards ---
+  var cardsEl = document.getElementById('concept-cards');
+  concepts.forEach(function(c, i) {
+    var card = document.createElement('div');
+    card.className = 'concept-card' + (i === 0 ? ' active' : '');
+    card.dataset.id = c.id;
+
+    var header = document.createElement('div');
+    header.className = 'card-header';
+    var iconEl = document.createElement('div');
+    iconEl.className = 'concept-icon';
+    iconEl.style.background = c.iconBg;
+    iconEl.textContent = c.icon;
+    var nameEl = document.createElement('div');
+    nameEl.className = 'concept-name';
+    nameEl.textContent = c.name;
+    header.appendChild(iconEl);
+    header.appendChild(nameEl);
+
+    var descEl = document.createElement('div');
+    descEl.className = 'concept-desc';
+    descEl.textContent = c.desc;
+
+    card.appendChild(header);
+    card.appendChild(descEl);
+    card.addEventListener('click', function() { selectConcept(c); });
+    cardsEl.appendChild(card);
+  });
+
+  // --- Build Visual Effects controls ---
+  var fxDefs = [
+    { key: 'neonGlow',     name: 'Neon Glow',       desc: 'Hyper-saturated brightness boost' },
+    { key: 'cinematic',   name: 'Cinematic Grade',  desc: 'Color tint overlay for mood' },
+    { key: 'filmGrain',   name: 'Film Grain',       desc: 'Analog darkroom noise texture' },
+    { key: 'paperTexture', name: 'Paper Texture',   desc: 'Realistic paper/cardstock surface', sliders: [
+      { prop: 'intensity',  label: 'Intensity' },
+      { prop: 'roughness',  label: 'Roughness' },
+      { prop: 'crumples',   label: 'Crumples' },
+      { prop: 'folds',      label: 'Folds' },
+      { prop: 'fade',       label: 'Fade' }
+    ]},
+    { key: 'flutedGlass',  name: 'Fluted Glass',    desc: 'Ribbed glass distortion overlay', sliders: [
+      { prop: 'intensity',   label: 'Intensity' },
+      { prop: 'distortion',  label: 'Distortion' },
+      { prop: 'blur',        label: 'Blur' },
+      { prop: 'size',        label: 'Size' },
+      { prop: 'angle',       label: 'Angle' }
+    ]},
+    { key: 'waterEffect',  name: 'Water',           desc: 'Water surface refraction', sliders: [
+      { prop: 'intensity',  label: 'Intensity' },
+      { prop: 'waves',      label: 'Waves' },
+      { prop: 'caustic',    label: 'Caustic' },
+      { prop: 'size',       label: 'Size' }
+    ]},
+    { key: 'halftone',     name: 'Halftone Dots',   desc: 'Retro dot-screen print effect', sliders: [
+      { prop: 'intensity',  label: 'Intensity' },
+      { prop: 'size',       label: 'Dot Size' },
+      { prop: 'contrast',   label: 'Contrast' }
+    ]},
+    { key: 'halftoneCmyk', name: 'CMYK Halftone',   desc: 'Four-color process print effect', sliders: [
+      { prop: 'intensity',  label: 'Intensity' },
+      { prop: 'size',       label: 'Dot Size' },
+      { prop: 'softness',   label: 'Softness' }
+    ]},
+    { key: 'heatmap',      name: 'Heatmap',         desc: 'Thermal camera color mapping', sliders: [
+      { prop: 'intensity',  label: 'Intensity' },
+      { prop: 'noise',      label: 'Noise' },
+      { prop: 'contour',    label: 'Contour' }
+    ]},
+    { key: 'dithering',    name: 'Dithering',       desc: 'Pixel dither pattern effect', sliders: [
+      { prop: 'intensity',   label: 'Intensity' },
+      { prop: 'pxSize',      label: 'Pixel Size' },
+      { prop: 'colorSteps',  label: 'Color Steps' }
+    ]},
+    { key: 'liquidMetal',  name: 'Liquid Metal',    desc: 'Chrome/mercury metallic distortion', sliders: [
+      { prop: 'intensity',   label: 'Intensity' },
+      { prop: 'distortion',  label: 'Distortion' },
+      { prop: 'softness',    label: 'Softness' },
+      { prop: 'contour',     label: 'Contour' }
+    ]},
+    { key: 'tiltShift', name: 'Tilt-Shift',       desc: 'Miniature model depth-of-field blur' },
+    { key: 'depthDof',  name: '3D Depth-of-Field', desc: 'Real depth-based blur from 3D camera', sliders: [
+      { prop: 'focalDist',  label: 'Focus Tightness' },
+      { prop: 'blurAmount', label: 'Blur Amount' },
+      { prop: 'colorPop',   label: 'Color Pop' }
+    ], toggles: [
+      { prop: 'globalPop', label: 'Color pop whole scene' },
+      { prop: 'autoFocus', label: 'Auto-focus on camera move' }
+    ]},
+    { key: 'vignette',  name: 'Vignette',         desc: 'Dark edges for dramatic framing' }
+  ];
+
+  var fxContainer = document.getElementById('fx-controls');
+  fxDefs.forEach(function(fx) {
+    var item = document.createElement('div');
+    item.className = 'fx-item';
+
+    var header = document.createElement('div');
+    header.className = 'fx-header';
+    var nameEl = document.createElement('span');
+    nameEl.className = 'fx-name';
+    nameEl.textContent = fx.name;
+    var toggle = document.createElement('div');
+    toggle.className = 'toggle';
+    toggle.setAttribute('data-fx-toggle', fx.key);
+    toggle.id = 'fx-toggle-' + fx.key;
+    header.appendChild(nameEl);
+    header.appendChild(toggle);
+    item.appendChild(header);
+
+    var desc = document.createElement('div');
+    desc.className = 'fx-desc';
+    desc.textContent = fx.desc;
+    item.appendChild(desc);
+
+    var sliderRow = document.createElement('div');
+    sliderRow.className = 'fx-slider-row';
+    sliderRow.id = 'fx-slider-' + fx.key;
+
+    // Multi-slider FX (tiltShift or any fx with sliders array)
+    var multiSliders = fx.sliders || (fx.key === 'tiltShift' ? [
+      { prop: 'focusPos',   label: 'Focus Position' },
+      { prop: 'bandSize',   label: 'Focus Band' },
+      { prop: 'blur',       label: 'Blur' },
+      { prop: 'falloff',    label: 'Falloff' },
+      { prop: 'saturation', label: 'Focus Pop' }
+    ] : null);
+
+    if (multiSliders) {
+      multiSliders.forEach(function(ts) {
+        var val = fxState[fx.key][ts.prop];
+        var row = document.createElement('div');
+        row.className = 'control-row';
+        var lab = document.createElement('div');
+        lab.className = 'fx-slider-label';
+        var labText = document.createElement('span');
+        labText.textContent = ts.label;
+        var labVal = document.createElement('span');
+        labVal.className = 'fx-pct';
+        labVal.textContent = val + '%';
+        lab.appendChild(labText);
+        lab.appendChild(labVal);
+        row.appendChild(lab);
+        var sl = document.createElement('input');
+        sl.type = 'range'; sl.min = '0'; sl.max = '100'; sl.step = '1'; sl.value = val;
+        (function(fxKey, prop, labValEl) {
+          sl.addEventListener('input', function(e) {
+            fxState[fxKey][prop] = +e.target.value;
+            labValEl.textContent = e.target.value + '%';
+            applyFx(fxKey);
+          });
+        })(fx.key, ts.prop, labVal);
+        row.appendChild(sl);
+        sliderRow.appendChild(row);
+      });
+    } else {
+      var sliderLabel = document.createElement('div');
+      sliderLabel.className = 'fx-slider-label';
+      var intensityLabel = document.createElement('span');
+      intensityLabel.textContent = 'Intensity';
+      var pctLabel = document.createElement('span');
+      pctLabel.className = 'fx-pct';
+      pctLabel.id = 'fx-pct-' + fx.key;
+      pctLabel.textContent = fxState[fx.key].intensity + '%';
+      sliderLabel.appendChild(intensityLabel);
+      sliderLabel.appendChild(pctLabel);
+      sliderRow.appendChild(sliderLabel);
+
+      var slider = document.createElement('input');
+      slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.step = '1';
+      slider.value = fxState[fx.key].intensity;
+      slider.id = 'fx-range-' + fx.key;
+      sliderRow.appendChild(slider);
+    }
+    // Add boolean toggle options (checkboxes) if defined
+    if (fx.toggles) {
+      fx.toggles.forEach(function(tg) {
+        var row = document.createElement('div');
+        row.className = 'control-row';
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0;cursor:pointer;';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!fxState[fx.key][tg.prop];
+        cb.style.cssText = 'accent-color:#7c6fe0;width:14px;height:14px;cursor:pointer;';
+        var lbl = document.createElement('span');
+        lbl.textContent = tg.label;
+        lbl.style.cssText = 'font-size:11px;opacity:0.7;cursor:pointer;';
+        row.appendChild(cb);
+        row.appendChild(lbl);
+        (function(fxKey, prop, checkbox) {
+          var handler = function() {
+            fxState[fxKey][prop] = checkbox.checked;
+            applyFx(fxKey);
+          };
+          checkbox.addEventListener('change', handler);
+          lbl.addEventListener('click', function() { checkbox.checked = !checkbox.checked; handler(); });
+        })(fx.key, tg.prop, cb);
+        sliderRow.appendChild(row);
+      });
+    }
+
+    item.appendChild(sliderRow);
+
+    toggle.addEventListener('click', function() {
+      var paperKeys = ['paperTexture', 'flutedGlass', 'waterEffect', 'halftone', 'halftoneCmyk', 'heatmap', 'dithering', 'liquidMetal'];
+      fxState[fx.key].on = !fxState[fx.key].on;
+
+      // Paper shaders are mutually exclusive — turn off others
+      if (fxState[fx.key].on && paperKeys.indexOf(fx.key) >= 0) {
+        paperKeys.forEach(function(pk) {
+          if (pk !== fx.key && fxState[pk].on) {
+            fxState[pk].on = false;
+            var otherToggle = document.querySelector('[data-fx-toggle="' + pk + '"]');
+            if (otherToggle) otherToggle.classList.remove('on');
+            var otherSlider = document.getElementById('fx-slider-' + pk);
+            if (otherSlider) otherSlider.classList.remove('open');
+          }
+        });
+      }
+
+      toggle.classList.toggle('on', fxState[fx.key].on);
+      sliderRow.classList.toggle('open', fxState[fx.key].on);
+      applyFx(fx.key);
+    });
+
+    if (!multiSliders) {
+      (function(fxKey) {
+        var sl = sliderRow.querySelector('input[type="range"]');
+        var pct = sliderRow.querySelector('.fx-pct');
+        if (sl) sl.addEventListener('input', function(e) {
+          fxState[fxKey].intensity = +e.target.value;
+          if (pct) pct.textContent = e.target.value + '%';
+          applyFx(fxKey);
+        });
+      })(fx.key);
+    }
+
+    fxContainer.appendChild(item);
+
+    // Initialize toggle + slider UI from fxState defaults
+    if (fxState[fx.key].on) {
+      toggle.classList.add('on');
+      sliderRow.classList.add('open');
+    }
+  });
+
+  // --- Build text position toggle ---
+  var textPosToggle = document.getElementById('text-pos-toggle');
+  ['Top', 'Bottom'].forEach(function(pos) {
+    var btn = document.createElement('button');
+    btn.className = 'text-pos-btn' + (pos === 'Bottom' ? ' active' : '');
+    btn.dataset.pos = pos.toLowerCase();
+    btn.textContent = pos;
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.text-pos-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var overlay = document.getElementById('text-overlay');
+      overlay.classList.remove('top', 'bottom');
+      overlay.classList.add(pos.toLowerCase());
+    });
+    textPosToggle.appendChild(btn);
+  });
+
+  // --- Build size buttons ---
+  var sizeGrid = document.getElementById('size-grid');
+  var posterFrame = document.getElementById('poster-frame');
+  var sizes = [
+    { label: '12 x 16"',  ratio: 0.75 },
+    { label: '18 x 24"',  ratio: 0.75 },
+    { label: '24 x 36"',  ratio: 0.667 },
+    { label: '24 x 18"',  ratio: 1.333 },
+    { label: '36 x 24"',  ratio: 1.5 },
+    { label: '1:1',       ratio: 1.0 },
+    { label: '16:9',      ratio: 1.778 }
+  ];
+  sizes.forEach(function(sz) {
+    var btn = document.createElement('button');
+    btn.className = 'size-btn' + (sz.label === '24 x 18"' ? ' active' : '');
+    btn.textContent = sz.label;
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.size-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      posterFrame.style.setProperty('--ratio', sz.ratio);
+    });
+    sizeGrid.appendChild(btn);
+  });
+
+  // --- Sun & Light controls ---
+  var sunTint = document.getElementById('sun-tint-overlay');
+  var sunShadow = document.getElementById('sun-shadow-overlay');
+  var cesiumEl = document.getElementById('cesium-container');
+
+  // Time-of-day presets: maps 0-100 to a color temperature journey
+  // 0=blue hour, 25=dawn/golden, 50=midday, 75=golden hour, 100=night
+  var todStops = [
+    { pos: 0,   label: 'Blue Hour', tint: 'rgba(40,60,120,0.35)', sat: 0.8, bright: 0.7 },
+    { pos: 15,  label: 'Dawn',      tint: 'rgba(180,100,60,0.2)',  sat: 1.1, bright: 0.85 },
+    { pos: 35,  label: 'Morning',   tint: 'rgba(255,200,120,0.08)', sat: 1.05, bright: 0.95 },
+    { pos: 50,  label: 'Midday',    tint: 'rgba(0,0,0,0)',         sat: 1.0, bright: 1.0 },
+    { pos: 65,  label: 'Afternoon', tint: 'rgba(255,200,120,0.06)', sat: 1.05, bright: 0.97 },
+    { pos: 80,  label: 'Golden Hr',  tint: 'rgba(255,140,40,0.25)', sat: 1.2, bright: 0.9 },
+    { pos: 92,  label: 'Sunset',    tint: 'rgba(200,60,40,0.3)',   sat: 1.1, bright: 0.75 },
+    { pos: 100, label: 'Night',     tint: 'rgba(15,15,40,0.5)',    sat: 0.6, bright: 0.5 }
+  ];
+
+  function lerpColor(c1, c2, t) {
+    // Parse rgba strings
+    function parse(s) {
+      var m = s.match(/[\d.]+/g);
+      return m ? m.map(Number) : [0,0,0,0];
+    }
+    var a = parse(c1), b = parse(c2);
+    return 'rgba(' + Math.round(a[0]+(b[0]-a[0])*t) + ',' + Math.round(a[1]+(b[1]-a[1])*t) + ',' + Math.round(a[2]+(b[2]-a[2])*t) + ',' + (a[3]+(b[3]-a[3])*t).toFixed(3) + ')';
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function getSunState(pos) {
+    // Find the two surrounding stops
+    for (var i = 0; i < todStops.length - 1; i++) {
+      if (pos <= todStops[i + 1].pos) {
+        var t = (pos - todStops[i].pos) / (todStops[i + 1].pos - todStops[i].pos);
+        return {
+          label: t < 0.5 ? todStops[i].label : todStops[i + 1].label,
+          tint: lerpColor(todStops[i].tint, todStops[i + 1].tint, t),
+          sat: lerp(todStops[i].sat, todStops[i + 1].sat, t),
+          bright: lerp(todStops[i].bright, todStops[i + 1].bright, t)
+        };
+      }
+    }
+    var last = todStops[todStops.length - 1];
+    return { label: last.label, tint: last.tint, sat: last.sat, bright: last.bright };
+  }
+
+  var currentSun = { tod: 50, warmth: 0, exposure: 0, shadows: 0, flare: 0 };
+  var lensFlare = document.getElementById('lens-flare');
+  var flareOrb = document.getElementById('flare-orb');
+  var flareStreak = document.getElementById('flare-streak');
+  var flareStreakWide = document.getElementById('flare-streak-wide');
+  var flareBloom = document.getElementById('flare-bloom');
+  var flareDots = [
+    document.getElementById('flare-dot-1'),
+    document.getElementById('flare-dot-2'),
+    document.getElementById('flare-dot-3'),
+    document.getElementById('flare-dot-4'),
+    document.getElementById('flare-dot-5')
+  ];
+
+  // Flare dot configs (offset from center, size, color, opacity)
+  var flareDotConfigs = [
+    { dist: 0.3,  size: 20, color: '255,200,100', opacity: 0.3 },
+    { dist: 0.5,  size: 35, color: '200,180,255', opacity: 0.15 },
+    { dist: 0.7,  size: 15, color: '255,220,150', opacity: 0.25 },
+    { dist: 0.85, size: 50, color: '180,200,255', opacity: 0.1 },
+    { dist: 1.1,  size: 25, color: '255,180,100', opacity: 0.2 }
+  ];
+
+  function applySunLight() {
+    var state = getSunState(currentSun.tod);
+
+    // Tint overlay
+    var tintAlpha = state.tint.match(/[\d.]+/g);
+    if (tintAlpha && +tintAlpha[3] > 0.001) {
+      sunTint.style.background = state.tint;
+      sunTint.style.opacity = 1;
+    } else {
+      sunTint.style.opacity = 0;
+    }
+
+    // CSS filters
+    var bright = state.bright + (currentSun.exposure / 100);
+    var sat = state.sat;
+    var warmth = currentSun.warmth;
+
+    var filters = [];
+    if (Math.abs(bright - 1) > 0.01) filters.push('brightness(' + bright.toFixed(3) + ')');
+    if (Math.abs(sat - 1) > 0.01) filters.push('saturate(' + sat.toFixed(3) + ')');
+    if (warmth > 0) {
+      filters.push('sepia(' + (warmth / 100).toFixed(3) + ')');
+    } else if (warmth < 0) {
+      filters.push('hue-rotate(' + (warmth * 0.5).toFixed(1) + 'deg)');
+      filters.push('saturate(' + (1 + warmth / 200).toFixed(3) + ')');
+    }
+
+    sunFilter = filters.length ? filters.join(' ') : '';
+    applyCombinedFilter();
+
+    // Real Cesium shadows — set sun position via clock time
+    if (viewer && currentSun.shadows > 0) {
+      viewer.shadows = true;
+      viewer.shadowMap.darkness = 0.4 + (1 - currentSun.shadows / 100) * 0.5;
+      viewer.shadowMap.softShadows = true;
+      viewer.shadowMap.size = 2048;
+      // Map time-of-day slider to hours: 0=5am, 50=noon, 100=8pm
+      var hour = 5 + (currentSun.tod / 100) * 15; // 5-20 (5am to 8pm)
+      var date = new Date(2024, 5, 21); // June 21 for good sun angles
+      date.setHours(Math.floor(hour), (hour % 1) * 60, 0, 0);
+      viewer.clock.currentTime = Cesium.JulianDate.fromDate(date);
+      viewer.clock.shouldAnimate = false;
+    } else if (viewer) {
+      viewer.shadows = false;
+    }
+
+    // Gradient shadow overlay as supplement
+    if (currentSun.shadows > 0) {
+      var shadowAlpha = (currentSun.shadows / 100 * 0.25).toFixed(3);
+      var angle = 180 + (currentSun.tod - 50) * 2;
+      sunShadow.style.background = 'linear-gradient(' + angle + 'deg, rgba(0,0,0,' + shadowAlpha + ') 0%, transparent 50%)';
+      sunShadow.style.opacity = 1;
+    } else {
+      sunShadow.style.opacity = 0;
+    }
+
+    // Lens flare
+    updateLensFlare();
+
+    document.getElementById('tod-val').textContent = state.label;
+  }
+
+  function updateLensFlare() {
+    var flareAmount = currentSun.flare / 100;
+    if (flareAmount < 0.01) {
+      lensFlare.style.opacity = 0;
+      return;
+    }
+
+    lensFlare.style.opacity = 1;
+
+    // Sun position in frame: maps time-of-day to x,y
+    // For a tilted aerial view, the sky/horizon is at the top of the frame.
+    // Sun tracks along the top: left (dawn) → center-top (midday) → right (sunset)
+    var t = currentSun.tod / 100;
+    var container = document.getElementById('map-container');
+    var cw = container.clientWidth;
+    var ch = container.clientHeight;
+
+    // At night/blue hour, sun is below frame
+    if (t < 0.08 || t > 0.95) { lensFlare.style.opacity = 0; return; }
+
+    // X: tracks left to right across the top
+    var sunX = 0.05 + t * 0.9;
+    // Y: low arc along the top of the frame — midday highest (just above frame), dawn/sunset at ~15% from top
+    var arcHeight = Math.sin(t * Math.PI); // 0 at edges, 1 at midday
+    var sunY = 0.15 - arcHeight * 0.18; // ranges from 0.15 (horizon) to -0.03 (just above frame at noon)
+
+    var px = sunX * cw;
+    var py = sunY * ch;
+
+    // Sun orb
+    var orbSize = 30 + flareAmount * 40;
+    flareOrb.style.width = orbSize + 'px';
+    flareOrb.style.height = orbSize + 'px';
+    flareOrb.style.left = (px - orbSize / 2) + 'px';
+    flareOrb.style.top = (py - orbSize / 2) + 'px';
+    flareOrb.style.opacity = flareAmount;
+
+    // Large bloom around sun
+    var bloomSize = orbSize * 5;
+    flareBloom.style.width = bloomSize + 'px';
+    flareBloom.style.height = bloomSize + 'px';
+    flareBloom.style.left = (px - bloomSize / 2) + 'px';
+    flareBloom.style.top = (py - bloomSize / 2) + 'px';
+    flareBloom.style.opacity = flareAmount * 0.8;
+
+    // Anamorphic streak (thin, across full width)
+    flareStreak.style.width = (cw * 0.8) + 'px';
+    flareStreak.style.left = (px - cw * 0.4) + 'px';
+    flareStreak.style.top = (py - 1) + 'px';
+    flareStreak.style.opacity = flareAmount * 0.7;
+
+    // Wide subtle streak
+    flareStreakWide.style.width = cw + 'px';
+    flareStreakWide.style.left = (px - cw * 0.5) + 'px';
+    flareStreakWide.style.top = (py - 10) + 'px';
+    flareStreakWide.style.opacity = flareAmount * 0.5;
+
+    // Secondary flare dots — reflected along a line from sun through center
+    var cx = cw / 2;
+    var cy = ch / 2;
+    var dx = cx - px;
+    var dy = cy - py;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ndx = dx / len;
+    var ndy = dy / len;
+
+    for (var i = 0; i < flareDots.length; i++) {
+      var cfg = flareDotConfigs[i];
+      var dotX = px + ndx * len * cfg.dist * 2;
+      var dotY = py + ndy * len * cfg.dist * 2;
+      var dot = flareDots[i];
+      dot.style.width = cfg.size + 'px';
+      dot.style.height = cfg.size + 'px';
+      dot.style.left = (dotX - cfg.size / 2) + 'px';
+      dot.style.top = (dotY - cfg.size / 2) + 'px';
+      dot.style.background = 'radial-gradient(circle, rgba(' + cfg.color + ',' + (cfg.opacity * flareAmount).toFixed(3) + ') 0%, transparent 70%)';
+      dot.style.opacity = 1;
+    }
+  }
+
+  // Combined filter: sun + neon glow both target cesium container
+  var sunFilter = '';
+
+  function applyCombinedFilter() {
+    var filters = [];
+    if (sunFilter) filters.push(sunFilter);
+
+    if (fxState.neonGlow.on) {
+      var ni = fxState.neonGlow.intensity / 100;
+      filters.push('brightness(' + (1 + ni * 1.2).toFixed(2) + ')');
+      filters.push('contrast(' + (1 + ni * 0.5).toFixed(2) + ')');
+      filters.push('saturate(' + (1 + ni * 1.0).toFixed(2) + ')');
+    }
+
+    cesiumEl.style.filter = filters.length ? filters.join(' ') : '';
+  }
+
+  document.getElementById('tod-slider').addEventListener('input', function(e) {
+    currentSun.tod = +e.target.value;
+    applySunLight();
+  });
+  document.getElementById('warmth-slider').addEventListener('input', function(e) {
+    currentSun.warmth = +e.target.value;
+    document.getElementById('warmth-val').textContent = e.target.value;
+    applySunLight();
+  });
+  document.getElementById('exposure-slider').addEventListener('input', function(e) {
+    currentSun.exposure = +e.target.value;
+    document.getElementById('exposure-val').textContent = e.target.value;
+    applySunLight();
+  });
+  document.getElementById('shadows-slider').addEventListener('input', function(e) {
+    currentSun.shadows = +e.target.value;
+    document.getElementById('shadows-val').textContent = e.target.value + '%';
+    applySunLight();
+  });
+  document.getElementById('flare-slider').addEventListener('input', function(e) {
+    currentSun.flare = +e.target.value;
+    document.getElementById('flare-val').textContent = e.target.value + '%';
+    applySunLight();
+  });
+
+  // --- AI enhance toggle ---
+  var aiEnhanceOn = true;
+  document.getElementById('toggle-ai-enhance').addEventListener('click', function() {
+    this.classList.toggle('on');
+    aiEnhanceOn = this.classList.contains('on');
+    document.getElementById('ai-settings').style.display = aiEnhanceOn ? '' : 'none';
+  });
+  // --- Export button ---
+  document.getElementById('export-btn').addEventListener('click', function() {
+    if (!viewer) { alert('Map not loaded yet'); return; }
+
+    var progressEl = document.getElementById('export-progress');
+    var statusEl = document.getElementById('export-status');
+    var barEl = document.getElementById('export-bar');
+    var btn = document.getElementById('export-btn');
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    progressEl.style.display = '';
+    statusEl.textContent = 'Capturing 3D view...';
+    barEl.style.width = '10%';
+
+    // 1. Capture the raw Cesium canvas
+    viewer.render();
+    var cesiumCanvas = viewer.canvas;
+    var rawDataUrl = cesiumCanvas.toDataURL('image/png');
+
+    if (!aiEnhanceOn) {
+      // Skip AI — just composite with FX + text
+      statusEl.textContent = 'Compositing...';
+      barEl.style.width = '80%';
+      compositeAndDownload(rawDataUrl, function() {
+        btn.disabled = false;
+        btn.textContent = 'Download PNG';
+        progressEl.style.display = 'none';
+      });
+      return;
+    }
+
+    // 2. Send to Gemini Flash for AI enhancement
+    var geminiKey = document.getElementById('gemini-api-key').value.trim();
+    if (!geminiKey) {
+      alert('Enter your Gemini API key in the Export section');
+      btn.disabled = false;
+      btn.textContent = 'Download PNG';
+      progressEl.style.display = 'none';
+      return;
+    }
+
+    statusEl.textContent = 'AI enhancing with Gemini Flash...';
+    barEl.style.width = '25%';
+
+    var userPrompt = document.getElementById('gemini-prompt').value.trim() ||
+      'Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.';
+
+    // Downscale to max 1024px and use JPEG to keep payload small
+    var maxDim = 1024;
+    var srcW = cesiumCanvas.width;
+    var srcH = cesiumCanvas.height;
+    var scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+    var sendCanvas = document.createElement('canvas');
+    sendCanvas.width = Math.round(srcW * scale);
+    sendCanvas.height = Math.round(srcH * scale);
+    var sendCtx = sendCanvas.getContext('2d');
+    sendCtx.drawImage(cesiumCanvas, 0, 0, sendCanvas.width, sendCanvas.height);
+    var sendDataUrl = sendCanvas.toDataURL('image/jpeg', 0.85);
+
+    var base64Data = sendDataUrl.split(',')[1];
+    var mimeType = 'image/jpeg';
+
+    var geminiPayload = JSON.stringify({
+      contents: [{
+        parts: [
+          { text: userPrompt },
+          { inlineData: { mimeType: mimeType, data: base64Data } }
+        ]
+      }],
+      generationConfig: {
+        responseModalities: ['image', 'text'],
+        imageMimeType: 'image/png'
+      }
+    });
+
+    console.log('[gemini] Sending image (' + (base64Data.length / 1024 / 1024).toFixed(1) + 'MB base64) with prompt:', userPrompt);
+
+    var xhr = new XMLHttpRequest();
+    xhr.timeout = 120000; // 2 min timeout
+    xhr.open('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=' + geminiKey, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.ontimeout = function() {
+      console.error('[gemini] Request timed out');
+      alert('Gemini request timed out (2 min). Try a smaller export size.');
+      btn.disabled = false;
+      btn.textContent = 'Download PNG';
+      progressEl.style.display = 'none';
+    };
+
+    xhr.onload = function() {
+      console.log('[gemini] Response status:', xhr.status);
+      if (xhr.status !== 200) {
+        console.error('[gemini] Error:', xhr.responseText);
+        alert('Gemini API error: ' + xhr.responseText.substring(0, 300));
+        btn.disabled = false;
+        btn.textContent = 'Download PNG';
+        progressEl.style.display = 'none';
+        return;
+      }
+
+      var result;
+      try { result = JSON.parse(xhr.responseText); } catch(e) {
+        alert('Invalid response from Gemini');
+        btn.disabled = false;
+        btn.textContent = 'Download PNG';
+        progressEl.style.display = 'none';
+        return;
+      }
+
+      // Find image part in response
+      var imageData = null;
+      var candidates = result.candidates || [];
+      for (var ci = 0; ci < candidates.length; ci++) {
+        var parts = (candidates[ci].content && candidates[ci].content.parts) || [];
+        for (var pi = 0; pi < parts.length; pi++) {
+          if (parts[pi].inlineData && parts[pi].inlineData.data) {
+            imageData = parts[pi].inlineData;
+            break;
+          }
+        }
+        if (imageData) break;
+      }
+
+      if (!imageData) {
+        alert('No image returned from Gemini. Response: ' + xhr.responseText.substring(0, 300));
+        btn.disabled = false;
+        btn.textContent = 'Download PNG';
+        progressEl.style.display = 'none';
+        return;
+      }
+
+      var enhancedDataUrl = 'data:' + (imageData.mimeType || 'image/png') + ';base64,' + imageData.data;
+
+      // 3. Composite enhanced image with FX + text
+      statusEl.textContent = 'Compositing overlays...';
+      barEl.style.width = '80%';
+      compositeAndDownload(enhancedDataUrl, function() {
+        btn.disabled = false;
+        btn.textContent = 'Download PNG';
+        progressEl.style.display = 'none';
+      });
+    };
+
+    xhr.onerror = function() {
+      alert('Network error calling Gemini API');
+      btn.disabled = false;
+      btn.textContent = 'Download PNG';
+      progressEl.style.display = 'none';
+    };
+
+    // Pulse the progress bar while waiting
+    var pulseInterval = setInterval(function() {
+      var cur = parseFloat(barEl.style.width);
+      if (cur < 75) barEl.style.width = (cur + 2) + '%';
+    }, 1000);
+
+    xhr.addEventListener('loadend', function() { clearInterval(pulseInterval); });
+    xhr.send(payload);
+  });
+
+  // Quick download — skip AI, just composite and save
+  document.getElementById('quick-download-btn').addEventListener('click', function() {
+    if (!viewer) { alert('Map not loaded yet'); return; }
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Capturing...';
+    viewer.render();
+    var rawDataUrl = viewer.canvas.toDataURL('image/png');
+    compositeAndDownload(rawDataUrl, function() {
+      btn.disabled = false;
+      btn.textContent = 'Quick Download (no AI)';
+    });
+  });
+
+  // Composite: draw base image, apply FX via canvas, stamp text overlay, download
+  // Helper: re-draw canvas through a CSS filter
+  function applyFilterToCanvas(canvas, filterStr) {
+    var tmp = document.createElement('canvas');
+    tmp.width = canvas.width; tmp.height = canvas.height;
+    var tmpCtx = tmp.getContext('2d');
+    tmpCtx.filter = filterStr;
+    tmpCtx.drawImage(canvas, 0, 0);
+    canvas.getContext('2d').drawImage(tmp, 0, 0);
+  }
+
+  function compositeAndDownload(imageSrc, done) {
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+      var w = img.width;
+      var h = img.height;
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+
+      // 1. Draw the base (raw or AI-enhanced) image
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // 2. Sun & Light filters (combined with neon glow)
+      var sunState = getSunState(currentSun.tod);
+      var filterParts = [];
+
+      // Sun brightness/saturation
+      var bright = sunState.bright + (currentSun.exposure / 100);
+      if (Math.abs(bright - 1) > 0.01) filterParts.push('brightness(' + bright.toFixed(3) + ')');
+      if (Math.abs(sunState.sat - 1) > 0.01) filterParts.push('saturate(' + sunState.sat.toFixed(3) + ')');
+      if (currentSun.warmth > 0) {
+        filterParts.push('sepia(' + (currentSun.warmth / 100).toFixed(3) + ')');
+      } else if (currentSun.warmth < 0) {
+        filterParts.push('hue-rotate(' + (currentSun.warmth * 0.5).toFixed(1) + 'deg)');
+        filterParts.push('saturate(' + (1 + currentSun.warmth / 200).toFixed(3) + ')');
+      }
+
+      // Neon glow
+      if (fxState.neonGlow.on) {
+        var ni = fxState.neonGlow.intensity / 100;
+        filterParts.push('brightness(' + (1 + ni * 1.2).toFixed(2) + ')');
+        filterParts.push('contrast(' + (1 + ni * 0.5).toFixed(2) + ')');
+        filterParts.push('saturate(' + (1 + ni * 1.0).toFixed(2) + ')');
+      }
+
+      if (filterParts.length) {
+        applyFilterToCanvas(canvas, filterParts.join(' '));
+      }
+
+      // 3. Sun tint overlay (multiply blend)
+      var tintAlpha = sunState.tint.match(/[\d.]+/g);
+      if (tintAlpha && +tintAlpha[3] > 0.001) {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = sunState.tint;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      // 4. Shadow gradient overlay
+      if (currentSun.shadows > 0) {
+        var shadowAlpha = currentSun.shadows / 100 * 0.25;
+        var angle = (180 + (currentSun.tod - 50) * 2) * Math.PI / 180;
+        var gx1 = w / 2 + Math.cos(angle) * w;
+        var gy1 = h / 2 + Math.sin(angle) * h;
+        var gx2 = w / 2 - Math.cos(angle) * w;
+        var gy2 = h / 2 - Math.sin(angle) * h;
+        var sGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+        sGrad.addColorStop(0, 'rgba(0,0,0,' + shadowAlpha.toFixed(3) + ')');
+        sGrad.addColorStop(0.5, 'transparent');
+        ctx.fillStyle = sGrad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // 5. Tilt-shift (Gaussian stack — matching WebGL live preview)
+      if (fxState.tiltShift.on) {
+        var SIGMAS = [1.0, 2.5, 4.0, 5.5, 7.0, 8.5, 10.0];
+        var blurScale = 0.3 + (fxState.tiltShift.blur / 100) * 0.7;
+        var pos = fxState.tiltShift.focusPos / 100;
+        var focusY = 0.15 + pos * 0.70;
+        var bandSz = 0.02 + (fxState.tiltShift.bandSize / 100) * 0.43;
+        var falloff = 0.3 + (1.0 - fxState.tiltShift.falloff / 100) * 2.2;
+        var satBoost = (fxState.tiltShift.saturation / 100) * 1.5;
+
+        // Build 7-level blur stack
+        var exportStack = [];
+        for (var li = 0; li < 7; li++) {
+          var sigma = SIGMAS[li] * blurScale;
+          var lc = document.createElement('canvas');
+          lc.width = w; lc.height = h;
+          var lctx = lc.getContext('2d');
+          if (sigma >= 0.5) {
+            lctx.filter = 'blur(' + (sigma * 3).toFixed(1) + 'px)';
+          }
+          lctx.drawImage(canvas, 0, 0);
+          lctx.filter = 'none';
+          exportStack.push(lc);
+        }
+
+        // Composite using strips, blending levels based on distance from focus
+        var STRIPS = 120;
+        var stripH = Math.ceil(h / STRIPS);
+        for (var s = 0; s < STRIPS; s++) {
+          var sy = s * stripH;
+          var yCenter = (sy + stripH / 2) / h;
+          var dist = Math.abs(yCenter - focusY) / Math.max(bandSz, 0.001);
+          dist = Math.max(dist - 1.0, 0.0);
+          var t = Math.pow(Math.min(dist, 1.0), falloff);
+          var levelF = t * 6.0;
+          var lo = Math.min(Math.floor(levelF), 6);
+          var hi = Math.min(lo + 1, 6);
+          var frac = levelF - lo;
+
+          if (lo === hi || frac < 0.01) {
+            ctx.drawImage(exportStack[lo], 0, sy, w, stripH, 0, sy, w, stripH);
+          } else {
+            // Blend two levels
+            ctx.drawImage(exportStack[lo], 0, sy, w, stripH, 0, sy, w, stripH);
+            ctx.globalAlpha = frac;
+            ctx.drawImage(exportStack[hi], 0, sy, w, stripH, 0, sy, w, stripH);
+            ctx.globalAlpha = 1;
+          }
+        }
+
+        // Saturation boost in focus zone
+        if (satBoost > 0.01) {
+          applyFilterToCanvas(canvas, 'saturate(' + (1 + satBoost * 0.5).toFixed(2) + ')');
+        }
+
+        // Vignette
+        var tvGrad = ctx.createRadialGradient(w * 0.5, h * 0.5, w * 0.25, w * 0.5, h * 0.5, w * 0.7);
+        tvGrad.addColorStop(0, 'transparent');
+        tvGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+        ctx.fillStyle = tvGrad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // 5b. Paper shader — re-render onto export canvas if active
+      if (activePaperShader && paperShaderMount) {
+        var paperCanvas = paperShaderContainer.querySelector('canvas');
+        if (paperCanvas && paperCanvas.width > 0) {
+          ctx.drawImage(paperCanvas, 0, 0, w, h);
+        }
+      }
+
+      // 6. Cinematic grade
+      if (fxState.cinematic.on) {
+        var ci = fxState.cinematic.intensity / 100;
+        var cGrad = ctx.createLinearGradient(0, 0, 0, h);
+        cGrad.addColorStop(0, 'rgba(0,40,60,' + (ci * 0.25).toFixed(2) + ')');
+        cGrad.addColorStop(1, 'rgba(40,20,0,' + (ci * 0.2).toFixed(2) + ')');
+        ctx.fillStyle = cGrad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // 7. Vignette
+      if (fxState.vignette.on) {
+        var vi = fxState.vignette.intensity / 100;
+        var darkness = 0.4 + vi * 0.5;
+        var size = (50 - vi * 15) / 100;
+        var vGrad = ctx.createRadialGradient(w / 2, h / 2, w * size * 0.5, w / 2, h / 2, w * 0.7);
+        vGrad.addColorStop(0, 'transparent');
+        vGrad.addColorStop(1, 'rgba(0,0,0,' + darkness.toFixed(2) + ')');
+        ctx.fillStyle = vGrad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // 8. Lens flare
+      if (currentSun.flare > 0) {
+        var flareAmt = currentSun.flare / 100;
+        var t = currentSun.tod / 100;
+        if (t > 0.08 && t < 0.95) {
+          var sunPx = (0.05 + t * 0.9) * w;
+          var arcH = Math.sin(t * Math.PI);
+          var sunPy = (0.15 - arcH * 0.18) * h;
+
+          // Bloom
+          var bloomR = 100 * flareAmt;
+          var bGrad = ctx.createRadialGradient(sunPx, sunPy, 0, sunPx, sunPy, bloomR);
+          bGrad.addColorStop(0, 'rgba(255,240,200,' + (0.15 * flareAmt).toFixed(3) + ')');
+          bGrad.addColorStop(0.5, 'rgba(255,200,120,' + (0.05 * flareAmt).toFixed(3) + ')');
+          bGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = bGrad;
+          ctx.fillRect(sunPx - bloomR, sunPy - bloomR, bloomR * 2, bloomR * 2);
+
+          // Orb
+          var orbR = 20 + flareAmt * 20;
+          var oGrad = ctx.createRadialGradient(sunPx, sunPy, 0, sunPx, sunPy, orbR);
+          oGrad.addColorStop(0, 'rgba(255,255,240,' + (0.95 * flareAmt).toFixed(3) + ')');
+          oGrad.addColorStop(0.3, 'rgba(255,220,150,' + (0.5 * flareAmt).toFixed(3) + ')');
+          oGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = oGrad;
+          ctx.fillRect(sunPx - orbR, sunPy - orbR, orbR * 2, orbR * 2);
+
+          // Anamorphic streak
+          ctx.globalAlpha = flareAmt * 0.6;
+          var streakGrad = ctx.createLinearGradient(sunPx - w * 0.4, sunPy, sunPx + w * 0.4, sunPy);
+          streakGrad.addColorStop(0, 'transparent');
+          streakGrad.addColorStop(0.35, 'rgba(255,220,160,0.4)');
+          streakGrad.addColorStop(0.5, 'rgba(255,255,240,0.7)');
+          streakGrad.addColorStop(0.65, 'rgba(255,220,160,0.4)');
+          streakGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = streakGrad;
+          ctx.fillRect(sunPx - w * 0.4, sunPy - 1, w * 0.8, 3);
+          ctx.globalAlpha = 1;
+
+          // Flare dots
+          var cx = w / 2, cy = h / 2;
+          var fdx = cx - sunPx, fdy = cy - sunPy;
+          var fLen = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+          var fndx = fdx / fLen, fndy = fdy / fLen;
+          var dotCfgs = [
+            { d: 0.3, r: 10, c: '255,200,100', a: 0.3 },
+            { d: 0.5, r: 18, c: '200,180,255', a: 0.15 },
+            { d: 0.7, r: 8,  c: '255,220,150', a: 0.25 },
+            { d: 0.85, r: 25, c: '180,200,255', a: 0.1 },
+            { d: 1.1, r: 12, c: '255,180,100', a: 0.2 }
+          ];
+          for (var di = 0; di < dotCfgs.length; di++) {
+            var dc = dotCfgs[di];
+            var ddx = sunPx + fndx * fLen * dc.d * 2;
+            var ddy = sunPy + fndy * fLen * dc.d * 2;
+            var dGrad = ctx.createRadialGradient(ddx, ddy, 0, ddx, ddy, dc.r);
+            dGrad.addColorStop(0, 'rgba(' + dc.c + ',' + (dc.a * flareAmt).toFixed(3) + ')');
+            dGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = dGrad;
+            ctx.fillRect(ddx - dc.r, ddy - dc.r, dc.r * 2, dc.r * 2);
+          }
+        }
+      }
+
+      // 9. Film grain
+      if (fxState.filmGrain.on) {
+        var grainAlpha = Math.round(fxState.filmGrain.intensity * 0.8);
+        var grainData = ctx.createImageData(w, h);
+        var gd = grainData.data;
+        for (var gi = 0; gi < gd.length; gi += 4) {
+          var gv = (Math.random() * 255) | 0;
+          gd[gi] = gv; gd[gi + 1] = gv; gd[gi + 2] = gv; gd[gi + 3] = grainAlpha;
+        }
+        var grainC = document.createElement('canvas');
+        grainC.width = w; grainC.height = h;
+        grainC.getContext('2d').putImageData(grainData, 0, 0);
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.drawImage(grainC, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      // 10. Text overlay
+      var textOverlay = document.getElementById('text-overlay');
+      if (textOverlay.style.display !== 'none') {
+        var isTop = textOverlay.classList.contains('top');
+        var title = document.getElementById('overlay-title').textContent;
+        var subtitle = document.getElementById('overlay-subtitle').textContent;
+        var coords = document.getElementById('overlay-coords').textContent;
+
+        var barHeight = h * 0.12;
+        var barY = isTop ? 0 : h - barHeight;
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(0, barY, w, barHeight);
+
+        var titleSize = Math.round(w * 0.035);
+        ctx.font = '600 ' + titleSize + 'px "Playfair Display", serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.letterSpacing = '6px';
+        var titleY = barY + barHeight * 0.42;
+        ctx.fillText(title.toUpperCase(), w / 2, titleY);
+
+        var subSize = Math.round(w * 0.015);
+        ctx.font = subSize + 'px "Inter", sans-serif';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText(subtitle, w / 2, titleY + titleSize * 0.7);
+
+        ctx.font = Math.round(w * 0.012) + 'px "Space Mono", monospace';
+        ctx.fillStyle = '#52525b';
+        ctx.fillText(coords, w / 2, titleY + titleSize * 1.2);
+      }
+
+      // Download
+      var barEl = document.getElementById('export-bar');
+      barEl.style.width = '100%';
+      var statusEl = document.getElementById('export-status');
+      statusEl.textContent = 'Downloading...';
+
+      var link = document.createElement('a');
+      link.download = 'mapposter-3d-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      if (done) setTimeout(done, 500);
+    };
+
+    img.onerror = function() {
+      alert('Failed to load image for compositing');
+      if (done) done();
+    };
+
+    img.src = imageSrc;
+  }
+
+  // --- Street labels toggle ---
+  document.getElementById('toggle-labels').addEventListener('click', function() {
+    this.classList.toggle('on');
+    if (window._labelLayer) {
+      window._labelLayer.show = this.classList.contains('on');
+    }
+  });
+
+  // --- Text controls ---
+  document.getElementById('toggle-text-overlay').addEventListener('click', function() {
+    this.classList.toggle('on');
+    document.getElementById('text-overlay').style.display = this.classList.contains('on') ? '' : 'none';
+  });
+  document.getElementById('text-title').addEventListener('input', function(e) {
+    document.getElementById('overlay-title').textContent = e.target.value;
+  });
+  document.getElementById('text-subtitle').addEventListener('input', function(e) {
+    document.getElementById('overlay-subtitle').textContent = e.target.value;
+  });
+  document.getElementById('text-coords').addEventListener('input', function(e) {
+    document.getElementById('overlay-coords').textContent = e.target.value;
+  });
+
+  // ============================================================
+  //  CESIUM INIT
+  // ============================================================
+
+  var apiKeyPrompt = document.getElementById('api-key-prompt');
+  var apiKeyInput = document.getElementById('api-key-input');
+  var apiKeySubmit = document.getElementById('api-key-submit');
+
+  var cachedToken = sessionStorage.getItem('cesium_ion_token') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyMzU3OTQ3OS01OWNhLTQ0NzYtOGZjYS05YjNjY2Y3ODU0NmUiLCJpZCI6MjgyMjUxLCJpYXQiOjE3NDEzNjUzMDh9.nzoU445NAhjXwZtN9gcgprVMMmXfCkbXVb_l6Eu-lBw';
+  if (cachedToken) {
+    apiKeyInput.value = cachedToken;
+    initCesium(cachedToken);
+  }
+
+  apiKeySubmit.addEventListener('click', function() {
+    var token = apiKeyInput.value.trim();
+    if (!token) return;
+    sessionStorage.setItem('cesium_ion_token', token);
+    initCesium(token);
+  });
+
+  apiKeyInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') apiKeySubmit.click();
+  });
+
+  function initCesium(token) {
+    apiKeyPrompt.style.display = 'none';
+    Cesium.Ion.defaultAccessToken = token;
+
+    viewer = new Cesium.Viewer('cesium-container', {
+      timeline: false,
+      animation: false,
+      baseLayerPicker: false,
+      fullscreenButton: false,
+      geocoder: false,
+      homeButton: false,
+      infoBox: false,
+      sceneModePicker: false,
+      selectionIndicator: false,
+      navigationHelpButton: false,
+      scene3DOnly: true,
+      requestRenderMode: false,
+      msaaSamples: 4
+    });
+
+    // Remap camera controls: right-click / two-finger = tilt
+    var ctrl = viewer.scene.screenSpaceCameraController;
+    ctrl.rotateEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
+    ctrl.tiltEventTypes = [Cesium.CameraEventType.RIGHT_DRAG];
+    ctrl.zoomEventTypes = [
+      Cesium.CameraEventType.MIDDLE_DRAG,
+      Cesium.CameraEventType.WHEEL,
+      Cesium.CameraEventType.PINCH
+    ];
+    ctrl.lookEventTypes = [
+      { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.SHIFT }
+    ];
+
+    // Remove default base imagery, keep globe for label overlay
+    viewer.imageryLayers.removeAll();
+    viewer.scene.globe.show = true;
+    viewer.scene.globe.baseColor = Cesium.Color.TRANSPARENT;
+    viewer.scene.globe.translucency.enabled = true;
+    viewer.scene.globe.translucency.frontFaceAlpha = 0.0;
+    viewer.scene.globe.translucency.backFaceAlpha = 0.0;
+    viewer.scene.globe.depthTestAgainstTerrain = false;
+
+    // Add street labels overlay (CartoDB labels-only tiles)
+    var labelProvider = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png',
+      subdomains: 'abcd',
+      maximumLevel: 18,
+      credit: ''
+    });
+    var labelLayer = viewer.imageryLayers.addImageryProvider(labelProvider);
+    labelLayer.alpha = 0.85;
+    labelLayer.show = true;
+    window._labelLayer = labelLayer;
+    viewer.scene.skyBox.show = false;
+    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#111113');
+
+    // Enable lighting system for shadows
+    viewer.scene.globe.enableLighting = true;
+    viewer.shadows = false; // off by default, enabled by shadows slider
+    viewer.shadowMap.softShadows = true;
+    viewer.clock.shouldAnimate = false;
+
+    // Load Google Photorealistic 3D Tiles
+    Cesium.Cesium3DTileset.fromUrl(
+      'https://tile.googleapis.com/v1/3dtiles/root.json?key=AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
+    ).then(function(tileset) {
+      viewer.scene.primitives.add(tileset);
+      console.log('Google 3D tiles loaded');
+
+      // Set initial camera
+      setCameraFromConcept(concepts[0], false);
+
+      // Wire up camera sliders
+      setupCameraSliders();
+
+      // Apply any default-on FX
+      if (fxState.tiltShift.on) applyFx('tiltShift');
+      if (fxState.depthDof.on) applyFx('depthDof');
+      setupDofAutoFocus();
+    }).catch(function(err) {
+      console.error('Failed to load 3D tiles via Google key, trying Cesium ion asset...', err);
+      // Fallback: try Cesium ion asset 2275207 (Google Photorealistic 3D Tiles)
+      Cesium.Cesium3DTileset.fromIonAssetId(2275207).then(function(tileset) {
+        viewer.scene.primitives.add(tileset);
+        console.log('Google 3D tiles loaded via Cesium ion');
+        setCameraFromConcept(concepts[0], false);
+        setupCameraSliders();
+        if (fxState.tiltShift.on) applyFx('tiltShift');
+        if (fxState.depthDof.on) applyFx('depthDof');
+        setupDofAutoFocus();
+      }).catch(function(err2) {
+        console.error('Failed to load 3D tiles:', err2);
+      });
+    });
+  }
+
+  // Convert our concept params (tilt 0=down, 90=horizon) to Cesium camera lookAt
+  function setCameraFromConcept(concept, animate) {
+    var target = Cesium.Cartesian3.fromDegrees(concept.lng, concept.lat, 0);
+    // Cesium pitch: -90 = looking straight down, 0 = horizon
+    // Our tilt: 0 = looking straight down, 90 = horizon
+    var pitch = Cesium.Math.toRadians(concept.tilt - 90);
+    var heading = Cesium.Math.toRadians(concept.heading);
+    var hpr = new Cesium.HeadingPitchRange(heading, pitch, concept.range);
+
+    currentTarget = target;
+
+    if (animate) {
+      viewer.camera.flyToBoundingSphere(
+        new Cesium.BoundingSphere(target, 0),
+        {
+          offset: hpr,
+          duration: 2.0
+        }
+      );
+    } else {
+      viewer.camera.lookAt(target, hpr);
+      viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+    }
+
+    // Update sliders
+    updateSliderDisplays(concept.tilt, concept.heading, concept.range);
+  }
+
+  function updateSliderDisplays(tilt, heading, range) {
+    document.getElementById('tilt-slider').value = tilt;
+    document.getElementById('tilt-val').textContent = Math.round(tilt) + '\u00B0';
+    document.getElementById('heading-slider').value = heading;
+    document.getElementById('heading-val').textContent = Math.round(heading) + '\u00B0';
+    document.getElementById('range-slider').value = Math.min(10000, range);
+    document.getElementById('range-val').textContent = Math.round(range).toLocaleString() + 'm';
+  }
+
+  function applyCameraFromSliders() {
+    if (!viewer) return;
+    var tilt = +document.getElementById('tilt-slider').value;
+    var heading = +document.getElementById('heading-slider').value;
+    var range = +document.getElementById('range-slider').value;
+
+    document.getElementById('tilt-val').textContent = Math.round(tilt) + '\u00B0';
+    document.getElementById('heading-val').textContent = Math.round(heading) + '\u00B0';
+    document.getElementById('range-val').textContent = range.toLocaleString() + 'm';
+
+    var target = currentTarget || Cesium.Cartesian3.fromDegrees(-73.9812, 40.7323, 0);
+    var pitch = Cesium.Math.toRadians(tilt - 90);
+    var headingRad = Cesium.Math.toRadians(heading);
+    viewer.camera.lookAt(target, new Cesium.HeadingPitchRange(headingRad, pitch, range));
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+  }
+
+  function setupCameraSliders() {
+    document.getElementById('tilt-slider').addEventListener('input', applyCameraFromSliders);
+    document.getElementById('heading-slider').addEventListener('input', applyCameraFromSliders);
+    document.getElementById('range-slider').addEventListener('input', applyCameraFromSliders);
+  }
+
+  // --- Concept selection ---
+  function selectConcept(concept) {
+    currentConcept = concept;
+    document.querySelectorAll('.concept-card').forEach(function(c) { c.classList.remove('active'); });
+    document.querySelector('.concept-card[data-id="' + concept.id + '"]').classList.add('active');
+    if (!viewer) return;
+    currentTarget = Cesium.Cartesian3.fromDegrees(concept.lng, concept.lat, 0);
+    setCameraFromConcept(concept, true);
+  }
+
+  // ============================================================
+  //  CLICK-TO-FOCUS (on map canvas)
+  // ============================================================
+
+  var focusReticle = document.getElementById('focus-reticle');
+  var tiltBandTop = document.getElementById('tilt-band-top');
+  var tiltBandBottom = document.getElementById('tilt-band-bottom');
+  var mapContainer = document.getElementById('map-container');
+
+  function updateTiltBandLines() {
+    if (!fxState.tiltShift.on) {
+      tiltBandTop.style.display = 'none';
+      tiltBandBottom.style.display = 'none';
+      return;
+    }
+    var h = mapContainer.clientHeight;
+    var pos = fxState.tiltShift.focusPos / 100;
+    var focusY = 0.15 + pos * 0.70;
+    var bandSz = 0.02 + (fxState.tiltShift.bandSize / 100) * 0.43;
+    var topPx = Math.max(0, (focusY - bandSz) * h);
+    var botPx = Math.min(h, (focusY + bandSz) * h);
+    tiltBandTop.style.display = '';
+    tiltBandBottom.style.display = '';
+    tiltBandTop.style.top = topPx + 'px';
+    tiltBandBottom.style.top = botPx + 'px';
+  }
+
+  mapContainer.addEventListener('click', function(e) {
+    if (!viewer) return;
+
+    var rect = mapContainer.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+
+    // Show reticle
+    focusReticle.style.display = '';
+    focusReticle.style.left = x + 'px';
+    focusReticle.style.top = y + 'px';
+
+    // Fade reticle after 2s
+    focusReticle.style.opacity = '1';
+    clearTimeout(focusReticle._fadeTimer);
+    focusReticle._fadeTimer = setTimeout(function() {
+      focusReticle.style.opacity = '0.3';
+    }, 2000);
+
+    // --- 3D Depth-of-Field: set focal point UV from click ---
+    if (fxState.depthDof.on) {
+      var cesiumRect = viewer.canvas.getBoundingClientRect();
+      var cx = e.clientX - cesiumRect.left;
+      var cy = e.clientY - cesiumRect.top;
+
+      // Convert to UV (0-1), flip Y for GL texture coordinates
+      dofFocalUV.x = cx / cesiumRect.width;
+      dofFocalUV.y = 1.0 - (cy / cesiumRect.height);
+
+      console.log('[focus] Set focal UV:', dofFocalUV.x.toFixed(3) + ', ' + dofFocalUV.y.toFixed(3));
+      applyFx('depthDof');
+    }
+
+    // --- Tilt-Shift: set focus position from click Y ---
+    if (fxState.tiltShift.on) {
+      var yPct = y / rect.height;
+      // Inverse of: focusY = 0.15 + pos * 0.70 → pos = (yPct - 0.15) / 0.70
+      var pos = Math.max(0, Math.min(1, (yPct - 0.15) / 0.70));
+      var sliderVal = Math.round(pos * 100);
+      fxState.tiltShift.focusPos = sliderVal;
+
+      // Update the slider UI
+      var tiltSliders = document.querySelectorAll('#fx-slider-tiltShift .control-row');
+      if (tiltSliders[0]) {
+        var sl = tiltSliders[0].querySelector('input[type="range"]');
+        var pct = tiltSliders[0].querySelector('.fx-pct');
+        if (sl) sl.value = sliderVal;
+        if (pct) pct.textContent = sliderVal + '%';
+      }
+
+      applyFx('tiltShift');
+    }
+  });
+
+  // ============================================================
+  //  VISUAL EFFECTS ENGINE
+  // ============================================================
+
+  var paperRefreshTimer = null;
+  function schedulePaperRefresh() {
+    if (!activePaperShader) return;
+    clearTimeout(paperRefreshTimer);
+    paperRefreshTimer = setTimeout(updatePaperShader, 300);
+  }
+
+  function applyFx(key) {
+    switch (key) {
+      case 'neonGlow':  updateNeonGlow(); break;
+      case 'cinematic': updateCinematic(); break;
+      case 'filmGrain': updateFilmGrain(); break;
+      case 'tiltShift':
+        updateTiltShift();
+        schedulePaperRefresh(); // re-capture tilt-shift output for paper shader
+        break;
+      case 'depthDof':  updateDepthDof(); break;
+      case 'vignette':  updateVignette(); break;
+      case 'paperTexture':
+      case 'flutedGlass':
+      case 'waterEffect':
+      case 'halftone':
+      case 'halftoneCmyk':
+      case 'heatmap':
+      case 'dithering':
+      case 'liquidMetal':
+        updatePaperShader(); break;
+    }
+  }
+
+  // ---------- 1. NEON GLOW ----------
+  function updateNeonGlow() {
+    applyCombinedFilter();
+  }
+
+  // ---------- 2. CINEMATIC GRADE ----------
+  var colorGradeOverlay = document.getElementById('color-grade-overlay');
+
+  function updateCinematic() {
+    var on = fxState.cinematic.on;
+    var intensity = fxState.cinematic.intensity / 100;
+    if (!on) { colorGradeOverlay.style.opacity = 0; return; }
+    colorGradeOverlay.style.background = 'linear-gradient(180deg, rgba(0,40,60,' + (intensity * 0.25).toFixed(2) + ') 0%, rgba(40,20,0,' + (intensity * 0.2).toFixed(2) + ') 100%)';
+    colorGradeOverlay.style.opacity = 1;
+  }
+
+  // ---------- 3. FILM GRAIN ----------
+  var grainCanvas = document.getElementById('grain-overlay');
+  var grainCtx = grainCanvas.getContext('2d');
+  var grainInterval = null;
+  var GRAIN_SCALE = 2;
+
+  function sizeGrainCanvas() {
+    var container = document.getElementById('map-container');
+    var w = Math.ceil(container.clientWidth / GRAIN_SCALE);
+    var h = Math.ceil(container.clientHeight / GRAIN_SCALE);
+    if (grainCanvas.width !== w || grainCanvas.height !== h) {
+      grainCanvas.width = w;
+      grainCanvas.height = h;
+      grainCanvas.style.width = container.clientWidth + 'px';
+      grainCanvas.style.height = container.clientHeight + 'px';
+      grainCanvas.style.imageRendering = 'auto';
+    }
+  }
+
+  function renderGrain() {
+    sizeGrainCanvas();
+    var w = grainCanvas.width;
+    var h = grainCanvas.height;
+    var imageData = grainCtx.createImageData(w, h);
+    var data = imageData.data;
+    var alpha = Math.round(fxState.filmGrain.intensity * 0.8);
+    for (var i = 0; i < data.length; i += 4) {
+      var v = (Math.random() * 255) | 0;
+      data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = alpha;
+    }
+    grainCtx.putImageData(imageData, 0, 0);
+  }
+
+  function updateFilmGrain() {
+    var on = fxState.filmGrain.on;
+    grainCanvas.style.opacity = on ? 1 : 0;
+    if (on && !grainInterval) {
+      renderGrain();
+      grainInterval = setInterval(renderGrain, 80);
+    } else if (!on && grainInterval) {
+      clearInterval(grainInterval);
+      grainInterval = null;
+    }
+  }
+
+  // ---------- 4. TILT-SHIFT — Gaussian Stack (WebGL2 post-process) ----------
+  // Based on https://ddavidhahn.github.io/194-26_Project8/
+  // Creates a 7-level Gaussian stack with increasing sigma, then composites
+  // using masks based on distance from the focus zone.
+  var tiltCanvas = document.getElementById('tilt-shift-canvas');
+  var tiltVignette = document.getElementById('tilt-vignette');
+  var tiltGL = null;
+  var tiltPrograms = {};
+  var tiltFBOs = [];
+  var tiltQuadBuf = null;
+  var tiltSourceTex = null;
+  var tiltAnimFrame = null;
+  var TILT_LEVELS = 7;
+  var TILT_SIGMAS = [1.0, 2.5, 4.0, 5.5, 7.0, 8.5, 10.0];
+
+  var TILT_BLUR_VERT = '#version 300 es\n' +
+    'layout(location=0) in vec2 a_pos;\n' +
+    'out vec2 v_uv;\n' +
+    'void main(){ v_uv = vec2(a_pos.x*.5+.5, .5-a_pos.y*.5); gl_Position = vec4(a_pos,0,1); }';
+
+  var TILT_BLUR_FRAG = '#version 300 es\n' +
+    'precision highp float;\n' +
+    'uniform sampler2D u_src;\n' +
+    'uniform vec2 u_dir;\n' +
+    'uniform float u_sigma;\n' +
+    'uniform vec2 u_texel;\n' +
+    'in vec2 v_uv;\n' +
+    'out vec4 fragColor;\n' +
+    'void main() {\n' +
+    '  if (u_sigma < 0.5) { fragColor = texture(u_src, v_uv); return; }\n' +
+    '  float sigma = u_sigma;\n' +
+    '  int radius = int(ceil(sigma * 3.0));\n' +
+    '  float sum = 0.0;\n' +
+    '  vec4 acc = vec4(0.0);\n' +
+    '  for (int i = -20; i <= 20; i++) {\n' +
+    '    if (abs(i) > radius) continue;\n' +
+    '    float w = exp(-0.5 * float(i*i) / (sigma*sigma));\n' +
+    '    acc += texture(u_src, v_uv + u_dir * u_texel * float(i)) * w;\n' +
+    '    sum += w;\n' +
+    '  }\n' +
+    '  fragColor = acc / sum;\n' +
+    '}';
+
+  var TILT_COMP_FRAG = '#version 300 es\n' +
+    'precision highp float;\n' +
+    'uniform sampler2D u_level[7];\n' +
+    'uniform float u_focusPos;\n' +
+    'uniform float u_bandSize;\n' +
+    'uniform float u_falloff;\n' +
+    'uniform float u_satBoost;\n' +
+    'uniform vec2 u_resolution;\n' +
+    'in vec2 v_uv;\n' +
+    'out vec4 fragColor;\n' +
+    'void main() {\n' +
+    '  float dist = abs(v_uv.y - u_focusPos) / max(u_bandSize, 0.001);\n' +
+    '  dist = max(dist - 1.0, 0.0);\n' +
+    '  float t = pow(clamp(dist, 0.0, 1.0), u_falloff);\n' +
+    '  float levelF = t * 6.0;\n' +
+    '  int lo = int(floor(levelF));\n' +
+    '  int hi = min(lo + 1, 6);\n' +
+    '  float frac = fract(levelF);\n' +
+    '  vec4 cLo, cHi;\n' +
+    '  if (lo == 0) cLo = texture(u_level[0], v_uv);\n' +
+    '  else if (lo == 1) cLo = texture(u_level[1], v_uv);\n' +
+    '  else if (lo == 2) cLo = texture(u_level[2], v_uv);\n' +
+    '  else if (lo == 3) cLo = texture(u_level[3], v_uv);\n' +
+    '  else if (lo == 4) cLo = texture(u_level[4], v_uv);\n' +
+    '  else if (lo == 5) cLo = texture(u_level[5], v_uv);\n' +
+    '  else cLo = texture(u_level[6], v_uv);\n' +
+    '  if (hi == 0) cHi = texture(u_level[0], v_uv);\n' +
+    '  else if (hi == 1) cHi = texture(u_level[1], v_uv);\n' +
+    '  else if (hi == 2) cHi = texture(u_level[2], v_uv);\n' +
+    '  else if (hi == 3) cHi = texture(u_level[3], v_uv);\n' +
+    '  else if (hi == 4) cHi = texture(u_level[4], v_uv);\n' +
+    '  else if (hi == 5) cHi = texture(u_level[5], v_uv);\n' +
+    '  else cHi = texture(u_level[6], v_uv);\n' +
+    '  vec4 color = mix(cLo, cHi, frac);\n' +
+    '  float focusMask = 1.0 - clamp(t, 0.0, 1.0);\n' +
+    '  float lum = dot(color.rgb, vec3(0.299, 0.587, 0.114));\n' +
+    '  vec3 saturated = mix(vec3(lum), color.rgb, 1.0 + u_satBoost * focusMask);\n' +
+    '  float vig = 1.0 - 0.3 * pow(length(v_uv - 0.5) * 1.4, 2.0);\n' +
+    '  color.rgb = saturated * vig;\n' +
+    '  fragColor = color;\n' +
+    '}';
+
+  function initTiltGL() {
+    if (tiltGL) return true;
+    tiltGL = tiltCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+    if (!tiltGL) { console.warn('WebGL2 not available for tilt-shift'); return false; }
+
+    var gl = tiltGL;
+    var quad = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+    tiltQuadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tiltQuadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+    tiltSourceTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tiltSourceTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    tiltPrograms.blur = tiltLinkProgram(TILT_BLUR_VERT, TILT_BLUR_FRAG);
+    tiltPrograms.composite = tiltLinkProgram(TILT_BLUR_VERT, TILT_COMP_FRAG);
+
+    return true;
+  }
+
+  function tiltCompileShader(gl, type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error('Tilt shader error:', gl.getShaderInfoLog(s));
+      gl.deleteShader(s); return null;
+    }
+    return s;
+  }
+
+  function tiltLinkProgram(vSrc, fSrc) {
+    var gl = tiltGL;
+    var vs = tiltCompileShader(gl, gl.VERTEX_SHADER, vSrc);
+    var fs = tiltCompileShader(gl, gl.FRAGMENT_SHADER, fSrc);
+    if (!vs || !fs) return null;
+    var p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      console.error('Tilt link error:', gl.getProgramInfoLog(p)); return null;
+    }
+    return p;
+  }
+
+  function tiltEnsureFBOs(w, h) {
+    var gl = tiltGL;
+    var needed = TILT_LEVELS + 1;
+    if (tiltFBOs.length === needed && tiltFBOs[0].w === w && tiltFBOs[0].h === h) return;
+
+    tiltFBOs.forEach(function(f) {
+      gl.deleteTexture(f.tex);
+      gl.deleteFramebuffer(f.fbo);
+    });
+    tiltFBOs = [];
+
+    for (var i = 0; i < needed; i++) {
+      var tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      var fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      tiltFBOs.push({ tex: tex, fbo: fbo, w: w, h: h });
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function tiltDrawQuad() {
+    var gl = tiltGL;
+    gl.bindBuffer(gl.ARRAY_BUFFER, tiltQuadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function tiltRenderFrame() {
+    if (!fxState.tiltShift.on) {
+      tiltCanvas.style.opacity = '0';
+      tiltAnimFrame = null;
+      return;
+    }
+
+    var gl = tiltGL;
+
+    var srcCanvas = viewer && viewer.canvas;
+    if (!srcCanvas) { tiltAnimFrame = requestAnimationFrame(tiltRenderFrame); return; }
+
+    var w = srcCanvas.width;
+    var h = srcCanvas.height;
+    if (tiltCanvas.width !== w || tiltCanvas.height !== h) {
+      tiltCanvas.width = w;
+      tiltCanvas.height = h;
+    }
+
+    tiltEnsureFBOs(w, h);
+
+    gl.bindTexture(gl.TEXTURE_2D, tiltSourceTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
+
+    var blurProg = tiltPrograms.blur;
+    var texelX = 1.0 / w;
+    var texelY = 1.0 / h;
+    var blurScale = 0.3 + (fxState.tiltShift.blur / 100) * 0.7;
+    var tempFBO = tiltFBOs[TILT_LEVELS];
+
+    for (var i = 0; i < TILT_LEVELS; i++) {
+      var sigma = TILT_SIGMAS[i] * blurScale;
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tempFBO.fbo);
+      gl.viewport(0, 0, w, h);
+      gl.useProgram(blurProg);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tiltSourceTex);
+      gl.uniform1i(gl.getUniformLocation(blurProg, 'u_src'), 0);
+      gl.uniform2f(gl.getUniformLocation(blurProg, 'u_dir'), 1.0, 0.0);
+      gl.uniform1f(gl.getUniformLocation(blurProg, 'u_sigma'), sigma);
+      gl.uniform2f(gl.getUniformLocation(blurProg, 'u_texel'), texelX, texelY);
+      tiltDrawQuad();
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tiltFBOs[i].fbo);
+      gl.viewport(0, 0, w, h);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tempFBO.tex);
+      gl.uniform2f(gl.getUniformLocation(blurProg, 'u_dir'), 0.0, 1.0);
+      tiltDrawQuad();
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    var compProg = tiltPrograms.composite;
+    gl.useProgram(compProg);
+
+    for (var i = 0; i < TILT_LEVELS; i++) {
+      gl.activeTexture(gl.TEXTURE0 + i);
+      gl.bindTexture(gl.TEXTURE_2D, tiltFBOs[i].tex);
+      gl.uniform1i(gl.getUniformLocation(compProg, 'u_level[' + i + ']'), i);
+    }
+
+    var pos = fxState.tiltShift.focusPos / 100;
+    var focusY = 0.15 + pos * 0.70;
+    var bandSize = 0.02 + (fxState.tiltShift.bandSize / 100) * 0.43;
+    var falloff = 0.3 + (1.0 - fxState.tiltShift.falloff / 100) * 2.2;
+    var satBoost = (fxState.tiltShift.saturation / 100) * 1.5;
+
+    gl.uniform1f(gl.getUniformLocation(compProg, 'u_focusPos'), focusY);
+    gl.uniform1f(gl.getUniformLocation(compProg, 'u_bandSize'), bandSize);
+    gl.uniform1f(gl.getUniformLocation(compProg, 'u_falloff'), falloff);
+    gl.uniform1f(gl.getUniformLocation(compProg, 'u_satBoost'), satBoost);
+    gl.uniform2f(gl.getUniformLocation(compProg, 'u_resolution'), w, h);
+    tiltDrawQuad();
+
+    tiltCanvas.style.opacity = '1';
+    tiltAnimFrame = requestAnimationFrame(tiltRenderFrame);
+  }
+
+  function updateTiltShift() {
+    updateTiltBandLines();
+    if (!fxState.tiltShift.on) {
+      tiltCanvas.style.opacity = '0';
+      if (tiltAnimFrame) { cancelAnimationFrame(tiltAnimFrame); tiltAnimFrame = null; }
+      return;
+    }
+    if (!initTiltGL()) return;
+    if (!tiltAnimFrame) {
+      tiltAnimFrame = requestAnimationFrame(tiltRenderFrame);
+    }
+  }
+
+  // ---------- 5. PAPER SHADERS (via @paper-design/shaders) ----------
+  var paperShaderContainer = document.getElementById('paper-shader-container');
+  var paperShaderLib = null; // loaded on demand
+  var paperShaderMount = null;
+  var activePaperShader = null;
+
+  var paperNoiseTexture = null; // cached noise texture for paper shaders
+
+  var PAPER_SHADER_MAP = {
+    paperTexture: 'paperTextureFragmentShader',
+    flutedGlass:  'flutedGlassFragmentShader',
+    waterEffect:  'waterFragmentShader',
+    halftone:     'halftoneDotsFragmentShader',
+    halftoneCmyk: 'halftoneCmykFragmentShader',
+    heatmap:      'heatmapFragmentShader',
+    dithering:    'imageDitheringFragmentShader',
+    liquidMetal:  'liquidMetalFragmentShader'
+  };
+
+  // Sizing uniforms needed by the vertex shader for UV calculation
+  function paperSizingUniforms() {
+    return {
+      u_fit: 2,           // 0=none, 1=contain, 2=cover
+      u_scale: 1,
+      u_rotation: 0,
+      u_offsetX: 0,
+      u_offsetY: 0,
+      u_originX: 0.5,
+      u_originY: 0.5,
+      u_worldWidth: 0,
+      u_worldHeight: 0
+    };
+  }
+
+  var PAPER_SHADER_UNIFORMS = {
+    paperTexture: function(st, img, noiseTex) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_noiseTexture = noiseTex;
+      u.u_colorFront = [0.15, 0.12, 0.1, 1.0];
+      u.u_colorBack = [0.95, 0.92, 0.87, 1.0];
+      u.u_contrast = 0.3 + (st.intensity / 100) * 0.5;
+      u.u_roughness = (st.roughness / 100);
+      u.u_fiber = 0.3;
+      u.u_fiberSize = 0.5;
+      u.u_crumples = (st.crumples / 100) * 0.8;
+      u.u_crumpleSize = 0.5;
+      u.u_folds = (st.folds / 100) * 0.5;
+      u.u_foldCount = 3;
+      u.u_drops = 0;
+      u.u_seed = 42;
+      u.u_fade = st.fade / 100;
+      return u;
+    },
+    flutedGlass: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorBack = [0.1, 0.1, 0.1, 1.0];
+      u.u_colorShadow = [0.0, 0.0, 0.0, 0.3];
+      u.u_colorHighlight = [1.0, 1.0, 1.0, 0.4];
+      u.u_size = 0.05 + (st.size / 100) * 0.4;
+      u.u_shadows = 0.5;
+      u.u_highlights = 0.4;
+      u.u_angle = (st.angle / 100) * 180;
+      u.u_stretch = 0;
+      u.u_shape = 1;
+      u.u_distortion = (st.distortion / 100) * 0.8;
+      u.u_distortionShape = 1;
+      u.u_shift = 0;
+      u.u_blur = (st.blur / 100) * 0.5;
+      u.u_edges = 0.3;
+      u.u_marginLeft = 0; u.u_marginRight = 0; u.u_marginTop = 0; u.u_marginBottom = 0;
+      u.u_grainMixer = 0.1;
+      u.u_grainOverlay = 0;
+      return u;
+    },
+    waterEffect: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorBack = [0.05, 0.1, 0.2, 1.0];
+      u.u_colorHighlight = [0.8, 0.9, 1.0, 0.5];
+      u.u_size = 0.1 + (st.size / 100) * 0.6;
+      u.u_highlights = 0.3 + (st.intensity / 100) * 0.4;
+      u.u_layering = 0.5;
+      u.u_edges = 0.3;
+      u.u_caustic = (st.caustic / 100) * 0.6;
+      u.u_waves = 0.1 + (st.waves / 100) * 0.6;
+      return u;
+    },
+    halftone: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorFront = [0.1, 0.1, 0.1, 1.0];
+      u.u_colorBack = [0.95, 0.95, 0.92, 1.0];
+      u.u_radius = 0.5;
+      u.u_contrast = (st.contrast / 100);
+      u.u_size = 0.05 + (1 - st.size / 100) * 0.45;
+      u.u_grainMixer = 0;
+      u.u_grainOverlay = 0;
+      u.u_grainSize = 0.5;
+      u.u_grid = 1;
+      u.u_originalColors = true;
+      u.u_inverted = false;
+      u.u_type = 1;
+      return u;
+    },
+    halftoneCmyk: function(st, img, noiseTex) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_noiseTexture = noiseTex;
+      u.u_colorBack = [1.0, 1.0, 1.0, 1.0];
+      u.u_colorC = [0.0, 0.65, 0.93, 1.0];
+      u.u_colorM = [0.89, 0.0, 0.47, 1.0];
+      u.u_colorY = [1.0, 0.88, 0.0, 1.0];
+      u.u_colorK = [0.1, 0.1, 0.1, 1.0];
+      u.u_size = 0.05 + (1 - st.size / 100) * 0.45;
+      u.u_minDot = 0.02;
+      u.u_contrast = (st.intensity / 100);
+      u.u_grainSize = 0.5;
+      u.u_grainMixer = 0;
+      u.u_grainOverlay = 0;
+      u.u_gridNoise = 0;
+      u.u_softness = (st.softness / 100);
+      u.u_floodC = 0; u.u_floodM = 0; u.u_floodY = 0; u.u_floodK = 0;
+      u.u_gainC = 1; u.u_gainM = 1; u.u_gainY = 1; u.u_gainK = 1;
+      u.u_type = 1;
+      return u;
+    },
+    heatmap: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorBack = [0.0, 0.0, 0.2, 1.0];
+      u.u_colorsCount = 5;
+      u.u_angle = 0;
+      u.u_noise = (st.noise / 100);
+      u.u_innerGlow = 0.3 + (st.intensity / 100) * 0.5;
+      u.u_outerGlow = 0.2;
+      u.u_contour = (st.contour / 100) * 0.8;
+      return u;
+    },
+    dithering: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorFront = [0.1, 0.1, 0.1, 1.0];
+      u.u_colorBack = [0.95, 0.95, 0.92, 1.0];
+      u.u_colorHighlight = [0.7, 0.7, 0.7, 1.0];
+      u.u_type = 1;
+      u.u_pxSize = 1 + (st.pxSize / 100) * 8;
+      u.u_originalColors = true;
+      u.u_inverted = false;
+      u.u_colorSteps = 2 + Math.round((st.colorSteps / 100) * 14);
+      return u;
+    },
+    liquidMetal: function(st, img) {
+      var u = paperSizingUniforms();
+      u.u_image = img;
+      u.u_imageAspectRatio = img.width / img.height;
+      u.u_colorBack = [0.05, 0.05, 0.1, 1.0];
+      u.u_colorTint = [0.8, 0.85, 0.9, 1.0];
+      u.u_softness = (st.softness / 100);
+      u.u_repetition = 3;
+      u.u_shiftRed = 0;
+      u.u_shiftBlue = 0;
+      u.u_distortion = (st.distortion / 100);
+      u.u_contour = (st.contour / 100);
+      u.u_angle = 0;
+      u.u_shape = 1;
+      u.u_isImage = true;
+      return u;
+    }
+  };
+
+  function loadPaperShaders() {
+    if (paperShaderLib) return Promise.resolve(paperShaderLib);
+    return import('https://esm.sh/@paper-design/shaders@0.0.72').then(function(mod) {
+      paperShaderLib = mod;
+      return mod;
+    });
+  }
+
+  function updatePaperShader() {
+    // Find which paper shader is active (only one at a time)
+    var activeKey = null;
+    ['paperTexture', 'flutedGlass', 'waterEffect', 'halftone', 'halftoneCmyk', 'heatmap', 'dithering', 'liquidMetal'].forEach(function(k) {
+      if (fxState[k].on) activeKey = k;
+    });
+
+    if (!activeKey) {
+      paperShaderContainer.style.opacity = '0';
+      if (paperShaderMount) {
+        paperShaderMount.dispose();
+        paperShaderMount = null;
+        activePaperShader = null;
+        paperShaderContainer.innerHTML = '';
+      }
+      return;
+    }
+
+    var st = fxState[activeKey];
+
+    loadPaperShaders().then(function(lib) {
+      var shaderName = PAPER_SHADER_MAP[activeKey];
+      var fragShader = lib[shaderName];
+
+      if (!fragShader) {
+        console.error('[paper] Shader not found:', shaderName, 'Available:', Object.keys(lib).filter(function(k) { return k.includes('Shader'); }));
+        return;
+      }
+
+      // Load noise texture once (needed for paperTexture shader)
+      if (!paperNoiseTexture && lib.getShaderNoiseTexture) {
+        paperNoiseTexture = lib.getShaderNoiseTexture();
+      }
+
+      console.log('[paper] Activating:', shaderName);
+
+      // Capture the visible map — use tilt-shift canvas if active, else raw Cesium
+      var tiltCanvas = document.getElementById('tilt-shift-canvas');
+      var srcCanvas = (fxState.tiltShift.on && tiltCanvas && tiltCanvas.width > 0)
+        ? tiltCanvas
+        : (viewer && viewer.canvas);
+      if (!srcCanvas) { console.error('[paper] No source canvas'); return; }
+
+      // Force render before capture
+      viewer.render();
+
+      var img = new Image();
+      img.onload = function() {
+        console.log('[paper] Image loaded:', img.width, 'x', img.height);
+
+        var uniforms = PAPER_SHADER_UNIFORMS[activeKey](st, img, paperNoiseTexture);
+
+        if (activePaperShader !== activeKey || !paperShaderMount) {
+          if (paperShaderMount) {
+            paperShaderMount.dispose();
+          }
+          paperShaderContainer.innerHTML = '';
+
+          try {
+            paperShaderMount = new lib.ShaderMount(
+              paperShaderContainer,
+              fragShader,
+              uniforms,
+              { preserveDrawingBuffer: true },
+              0.5 // slow animation speed
+            );
+            console.log('[paper] Mount created');
+
+            // Style the created canvas to fill container
+            var shaderCanvas = paperShaderContainer.querySelector('canvas');
+            if (shaderCanvas) {
+              shaderCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
+            }
+          } catch(e) {
+            console.error('[paper] Mount error:', e);
+            return;
+          }
+          activePaperShader = activeKey;
+        } else {
+          paperShaderMount.setUniforms(uniforms);
+        }
+
+        paperShaderContainer.style.opacity = '1';
+      };
+
+      img.onerror = function() {
+        console.error('[paper] Failed to load image from canvas');
+      };
+
+      img.src = srcCanvas.toDataURL('image/png');
+    }).catch(function(err) {
+      console.error('[paper] Failed to load library:', err);
+    });
+  }
+
+  // ---------- 5c. CESIUM DEPTH-OF-FIELD ----------
+  // 4-pass progressive Gaussian + foreground protection + bokeh highlights + color pop
+  var cesiumDof = null;
+
+  // Shared CoC + depth helpers used by all passes
+  var DOF_COMMON = [
+    'float getRawDepth(vec2 uv) { return texture(depthTexture, uv).r; }',
+    'float getCoC(vec2 uv, vec2 fp, float dr, float mb) {',
+    '  return smoothstep(0.0, dr, abs(getRawDepth(uv) - getRawDepth(fp))) * mb;',
+    '}',
+  ].join('\n');
+
+  // --- Gaussian blur pass (used 4x: H1, V1, H2, V2) ---
+  // dir: vec2 — (1,0) for horizontal, (0,1) for vertical
+  // scale: float — progressive scale multiplier (1.0, 1.0, 2.0, 2.0)
+  function makeDofBlurShader(dirX, dirY, scale) {
+    return [
+      'uniform sampler2D colorTexture;',
+      'uniform sampler2D depthTexture;',
+      'uniform vec2 focalPoint;',
+      'uniform float depthRange;',
+      'uniform float maxBlur;',
+      'in vec2 v_textureCoordinates;',
+      '',
+      DOF_COMMON,
+      '',
+      'void main() {',
+      '  vec2 uv = v_textureCoordinates;',
+      '  float coc = getCoC(uv, focalPoint, depthRange, maxBlur) * ' + scale.toFixed(1) + ';',
+      '  float myDepth = getRawDepth(uv);',
+      '',
+      '  if (coc < 0.5) {',
+      '    out_FragColor = texture(colorTexture, uv);',
+      '    return;',
+      '  }',
+      '',
+      '  vec2 texel = 1.0 / vec2(textureSize(colorTexture, 0));',
+      '  vec2 dir = vec2(' + dirX.toFixed(1) + ', ' + dirY.toFixed(1) + ');',
+      '  float step = coc / 8.0;', // 17-tap covers the CoC radius
+      '',
+      '  // 17-tap Gaussian (sigma ≈ 3)',
+      '  vec4 sum = texture(colorTexture, uv) * 0.1329;',
+      '  float tw = 0.1329;',
+      '  float w8[8] = float[](0.1284, 0.1161, 0.0983, 0.0778, 0.0576, 0.0399, 0.0259, 0.0157);',
+      '',
+      '  for (int i = 0; i < 8; i++) {',
+      '    vec2 off = dir * float(i + 1) * step * texel;',
+      '    float w = w8[i];',
+      '',
+      '    // Foreground protection: down-weight samples from significantly farther depth',
+      '    // This prevents background from bleeding into foreground edges',
+      '    float dPlus  = getRawDepth(uv + off);',
+      '    float dMinus = getRawDepth(uv - off);',
+      '    float wPlus  = w * ((dPlus - myDepth > 0.02) ? 0.2 : 1.0);',
+      '    float wMinus = w * ((dMinus - myDepth > 0.02) ? 0.2 : 1.0);',
+      '',
+      '    sum += texture(colorTexture, uv + off) * wPlus;',
+      '    sum += texture(colorTexture, uv - off) * wMinus;',
+      '    tw += wPlus + wMinus;',
+      '  }',
+      '  out_FragColor = sum / tw;',
+      '}',
+    ].join('\n');
+  }
+
+  // 4 progressive blur passes: H small → V small → H large → V large
+  var DOF_H1_FRAG = makeDofBlurShader(1, 0, 0.5);  // fine detail blur
+  var DOF_V1_FRAG = makeDofBlurShader(0, 1, 0.5);
+  var DOF_H2_FRAG = makeDofBlurShader(1, 0, 1.0);  // broad creamy blur
+  var DOF_V2_FRAG = makeDofBlurShader(0, 1, 1.0);
+
+  // --- Final composite pass: bokeh highlights + color pop ---
+  var DOF_FINAL_FRAG = [
+    'uniform sampler2D colorTexture;',
+    'uniform sampler2D depthTexture;',
+    'uniform vec2 focalPoint;',
+    'uniform float depthRange;',
+    'uniform float maxBlur;',
+    'uniform float colorPop;',
+    'uniform float globalPop;',  // 1.0 = whole scene, 0.0 = focus only
+    'in vec2 v_textureCoordinates;',
+    '',
+    DOF_COMMON,
+    '',
+    'void main() {',
+    '  vec2 uv = v_textureCoordinates;',
+    '  vec4 color = texture(colorTexture, uv);',
+    '  float cocNorm = getCoC(uv, focalPoint, depthRange, 1.0);',
+    '  float focusAmount = 1.0 - cocNorm;',
+    '',
+    '  // --- Bokeh highlights: brighten hot spots in blurred areas ---',
+    '  if (cocNorm > 0.15) {',
+    '    float lum = dot(color.rgb, vec3(0.299, 0.587, 0.114));',
+    '    float bokehMask = smoothstep(0.55, 0.85, lum) * cocNorm;',
+    '    color.rgb += color.rgb * bokehMask * 0.6;',
+    '    color.r += bokehMask * 0.04;',
+    '    color.g += bokehMask * 0.02;',
+    '  }',
+    '',
+    '  // --- Color pop: global or focus-only ---',
+    '  float popStrength = mix(focusAmount, 1.0, globalPop) * colorPop;',
+    '  float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));',
+    '',
+    '  // Saturation boost',
+    '  color.rgb = mix(vec3(luma), color.rgb, 1.0 + popStrength * 0.7);',
+    '  // Contrast boost',
+    '  color.rgb = mix(vec3(0.5), color.rgb, 1.0 + popStrength * 0.4);',
+    '  // Warmth',
+    '  color.r += popStrength * 0.02;',
+    '  color.g += popStrength * 0.01;',
+    '',
+    '  // Desaturate blurred areas slightly when NOT global pop',
+    '  float desatAmount = cocNorm * 0.12 * (1.0 - globalPop);',
+    '  color.rgb = mix(color.rgb, vec3(dot(color.rgb, vec3(0.299, 0.587, 0.114))), desatAmount);',
+    '',
+    '  out_FragColor = color;',
+    '}',
+  ].join('\n');
+
+  // Focal point in UV space (0-1). Default: center of screen
+  var dofFocalUV = { x: 0.5, y: 0.5 };
+
+  function updateDepthDof() {
+    if (!viewer) return;
+    var st = fxState.depthDof;
+
+    if (!st.on) {
+      if (cesiumDof) {
+        viewer.scene.postProcessStages.remove(cesiumDof);
+        cesiumDof = null;
+      }
+      return;
+    }
+
+    var maxBlur = 2 + (st.blurAmount / 100) * 48;
+    var t = st.focalDist / 100;
+    var depthRange = 0.15 - t * 0.145;
+    var colorPop = st.colorPop / 100;
+    var globalPop = st.globalPop ? 1.0 : 0.0;
+    var fp = new Cesium.Cartesian2(dofFocalUV.x, dofFocalUV.y);
+
+    if (!cesiumDof) {
+      var stages = [DOF_H1_FRAG, DOF_V1_FRAG, DOF_H2_FRAG, DOF_V2_FRAG].map(function(frag, i) {
+        return new Cesium.PostProcessStage({
+          name: 'dofBlur' + i,
+          fragmentShader: frag,
+          uniforms: { focalPoint: fp, depthRange: depthRange, maxBlur: maxBlur }
+        });
+      });
+
+      var finalStage = new Cesium.PostProcessStage({
+        name: 'dofFinal',
+        fragmentShader: DOF_FINAL_FRAG,
+        uniforms: { focalPoint: fp, depthRange: depthRange, maxBlur: maxBlur, colorPop: colorPop, globalPop: globalPop }
+      });
+
+      stages.push(finalStage);
+
+      cesiumDof = viewer.scene.postProcessStages.add(
+        new Cesium.PostProcessStageComposite({
+          name: 'dofComposite',
+          stages: stages,
+          inputPreviousStageTexture: true
+        })
+      );
+    } else {
+      for (var i = 0; i < 4; i++) {
+        var s = cesiumDof.get(i);
+        s.uniforms.focalPoint = fp;
+        s.uniforms.depthRange = depthRange;
+        s.uniforms.maxBlur = maxBlur;
+      }
+      var fin = cesiumDof.get(4);
+      fin.uniforms.focalPoint = fp;
+      fin.uniforms.depthRange = depthRange;
+      fin.uniforms.maxBlur = maxBlur;
+      fin.uniforms.colorPop = colorPop;
+      fin.uniforms.globalPop = globalPop;
+    }
+  }
+
+  // Auto-focus: update focal point when camera stops moving
+  var _dofCamTimer = null;
+  function setupDofAutoFocus() {
+    if (!viewer) return;
+    viewer.camera.changed.addEventListener(function() {
+      if (!fxState.depthDof.on || !fxState.depthDof.autoFocus) return;
+      clearTimeout(_dofCamTimer);
+      _dofCamTimer = setTimeout(function() {
+        dofFocalUV.x = 0.5;
+        dofFocalUV.y = 0.5;
+        applyFx('depthDof');
+      }, 300);
+    });
+  }
+
+  // ---------- 6. VIGNETTE ----------
+  var vignetteOverlay = document.getElementById('vignette-overlay');
+
+  function updateVignette() {
+    var on = fxState.vignette.on;
+    var intensity = fxState.vignette.intensity / 100;
+    if (!on) { vignetteOverlay.style.opacity = 0; return; }
+    var darkness = (0.4 + intensity * 0.5).toFixed(2);
+    var size = (50 - intensity * 15).toFixed(0);
+    vignetteOverlay.style.background = 'radial-gradient(ellipse at center, transparent ' + size + '%, rgba(0,0,0,' + darkness + ') 100%)';
+    vignetteOverlay.style.opacity = 1;
+  }
+
+})();
+</script>
+</body>
+</html>
