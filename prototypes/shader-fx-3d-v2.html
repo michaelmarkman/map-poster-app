@@ -1659,22 +1659,6 @@
       msaaSamples: 4
     });
 
-    // Remap camera controls: right-click / two-finger = tilt
-    var ctrl = viewer.scene.screenSpaceCameraController;
-    ctrl.rotateEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
-    ctrl.tiltEventTypes = [
-      Cesium.CameraEventType.RIGHT_DRAG,
-      { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL }
-    ];
-    ctrl.zoomEventTypes = [
-      Cesium.CameraEventType.MIDDLE_DRAG,
-      Cesium.CameraEventType.WHEEL,
-      Cesium.CameraEventType.PINCH
-    ];
-    ctrl.lookEventTypes = [
-      { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.SHIFT }
-    ];
-
     // Remove default base imagery, keep globe for label overlay
     viewer.imageryLayers.removeAll();
     viewer.scene.globe.show = true;
