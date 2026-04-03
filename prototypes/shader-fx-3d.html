@@ -553,7 +553,7 @@
     cinematic:   { on: false, intensity: 50 },
     filmGrain:   { on: false, intensity: 40 },
     tiltShift:   { on: false, blur: 5, bandSize: 20, focusPos: 45, falloff: 0, saturation: 55, mode: 'band' },
-    depthDof:    { on: true, focalDist: 90, blurAmount: 10, colorPop: 80, globalPop: true, autoFocus: false },
+    depthDof:    { on: true, focalDist: 90, blurAmount: 10, colorPop: 80, globalPop: true },
     vignette:    { on: false, intensity: 60 },
     paperTexture:  { on: false, intensity: 50, roughness: 50, crumples: 30, folds: 20, fade: 50 },
     flutedGlass:   { on: false, intensity: 50, distortion: 50, blur: 30, size: 30, angle: 0 },
@@ -651,8 +651,7 @@
       { prop: 'blurAmount', label: 'Blur Amount' },
       { prop: 'colorPop',   label: 'Color Pop' }
     ], toggles: [
-      { prop: 'globalPop', label: 'Color pop whole scene' },
-      { prop: 'autoFocus', label: 'Auto-focus on camera move' }
+      { prop: 'globalPop', label: 'Color pop whole scene' }
     ]},
     { key: 'vignette',  name: 'Vignette',         desc: 'Dark edges for dramatic framing' }
   ];
@@ -765,7 +764,6 @@
         sliderRow.appendChild(row);
       });
     }
-
     item.appendChild(sliderRow);
 
     toggle.addEventListener('click', function() {
@@ -1704,7 +1702,6 @@
       // Apply any default-on FX
       if (fxState.tiltShift.on) applyFx('tiltShift');
       if (fxState.depthDof.on) applyFx('depthDof');
-      setupDofAutoFocus();
     }).catch(function(err) {
       console.error('Failed to load 3D tiles via Google key, trying Cesium ion asset...', err);
       // Fallback: try Cesium ion asset 2275207 (Google Photorealistic 3D Tiles)
@@ -1715,7 +1712,6 @@
         setupCameraSliders();
         if (fxState.tiltShift.on) applyFx('tiltShift');
         if (fxState.depthDof.on) applyFx('depthDof');
-        setupDofAutoFocus();
       }).catch(function(err2) {
         console.error('Failed to load 3D tiles:', err2);
       });
@@ -2598,19 +2594,20 @@
     '  }',
     '  vec4 color = sum / tw;',
     '',
-    '  // Color pop: global or focus-only',
-    '  float cocNorm = computeCoC(uv, focalPoint, depthRange, 1.0);',
-    '  float focusAmount = 1.0 - cocNorm;',
-    '  float popStrength = mix(focusAmount, 1.0, globalPop) * colorPop;',
+    '  // Color pop — whole scene or focused areas only',
+    '  float focusAmount = 1.0 - computeCoC(uv, focalPoint, depthRange, 1.0);',
+    '  float popMask = mix(focusAmount, 1.0, globalPop);',
+    '  float pop = popMask * colorPop;',
     '  float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));',
     '',
-    '  color.rgb = mix(vec3(luma), color.rgb, 1.0 + popStrength * 0.7);',
-    '  color.rgb = mix(vec3(0.5), color.rgb, 1.0 + popStrength * 0.4);',
-    '  color.r += popStrength * 0.02;',
-    '  color.g += popStrength * 0.01;',
+    '  color.rgb = mix(vec3(luma), color.rgb, 1.0 + pop * 0.7);',
+    '  color.rgb = mix(vec3(0.5), color.rgb, 1.0 + pop * 0.4);',
+    '  color.r += pop * 0.02;',
+    '  color.g += pop * 0.01;',
     '',
-    '  float desatAmount = cocNorm * 0.12 * (1.0 - globalPop);',
-    '  color.rgb = mix(color.rgb, vec3(luma), desatAmount);',
+    '  // Desaturate blurred areas slightly',
+    '  float blurAmount = 1.0 - focusAmount;',
+    '  color.rgb = mix(color.rgb, vec3(luma), blurAmount * 0.15);',
     '',
     '  out_FragColor = color;',
     '}',
@@ -2668,21 +2665,6 @@
       v.uniforms.colorPop = colorPop;
       v.uniforms.globalPop = globalPop;
     }
-  }
-
-  // Auto-focus: update focal point when camera stops moving
-  var _dofCamTimer = null;
-  function setupDofAutoFocus() {
-    if (!viewer) return;
-    viewer.camera.changed.addEventListener(function() {
-      if (!fxState.depthDof.on || !fxState.depthDof.autoFocus) return;
-      clearTimeout(_dofCamTimer);
-      _dofCamTimer = setTimeout(function() {
-        dofFocalUV.x = 0.5;
-        dofFocalUV.y = 0.5;
-        applyFx('depthDof');
-      }, 300);
-    });
   }
 
   // ---------- 6. VIGNETTE ----------
