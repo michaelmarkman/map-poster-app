@@ -142,6 +142,7 @@ function init(apiKey) {
   // UI wiring
   setupUI();
   setupAI();
+  setupSavedViews();
 
   // Restore session
   restoreSession();
@@ -518,6 +519,61 @@ function setupUI() {
     return h12 + ':' + String(mm).padStart(2, '0') + ' ' + ampm;
   }
 
+  // Location search
+  document.getElementById('location-search').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const query = e.target.value.trim();
+    if (!query) return;
+
+    // Use Google Geocoding API
+    const apiKey = localStorage.getItem('mapposter_google_key') || '';
+    if (!apiKey) { alert('No Google API key set'); return; }
+
+    fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.results || !data.results.length) { alert('Location not found'); return; }
+        const loc = data.results[0].geometry.location;
+        const name = data.results[0].formatted_address;
+
+        e.target.value = name;
+
+        // Fly camera to the new location
+        const pos = new THREE.Vector3();
+        WGS84_ELLIPSOID.getCartographicToPosition(
+          loc.lat * Math.PI / 180,
+          loc.lng * Math.PI / 180,
+          500, // default altitude
+          pos
+        );
+        camera.position.copy(pos);
+
+        // Look at the ground at that location
+        const target = new THREE.Vector3();
+        WGS84_ELLIPSOID.getCartographicToPosition(
+          loc.lat * Math.PI / 180,
+          loc.lng * Math.PI / 180,
+          0,
+          target
+        );
+        camera.lookAt(target);
+
+        // Update text overlay
+        document.getElementById('text-title').value = name.split(',')[0];
+        document.getElementById('overlay-title').textContent = name.split(',')[0];
+        document.getElementById('text-coords').value =
+          Math.abs(loc.lat).toFixed(4) + '° ' + (loc.lat >= 0 ? 'N' : 'S') + ', ' +
+          Math.abs(loc.lng).toFixed(4) + '° ' + (loc.lng >= 0 ? 'E' : 'W');
+        document.getElementById('overlay-coords').textContent = document.getElementById('text-coords').value;
+
+        console.log('[location] Moved to', name, loc.lat, loc.lng);
+      })
+      .catch(err => {
+        console.error('[location] Geocoding failed:', err);
+        alert('Geocoding failed');
+      });
+  });
+
   // DoF toggle
   document.getElementById('toggle-dof').addEventListener('click', function() {
     this.classList.toggle('on');
@@ -712,6 +768,112 @@ function setupUI() {
     }
   });
 
+}
+
+// ============================================================
+//  SAVED VIEWS
+// ============================================================
+
+const VIEWS_KEY = 'mapposter3d_threejs_views';
+
+function setupSavedViews() {
+  document.getElementById('save-view-btn').addEventListener('click', () => {
+    if (!camera) return;
+    const carto = {};
+    WGS84_ELLIPSOID.getPositionToCartographic(camera.position, carto);
+
+    // Capture thumbnail
+    composer.render();
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 96; thumbCanvas.height = 72;
+    thumbCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, 96, 72);
+
+    const view = {
+      id: Date.now(),
+      name: (document.getElementById('location-search').value || 'Saved View').split(',')[0],
+      camera: {
+        lat: carto.lat * 180 / Math.PI,
+        lng: carto.lon * 180 / Math.PI,
+        height: carto.height,
+        qx: camera.quaternion.x, qy: camera.quaternion.y,
+        qz: camera.quaternion.z, qw: camera.quaternion.w
+      },
+      fov: camera.fov,
+      tod: +(document.getElementById('tod-slider').value),
+      thumbnail: thumbCanvas.toDataURL('image/jpeg', 0.6)
+    };
+
+    const views = loadViews();
+    views.unshift(view);
+    if (views.length > 20) views.pop();
+    storeViews(views);
+    renderSavedViews();
+  });
+
+  renderSavedViews();
+}
+
+function loadViews() {
+  try { return JSON.parse(localStorage.getItem(VIEWS_KEY)) || []; } catch(e) { return []; }
+}
+
+function storeViews(views) {
+  try { localStorage.setItem(VIEWS_KEY, JSON.stringify(views)); } catch(e) {}
+}
+
+function renderSavedViews() {
+  const list = document.getElementById('saved-views-list');
+  while (list.firstChild) list.removeChild(list.firstChild);
+  const views = loadViews();
+
+  views.forEach((v, idx) => {
+    const el = document.createElement('div');
+    el.className = 'saved-view';
+
+    if (v.thumbnail) {
+      const img = document.createElement('img');
+      img.src = v.thumbnail;
+      el.appendChild(img);
+    }
+
+    const name = document.createElement('span');
+    name.className = 'sv-name';
+    name.textContent = v.name || 'View ' + (idx + 1);
+    el.appendChild(name);
+
+    const del = document.createElement('span');
+    del.className = 'sv-delete';
+    del.textContent = '\u00d7';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const views = loadViews();
+      views.splice(idx, 1);
+      storeViews(views);
+      renderSavedViews();
+    });
+    el.appendChild(del);
+
+    el.addEventListener('click', () => {
+      if (!camera) return;
+      const pos = new THREE.Vector3();
+      WGS84_ELLIPSOID.getCartographicToPosition(
+        v.camera.lat * Math.PI / 180,
+        v.camera.lng * Math.PI / 180,
+        v.camera.height,
+        pos
+      );
+      camera.position.copy(pos);
+      camera.quaternion.set(v.camera.qx, v.camera.qy, v.camera.qz, v.camera.qw);
+      if (v.fov) { camera.fov = v.fov; camera.updateProjectionMatrix(); }
+      if (v.tod !== undefined) {
+        document.getElementById('tod-slider').value = v.tod;
+        document.getElementById('tod-val').textContent = formatHourGlobal(v.tod);
+        updateSunForHour(v.tod);
+      }
+    });
+
+    list.appendChild(el);
+  });
 }
 
 // ============================================================
