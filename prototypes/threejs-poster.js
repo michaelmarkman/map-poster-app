@@ -8,12 +8,14 @@ import {
 } from 'postprocessing';
 import {
   AerialPerspectiveEffect,
+  AtmosphereParameters,
   SkyMaterial,
   SunDirectionalLight,
   PrecomputedTexturesLoader,
   DEFAULT_PRECOMPUTED_TEXTURES_URL,
   getSunDirectionECEF
 } from '@takram/three-atmosphere';
+import { CloudsEffect } from '@takram/three-clouds';
 import { Ellipsoid } from '@takram/three-geospatial';
 
 // ============================================================
@@ -25,7 +27,9 @@ let tiles, controls;
 let dofEffect, bloomEffect, vignetteEffect, noiseEffect, tiltShiftEffect, ssaoEffect;
 let dofPass, bloomPass, vignettePass, noisePass, tiltShiftPass, ssaoPass;
 let aerialPerspectiveEffect, aerialPass;
+let cloudsEffect, cloudsPass;
 let atmosphereTextureData = null;
+let atmosphereParams = null;
 
 const state = {
   dof: { on: true, focusDist: 500, blur: 30 },
@@ -184,21 +188,38 @@ async function loadAtmosphere() {
     );
     console.log('[atmosphere] Textures loaded');
 
+    // Create atmosphere parameters (shared between aerial perspective and clouds)
+    atmosphereParams = new AtmosphereParameters();
+    atmosphereParams.textureData = atmosphereTextureData;
+
     // Create aerial perspective effect
     aerialPerspectiveEffect = new AerialPerspectiveEffect(camera, {
       textureData: atmosphereTextureData,
       sky: true
     });
 
-    // Insert aerial perspective pass before DoF in the composer
-    // The order should be: RenderPass → AerialPerspective → DoF → Bloom → ...
+    // Create clouds effect (disabled by default)
+    try {
+      cloudsEffect = new CloudsEffect(camera, {
+        resolutionScale: 0.5,
+        coverage: 0.4
+      }, atmosphereParams);
+      cloudsEffect.qualityPreset = 'medium';
+      cloudsPass = new EffectPass(camera, cloudsEffect);
+      cloudsPass.enabled = false;
+      console.log('[clouds] Effect created');
+    } catch (err) {
+      console.warn('[clouds] Failed to create:', err);
+    }
+
+    // Insert passes: RenderPass → Clouds → AerialPerspective → DoF → ...
     aerialPass = new EffectPass(camera, aerialPerspectiveEffect);
-    // Insert at position 1 (after RenderPass, before DoF)
     const passes = composer.passes;
-    const newPasses = [passes[0], aerialPass, ...passes.slice(1)];
-    // Rebuild composer passes
+    const insertPasses = cloudsPass
+      ? [passes[0], cloudsPass, aerialPass, ...passes.slice(1)]
+      : [passes[0], aerialPass, ...passes.slice(1)];
     while (composer.passes.length > 0) composer.removePass(composer.passes[0]);
-    newPasses.forEach(p => composer.addPass(p));
+    insertPasses.forEach(p => composer.addPass(p));
 
     // Update sun direction based on current date
     updateSunDirection();
@@ -216,20 +237,22 @@ async function loadAtmosphere() {
   }
 }
 
+function setSunDirection(sunDir) {
+  if (aerialPerspectiveEffect) aerialPerspectiveEffect.sunDirection.copy(sunDir);
+  if (cloudsEffect) cloudsEffect.sunDirection.copy(sunDir);
+}
+
 function updateSunDirection() {
-  if (!aerialPerspectiveEffect) return;
   const now = new Date();
   const sunDir = getSunDirectionECEF(now, new THREE.Vector3());
-  aerialPerspectiveEffect.sunDirection.copy(sunDir);
+  setSunDirection(sunDir);
 }
 
 function updateSunForHour(hour) {
-  if (!aerialPerspectiveEffect) return;
-  // Create a date at the given hour today
   const d = new Date();
   d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
   const sunDir = getSunDirectionECEF(d, new THREE.Vector3());
-  aerialPerspectiveEffect.sunDirection.copy(sunDir);
+  setSunDirection(sunDir);
 }
 
 // ============================================================
@@ -562,6 +585,13 @@ function setupUI() {
     this.classList.toggle('on');
     state.vignette.on = this.classList.contains('on');
     vignettePass.enabled = state.vignette.on;
+  });
+
+  // Clouds toggle
+  document.getElementById('toggle-clouds').addEventListener('click', function() {
+    this.classList.toggle('on');
+    state.clouds.on = this.classList.contains('on');
+    if (cloudsPass) cloudsPass.enabled = state.clouds.on;
   });
 
   // Text overlay
