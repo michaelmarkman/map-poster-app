@@ -216,6 +216,15 @@ function updateSunDirection() {
   aerialPerspectiveEffect.sunDirection.copy(sunDir);
 }
 
+function updateSunForHour(hour) {
+  if (!aerialPerspectiveEffect) return;
+  // Create a date at the given hour today
+  const d = new Date();
+  d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
+  const sunDir = getSunDirectionECEF(d, new THREE.Vector3());
+  aerialPerspectiveEffect.sunDirection.copy(sunDir);
+}
+
 // ============================================================
 //  POST-PROCESSING
 // ============================================================
@@ -361,6 +370,26 @@ function setupUI() {
 
   setInterval(syncSlidersFromCamera, 200);
 
+  // Time of day slider
+  const todSlider = document.getElementById('tod-slider');
+  const now = new Date();
+  todSlider.value = now.getHours() + now.getMinutes() / 60;
+  document.getElementById('tod-val').textContent = formatHour(+todSlider.value);
+
+  todSlider.addEventListener('input', (e) => {
+    const hour = +e.target.value;
+    document.getElementById('tod-val').textContent = formatHour(hour);
+    updateSunForHour(hour);
+  });
+
+  function formatHour(h) {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    const h12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+    return h12 + ':' + String(mm).padStart(2, '0') + ' ' + ampm;
+  }
+
   // DoF toggle
   document.getElementById('toggle-dof').addEventListener('click', function() {
     this.classList.toggle('on');
@@ -413,11 +442,18 @@ function setupUI() {
     link.click();
   });
 
-  // Click-to-focus for DoF
-  renderer.domElement.addEventListener('click', (e) => {
-    if (!state.dof.on) return;
-    // Don't focus on drag
-    if (controls && controls.isActive) return;
+  // Click-to-focus for DoF — track mouse movement to distinguish click from drag
+  let _mouseDownPos = null;
+  renderer.domElement.addEventListener('mousedown', (e) => {
+    _mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+  renderer.domElement.addEventListener('mouseup', (e) => {
+    if (!state.dof.on || !_mouseDownPos) return;
+
+    // Only focus if mouse didn't move much (click, not drag)
+    const dx = e.clientX - _mouseDownPos.x;
+    const dy = e.clientY - _mouseDownPos.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 5) return;
 
     const rect = renderer.domElement.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
