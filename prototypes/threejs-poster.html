@@ -232,19 +232,48 @@
     </div>
   </div>
 
+  <!-- Text -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+      Text Overlay
+    </div>
+    <div class="toggle-row" style="margin-bottom:10px">
+      <span>Show text</span>
+      <div class="toggle" id="toggle-text-overlay"></div>
+    </div>
+    <input class="text-input" id="text-title" value="East Village" placeholder="Title">
+    <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
+    <input class="text-input" id="text-coords" value="40.7323° N, 73.9812° W" placeholder="Coordinates">
+  </div>
+
   <!-- Export -->
   <div class="sidebar-section">
     <div class="section-title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export
     </div>
-    <button class="export-btn" id="download-btn">Download PNG</button>
+    <div style="display:flex;gap:6px;">
+      <button class="export-btn" id="download-btn" style="flex:1;">Download PNG</button>
+      <select id="export-res" style="background:#3f3f46;color:#a1a1aa;border:1px solid #27272a;border-radius:8px;padding:4px 8px;font-size:11px;font-family:Inter,sans-serif;cursor:pointer;">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="3">3x</option>
+        <option value="4">4x</option>
+      </select>
+    </div>
   </div>
 </div>
 
 <!-- Main area -->
 <div id="main">
-  <div id="canvas-container"></div>
+  <div id="canvas-container">
+    <div id="text-overlay" style="display:none;position:absolute;bottom:0;left:0;right:0;padding:20px 24px 18px;text-align:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:10;">
+      <div id="overlay-title" style="font-family:'Playfair Display';font-size:22px;font-weight:600;letter-spacing:6px;text-transform:uppercase;color:#fff;">East Village</div>
+      <div id="overlay-subtitle" style="font-size:11px;color:#a1a1aa;margin-top:6px;letter-spacing:1px;">250 1st Avenue</div>
+      <div id="overlay-coords" style="font-family:'Space Mono';font-size:10px;color:#52525b;margin-top:6px;letter-spacing:0.5px;">40.7323° N, 73.9812° W</div>
+    </div>
+  </div>
   <div id="status">Loading...</div>
 
   <!-- API Key prompt -->

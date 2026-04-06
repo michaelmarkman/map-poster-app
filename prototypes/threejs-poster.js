@@ -4,7 +4,7 @@ import { GoogleCloudAuthPlugin } from '3d-tiles-renderer/plugins';
 import {
   EffectComposer, RenderPass, EffectPass, Effect, BlendFunction,
   DepthOfFieldEffect, BloomEffect, VignetteEffect, NoiseEffect,
-  ToneMappingEffect, ToneMappingMode
+  SSAOEffect, ToneMappingEffect, ToneMappingMode
 } from 'postprocessing';
 import {
   AerialPerspectiveEffect,
@@ -22,8 +22,8 @@ import { Ellipsoid } from '@takram/three-geospatial';
 
 let renderer, scene, camera, composer;
 let tiles, controls;
-let dofEffect, bloomEffect, vignetteEffect, noiseEffect, tiltShiftEffect;
-let dofPass, bloomPass, vignettePass, noisePass, tiltShiftPass;
+let dofEffect, bloomEffect, vignetteEffect, noiseEffect, tiltShiftEffect, ssaoEffect;
+let dofPass, bloomPass, vignettePass, noisePass, tiltShiftPass, ssaoPass;
 let aerialPerspectiveEffect, aerialPass;
 let atmosphereTextureData = null;
 
@@ -335,6 +335,17 @@ function setupPostProcessing() {
   tiltShiftPass.enabled = false;
   composer.addPass(tiltShiftPass);
 
+  // SSAO
+  ssaoEffect = new SSAOEffect(camera, null, {
+    intensity: 2.0,
+    radius: 0.05,
+    luminanceInfluence: 0.5,
+    bias: 0.025
+  });
+  ssaoPass = new EffectPass(camera, ssaoEffect);
+  ssaoPass.enabled = false;
+  composer.addPass(ssaoPass);
+
   // Bloom
   bloomEffect = new BloomEffect({
     intensity: 0.5,
@@ -525,6 +536,13 @@ function setupUI() {
     tiltShiftEffect.uniforms.get('blurAmount').value = +e.target.value;
   });
 
+  // SSAO toggle
+  document.getElementById('toggle-ssao').addEventListener('click', function() {
+    this.classList.toggle('on');
+    state.ssao.on = this.classList.contains('on');
+    ssaoPass.enabled = state.ssao.on;
+  });
+
   // Bloom toggle
   document.getElementById('toggle-bloom').addEventListener('click', function() {
     this.classList.toggle('on');
@@ -539,14 +557,89 @@ function setupUI() {
     vignettePass.enabled = state.vignette.on;
   });
 
-  // Download
+  // Text overlay
+  document.getElementById('toggle-text-overlay').addEventListener('click', function() {
+    this.classList.toggle('on');
+    document.getElementById('text-overlay').style.display = this.classList.contains('on') ? '' : 'none';
+  });
+  document.getElementById('text-title').addEventListener('input', (e) => {
+    document.getElementById('overlay-title').textContent = e.target.value;
+  });
+  document.getElementById('text-subtitle').addEventListener('input', (e) => {
+    document.getElementById('overlay-subtitle').textContent = e.target.value;
+  });
+  document.getElementById('text-coords').addEventListener('input', (e) => {
+    document.getElementById('overlay-coords').textContent = e.target.value;
+  });
+
+  // Download with optional high-res
   document.getElementById('download-btn').addEventListener('click', () => {
+    const scale = +(document.getElementById('export-res').value) || 1;
+    const origPixelRatio = renderer.getPixelRatio();
+
+    // Temporarily increase resolution
+    if (scale > 1) {
+      renderer.setPixelRatio(origPixelRatio * scale);
+      const container = document.getElementById('canvas-container');
+      composer.setSize(container.clientWidth, container.clientHeight);
+    }
+
     composer.render();
+
+    // Capture
     const dataUrl = renderer.domElement.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = 'mapposter-threejs-' + Date.now() + '.png';
-    link.href = dataUrl;
-    link.click();
+
+    // Composite text overlay onto the image
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // Draw text overlay if visible
+      const textOverlay = document.getElementById('text-overlay');
+      if (textOverlay.style.display !== 'none') {
+        const w = canvas.width, h = canvas.height;
+        const barHeight = h * 0.12;
+        const barY = h - barHeight;
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(0, barY, w, barHeight);
+
+        const title = document.getElementById('overlay-title').textContent;
+        const subtitle = document.getElementById('overlay-subtitle').textContent;
+        const coords = document.getElementById('overlay-coords').textContent;
+
+        const titleSize = Math.round(w * 0.035);
+        ctx.font = '600 ' + titleSize + 'px "Playfair Display", serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(title.toUpperCase(), w / 2, barY + barHeight * 0.42);
+
+        ctx.font = Math.round(w * 0.015) + 'px "Inter", sans-serif';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText(subtitle, w / 2, barY + barHeight * 0.42 + titleSize * 0.7);
+
+        ctx.font = Math.round(w * 0.012) + 'px "Space Mono", monospace';
+        ctx.fillStyle = '#52525b';
+        ctx.fillText(coords, w / 2, barY + barHeight * 0.42 + titleSize * 1.2);
+      }
+
+      // Download
+      const link = document.createElement('a');
+      link.download = 'mapposter-threejs-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      // Restore resolution
+      if (scale > 1) {
+        renderer.setPixelRatio(origPixelRatio);
+        const container = document.getElementById('canvas-container');
+        composer.setSize(container.clientWidth, container.clientHeight);
+      }
+    };
+    img.src = dataUrl;
   });
 
   // Click-to-focus for DoF — track mouse movement to distinguish click from drag
