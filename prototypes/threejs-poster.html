@@ -197,6 +197,24 @@
       </div>
     </div>
     <div class="toggle-row" style="margin-top:8px;">
+      <span>Tilt-shift</span>
+      <div class="toggle" id="toggle-tiltshift"></div>
+    </div>
+    <div id="tiltshift-settings" style="display:none;">
+      <div class="control-row">
+        <div class="control-label"><span>Focus position</span><span class="control-value" id="ts-pos-val">50%</span></div>
+        <input type="range" id="ts-pos-slider" min="10" max="90" step="1" value="50">
+      </div>
+      <div class="control-row">
+        <div class="control-label"><span>Band size</span><span class="control-value" id="ts-band-val">15%</span></div>
+        <input type="range" id="ts-band-slider" min="2" max="45" step="1" value="15">
+      </div>
+      <div class="control-row">
+        <div class="control-label"><span>Blur</span><span class="control-value" id="ts-blur-val">30%</span></div>
+        <input type="range" id="ts-blur-slider" min="0" max="100" step="1" value="30">
+      </div>
+    </div>
+    <div class="toggle-row" style="margin-top:8px;">
       <span>Bloom</span>
       <div class="toggle" id="toggle-bloom"></div>
     </div>

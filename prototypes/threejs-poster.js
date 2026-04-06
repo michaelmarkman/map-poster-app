@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TilesRenderer, WGS84_ELLIPSOID, GlobeControls } from '3d-tiles-renderer';
 import { GoogleCloudAuthPlugin } from '3d-tiles-renderer/plugins';
 import {
-  EffectComposer, RenderPass, EffectPass,
+  EffectComposer, RenderPass, EffectPass, Effect, BlendFunction,
   DepthOfFieldEffect, BloomEffect, VignetteEffect, NoiseEffect,
   ToneMappingEffect, ToneMappingMode
 } from 'postprocessing';
@@ -22,8 +22,8 @@ import { Ellipsoid } from '@takram/three-geospatial';
 
 let renderer, scene, camera, composer;
 let tiles, controls;
-let dofEffect, bloomEffect, vignetteEffect, noiseEffect;
-let dofPass, bloomPass, vignettePass, noisePass;
+let dofEffect, bloomEffect, vignetteEffect, noiseEffect, tiltShiftEffect;
+let dofPass, bloomPass, vignettePass, noisePass, tiltShiftPass;
 let aerialPerspectiveEffect, aerialPass;
 let atmosphereTextureData = null;
 
@@ -226,6 +226,81 @@ function updateSunForHour(hour) {
 }
 
 // ============================================================
+//  TILT-SHIFT EFFECT (custom postprocessing Effect)
+// ============================================================
+
+const tiltShiftFragmentShader = /* glsl */`
+uniform float focusPos;
+uniform float bandSize;
+uniform float blurAmount;
+uniform float falloff;
+uniform float satBoost;
+
+void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+  // Distance from focus band center (in screen Y)
+  float dist = abs(uv.y - focusPos) / max(bandSize, 0.001);
+  dist = max(dist - 1.0, 0.0);
+  float t = pow(min(dist, 1.0), max(falloff, 0.1));
+
+  // Gather blurred samples using neighbor sampling
+  float blur = t * blurAmount * 0.02;
+  vec4 color = inputColor;
+
+  if (blur > 0.001) {
+    vec2 texelSize = 1.0 / vec2(textureSize(inputBuffer, 0));
+    vec4 sum = vec4(0.0);
+    float totalWeight = 0.0;
+    float radius = blur * float(textureSize(inputBuffer, 0).y);
+
+    // 13-tap Gaussian in both directions
+    for (int i = -6; i <= 6; i++) {
+      for (int j = -6; j <= 6; j++) {
+        float fi = float(i);
+        float fj = float(j);
+        float w = exp(-(fi*fi + fj*fj) / (radius * radius * 0.5 + 0.01));
+        vec2 offset = vec2(fi, fj) * texelSize * radius * 0.15;
+        sum += texture(inputBuffer, uv + offset) * w;
+        totalWeight += w;
+      }
+    }
+    color = sum / totalWeight;
+  }
+
+  // Saturation boost in the focus zone
+  float focusMask = 1.0 - t;
+  float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+  color.rgb = mix(vec3(luma), color.rgb, 1.0 + satBoost * focusMask);
+
+  // Subtle vignette
+  float vig = 1.0 - 0.3 * pow(length(uv - 0.5) * 1.4, 2.0);
+  color.rgb *= vig;
+
+  outputColor = color;
+}
+`;
+
+class TiltShiftEffect extends Effect {
+  constructor({
+    focusPos = 0.5,
+    bandSize = 0.15,
+    blurAmount = 30,
+    falloff = 50,
+    saturation = 50
+  } = {}) {
+    super('TiltShiftEffect', tiltShiftFragmentShader, {
+      blendFunction: BlendFunction.NORMAL,
+      uniforms: new Map([
+        ['focusPos', { value: focusPos }],
+        ['bandSize', { value: bandSize }],
+        ['blurAmount', { value: blurAmount }],
+        ['falloff', { value: falloff / 100 * 2.2 + 0.3 }],
+        ['satBoost', { value: saturation / 100 * 1.5 }]
+      ])
+    });
+  }
+}
+
+// ============================================================
 //  POST-PROCESSING
 // ============================================================
 
@@ -247,6 +322,18 @@ function setupPostProcessing() {
   dofPass = new EffectPass(camera, dofEffect);
   dofPass.enabled = state.dof.on;
   composer.addPass(dofPass);
+
+  // Tilt-shift
+  tiltShiftEffect = new TiltShiftEffect({
+    focusPos: 0.5,
+    bandSize: 0.15,
+    blurAmount: 30,
+    falloff: 50,
+    saturation: 50
+  });
+  tiltShiftPass = new EffectPass(camera, tiltShiftEffect);
+  tiltShiftPass.enabled = false;
+  composer.addPass(tiltShiftPass);
 
   // Bloom
   bloomEffect = new BloomEffect({
@@ -416,6 +503,26 @@ function setupUI() {
       }
       dofEffect.bokehScale = state.dof.blur / 10;
     }
+  });
+
+  // Tilt-shift toggle + sliders
+  document.getElementById('toggle-tiltshift').addEventListener('click', function() {
+    this.classList.toggle('on');
+    const on = this.classList.contains('on');
+    tiltShiftPass.enabled = on;
+    document.getElementById('tiltshift-settings').style.display = on ? '' : 'none';
+  });
+  document.getElementById('ts-pos-slider').addEventListener('input', (e) => {
+    document.getElementById('ts-pos-val').textContent = e.target.value + '%';
+    tiltShiftEffect.uniforms.get('focusPos').value = +e.target.value / 100;
+  });
+  document.getElementById('ts-band-slider').addEventListener('input', (e) => {
+    document.getElementById('ts-band-val').textContent = e.target.value + '%';
+    tiltShiftEffect.uniforms.get('bandSize').value = +e.target.value / 100;
+  });
+  document.getElementById('ts-blur-slider').addEventListener('input', (e) => {
+    document.getElementById('ts-blur-val').textContent = e.target.value + '%';
+    tiltShiftEffect.uniforms.get('blurAmount').value = +e.target.value;
   });
 
   // Bloom toggle
