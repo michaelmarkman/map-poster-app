@@ -253,6 +253,25 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export
     </div>
+    <div class="toggle-row" style="margin-bottom:10px">
+      <span>AI enhance (Gemini Flash)</span>
+      <div class="toggle" id="toggle-ai-enhance"></div>
+    </div>
+    <div id="ai-settings" style="display:none;margin-bottom:10px;">
+      <input class="text-input" id="gemini-api-key" value="" placeholder="Paste Gemini API key" autocomplete="off" style="font-size:11px;">
+      <input class="text-input" id="gemini-prompt" placeholder="Enhancement prompt (optional)" style="font-size:11px;" value="Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.">
+      <div id="ai-presets" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+        <button class="ai-preset" data-preset="realistic">Realistic</button>
+        <button class="ai-preset" data-preset="night">Night</button>
+        <button class="ai-preset" data-preset="golden">Golden Hour</button>
+        <button class="ai-preset" data-preset="cyberpunk">Cyberpunk</button>
+        <button class="ai-preset" data-preset="watercolor">Watercolor</button>
+        <button class="ai-preset" data-preset="blueprint">Blueprint</button>
+        <button class="ai-preset" data-preset="infrared">Infrared</button>
+        <button class="ai-preset" data-preset="snowfall">Snowfall</button>
+        <button class="ai-preset" data-preset="lineart">Line Drawing</button>
+      </div>
+    </div>
     <div style="display:flex;gap:6px;">
       <button class="export-btn" id="download-btn" style="flex:1;">Download PNG</button>
       <select id="export-res" style="background:#3f3f46;color:#a1a1aa;border:1px solid #27272a;border-radius:8px;padding:4px 8px;font-size:11px;font-family:Inter,sans-serif;cursor:pointer;">
@@ -262,6 +281,7 @@
         <option value="4">4x</option>
       </select>
     </div>
+    <div id="export-status" style="margin-top:8px;font-size:11px;color:#71717a;text-align:center;display:none;"></div>
   </div>
 </div>
 

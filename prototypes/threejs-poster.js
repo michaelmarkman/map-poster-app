@@ -137,6 +137,13 @@ function init(apiKey) {
 
   // UI wiring
   setupUI();
+  setupAI();
+
+  // Restore session
+  restoreSession();
+
+  // Auto-save on camera changes
+  setInterval(saveSession, 2000);
 
   // Render loop
   animate();
@@ -675,6 +682,223 @@ function setupUI() {
     }
   });
 
+}
+
+// ============================================================
+//  AI EXPORT (Gemini Flash)
+// ============================================================
+
+const AI_PRESETS = {
+  realistic: 'Make this look like a real aerial photograph taken from a helicopter with a DSLR camera. Keep the exact same buildings and layout. Just enhance realism, lighting, and detail subtly.',
+  night: 'Transform this into a nighttime cityscape. Dark sky, buildings lit up with warm interior lights glowing from windows, street lights casting pools of light, subtle city glow on clouds. Keep the exact same buildings and layout.',
+  golden: 'Make this look like it was photographed during golden hour. Warm amber sunlight casting long shadows, golden highlights on building facades, rich warm tones throughout. Keep the exact same buildings and layout.',
+  cyberpunk: 'Transform this into a cyberpunk cityscape. Rain-slicked streets with colorful reflections, dramatic pink and cyan lighting, neon-lit atmosphere, moody fog. Do NOT add any holograms, floating objects, signs, text, or new elements — only change the lighting, colors, and mood. Keep the exact same buildings, composition, and layout.',
+  watercolor: 'Render this as a beautiful watercolor painting. Soft wet-on-wet washes of color, visible paper texture, gentle color bleeding at edges, artistic and painterly feel. Keep the same composition and buildings.',
+  blueprint: 'Transform this into an architectural blueprint style. White lines on dark blue background, technical drawing aesthetic, building outlines and structural details emphasized. Do NOT add any labels, text, callouts, annotations, dimensions, or measurement lines — just the line art of the buildings. Keep the exact same composition and layout.',
+  infrared: 'Make this look like infrared photography. Vegetation appears bright white/pink, sky is dark and dramatic, buildings have an ethereal glow, surreal color palette with magentas and deep blues. Keep the exact same layout.',
+  snowfall: 'Add a winter snowfall scene. Snow covering rooftops and streets, snowflakes falling, overcast sky, warm lights from windows contrasting with cold blue-white snow. Keep the exact same buildings and layout.',
+  lineart: 'Transform this into a clean black and white line drawing. Thin ink lines on white background, architectural sketch style with clean outlines of buildings, streets, and details. No shading or fills, just precise linework. Keep the exact same layout.'
+};
+
+function setupAI() {
+  // Gemini key persistence
+  const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || '';
+  if (cachedGeminiKey) document.getElementById('gemini-api-key').value = cachedGeminiKey;
+  document.getElementById('gemini-api-key').addEventListener('change', function() {
+    localStorage.setItem('mapposter3d_gemini_key', this.value.trim());
+  });
+
+  // AI enhance toggle
+  let aiEnhanceOn = false;
+  document.getElementById('toggle-ai-enhance').addEventListener('click', function() {
+    this.classList.toggle('on');
+    aiEnhanceOn = this.classList.contains('on');
+    document.getElementById('ai-settings').style.display = aiEnhanceOn ? '' : 'none';
+  });
+
+  // Preset buttons
+  document.querySelectorAll('.ai-preset').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.ai-preset').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById('gemini-prompt').value = AI_PRESETS[this.dataset.preset];
+    });
+  });
+
+  // Override download button when AI is on
+  const origDownloadBtn = document.getElementById('download-btn');
+  const statusEl = document.getElementById('export-status');
+
+  origDownloadBtn.addEventListener('click', (e) => {
+    if (!aiEnhanceOn) return; // normal download handled elsewhere
+    e.stopImmediatePropagation();
+
+    const geminiKey = document.getElementById('gemini-api-key').value.trim();
+    if (!geminiKey) { alert('Enter your Gemini API key'); return; }
+
+    const prompt = document.getElementById('gemini-prompt').value.trim() ||
+      'Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.';
+
+    statusEl.style.display = '';
+    statusEl.textContent = 'Capturing...';
+
+    // Capture current view
+    composer.render();
+    const captureDataUrl = renderer.domElement.toDataURL('image/jpeg', 0.85);
+
+    // Scale down for Gemini
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1024;
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const sendCanvas = document.createElement('canvas');
+      sendCanvas.width = Math.round(img.width * scale);
+      sendCanvas.height = Math.round(img.height * scale);
+      sendCanvas.getContext('2d').drawImage(img, 0, 0, sendCanvas.width, sendCanvas.height);
+      const base64Data = sendCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+      statusEl.textContent = 'AI enhancing with Gemini Flash...';
+
+      const payload = JSON.stringify({
+        contents: [{ parts: [
+          { text: prompt },
+          { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
+        ]}],
+        generationConfig: { responseModalities: ['image', 'text'] }
+      });
+
+      const xhr = new XMLHttpRequest();
+      xhr.timeout = 120000;
+      xhr.open('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=' + geminiKey, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+
+      xhr.ontimeout = () => { statusEl.textContent = 'Timeout — try again'; };
+      xhr.onerror = () => { statusEl.textContent = 'Network error'; };
+      xhr.onload = () => {
+        if (xhr.status !== 200) {
+          let errMsg = 'API error ' + xhr.status;
+          try { errMsg = JSON.parse(xhr.responseText).error.message.substring(0, 80); } catch(e) {}
+          statusEl.textContent = errMsg;
+          return;
+        }
+        let result;
+        try { result = JSON.parse(xhr.responseText); } catch(e) {
+          statusEl.textContent = 'Bad response'; return;
+        }
+        let imageData = null;
+        for (const cand of (result.candidates || [])) {
+          for (const part of (cand.content?.parts || [])) {
+            if (part.inlineData?.data) { imageData = part.inlineData; break; }
+          }
+          if (imageData) break;
+        }
+        if (!imageData) { statusEl.textContent = 'No image returned'; return; }
+
+        const enhancedUrl = 'data:' + (imageData.mimeType || 'image/png') + ';base64,' + imageData.data;
+        statusEl.textContent = 'Downloading...';
+
+        // Download the AI-enhanced image
+        const link = document.createElement('a');
+        link.download = 'mapposter-ai-' + Date.now() + '.png';
+        link.href = enhancedUrl;
+        link.click();
+
+        statusEl.textContent = 'Done!';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+      };
+      xhr.send(payload);
+    };
+    img.src = captureDataUrl;
+  }, true); // useCapture to fire before the normal download handler
+}
+
+// ============================================================
+//  SESSION PERSISTENCE
+// ============================================================
+
+const SESSION_KEY = 'mapposter3d_threejs_session';
+let _saveTimer = null;
+
+function saveSession() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    if (!camera) return;
+    const carto = {};
+    WGS84_ELLIPSOID.getPositionToCartographic(camera.position, carto);
+    const data = {
+      camera: {
+        lat: carto.lat * 180 / Math.PI,
+        lng: carto.lon * 180 / Math.PI,
+        height: carto.height,
+        qx: camera.quaternion.x,
+        qy: camera.quaternion.y,
+        qz: camera.quaternion.z,
+        qw: camera.quaternion.w
+      },
+      fov: camera.fov,
+      state: state,
+      tod: document.getElementById('tod-slider') ? +document.getElementById('tod-slider').value : 12
+    };
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch(e) {}
+  }, 500);
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function restoreSession() {
+  const saved = loadSession();
+  if (!saved || !saved.camera) return;
+
+  // Restore camera position
+  const pos = new THREE.Vector3();
+  WGS84_ELLIPSOID.getCartographicToPosition(
+    saved.camera.lat * Math.PI / 180,
+    saved.camera.lng * Math.PI / 180,
+    saved.camera.height,
+    pos
+  );
+  camera.position.copy(pos);
+  camera.quaternion.set(saved.camera.qx, saved.camera.qy, saved.camera.qz, saved.camera.qw);
+
+  // Restore FOV
+  if (saved.fov) {
+    camera.fov = saved.fov;
+    camera.updateProjectionMatrix();
+  }
+
+  // Restore time of day
+  if (saved.tod !== undefined) {
+    document.getElementById('tod-slider').value = saved.tod;
+    document.getElementById('tod-val').textContent = formatHourGlobal(saved.tod);
+    updateSunForHour(saved.tod);
+  }
+
+  // Restore effect states
+  if (saved.state) {
+    Object.assign(state, saved.state);
+    dofPass.enabled = state.dof.on;
+    document.getElementById('toggle-dof').classList.toggle('on', state.dof.on);
+    bloomPass.enabled = state.bloom.on;
+    document.getElementById('toggle-bloom').classList.toggle('on', state.bloom.on);
+    vignettePass.enabled = state.vignette.on;
+    document.getElementById('toggle-vignette').classList.toggle('on', state.vignette.on);
+    ssaoPass.enabled = state.ssao.on;
+    document.getElementById('toggle-ssao').classList.toggle('on', state.ssao.on);
+  }
+}
+
+// Global formatHour for use outside setupUI
+function formatHourGlobal(h) {
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const h12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+  return h12 + ':' + String(mm).padStart(2, '0') + ' ' + ampm;
 }
 
 // ============================================================
