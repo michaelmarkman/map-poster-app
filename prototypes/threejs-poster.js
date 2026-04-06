@@ -311,8 +311,55 @@ function setupUI() {
     camera.updateProjectionMatrix();
   });
 
-  // Tilt / heading / range sliders — these are display-only for now
-  // (GlobeControls handles camera interaction, sliders sync from camera)
+  // Tilt slider (read-only — syncs from camera)
+  // Heading slider (read-only — syncs from camera)
+  // Range slider (read-only — syncs from camera)
+
+  // Sync camera values to sliders periodically
+  function syncSlidersFromCamera() {
+    if (!camera) return;
+
+    // Get altitude from camera position
+    const carto = {};
+    WGS84_ELLIPSOID.getPositionToCartographic(camera.position, carto);
+    const alt = Math.round(carto.height || 0);
+    document.getElementById('range-val').textContent = Math.max(0, alt).toLocaleString() + 'm';
+    document.getElementById('range-slider').value = Math.min(10000, Math.max(100, alt));
+
+    // Compute tilt (angle from straight-down)
+    // Camera looking straight down = tilt 0, looking at horizon = tilt 90
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const up = camera.position.clone().normalize(); // up is away from earth center
+    const dotUp = camDir.dot(up);
+    // dotUp = -1 means looking straight down, 0 means looking at horizon
+    const tiltDeg = Math.round(Math.max(0, Math.min(90, 90 + Math.asin(Math.max(-1, Math.min(1, dotUp))) * 180 / Math.PI)));
+    document.getElementById('tilt-val').textContent = tiltDeg + '\u00B0';
+    document.getElementById('tilt-slider').value = tiltDeg;
+
+    // Heading — azimuth in the local ENU frame
+    // Project camera forward onto the local tangent plane
+    const east = new THREE.Vector3();
+    const north = new THREE.Vector3();
+    const localUp = up.clone();
+    // East = up × north_pole (approximate)
+    const pole = new THREE.Vector3(0, 0, 1);
+    east.crossVectors(pole, localUp).normalize();
+    north.crossVectors(localUp, east).normalize();
+    const flatDir = camDir.clone().sub(localUp.clone().multiplyScalar(camDir.dot(localUp))).normalize();
+    const headingRad = Math.atan2(flatDir.dot(east), flatDir.dot(north));
+    const headingDeg = Math.round(THREE.MathUtils.radToDeg(headingRad));
+    document.getElementById('heading-val').textContent = headingDeg + '\u00B0';
+    document.getElementById('heading-slider').value = headingDeg;
+
+    // FOV → focal length
+    const fov = camera.fov;
+    const mm = Math.round(12 / Math.tan(THREE.MathUtils.degToRad(fov) / 2));
+    document.getElementById('fov-val').textContent = Math.max(14, Math.min(200, mm)) + 'mm';
+    document.getElementById('fov-slider').value = Math.max(14, Math.min(200, mm));
+  }
+
+  setInterval(syncSlidersFromCamera, 200);
 
   // DoF toggle
   document.getElementById('toggle-dof').addEventListener('click', function() {
@@ -392,27 +439,6 @@ function setupUI() {
     }
   });
 
-  // Sync camera sliders from controls
-  if (controls) {
-    const syncSliders = () => {
-      if (!camera) return;
-      const pos = new THREE.Vector3();
-      const target = {};
-      WGS84_ELLIPSOID.getPositionToCartographic(camera.position, target);
-      const alt = Math.round(target.height || 0);
-      document.getElementById('range-val').textContent = alt.toLocaleString() + 'm';
-      document.getElementById('range-slider').value = Math.min(10000, alt);
-
-      // FOV to focal length
-      const fov = camera.fov;
-      const mm = Math.round(12 / Math.tan(THREE.MathUtils.degToRad(fov) / 2));
-      document.getElementById('fov-val').textContent = Math.max(14, Math.min(200, mm)) + 'mm';
-      document.getElementById('fov-slider').value = Math.max(14, Math.min(200, mm));
-    };
-
-    // Sync periodically
-    setInterval(syncSliders, 500);
-  }
 }
 
 // ============================================================
