@@ -411,6 +411,14 @@
       <div class="control-label"><span>Range (altitude)</span><span class="control-value" id="range-val">800m</span></div>
       <input type="range" id="range-slider" min="100" max="10000" step="50" value="800">
     </div>
+    <div class="control-row">
+      <div class="control-label"><span>Focal length</span><span class="control-value" id="fov-val">41mm</span></div>
+      <input type="range" id="fov-slider" min="14" max="200" step="1" value="41">
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Roll</span><span class="control-value" id="roll-val">0&#176;</span></div>
+      <input type="range" id="roll-slider" min="-30" max="30" step="1" value="0">
+    </div>
     <div class="toggle-row" style="margin-top:10px">
       <span>Street labels</span>
       <div class="toggle on" id="toggle-labels"></div>
@@ -453,6 +461,26 @@
       <div class="control-label"><span>Lens flare</span><span class="control-value" id="flare-val">0%</span></div>
       <input type="range" id="flare-slider" min="0" max="100" step="5" value="0">
     </div>
+    <div class="toggle-row" style="margin-top:8px;">
+      <span>Ambient occlusion</span>
+      <div class="toggle" id="toggle-ssao"></div>
+    </div>
+    <div id="ssao-settings" style="display:none;">
+      <div class="control-row">
+        <div class="control-label"><span>AO Intensity</span><span class="control-value" id="ssao-val">50%</span></div>
+        <input type="range" id="ssao-slider" min="0" max="100" step="1" value="50">
+      </div>
+    </div>
+    <div class="toggle-row" style="margin-top:8px;">
+      <span>Distance fog</span>
+      <div class="toggle" id="toggle-fog"></div>
+    </div>
+    <div id="fog-settings" style="display:none;">
+      <div class="control-row">
+        <div class="control-label"><span>Fog density</span><span class="control-value" id="fog-val">30%</span></div>
+        <input type="range" id="fog-slider" min="0" max="100" step="1" value="30">
+      </div>
+    </div>
   </div>
 
   <!-- Visual Effects -->
@@ -493,7 +521,7 @@
     </div>
     <div id="ai-settings" style="margin-bottom:10px">
       <div class="control-row">
-        <input class="text-input" id="gemini-api-key" value="AIzaSyDdbPx16PzAl4ybNkvMVG8rqnngKfhLREE" autocomplete="off" style="font-size:11px;">
+        <input class="text-input" id="gemini-api-key" value="" placeholder="Paste Gemini API key" autocomplete="off" style="font-size:11px;">
       </div>
       <div class="control-row">
         <input class="text-input" id="gemini-prompt" placeholder="Enhancement prompt (optional)" style="font-size:11px;" value="Make this look like a real aerial photograph taken from a helicopter with a DSLR camera. Keep the exact same buildings and layout. Just enhance realism, lighting, and detail subtly.">
@@ -511,7 +539,15 @@
       </div>
     </div>
     <button class="export-btn" id="export-btn">Add to Queue</button>
-    <button class="export-btn" id="quick-download-btn" style="margin-top:6px;background:#3f3f46;">Quick Download (no AI)</button>
+    <div style="display:flex;gap:6px;margin-top:6px;">
+      <button class="export-btn" id="quick-download-btn" style="flex:1;background:#3f3f46;margin:0;">Quick Download</button>
+      <select id="export-res" style="background:#3f3f46;color:#a1a1aa;border:1px solid #27272a;border-radius:8px;padding:4px 8px;font-size:11px;font-family:Inter,sans-serif;cursor:pointer;">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="3">3x</option>
+        <option value="4">4x</option>
+      </select>
+    </div>
     <button class="export-btn" id="generate-all-btn" style="margin-top:6px;background:linear-gradient(135deg,#7c3aed,#2563eb);">Generate All Styles <span style="opacity:0.6;font-size:10px;">(~$0.60)</span></button>
     <div id="export-queue" style="margin-top:10px;"></div>
   </div>
@@ -731,6 +767,9 @@
         fxState: fxState,
         sun: currentSun,
         camera: cam,
+        focalLength: document.getElementById('fov-slider') ? +document.getElementById('fov-slider').value : 50,
+        ssao: { on: ssaoOn, intensity: document.getElementById('ssao-slider') ? +document.getElementById('ssao-slider').value : 50 },
+        fog: { on: fogOn, density: document.getElementById('fog-slider') ? +document.getElementById('fog-slider').value : 30 },
         location: document.getElementById('location-search') ? document.getElementById('location-search').value : '',
         locationCoords: document.getElementById('location-coords') ? document.getElementById('location-coords').textContent : '',
         textTitle: document.getElementById('text-title') ? document.getElementById('text-title').value : '',
@@ -1308,6 +1347,62 @@
     applySunLight();
   });
 
+  // --- SSAO ---
+  var ssaoOn = false;
+  document.getElementById('toggle-ssao').addEventListener('click', function() {
+    this.classList.toggle('on');
+    ssaoOn = this.classList.contains('on');
+    document.getElementById('ssao-settings').style.display = ssaoOn ? '' : 'none';
+    updateSSAO();
+  });
+  document.getElementById('ssao-slider').addEventListener('input', function(e) {
+    document.getElementById('ssao-val').textContent = e.target.value + '%';
+    updateSSAO();
+  });
+  function updateSSAO() {
+    if (!viewer) return;
+    var ao = viewer.scene.postProcessStages.ambientOcclusion;
+    ao.enabled = ssaoOn;
+    if (ssaoOn) {
+      var intensity = +document.getElementById('ssao-slider').value / 100;
+      ao.uniforms.intensity = 0.5 + intensity * 2.0;
+      ao.uniforms.bias = 0.1;
+      ao.uniforms.lengthCap = 0.26 + intensity * 0.2;
+      ao.uniforms.stepSize = 1.5 + intensity * 1.5;
+    }
+    saveSession();
+  }
+
+  // --- Fog ---
+  var fogOn = false;
+  document.getElementById('toggle-fog').addEventListener('click', function() {
+    this.classList.toggle('on');
+    fogOn = this.classList.contains('on');
+    document.getElementById('fog-settings').style.display = fogOn ? '' : 'none';
+    updateFog();
+  });
+  document.getElementById('fog-slider').addEventListener('input', function(e) {
+    document.getElementById('fog-val').textContent = e.target.value + '%';
+    updateFog();
+  });
+  function updateFog() {
+    if (!viewer) return;
+    viewer.scene.fog.enabled = fogOn;
+    if (fogOn) {
+      var density = +document.getElementById('fog-slider').value / 100;
+      viewer.scene.fog.density = 0.0001 + density * 0.001;
+      viewer.scene.fog.minimumBrightness = 0.03;
+    }
+    saveSession();
+  }
+
+  // --- Gemini API key persistence ---
+  var _cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || '';
+  if (_cachedGeminiKey) document.getElementById('gemini-api-key').value = _cachedGeminiKey;
+  document.getElementById('gemini-api-key').addEventListener('change', function() {
+    localStorage.setItem('mapposter3d_gemini_key', this.value.trim());
+  });
+
   // --- AI enhance toggle ---
   var aiEnhanceOn = true;
   document.getElementById('toggle-ai-enhance').addEventListener('click', function() {
@@ -1469,6 +1564,96 @@
     renderQueue();
   }
 
+  function slugify(str) {
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 40);
+  }
+
+  function buildExportFilename(job) {
+    var parts = ['mapposter'];
+    // Location
+    var loc = (document.getElementById('location-search') && document.getElementById('location-search').value) || '';
+    if (loc) parts.push(slugify(loc.split(',')[0]));
+    // Style
+    if (job && job.label) parts.push(slugify(job.label));
+    else if (job && !job.useAI) parts.push('raw');
+    // Resolution
+    var scale = getExportScale();
+    if (scale > 1) parts.push(scale + 'x');
+    // Short timestamp
+    var d = new Date();
+    parts.push(d.getFullYear() + '' + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0'));
+    parts.push(String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0'));
+    return parts.join('-');
+  }
+
+  function getExportScale() {
+    return +(document.getElementById('export-res').value) || 1;
+  }
+
+  // Capture Cesium canvas at a higher resolution by temporarily resizing
+  function captureHighRes(scale) {
+    if (scale <= 1) {
+      viewer.render();
+      return viewer.canvas.toDataURL('image/png');
+    }
+
+    // Set resolution scale first
+    viewer.resolutionScale = scale;
+
+    // Re-apply DoF with scaled maxBlur so it matches the higher pixel count
+    if (fxState.depthDof.on) {
+      // Remove and re-create the DoF stage with scaled blur
+      if (cesiumDof) {
+        viewer.scene.postProcessStages.remove(cesiumDof);
+        cesiumDof = null;
+      }
+      var st = fxState.depthDof;
+      var focalLen = +document.getElementById('fov-slider').value || 41;
+      var focalScale = Math.sqrt(focalLen / 41);
+      var maxBlur = (2 + (st.blurAmount / 100) * 48) * scale;
+      var t = st.focalDist / 100;
+      var depthRange = 0.15 - t * 0.145;
+      var fp = new Cesium.Cartesian2(dofFocalUV.x, dofFocalUV.y);
+
+      var hPass = new Cesium.PostProcessStage({
+        name: 'dofHBlur',
+        fragmentShader: DOF_H_FRAG,
+        uniforms: { focalPoint: fp, depthRange: depthRange, maxBlur: maxBlur }
+      });
+      var vPass = new Cesium.PostProcessStage({
+        name: 'dofVBlurPop',
+        fragmentShader: DOF_V_FRAG,
+        uniforms: { focalPoint: fp, depthRange: depthRange, maxBlur: maxBlur, colorPop: st.colorPop / 100, globalPop: st.globalPop ? 1.0 : 0.0 }
+      });
+      cesiumDof = viewer.scene.postProcessStages.add(
+        new Cesium.PostProcessStageComposite({
+          name: 'dofComposite',
+          stages: [hPass, vPass],
+          inputPreviousStageTexture: true
+        })
+      );
+    }
+
+    // Render two frames — first to settle the resize, second to capture
+    viewer.render();
+    viewer.render();
+    var dataUrl = viewer.canvas.toDataURL('image/png');
+
+    // Restore 1x
+    viewer.resolutionScale = 1;
+
+    // Restore normal DoF
+    if (fxState.depthDof.on) {
+      if (cesiumDof) {
+        viewer.scene.postProcessStages.remove(cesiumDof);
+        cesiumDof = null;
+      }
+      updateDepthDof();
+    }
+
+    return dataUrl;
+  }
+
   function processQueue() {
     if (exportProcessing) return;
     var job = null;
@@ -1481,9 +1666,8 @@
     updateJob(job, { status: 'active', statusText: 'Capturing...', progress: 10 });
 
     var cesiumCanvas = viewer.canvas;
-
-    viewer.render();
-    var rawDataUrl = cesiumCanvas.toDataURL('image/png');
+    var scale = job.useAI ? 1 : getExportScale(); // AI path handles its own sizing
+    var rawDataUrl = captureHighRes(scale);
     if (job.useAI) { debugClear(); debugSet('Capture', rawDataUrl); }
 
     if (!job.useAI) {
@@ -1568,7 +1752,12 @@
     xhr.onload = function() {
       if (xhr.status !== 200) {
         console.error('[gemini] Error:', xhr.responseText);
-        updateJob(job, { status: 'error', statusText: 'API error ' + xhr.status });
+        var errMsg = 'API error ' + xhr.status;
+        try {
+          var errBody = JSON.parse(xhr.responseText);
+          if (errBody.error && errBody.error.message) errMsg = errBody.error.message.substring(0, 80);
+        } catch(e) {}
+        updateJob(job, { status: 'error', statusText: errMsg });
         finish();
         return;
       }
@@ -1825,7 +2014,7 @@
     var gj = galleryJobs[galleryIdx];
     if (!gj || !gj.resultUrl) return;
     var link = document.createElement('a');
-    link.download = 'mapposter-' + gj.key + '-' + Date.now() + '.png';
+    link.download = buildExportFilename({ label: gj.label, useAI: true }) + '.png';
     link.href = gj.resultUrl;
     link.click();
   });
@@ -1878,7 +2067,7 @@
     galleryJobs.forEach(function(gj) {
       if (!gj.resultUrl) return;
       var link = document.createElement('a');
-      link.download = 'mapposter-' + gj.key + '-' + Date.now() + '.png';
+      link.download = buildExportFilename({ label: gj.label, useAI: true }) + '.png';
       link.href = gj.resultUrl;
       link.click();
     });
@@ -2096,6 +2285,13 @@
 
       el.addEventListener('click', function() {
         if (!viewer) return;
+        // Restore FOV
+        if (v.focalLength) {
+          viewer.camera.frustum.fov = focalLengthToFov(v.focalLength);
+          _lastFocalLen = v.focalLength;
+          document.getElementById('fov-slider').value = v.focalLength;
+          document.getElementById('fov-val').textContent = v.focalLength + 'mm';
+        }
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(v.camera.lng, v.camera.lat, v.camera.height),
           orientation: {
@@ -2107,6 +2303,59 @@
         });
         if (v.location) {
           document.getElementById('location-search').value = v.location;
+        }
+
+        // Restore sun settings
+        if (v.sun) {
+          for (var sk in v.sun) currentSun[sk] = v.sun[sk];
+          document.getElementById('tod-slider').value = currentSun.tod;
+          document.getElementById('tod-val').textContent = getSunState(currentSun.tod).label;
+          document.getElementById('warmth-slider').value = currentSun.warmth;
+          document.getElementById('warmth-val').textContent = currentSun.warmth;
+          document.getElementById('exposure-slider').value = currentSun.exposure;
+          document.getElementById('exposure-val').textContent = currentSun.exposure;
+          document.getElementById('shadows-slider').value = currentSun.shadows;
+          document.getElementById('shadows-val').textContent = currentSun.shadows + '%';
+          document.getElementById('flare-slider').value = currentSun.flare;
+          document.getElementById('flare-val').textContent = currentSun.flare + '%';
+          applySunLight();
+        }
+
+        // Restore FX state
+        if (v.fxState) {
+          for (var fk in v.fxState) {
+            if (fxState[fk]) {
+              for (var prop in v.fxState[fk]) fxState[fk][prop] = v.fxState[fk][prop];
+            }
+          }
+          // Update toggle + slider UI
+          for (var fk in fxState) {
+            var t = document.querySelector('[data-fx-toggle="' + fk + '"]');
+            var sr = document.getElementById('fx-slider-' + fk);
+            if (t) t.classList.toggle('on', fxState[fk].on);
+            if (sr) sr.classList.toggle('open', fxState[fk].on);
+            if (fxState[fk].on) applyFx(fk);
+          }
+        }
+
+        // Restore SSAO
+        if (v.ssao) {
+          ssaoOn = v.ssao.on;
+          document.getElementById('toggle-ssao').classList.toggle('on', ssaoOn);
+          document.getElementById('ssao-settings').style.display = ssaoOn ? '' : 'none';
+          document.getElementById('ssao-slider').value = v.ssao.intensity;
+          document.getElementById('ssao-val').textContent = v.ssao.intensity + '%';
+          updateSSAO();
+        }
+
+        // Restore fog
+        if (v.fog) {
+          fogOn = v.fog.on;
+          document.getElementById('toggle-fog').classList.toggle('on', fogOn);
+          document.getElementById('fog-settings').style.display = fogOn ? '' : 'none';
+          document.getElementById('fog-slider').value = v.fog.density;
+          document.getElementById('fog-val').textContent = v.fog.density + '%';
+          updateFog();
         }
       });
 
@@ -2124,6 +2373,11 @@
       name: location.split(',')[0] || 'Saved View',
       location: location,
       camera: cam,
+      focalLength: +document.getElementById('fov-slider').value,
+      sun: JSON.parse(JSON.stringify(currentSun)),
+      fxState: JSON.parse(JSON.stringify(fxState)),
+      ssao: { on: ssaoOn, intensity: +document.getElementById('ssao-slider').value },
+      fog: { on: fogOn, density: +document.getElementById('fog-slider').value },
       thumbnail: captureViewThumbnail()
     };
     var views = loadViews();
@@ -2391,7 +2645,7 @@
       if (job && job.useAI) debugSet('Final', resultDataUrl);
 
       var link = document.createElement('a');
-      link.download = 'mapposter-3d-' + Date.now() + '.png';
+      link.download = buildExportFilename(job) + '.png';
       link.href = resultDataUrl;
       link.click();
 
@@ -2581,6 +2835,34 @@
         if (sr) sr.classList.toggle('open', fxState[fk].on);
       }
 
+      // Restore focal length
+      if (savedSession.focalLength) {
+        document.getElementById('fov-slider').value = savedSession.focalLength;
+        document.getElementById('fov-val').textContent = savedSession.focalLength + 'mm';
+        viewer.camera.frustum.fov = focalLengthToFov(savedSession.focalLength);
+        _lastFocalLen = savedSession.focalLength;
+      }
+
+      // Restore SSAO
+      if (savedSession.ssao) {
+        ssaoOn = savedSession.ssao.on;
+        document.getElementById('toggle-ssao').classList.toggle('on', ssaoOn);
+        document.getElementById('ssao-settings').style.display = ssaoOn ? '' : 'none';
+        document.getElementById('ssao-slider').value = savedSession.ssao.intensity;
+        document.getElementById('ssao-val').textContent = savedSession.ssao.intensity + '%';
+        updateSSAO();
+      }
+
+      // Restore fog
+      if (savedSession.fog) {
+        fogOn = savedSession.fog.on;
+        document.getElementById('toggle-fog').classList.toggle('on', fogOn);
+        document.getElementById('fog-settings').style.display = fogOn ? '' : 'none';
+        document.getElementById('fog-slider').value = savedSession.fog.density;
+        document.getElementById('fog-val').textContent = savedSession.fog.density + '%';
+        updateFog();
+      }
+
       applySunLight();
     } else {
       setCameraFromConcept(concepts[0], false);
@@ -2592,7 +2874,18 @@
     }
 
     // Start auto-saving on camera changes
-    viewer.camera.changed.addEventListener(saveSession);
+    viewer.camera.changed.addEventListener(function() {
+      // Keep currentTarget in sync with what the camera is actually looking at
+      var ray = viewer.camera.getPickRay(new Cesium.Cartesian2(
+        viewer.canvas.width / 2, viewer.canvas.height / 2
+      ));
+      if (ray) {
+        var hit = viewer.scene.globe.pick(ray, viewer.scene);
+        if (hit) currentTarget = hit;
+      }
+      syncSlidersFromCamera();
+      saveSession();
+    });
   }
 
   function setCameraFromConcept(concept, animate) {
@@ -2631,6 +2924,11 @@
     document.getElementById('range-val').textContent = Math.round(range).toLocaleString() + 'm';
   }
 
+  function focalLengthToFov(mm) {
+    // 35mm full-frame sensor height = 24mm, half = 12mm
+    return 2 * Math.atan(12 / mm);
+  }
+
   function applyCameraFromSliders() {
     if (!viewer) return;
     var tilt = +document.getElementById('tilt-slider').value;
@@ -2648,10 +2946,119 @@
     viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
   }
 
+  function syncSlidersFromCamera() {
+    if (!viewer) return;
+    var cam = viewer.camera;
+
+    // Tilt: Cesium pitch -90°=down, 0°=horizon → our tilt 0=down, 90=horizon
+    var tilt = Math.round(Cesium.Math.toDegrees(cam.pitch) + 90);
+    tilt = Math.max(0, Math.min(90, tilt));
+    document.getElementById('tilt-slider').value = tilt;
+    document.getElementById('tilt-val').textContent = tilt + '\u00B0';
+
+    var heading = Math.round(Cesium.Math.toDegrees(cam.heading));
+    if (heading > 180) heading -= 360;
+    document.getElementById('heading-slider').value = heading;
+    document.getElementById('heading-val').textContent = heading + '\u00B0';
+
+    // Range: distance from camera to target
+    if (currentTarget) {
+      var range = Math.round(Cesium.Cartesian3.distance(cam.position, currentTarget));
+      range = Math.max(100, Math.min(10000, range));
+      document.getElementById('range-slider').value = range;
+      document.getElementById('range-val').textContent = range.toLocaleString() + 'm';
+    }
+
+    var roll = Math.round(Cesium.Math.toDegrees(cam.roll));
+    document.getElementById('roll-slider').value = Math.max(-30, Math.min(30, roll));
+    document.getElementById('roll-val').textContent = roll + '\u00B0';
+
+    // FOV → focal length (inverse of focalLengthToFov)
+    var fov = cam.frustum.fov;
+    var focalLen = Math.round(12 / Math.tan(fov / 2));
+    focalLen = Math.max(14, Math.min(200, focalLen));
+    document.getElementById('fov-slider').value = focalLen;
+    document.getElementById('fov-val').textContent = focalLen + 'mm';
+  }
+
+  var _lastFocalLen = 41;
+
+  function applyFovFromSlider() {
+    if (!viewer) return;
+    var focalLen = +document.getElementById('fov-slider').value;
+    document.getElementById('fov-val').textContent = focalLen + 'mm';
+
+    var oldFov = focalLengthToFov(_lastFocalLen);
+    var newFov = focalLengthToFov(focalLen);
+
+    // Find the point the camera is looking at by raycasting center of screen
+    var cam = viewer.camera;
+    var ray = cam.getPickRay(new Cesium.Cartesian2(
+      viewer.canvas.width / 2, viewer.canvas.height / 2
+    ));
+    var target = viewer.scene.globe.pick(ray, viewer.scene);
+
+    if (target) {
+      // Dolly zoom: scale distance to target to keep framing constant
+      // visible_size ∝ dist * tan(fov/2), so newDist = oldDist * tan(oldFov/2) / tan(newFov/2)
+      var oldDist = Cesium.Cartesian3.distance(cam.position, target);
+      var newDist = oldDist * Math.tan(oldFov / 2) / Math.tan(newFov / 2);
+
+      // Move along the vector from target to camera
+      var dir = Cesium.Cartesian3.subtract(cam.position, target, new Cesium.Cartesian3());
+      Cesium.Cartesian3.normalize(dir, dir);
+      Cesium.Cartesian3.multiplyByScalar(dir, newDist, dir);
+      var newPos = Cesium.Cartesian3.add(target, dir, new Cesium.Cartesian3());
+
+      cam.position = newPos;
+    }
+
+    cam.frustum.fov = newFov;
+    _lastFocalLen = focalLen;
+
+    // Update DoF to reflect new focal length (longer lens = shallower DoF)
+    // Adjust the Focus Tightness slider to match
+    if (fxState.depthDof.on) {
+      // Map focal length to tightness: 50mm=90, 200mm=100, 14mm=75
+      // Use a curve that doesn't drop too low at wide angles
+      var focalScale = Math.sqrt(focalLen / 41);
+      var newTightness = Math.round(Math.min(100, Math.max(70, 75 + 15 * focalScale)));
+      fxState.depthDof.focalDist = newTightness;
+      // Update the slider UI
+      var sliderRow = document.getElementById('fx-slider-depthDof');
+      if (sliderRow) {
+        var sliders = sliderRow.querySelectorAll('input[type="range"]');
+        var pcts = sliderRow.querySelectorAll('.fx-pct');
+        if (sliders[0]) { sliders[0].value = newTightness; }
+        if (pcts[0]) { pcts[0].textContent = newTightness + '%'; }
+      }
+      updateDepthDof();
+    }
+
+    saveSession();
+  }
+
+  function applyRollFromSlider() {
+    if (!viewer) return;
+    var roll = +document.getElementById('roll-slider').value;
+    document.getElementById('roll-val').textContent = roll + '\u00B0';
+    viewer.camera.setView({
+      destination: viewer.camera.position.clone(),
+      orientation: {
+        heading: viewer.camera.heading,
+        pitch: viewer.camera.pitch,
+        roll: Cesium.Math.toRadians(roll)
+      }
+    });
+    saveSession();
+  }
+
   function setupCameraSliders() {
     document.getElementById('tilt-slider').addEventListener('input', applyCameraFromSliders);
     document.getElementById('heading-slider').addEventListener('input', applyCameraFromSliders);
     document.getElementById('range-slider').addEventListener('input', applyCameraFromSliders);
+    document.getElementById('fov-slider').addEventListener('input', applyFovFromSlider);
+    document.getElementById('roll-slider').addEventListener('input', applyRollFromSlider);
   }
 
   // --- Concept selection ---
