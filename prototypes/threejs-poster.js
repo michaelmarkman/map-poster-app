@@ -6,6 +6,15 @@ import {
   DepthOfFieldEffect, BloomEffect, VignetteEffect, NoiseEffect,
   ToneMappingEffect, ToneMappingMode
 } from 'postprocessing';
+import {
+  AerialPerspectiveEffect,
+  SkyMaterial,
+  SunDirectionalLight,
+  PrecomputedTexturesLoader,
+  DEFAULT_PRECOMPUTED_TEXTURES_URL,
+  getSunDirectionECEF
+} from '@takram/three-atmosphere';
+import { Ellipsoid } from '@takram/three-geospatial';
 
 // ============================================================
 //  STATE
@@ -15,6 +24,8 @@ let renderer, scene, camera, composer;
 let tiles, controls;
 let dofEffect, bloomEffect, vignetteEffect, noiseEffect;
 let dofPass, bloomPass, vignettePass, noisePass;
+let aerialPerspectiveEffect, aerialPass;
+let atmosphereTextureData = null;
 
 const state = {
   dof: { on: true, focusDist: 500, blur: 30 },
@@ -86,12 +97,15 @@ function init(apiKey) {
 
   scene.add(tiles.group);
 
-  // Add some ambient light so tiles are visible before atmosphere is added
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+  // Basic lighting (will be enhanced by atmosphere later)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
   scene.add(ambientLight);
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
   dirLight.position.set(1, 1, 1).normalize();
   scene.add(dirLight);
+
+  // Load atmosphere textures asynchronously
+  loadAtmosphere();
 
   // Controls
   controls = new GlobeControls(scene, camera, renderer.domElement, tiles);
@@ -148,13 +162,67 @@ function focalLengthToFov(mm) {
 }
 
 // ============================================================
+//  ATMOSPHERE
+// ============================================================
+
+async function loadAtmosphere() {
+  try {
+    setStatus('Loading atmosphere textures...');
+    const loader = new PrecomputedTexturesLoader();
+    atmosphereTextureData = await loader.loadAsync(
+      DEFAULT_PRECOMPUTED_TEXTURES_URL,
+      undefined,
+      undefined,
+      renderer
+    );
+    console.log('[atmosphere] Textures loaded');
+
+    // Create aerial perspective effect
+    aerialPerspectiveEffect = new AerialPerspectiveEffect(camera, {
+      textureData: atmosphereTextureData,
+      sky: true
+    });
+
+    // Insert aerial perspective pass before DoF in the composer
+    // The order should be: RenderPass → AerialPerspective → DoF → Bloom → ...
+    aerialPass = new EffectPass(camera, aerialPerspectiveEffect);
+    // Insert at position 1 (after RenderPass, before DoF)
+    const passes = composer.passes;
+    const newPasses = [passes[0], aerialPass, ...passes.slice(1)];
+    // Rebuild composer passes
+    while (composer.passes.length > 0) composer.removePass(composer.passes[0]);
+    newPasses.forEach(p => composer.addPass(p));
+
+    // Update sun direction based on current date
+    updateSunDirection();
+
+    setStatus('Atmosphere loaded');
+    setTimeout(() => {
+      document.getElementById('status').style.opacity = '0';
+    }, 2000);
+  } catch (err) {
+    console.error('[atmosphere] Failed to load:', err);
+    setStatus('Atmosphere failed to load — continuing without it');
+    setTimeout(() => {
+      document.getElementById('status').style.opacity = '0';
+    }, 3000);
+  }
+}
+
+function updateSunDirection() {
+  if (!aerialPerspectiveEffect) return;
+  const now = new Date();
+  const sunDir = getSunDirectionECEF(now, new THREE.Vector3());
+  aerialPerspectiveEffect.sunDirection.copy(sunDir);
+}
+
+// ============================================================
 //  POST-PROCESSING
 // ============================================================
 
 function setupPostProcessing() {
   composer = new EffectComposer(renderer, {
-    frameBufferType: THREE.HalfFloatType,
-    multisampling: 4
+    frameBufferType: THREE.HalfFloatType
   });
 
   // Render pass
