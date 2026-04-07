@@ -31,7 +31,7 @@ dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/')
 const state = {
   timeOfDay: new Date().getHours() + new Date().getMinutes() / 60,
   longitude: -73.9785,
-  clouds: { on: false, coverage: 0.3 },
+  clouds: { on: false, coverage: 0.3, shadows: true, paused: false },
   dof: {
     on: true,
     focalUV: [0.5, 0.5],
@@ -196,6 +196,7 @@ function Scene() {
   const composerRef = useRef(null)
   const atmosphereRef = useRef(null)
   const dofRef = useRef(null)
+  const cloudsRef = useRef(null)
 
   // Initial camera — East Village NYC
   useLayoutEffect(() => {
@@ -211,6 +212,13 @@ function Scene() {
     // Update atmosphere from time slider
     const date = getDateFromHour(state.timeOfDay, state.longitude)
     atmosphereRef.current?.updateByDate(date)
+
+    // Update clouds
+    const clouds = cloudsRef.current
+    if (clouds) {
+      clouds.localWeatherVelocity.set(state.clouds.paused ? 0 : 0.001, 0)
+      clouds.shadowPass.enabled = state.clouds.shadows
+    }
 
     // Update DoF uniforms
     const fx = dofRef.current
@@ -245,6 +253,7 @@ function Scene() {
 
       <EffectComposer ref={composerRef} multisampling={0}>
         <Clouds
+          ref={cloudsRef}
           coverage={state.clouds.coverage}
           qualityPreset="high"
           shadow-farScale={0.25}
@@ -351,7 +360,24 @@ function wireUI() {
     toggleClouds.addEventListener('click', function () {
       this.classList.toggle('on')
       state.clouds.on = this.classList.contains('on')
-      // Can't dynamically enable/disable R3F effects easily — this is a visual reminder
+    })
+  }
+
+  // Cloud shadows toggle
+  const toggleShadows = document.getElementById('toggle-cloud-shadows')
+  if (toggleShadows) {
+    toggleShadows.addEventListener('click', function () {
+      this.classList.toggle('on')
+      state.clouds.shadows = this.classList.contains('on')
+    })
+  }
+
+  // Pause clouds toggle
+  const togglePause = document.getElementById('toggle-cloud-pause')
+  if (togglePause) {
+    togglePause.addEventListener('click', function () {
+      this.classList.toggle('on')
+      state.clouds.paused = this.classList.contains('on')
     })
   }
 
