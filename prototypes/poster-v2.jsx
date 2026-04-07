@@ -7,7 +7,7 @@ import {
   NormalPass, EffectMaterial, EffectAttribute, BlendFunction, Effect,
   ToneMappingMode
 } from 'postprocessing'
-import { HalfFloatType, Uniform, Vector2 } from 'three'
+import { HalfFloatType, Uniform, Vector2, Raycaster as RaycasterClass } from 'three'
 
 import { GlobeControls, TilesRenderer, TilesPlugin, TilesAttributionOverlay } from '3d-tiles-renderer/r3f'
 import { GoogleCloudAuthPlugin, GLTFExtensionsPlugin, TileCompressionPlugin, TilesFadePlugin, UpdateOnChangePlugin } from '3d-tiles-renderer/plugins'
@@ -35,9 +35,10 @@ const state = {
   dof: {
     on: true,
     focalUV: [0.5, 0.5],
-    tightness: 30,
+    tightness: 65,
     blur: 40,
-    colorPop: 50
+    colorPop: 50,
+    globalPop: false
   }
 }
 
@@ -99,6 +100,7 @@ uniform vec2 focalPoint;
 uniform float depthRange;
 uniform float maxBlur;
 uniform float colorPop;
+uniform float globalPop;
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
   float rawDepth = readDepth(uv);
@@ -109,27 +111,45 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   float relDiff = abs(viewZ - focalZ) / abs(focalZ);
   float coc = smoothstep(0.0, depthRange, relDiff) * maxBlur;
 
-  if (coc < 0.5) { outputColor = inputColor; return; }
-
-  vec2 texelSize = 1.0 / vec2(textureSize(inputBuffer, 0));
-  float s = coc / 8.0;
-  vec4 sum = inputColor * 0.16;
-  float tw = 0.16;
-  for (int i = -4; i <= 4; i++) {
-    for (int j = -4; j <= 4; j++) {
-      if (i == 0 && j == 0) continue;
-      float fi = float(i), fj = float(j);
-      float w = exp(-(fi*fi + fj*fj) / (s*s*2.0 + 0.01));
-      sum += texture(inputBuffer, uv + vec2(fi, fj) * texelSize * s) * w;
-      tw += w;
+  // Blur out-of-focus areas
+  vec4 color = inputColor;
+  if (coc >= 0.5) {
+    vec2 texelSize = 1.0 / vec2(textureSize(inputBuffer, 0));
+    float s = coc / 8.0;
+    vec4 sum = inputColor * 0.16;
+    float tw = 0.16;
+    for (int i = -4; i <= 4; i++) {
+      for (int j = -4; j <= 4; j++) {
+        if (i == 0 && j == 0) continue;
+        float fi = float(i), fj = float(j);
+        float w = exp(-(fi*fi + fj*fj) / (s*s*2.0 + 0.01));
+        sum += texture(inputBuffer, uv + vec2(fi, fj) * texelSize * s) * w;
+        tw += w;
+      }
     }
+    color = sum / tw;
   }
-  vec4 color = sum / tw;
 
+  // Color pop — applied to focus zone (or everywhere if globalPop)
   float focusAmount = 1.0 - smoothstep(0.0, depthRange, relDiff);
-  float pop = focusAmount * colorPop;
+  float popMask = mix(focusAmount, 1.0, globalPop);
+  float pop = popMask * colorPop;
   float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-  color.rgb = mix(vec3(luma), color.rgb, 1.0 + pop * 0.5);
+
+  // Saturation boost
+  color.rgb = mix(vec3(luma), color.rgb, 1.0 + pop * 0.8);
+
+  // Gentle contrast lift (protect shadows)
+  float shadow = smoothstep(0.0, 0.3, luma);
+  color.rgb = mix(color.rgb, mix(vec3(0.5), color.rgb, 1.0 + pop * 0.3), shadow);
+
+  // Subtle warm shift
+  color.r += pop * 0.015 * shadow;
+  color.g += pop * 0.008 * shadow;
+
+  // Desaturate blurred areas
+  float blurAmt = 1.0 - focusAmount;
+  color.rgb = mix(color.rgb, vec3(dot(color.rgb, vec3(0.299, 0.587, 0.114))), blurAmt * 0.12);
 
   outputColor = color;
 }
@@ -144,7 +164,8 @@ class CustomDofEffect extends Effect {
         ['focalPoint', new Uniform(new Vector2(0.5, 0.5))],
         ['depthRange', new Uniform(1.5)],
         ['maxBlur', new Uniform(20)],
-        ['colorPop', new Uniform(0.5)]
+        ['colorPop', new Uniform(0.5)],
+        ['globalPop', new Uniform(0.0)]
       ])
     })
   }
@@ -197,6 +218,7 @@ function Scene() {
   const atmosphereRef = useRef(null)
   const dofRef = useRef(null)
   const cloudsRef = useRef(null)
+  const aerialRef = useRef(null)
 
   // Initial camera — East Village NYC
   useLayoutEffect(() => {
@@ -217,17 +239,30 @@ function Scene() {
     const clouds = cloudsRef.current
     if (clouds) {
       clouds.localWeatherVelocity.set(state.clouds.paused ? 0 : 0.001, 0)
-      clouds.shadowPass.enabled = state.clouds.shadows
+    }
+    // Toggle cloud shadows on aerial perspective
+    const aerial = aerialRef.current
+    if (aerial) {
+      if (!state.clouds.shadows) {
+        aerial.shadow = null
+      }
+      // When shadows are on, the Clouds change event handler restores it automatically
     }
 
     // Update DoF uniforms
     const fx = dofRef.current
     if (fx && fx.uniforms) {
-      fx.uniforms.get('focalPoint').value.set(state.dof.focalUV[0], state.dof.focalUV[1])
-      const t = state.dof.tightness / 100
-      fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
-      fx.uniforms.get('maxBlur').value = 2 + (state.dof.blur / 100) * 48
-      fx.uniforms.get('colorPop').value = state.dof.colorPop / 100
+      if (!state.dof.on) {
+        fx.uniforms.get('maxBlur').value = 0
+        fx.uniforms.get('colorPop').value = 0
+      } else {
+        fx.uniforms.get('focalPoint').value.set(state.dof.focalUV[0], state.dof.focalUV[1])
+        const t = state.dof.tightness / 100
+        fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
+        fx.uniforms.get('maxBlur').value = 2 + (state.dof.blur / 100) * 48
+        fx.uniforms.get('colorPop').value = state.dof.colorPop / 100
+        fx.uniforms.get('globalPop').value = state.dof.globalPop ? 1.0 : 0.0
+      }
     }
 
     // Sync camera near/far into effects
@@ -259,7 +294,7 @@ function Scene() {
           shadow-farScale={0.25}
           localWeatherVelocity={[0.001, 0]}
         />
-        <AerialPerspective sky sunLight skyLight correctGeometricError albedoScale={2 / Math.PI} />
+        <AerialPerspective ref={aerialRef} sky sunLight skyLight correctGeometricError albedoScale={2 / Math.PI} />
         <LensFlare />
         <ToneMapping mode={ToneMappingMode.AGX} />
         <CustomDof ref={dofRef} />
@@ -354,6 +389,27 @@ function wireUI() {
     })
   }
 
+  // Color pop slider
+  const dofPopSlider = document.getElementById('dof-pop-slider')
+  const dofPopVal = document.getElementById('dof-pop-val')
+  if (dofPopSlider) {
+    dofPopSlider.value = state.dof.colorPop
+    if (dofPopVal) dofPopVal.textContent = state.dof.colorPop + '%'
+    dofPopSlider.addEventListener('input', (e) => {
+      state.dof.colorPop = +e.target.value
+      if (dofPopVal) dofPopVal.textContent = e.target.value + '%'
+    })
+  }
+
+  // Global pop toggle
+  const toggleGlobalPop = document.getElementById('toggle-global-pop')
+  if (toggleGlobalPop) {
+    toggleGlobalPop.addEventListener('click', function () {
+      this.classList.toggle('on')
+      state.dof.globalPop = this.classList.contains('on')
+    })
+  }
+
   // Clouds toggle
   const toggleClouds = document.getElementById('toggle-clouds')
   if (toggleClouds) {
@@ -414,18 +470,56 @@ function wireUI() {
   })
 }
 
-// ─── FOV listener inside R3F ─────────────────────────────────
+// ─── FOV listener with dolly zoom ────────────────────────────
 function FovListener() {
-  const camera = useThree(({ camera }) => camera)
+  const { camera, scene } = useThree()
+  const lastFovRef = useRef(camera.fov)
+  const raycaster = useRef(new RaycasterClass())
+  const centerNDC = useRef(new Vector2(0, 0))
+
   useEffect(() => {
     const handler = (e) => {
       const mm = e.detail
-      camera.fov = 2 * Math.atan(12 / mm) * 180 / Math.PI
+      const oldFov = lastFovRef.current
+      const newFov = 2 * Math.atan(12 / mm) * 180 / Math.PI
+
+      // Dolly zoom: raycast center of screen to find target point
+      raycaster.current.setFromCamera(centerNDC.current, camera)
+      const hits = raycaster.current.intersectObjects(scene.children, true)
+
+      if (hits.length > 0) {
+        const target = hits[0].point
+        const oldDist = camera.position.distanceTo(target)
+        // visible_size ∝ dist * tan(fov/2)
+        // newDist = oldDist * tan(oldFov/2) / tan(newFov/2)
+        const oldHalfRad = (oldFov * Math.PI / 180) / 2
+        const newHalfRad = (newFov * Math.PI / 180) / 2
+        const newDist = oldDist * Math.tan(oldHalfRad) / Math.tan(newHalfRad)
+
+        // Move camera along the vector from target to camera
+        const dir = camera.position.clone().sub(target).normalize()
+        camera.position.copy(target).add(dir.multiplyScalar(newDist))
+      }
+
+      camera.fov = newFov
       camera.updateProjectionMatrix()
+      lastFovRef.current = newFov
+
+      // Adjust DoF tightness to match focal length (longer lens = shallower DoF)
+      if (state.dof.on) {
+        const focalScale = Math.sqrt(mm / 41)
+        const newTightness = Math.round(Math.min(100, Math.max(50, 55 + 20 * focalScale)))
+        state.dof.tightness = newTightness
+        const slider = document.getElementById('dof-focus-slider')
+        const val = document.getElementById('dof-focus-val')
+        if (slider) slider.value = newTightness
+        if (val) val.textContent = newTightness + '%'
+      }
     }
     window.addEventListener('fov-change', handler)
     return () => window.removeEventListener('fov-change', handler)
-  }, [camera])
+  }, [camera, scene])
+
   return null
 }
 
