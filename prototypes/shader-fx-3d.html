@@ -400,16 +400,16 @@
       Camera
     </div>
     <div class="control-row">
-      <div class="control-label"><span>Tilt</span><span class="control-value" id="tilt-val">55&#176;</span></div>
-      <input type="range" id="tilt-slider" min="0" max="90" step="1" value="55">
+      <div class="control-label"><span>Tilt</span><span class="control-value" id="tilt-val">51&#176;</span></div>
+      <input type="range" id="tilt-slider" min="0" max="90" step="1" value="51">
     </div>
     <div class="control-row">
-      <div class="control-label"><span>Heading</span><span class="control-value" id="heading-val">-30&#176;</span></div>
-      <input type="range" id="heading-slider" min="-180" max="180" step="1" value="-30">
+      <div class="control-label"><span>Heading</span><span class="control-value" id="heading-val">67&#176;</span></div>
+      <input type="range" id="heading-slider" min="-180" max="180" step="1" value="67">
     </div>
     <div class="control-row">
-      <div class="control-label"><span>Range (altitude)</span><span class="control-value" id="range-val">800m</span></div>
-      <input type="range" id="range-slider" min="100" max="10000" step="50" value="800">
+      <div class="control-label"><span>Range (altitude)</span><span class="control-value" id="range-val">472m</span></div>
+      <input type="range" id="range-slider" min="100" max="10000" step="50" value="472">
     </div>
     <div class="control-row">
       <div class="control-label"><span>Focal length</span><span class="control-value" id="fov-val">41mm</span></div>
@@ -685,7 +685,7 @@
       id: 'grid-ovals', name: 'The Grid & The Ovals', icon: '\u229E',
       iconBg: '#2d1f5e',
       desc: "Manhattan's rigid street grid meets Stuy Town's organic oval loops \u2014 photorealistic.",
-      lat: 40.7330, lng: -73.9785, range: 800, tilt: 55, heading: -30
+      lat: 40.7330, lng: -73.9785, range: 472, tilt: 51, heading: 67
     },
     {
       id: 'east-river', name: 'East River Lookout', icon: '\u223C',
@@ -727,7 +727,7 @@
     cinematic:   { on: false, intensity: 50 },
     filmGrain:   { on: false, intensity: 40 },
     tiltShift:   { on: false, blur: 5, bandSize: 20, focusPos: 45, falloff: 0, saturation: 55, mode: 'band', bandVisible: true },
-    depthDof:    { on: true, focalDist: 90, blurAmount: 10, colorPop: 80, globalPop: false },
+    depthDof:    { on: true, focalDist: 95, blurAmount: 10, colorPop: 50, globalPop: false },
     vignette:    { on: false, intensity: 60 },
     paperTexture:  { on: false, intensity: 50, roughness: 50, crumples: 30, folds: 20, fade: 50 },
     flutedGlass:   { on: false, intensity: 50, distortion: 50, blur: 30, size: 30, angle: 0 },
@@ -2754,10 +2754,12 @@
     viewer.clock.shouldAnimate = false;
 
     // Load Google Photorealistic 3D Tiles
+    window._3dTileset = null;
     Cesium.Cesium3DTileset.fromUrl(
       'https://tile.googleapis.com/v1/3dtiles/root.json?key=AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
     ).then(function(tileset) {
       viewer.scene.primitives.add(tileset);
+      window._3dTileset = tileset;
       console.log('Google 3D tiles loaded');
 
       restoreOrDefault();
@@ -2766,6 +2768,7 @@
       // Fallback: try Cesium ion asset 2275207 (Google Photorealistic 3D Tiles)
       Cesium.Cesium3DTileset.fromIonAssetId(2275207).then(function(tileset) {
         viewer.scene.primitives.add(tileset);
+        window._3dTileset = tileset;
         console.log('Google 3D tiles loaded via Cesium ion');
         restoreOrDefault();
       }).catch(function(err2) {
@@ -2777,6 +2780,36 @@
   // Convert our concept params (tilt 0=down, 90=horizon) to Cesium camera lookAt
   function restoreOrDefault() {
     setupCameraSliders();
+
+    // Use the most recent saved view as default if no session exists
+    if (!savedSession || !savedSession.camera) {
+      var views = loadViews();
+      if (views.length > 0) {
+        var v = views[0]; // most recent saved view
+        savedSession = {
+          camera: v.camera,
+          focalLength: v.focalLength,
+          sun: v.sun,
+          fxState: v.fxState,
+          ssao: v.ssao,
+          fog: v.fog,
+          tileDetail: v.tileDetail,
+          location: v.location,
+          textTitle: v.name
+        };
+        // Also restore fxState into the live object
+        if (v.fxState) {
+          for (var fk in v.fxState) {
+            if (fxState[fk]) {
+              for (var prop in v.fxState[fk]) fxState[fk][prop] = v.fxState[fk][prop];
+            }
+          }
+        }
+        if (v.sun) {
+          for (var sk in v.sun) currentSun[sk] = v.sun[sk];
+        }
+      }
+    }
 
     if (savedSession && savedSession.camera) {
       var sc = savedSession.camera;
@@ -2970,6 +3003,8 @@
     }
 
     var roll = Math.round(Cesium.Math.toDegrees(cam.roll));
+    if (roll > 180) roll -= 360;
+    if (roll < -180) roll += 360;
     document.getElementById('roll-slider').value = Math.max(-30, Math.min(30, roll));
     document.getElementById('roll-val').textContent = roll + '\u00B0';
 

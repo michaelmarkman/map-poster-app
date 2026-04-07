@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tokyo Demo — three-geospatial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #e8c46a;
+    --accent-dim: rgba(232,196,106,0.3);
+    --chrome-border: rgba(255,255,255,0.06);
+    --chrome-hover: rgba(255,255,255,0.12);
+    --bg: #08080a;
+    --text-1: rgba(255,255,255,0.88);
+    --text-2: rgba(255,255,255,0.45);
+    --text-3: rgba(255,255,255,0.2);
+    --text-ghost: rgba(255,255,255,0.08);
+    --mono: 'DM Mono', monospace;
+    --sans: 'Instrument Sans', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; }
+  body { background:var(--bg); color:var(--text-1); font-family:var(--sans); }
+  #root { width:100%; height:100%; position:relative; z-index:0; }
+  #root canvas { display:block; }
+
+  /* Focus reticle */
+  .focus-reticle {
+    position:fixed; pointer-events:none; z-index:40;
+    width:28px; height:28px; transform:translate(-50%,-50%);
+    opacity:0; transition:opacity 0.5s;
+  }
+  .focus-reticle.visible { opacity:1; }
+  .focus-reticle::before, .focus-reticle::after {
+    content:''; position:absolute; background:var(--accent);
+  }
+  .focus-reticle::before { width:1px; height:100%; left:50%; transform:translateX(-50%); opacity:0.3; }
+  .focus-reticle::after { width:100%; height:1px; top:50%; transform:translateY(-50%); opacity:0.3; }
+  .focus-reticle .ring {
+    position:absolute; inset:3px; border:1.5px solid var(--accent); border-radius:50%; opacity:0.5;
+  }
+  .focus-reticle .dot {
+    position:absolute; top:50%; left:50%; width:3px; height:3px;
+    background:var(--accent); border-radius:50%; transform:translate(-50%,-50%);
+  }
+
+  /* ====== DOCK ====== */
+  .dock {
+    position:fixed; z-index:50; bottom:20px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:flex-end; gap:2px;
+    background:rgba(8,8,10,0.82);
+    border:1px solid var(--chrome-border);
+    border-radius:10px;
+    padding:5px 6px;
+    backdrop-filter:blur(20px) saturate(1.1);
+    box-shadow:0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.015);
+    user-select:none;
+  }
+  .dock:hover { border-color:var(--chrome-hover); }
+
+  .dock-sep { width:1px; height:22px; background:rgba(255,255,255,0.03); margin:0 2px; align-self:center; flex-shrink:0; }
+
+  .dg {
+    display:flex; align-items:flex-end; gap:2px;
+    padding:4px 6px; border-radius:7px;
+    transition:background 0.25s;
+    position:relative;
+  }
+  .dg:hover { background:rgba(255,255,255,0.025); }
+
+  .dg-label {
+    font-family:var(--mono); font-size:8px; font-weight:400;
+    color:var(--text-ghost); text-transform:uppercase; letter-spacing:0.1em;
+    position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
+    white-space:nowrap; opacity:0; transition:opacity 0.25s, color 0.25s;
+    pointer-events:none;
+  }
+  .dg-icon {
+    font-size:12px; line-height:1; padding:2px;
+    color:var(--text-ghost); transition:color 0.2s, opacity 0.3s;
+    cursor:pointer; flex-shrink:0;
+  }
+
+  /* Fader */
+  .df { display:flex; flex-direction:column; align-items:center; gap:2px; padding:0 3px; cursor:ns-resize; }
+  .df-label {
+    font-family:var(--mono); font-size:7px; font-weight:300; color:var(--text-3);
+    text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap;
+    height:0; overflow:hidden; line-height:1.3;
+    transition:height 0.3s cubic-bezier(0.4,0,0.2,1), color 0.2s;
+  }
+  .df-track {
+    width:3px; height:0;
+    background:rgba(255,255,255,0.04); border-radius:2px;
+    position:relative; overflow:visible;
+    transition:height 0.35s cubic-bezier(0.4,0,0.2,1), background 0.2s, width 0.2s;
+  }
+  .df-track::after {
+    content:''; position:absolute; bottom:0; left:0; right:0;
+    height:var(--v,50%); background:var(--accent); opacity:0.2; border-radius:2px;
+    transition:opacity 0.2s;
+  }
+  .df-thumb {
+    position:absolute; left:50%; transform:translateX(-50%);
+    bottom:var(--v,50%); margin-bottom:-3px;
+    width:11px; height:5px; background:var(--accent); border-radius:2px;
+    opacity:0; transition:opacity 0.25s, box-shadow 0.25s;
+  }
+  .df-val {
+    font-family:var(--mono); font-size:7px; font-weight:400; color:var(--text-3);
+    font-variant-numeric:tabular-nums; height:0; overflow:hidden; line-height:1.3;
+    transition:height 0.3s cubic-bezier(0.4,0,0.2,1), color 0.2s;
+  }
+
+  /* Hover expand */
+  .dg:hover .dg-label { opacity:1; color:var(--accent); }
+  .dg:hover .dg-icon { opacity:0.5; color:var(--accent); }
+  .dg:hover .df-track { height:56px; }
+  .dg:hover .df-thumb { opacity:0.35; }
+  .dg:hover .df-label { height:10px; }
+  .dg:hover .df-val { height:10px; }
+
+  .dg.pinned .dg-label { opacity:1; color:rgba(232,196,106,0.85); }
+  .dg.pinned .dg-icon { opacity:0.5; color:var(--accent); }
+  .dg.pinned .df-track { height:56px; }
+  .dg.pinned .df-thumb { opacity:0.35; }
+  .dg.pinned .df-label { height:10px; }
+  .dg.pinned .df-val { height:10px; }
+
+  .pin-dot {
+    position:absolute; top:0; right:0;
+    width:5px; height:5px; border-radius:50%; background:var(--accent);
+    opacity:0; transition:opacity 0.2s; pointer-events:none;
+  }
+  .dg.pinned .pin-dot { opacity:0.7; }
+
+  .df:hover .df-label { color:var(--accent) !important; }
+  .df:hover .df-val { color:var(--text-2) !important; }
+  .df:hover .df-track { background:rgba(255,255,255,0.08) !important; width:4px; }
+  .df:hover .df-track::after { opacity:0.5 !important; }
+  .df:hover .df-thumb { opacity:0.9 !important; box-shadow:0 0 8px rgba(232,196,106,0.3); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="focus-reticle" id="focus-reticle"><div class="ring"></div><div class="dot"></div></div>
+<script type="module" src="./tokyo-demo.jsx"></script>
+</body>
+</html>

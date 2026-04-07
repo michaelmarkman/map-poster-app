@@ -1,11 +1,24 @@
 {
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.72",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
     "@takram/three-atmosphere": "^0.18.0",
     "@takram/three-clouds": "^0.7.4",
     "@takram/three-geospatial": "^0.8.0",
+    "@takram/three-geospatial-effects": "^0.6.2",
+    "@vitejs/plugin-react": "^6.0.1",
     "3d-tiles-renderer": "^0.4.23",
+    "date-fns": "^4.1.0",
+    "jotai": "^2.19.1",
+    "leva": "^0.10.1",
+    "motion": "^12.38.0",
     "postprocessing": "^6.36.7",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-use": "^17.6.0",
+    "stats-gl": "^4.1.0",
     "three": "^0.183.2"
   },
   "devDependencies": {
