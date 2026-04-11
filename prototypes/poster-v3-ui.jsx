@@ -1637,10 +1637,17 @@ function renderQueue() {
     }
 
     if (job.status === 'done' && job.resultUrl) {
-      el.style.cursor = 'pointer'
+      el.classList.add('qi-clickable')
       el.addEventListener('click', () => {
-        const gi = gallery.findIndex(g => g.dataUrl === job.resultUrl)
-        if (gi >= 0) openLightbox(gi)
+        // Prefer the stored gallery index; fall back to dataUrl match
+        let gi = (typeof job.galleryIdx === 'number' && gallery[job.galleryIdx]?.dataUrl === job.resultUrl)
+          ? job.galleryIdx
+          : gallery.findIndex(g => g.dataUrl === job.resultUrl)
+        if (gi < 0) return
+        // Open the gallery modal behind the lightbox so closing the lightbox lands in the gallery
+        document.getElementById('gallery-overlay')?.classList.add('open')
+        renderGallery()
+        openLightbox(gi)
       })
     }
 
@@ -1666,6 +1673,7 @@ function addToGallery(label, filename, dataUrl, opts = {}) {
   renderGallery()
   const btn = document.getElementById('open-gallery-btn')
   if (btn) btn.style.display = ''
+  return gallery.length - 1 // index of newly added item
 }
 
 function processQueue() {
@@ -1766,7 +1774,7 @@ function sendToGemini(img, job) {
     link.download = fname + '.png'
     link.href = dataUrl
     link.click()
-    addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    job.galleryIdx = addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     finish()
   }
@@ -2318,25 +2326,14 @@ window.openPosterPreview = openPosterPreview
 
 // ─── v3 UI: Modal open/close, More expander, HUD, counts ────────────
 ;(function v3UI() {
-  // Generic modal helpers
-  function openModal(id) {
-    const m = document.getElementById(id)
-    if (!m) return
-    m.classList.add('open')
-  }
+  // Close a modal by id (used by close buttons, backdrop click, ESC)
   function closeModal(id) {
     const m = document.getElementById(id)
     if (!m) return
     m.classList.remove('open')
   }
 
-  // Saved Views modal
-  document.getElementById('open-saved-views-btn')?.addEventListener('click', () => {
-    openModal('saved-views-modal')
-    updateSavedViewsEmpty()
-  })
-
-  // Render Styles — inline collapsible dropdown (NOT a modal)
+  // Render Styles — inline collapsible dropdown
   const renderBtn = document.getElementById('open-render-styles-btn')
   const renderPanel = document.getElementById('render-styles-panel')
   if (renderBtn && renderPanel) {
@@ -2345,6 +2342,39 @@ window.openPosterPreview = openPosterPreview
       renderBtn.classList.toggle('open', open)
     })
   }
+
+  // Saved Views — inline collapsible dropdown (same pattern)
+  const savedBtn = document.getElementById('open-saved-views-btn')
+  const savedPanel = document.getElementById('saved-views-panel')
+  if (savedBtn && savedPanel) {
+    savedBtn.addEventListener('click', () => {
+      const open = savedPanel.classList.toggle('open')
+      savedBtn.classList.toggle('open', open)
+      if (open) {
+        // Re-render from storage so new items show up
+        try { renderSavedViews() } catch (e) {}
+        updateSavedViewsEmpty()
+      }
+    })
+  }
+
+  // Section collapse/expand — click the section head to toggle, persist to localStorage
+  const COLLAPSE_KEY = 'mapposter_v3ui_collapsed_sections'
+  let collapsedSet
+  try { collapsedSet = new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')) }
+  catch (e) { collapsedSet = new Set() }
+
+  document.querySelectorAll('.sidebar-section').forEach(section => {
+    const key = section.dataset.sec
+    if (!key) return
+    if (collapsedSet.has(key)) section.classList.add('collapsed')
+    const head = section.querySelector('.section-head')
+    head?.addEventListener('click', () => {
+      const collapsed = section.classList.toggle('collapsed')
+      if (collapsed) collapsedSet.add(key); else collapsedSet.delete(key)
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsedSet])) } catch (e) {}
+    })
+  })
 
   // Close buttons: [data-close="modal-id"]
   document.querySelectorAll('.modal [data-close]').forEach(btn => {

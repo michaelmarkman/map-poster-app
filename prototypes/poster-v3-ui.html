@@ -125,19 +125,40 @@
 
   /* Sections */
   .sidebar-section {
-    padding: 16px 22px 18px;
     border-bottom: 0.5px solid var(--rule);
     position: relative;
   }
   .sidebar-section:last-child { border-bottom: 0; }
+
+  /* Clickable section head — toggles collapse */
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px 12px;
+    cursor: pointer;
+    user-select: none;
+    background: none;
+    border: none;
+    width: 100%;
+    font-family: inherit;
+    color: inherit;
+    transition: color 0.15s;
+  }
+  .section-head:hover { color: var(--ink); }
+  .section-head:hover .section-title { color: var(--ink-soft); }
+
   .section-title {
     font-size: 9.5px;
     font-weight: 500;
     color: var(--ink-dim);
-    margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1;
+    text-align: left;
+    letter-spacing: 0;
+    transition: color 0.15s;
   }
   .section-title::before {
     content: '';
@@ -148,6 +169,30 @@
     flex-shrink: 0;
   }
   .section-title svg { display: none; }
+
+  .section-chev {
+    width: 9px;
+    height: 9px;
+    stroke: var(--ink-dim);
+    stroke-width: 1.8;
+    fill: none;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+  .sidebar-section.collapsed .section-chev {
+    transform: rotate(-90deg);
+  }
+
+  .section-body {
+    padding: 0 22px 18px;
+    overflow: hidden;
+  }
+  .sidebar-section.collapsed .section-body {
+    display: none;
+  }
+  .sidebar-section.collapsed .section-head {
+    padding-bottom: 16px;
+  }
 
   /* Controls — row / label / value */
   .control-row { padding: 4px 0 10px; }
@@ -878,22 +923,25 @@
     flex-shrink: 0;
   }
 
-  /* ═══════ SAVED VIEWS MODAL ═══════ */
+  /* ═══════ SAVED VIEWS (inline dropdown) ═══════ */
   #saved-views-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 4px;
   }
+  #saved-views-list:empty + #saved-empty { display: block; }
+  #saved-views-list:not(:empty) + #saved-empty { display: none; }
   .saved-view {
+    position: relative;
     display: flex;
     flex-direction: column;
-    padding: 0;
     background: rgba(255,255,255,0.025);
     border: 0.5px solid var(--ink-whisper);
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.18s;
+    transition: all 0.15s;
   }
   .saved-view:hover {
     border-color: var(--panel-border-strong);
@@ -907,41 +955,38 @@
     background: var(--bg-deep);
   }
   .saved-view .sv-name {
-    font-size: 10px;
+    font-size: 9.5px;
     color: var(--ink-soft);
-    padding: 8px 12px;
+    padding: 5px 8px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
   }
   .saved-view .sv-delete {
     position: absolute;
-    top: 6px; right: 6px;
-    width: 22px; height: 22px;
+    top: 4px; right: 4px;
+    width: 18px; height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10,9,12,0.7);
+    background: rgba(10,9,12,0.75);
     backdrop-filter: blur(8px);
     border: 0.5px solid var(--panel-border);
-    border-radius: 5px;
+    border-radius: 4px;
     color: var(--ink-dim);
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
     opacity: 0;
     transition: all 0.15s;
   }
   .saved-view:hover .sv-delete { opacity: 1; }
   .saved-view .sv-delete:hover { color: var(--red); }
-  .saved-view {
-    position: relative;
-  }
   #saved-empty {
-    padding: 40px 20px;
+    display: none;
+    padding: 14px 8px;
     text-align: center;
     color: var(--ink-dim);
-    font-size: 11px;
+    font-size: 10px;
     font-style: italic;
   }
 
@@ -1108,7 +1153,16 @@
     transition: color 0.15s;
   }
   .queue-item .qi-remove:hover { color: var(--red); }
-  .queue-item.qi-done { opacity: 0.5; }
+  .queue-item.qi-done { opacity: 0.68; }
+  .queue-item.qi-clickable {
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .queue-item.qi-clickable:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--panel-border-strong);
+  }
   .queue-item.qi-done .qi-status { color: var(--green); }
   .queue-item.qi-error .qi-status { color: var(--red); }
   .queue-item.qi-active { border-color: var(--accent-dim); }
@@ -1335,14 +1389,17 @@
   .lb-download { position: absolute; top: 18px; right: 62px; }
 
   /* ═══════ 3D POSTER PREVIEW ═══════ */
+  /* Inset from the left so the sidebar stays visible + clickable */
   #poster-preview {
-    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
-    z-index: 250;
+    position: fixed; top: 0; right: 0; bottom: 0; left: 316px;
+    z-index: 150;
     display: none;
     align-items: center;
     justify-content: center;
     cursor: grab;
   }
+  /* Keep sidebar above the preview so it remains interactive */
+  body.preview-open #sidebar { z-index: 200; }
   #poster-preview.open { display: flex; }
   #poster-preview:active { cursor: grabbing; }
 
@@ -1481,150 +1538,170 @@
   </div>
 
   <!-- ═══ ENVIRONMENT ═══ -->
-  <div class="sidebar-section">
-    <div class="section-title">Environment</div>
+  <div class="sidebar-section" data-sec="environment">
+    <button class="section-head" type="button">
+      <span class="section-title">Environment</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="section-body">
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="text-input" id="location-search" placeholder="Search for a place..." value="250 1st Ave, New York">
+      </div>
 
-    <div class="search-field">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
-      <input class="text-input" id="location-search" placeholder="Search for a place..." value="250 1st Ave, New York">
-    </div>
-
-    <div class="control-row">
-      <div class="control-label"><span>Time of day</span><span class="control-value" id="tod-val">now</span></div>
-      <input type="range" id="tod-slider" min="0" max="24" step="0.25" value="12">
-    </div>
-
-    <div class="toggle-row">
-      <span>Clouds</span>
-      <div class="toggle" id="toggle-clouds"></div>
-    </div>
-    <div class="indent">
       <div class="control-row">
-        <div class="control-label"><span>Coverage</span><span class="control-value" id="cloud-coverage-val">30%</span></div>
-        <input type="range" id="cloud-coverage-slider" min="0" max="100" step="1" value="30">
+        <div class="control-label"><span>Time of day</span><span class="control-value" id="tod-val">now</span></div>
+        <input type="range" id="tod-slider" min="0" max="24" step="0.25" value="12">
       </div>
-      <div class="control-row">
-        <div class="control-label"><span>Speed</span><span class="control-value" id="cloud-speed-val">1x</span></div>
-        <input type="range" id="cloud-speed-slider" min="-10" max="10" step="0.5" value="1">
-      </div>
+
       <div class="toggle-row">
-        <span>Cloud shadows</span>
-        <div class="toggle on" id="toggle-cloud-shadows"></div>
+        <span>Clouds</span>
+        <div class="toggle" id="toggle-clouds"></div>
       </div>
-      <div class="toggle-row">
-        <span>Pause clouds</span>
-        <div class="toggle" id="toggle-cloud-pause"></div>
+      <div class="indent">
+        <div class="control-row">
+          <div class="control-label"><span>Coverage</span><span class="control-value" id="cloud-coverage-val">30%</span></div>
+          <input type="range" id="cloud-coverage-slider" min="0" max="100" step="1" value="30">
+        </div>
+        <div class="control-row">
+          <div class="control-label"><span>Speed</span><span class="control-value" id="cloud-speed-val">1x</span></div>
+          <input type="range" id="cloud-speed-slider" min="-10" max="10" step="0.5" value="1">
+        </div>
+        <div class="toggle-row">
+          <span>Cloud shadows</span>
+          <div class="toggle on" id="toggle-cloud-shadows"></div>
+        </div>
+        <div class="toggle-row">
+          <span>Pause clouds</span>
+          <div class="toggle" id="toggle-cloud-pause"></div>
+        </div>
+        <button class="nav-row" id="cloud-skip-btn" style="padding:8px 0;">
+          <span>Skip ahead</span>
+          <span class="chev">›</span>
+        </button>
       </div>
-      <button class="nav-row" id="cloud-skip-btn" style="padding:8px 0;">
-        <span>Skip ahead</span>
-        <span class="chev">›</span>
-      </button>
     </div>
   </div>
 
   <!-- ═══ CAMERA ═══ -->
-  <div class="sidebar-section">
-    <div class="section-title">Camera</div>
-
-    <div class="control-row">
-      <div class="control-label"><span>Focal length</span><span class="control-value" id="fov-val">41mm</span></div>
-      <input type="range" id="fov-slider" min="14" max="200" step="1" value="41">
-    </div>
-
-    <div class="toggle-row">
-      <span>Depth of field</span>
-      <div class="toggle on" id="toggle-dof"></div>
-    </div>
-    <div class="indent" id="dof-settings">
-      <div class="control-row">
-        <div class="control-label"><span>Focus distance</span><span class="control-value" id="dof-focus-val">500m</span></div>
-        <input type="range" id="dof-focus-slider" min="10" max="5000" step="10" value="500">
-      </div>
-      <div class="control-row">
-        <div class="control-label"><span>Blur</span><span class="control-value" id="dof-blur-val">30%</span></div>
-        <input type="range" id="dof-blur-slider" min="0" max="100" step="1" value="30">
-      </div>
-      <div class="control-row">
-        <div class="control-label"><span>Color pop</span><span class="control-value" id="dof-pop-val">50%</span></div>
-        <input type="range" id="dof-pop-slider" min="0" max="100" step="1" value="50">
-      </div>
-      <div class="toggle-row">
-        <span>Pop whole scene</span>
-        <div class="toggle" id="toggle-global-pop"></div>
-      </div>
-    </div>
-
-    <button class="more-btn" id="camera-more-btn" type="button">
-      <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
-      More
+  <div class="sidebar-section" data-sec="camera">
+    <button class="section-head" type="button">
+      <span class="section-title">Camera</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
     </button>
-    <div class="more-content" id="camera-more">
+    <div class="section-body">
       <div class="control-row">
-        <div class="control-label"><span>Tilt</span><span class="control-value" id="tilt-val">51°</span></div>
-        <input type="range" id="tilt-slider" min="0" max="90" step="1" value="51">
+        <div class="control-label"><span>Focal length</span><span class="control-value" id="fov-val">41mm</span></div>
+        <input type="range" id="fov-slider" min="14" max="200" step="1" value="41">
       </div>
-      <div class="control-row">
-        <div class="control-label"><span>Heading</span><span class="control-value" id="heading-val">67°</span></div>
-        <input type="range" id="heading-slider" min="-180" max="180" step="1" value="67">
+
+      <div class="toggle-row">
+        <span>Depth of field</span>
+        <div class="toggle on" id="toggle-dof"></div>
       </div>
-      <div class="control-row">
-        <div class="control-label"><span>Altitude</span><span class="control-value" id="range-val">472m</span></div>
-        <input type="range" id="range-slider" min="0" max="1000" step="1" value="382">
+      <div class="indent" id="dof-settings">
+        <div class="control-row">
+          <div class="control-label"><span>Focus distance</span><span class="control-value" id="dof-focus-val">500m</span></div>
+          <input type="range" id="dof-focus-slider" min="10" max="5000" step="10" value="500">
+        </div>
+        <div class="control-row">
+          <div class="control-label"><span>Blur</span><span class="control-value" id="dof-blur-val">30%</span></div>
+          <input type="range" id="dof-blur-slider" min="0" max="100" step="1" value="30">
+        </div>
+        <div class="control-row">
+          <div class="control-label"><span>Color pop</span><span class="control-value" id="dof-pop-val">50%</span></div>
+          <input type="range" id="dof-pop-slider" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="toggle-row">
+          <span>Pop whole scene</span>
+          <div class="toggle" id="toggle-global-pop"></div>
+        </div>
       </div>
-      <div class="toggle-row"><span>Bloom</span><div class="toggle" id="toggle-bloom"></div></div>
-      <div class="toggle-row"><span>SSAO</span><div class="toggle" id="toggle-ssao"></div></div>
-      <div class="toggle-row"><span>Vignette</span><div class="toggle" id="toggle-vignette"></div></div>
+
+      <button class="more-btn" id="camera-more-btn" type="button">
+        <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        More
+      </button>
+      <div class="more-content" id="camera-more">
+        <div class="control-row">
+          <div class="control-label"><span>Tilt</span><span class="control-value" id="tilt-val">51°</span></div>
+          <input type="range" id="tilt-slider" min="0" max="90" step="1" value="51">
+        </div>
+        <div class="control-row">
+          <div class="control-label"><span>Heading</span><span class="control-value" id="heading-val">67°</span></div>
+          <input type="range" id="heading-slider" min="-180" max="180" step="1" value="67">
+        </div>
+        <div class="control-row">
+          <div class="control-label"><span>Altitude</span><span class="control-value" id="range-val">472m</span></div>
+          <input type="range" id="range-slider" min="0" max="1000" step="1" value="382">
+        </div>
+        <div class="toggle-row"><span>Bloom</span><div class="toggle" id="toggle-bloom"></div></div>
+        <div class="toggle-row"><span>SSAO</span><div class="toggle" id="toggle-ssao"></div></div>
+        <div class="toggle-row"><span>Vignette</span><div class="toggle" id="toggle-vignette"></div></div>
+      </div>
     </div>
   </div>
 
   <!-- ═══ CANVAS ═══ -->
-  <div class="sidebar-section">
-    <div class="section-title">Canvas</div>
-
-    <div class="ratio-label">Portrait</div>
-    <div class="ratio-grid" id="size-grid-portrait">
-      <button class="size-btn" data-ratio="0.8" type="button">4:5</button>
-      <button class="size-btn" data-ratio="0.667" type="button">2:3</button>
-      <button class="size-btn" data-ratio="0.75" type="button">3:4</button>
-      <button class="size-btn" data-ratio="0.5625" type="button">9:16</button>
-    </div>
-
-    <div class="ratio-label">Landscape</div>
-    <div class="ratio-grid" id="size-grid-landscape">
-      <button class="size-btn" data-ratio="1.25" type="button">5:4</button>
-      <button class="size-btn" data-ratio="1.5" type="button">3:2</button>
-      <button class="size-btn active" data-ratio="1.333" type="button">4:3</button>
-      <button class="size-btn" data-ratio="1.778" type="button">16:9</button>
-    </div>
-
-    <button class="fill-btn" id="size-fill-btn" data-fill="true" type="button">Fill — no ratio</button>
-
-    <!-- legacy size-grid container kept for JS compatibility (unused) -->
-    <div id="size-grid" style="display:none;"></div>
-
-    <button class="nav-row" id="poster-3d-btn" type="button" style="margin-top: 14px;">
-      <span>Poster preview</span>
-      <span class="right"><span>3D frame</span><span class="chev">›</span></span>
+  <div class="sidebar-section" data-sec="canvas">
+    <button class="section-head" type="button">
+      <span class="section-title">Canvas</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
     </button>
+    <div class="section-body">
+      <div class="ratio-label">Portrait</div>
+      <div class="ratio-grid" id="size-grid-portrait">
+        <button class="size-btn" data-ratio="0.8" type="button">4:5</button>
+        <button class="size-btn" data-ratio="0.667" type="button">2:3</button>
+        <button class="size-btn" data-ratio="0.75" type="button">3:4</button>
+        <button class="size-btn" data-ratio="0.5625" type="button">9:16</button>
+      </div>
+
+      <div class="ratio-label">Landscape</div>
+      <div class="ratio-grid" id="size-grid-landscape">
+        <button class="size-btn" data-ratio="1.25" type="button">5:4</button>
+        <button class="size-btn" data-ratio="1.5" type="button">3:2</button>
+        <button class="size-btn active" data-ratio="1.333" type="button">4:3</button>
+        <button class="size-btn" data-ratio="1.778" type="button">16:9</button>
+      </div>
+
+      <button class="fill-btn" id="size-fill-btn" data-fill="true" type="button">Fill — no ratio</button>
+
+      <!-- legacy size-grid container kept for JS compatibility (unused) -->
+      <div id="size-grid" style="display:none;"></div>
+
+      <button class="nav-row" id="poster-3d-btn" type="button" style="margin-top: 14px;">
+        <span>Poster preview</span>
+        <span class="right"><span>3D frame</span><span class="chev">›</span></span>
+      </button>
+    </div>
   </div>
 
   <!-- ═══ TEXT / GRAPHIC ═══ -->
-  <div class="sidebar-section">
-    <div class="section-title">Text / Graphic</div>
+  <div class="sidebar-section" data-sec="text">
+    <button class="section-head" type="button">
+      <span class="section-title">Text / Graphic</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="section-body">
+      <div class="toggle-row" style="margin-bottom: 8px;">
+        <span>Show text</span>
+        <div class="toggle" id="toggle-text-overlay"></div>
+      </div>
 
-    <div class="toggle-row" style="margin-bottom: 8px;">
-      <span>Show text</span>
-      <div class="toggle" id="toggle-text-overlay"></div>
+      <input class="text-input" id="text-title" value="East Village" placeholder="Title">
+      <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
+      <input class="text-input" id="text-coords" value="40.7323° N, 73.9812° W" placeholder="Coordinates">
     </div>
-
-    <input class="text-input" id="text-title" value="East Village" placeholder="Title">
-    <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
-    <input class="text-input" id="text-coords" value="40.7323° N, 73.9812° W" placeholder="Coordinates">
   </div>
 
   <!-- ═══ EXPORT ═══ -->
-  <div class="sidebar-section">
-    <div class="section-title">Export</div>
+  <div class="sidebar-section" data-sec="export">
+    <button class="section-head" type="button">
+      <span class="section-title">Export</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="section-body">
 
     <button class="primary-action" id="quick-download-btn" type="button">
       <span class="l">
@@ -1699,10 +1776,17 @@
       <span>Gallery</span>
       <span class="right"><span id="gallery-nav-count">0</span><span class="chev">›</span></span>
     </button>
-    <button class="nav-row" id="open-saved-views-btn" type="button">
+
+    <button class="nav-row dropdown" id="open-saved-views-btn" type="button">
       <span>Saved views</span>
-      <span class="right"><span id="saved-views-count">0</span><span class="chev">›</span></span>
+      <span class="right"><span id="saved-views-count">0</span><span class="chev dropdown-chev">›</span></span>
     </button>
+    <div class="dropdown-panel" id="saved-views-panel">
+      <div id="saved-views-list"></div>
+      <div id="saved-empty">No saved views yet.</div>
+      <button class="btn primary" id="save-view-btn" type="button" style="width:100%; margin-top:8px;">Save current view</button>
+    </div>
+    </div>
   </div>
 </div>
 
@@ -1738,27 +1822,6 @@
     <input type="text" id="api-key-input" placeholder="Paste your Google Maps API key..." autocomplete="off">
     <button id="api-key-submit">Load 3D Map</button>
     <span class="hint">Get a key at <a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com</a> — enable "Map Tiles API".</span>
-  </div>
-</div>
-
-<!-- ╔═══════ SAVED VIEWS MODAL ═══════╗ -->
-<div class="modal" id="saved-views-modal">
-  <div class="modal-panel wide">
-    <div class="modal-header">
-      <div>
-        <span class="modal-title">Saved views</span>
-        <span class="modal-meta" id="saved-views-meta" style="margin-left:12px;"></span>
-      </div>
-      <button class="modal-close" data-close="saved-views-modal">×</button>
-    </div>
-    <div class="modal-body">
-      <div id="saved-views-list"></div>
-      <div id="saved-empty">No saved views yet.</div>
-    </div>
-    <div class="modal-footer">
-      <div style="flex:1"></div>
-      <button class="btn primary" id="save-view-btn" type="button">Save current view</button>
-    </div>
   </div>
 </div>
 
