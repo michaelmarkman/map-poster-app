@@ -481,15 +481,18 @@ function Scene() {
     // Update DoF uniforms
     const fx = dofRef.current
     if (fx && fx.uniforms) {
+      // Color pop is independent of DoF and always applied. When DoF is off,
+      // it's always global (no focus area to limit it to). When DoF is on,
+      // the user's globalPop toggle decides limited-to-focus vs. whole scene.
+      fx.uniforms.get('colorPop').value = state.dof.colorPop / 100
       if (!state.dof.on) {
         fx.uniforms.get('maxBlur').value = 0
-        fx.uniforms.get('colorPop').value = 0
+        fx.uniforms.get('globalPop').value = 1.0
       } else {
         fx.uniforms.get('focalPoint').value.set(state.dof.focalUV[0], state.dof.focalUV[1])
         const t = state.dof.tightness / 100
         fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
         fx.uniforms.get('maxBlur').value = 2 + (state.dof.blur / 100) * 48
-        fx.uniforms.get('colorPop').value = state.dof.colorPop / 100
         fx.uniforms.get('globalPop').value = state.dof.globalPop ? 1.0 : 0.0
       }
     }
