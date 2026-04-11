@@ -25,10 +25,13 @@ const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6Zc
 const GEMINI_API_KEY = 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'  // Gemini only — do NOT use for tiles
 const EXPOSURE = 10
 
-// ?reset=1 → clear all mapposter3d_* localStorage and reload clean
-if (new URLSearchParams(location.search).get('reset') === '1') {
-  Object.keys(localStorage).filter(k => k.startsWith('mapposter3d_')).forEach(k => localStorage.removeItem(k))
-  location.replace(location.pathname)
+// ?reset=1|true|yes → clear all mapposter3d_* localStorage and reload clean
+{
+  const _resetParam = new URLSearchParams(location.search).get('reset')
+  if (_resetParam === '1' || _resetParam === 'true' || _resetParam === 'yes') {
+    Object.keys(localStorage).filter(k => k.startsWith('mapposter3d_')).forEach(k => localStorage.removeItem(k))
+    location.replace(location.pathname)
+  }
 }
 
 const dracoLoader = new DRACOLoader()
@@ -1268,10 +1271,11 @@ function restoreSession(camera) {
       if (data.camera.fov) { camera.fov = data.camera.fov; camera.updateProjectionMatrix() }
     }
     if (data.state) {
+      // Heal black-canvas bug: if saved tod is outside safe daylight [8,18] (e.g. 0.85 from a pitch-night save), clamp to noon in-memory only — don't mutate stored session
+      if (typeof data.state.timeOfDay === 'number' && (data.state.timeOfDay < 8 || data.state.timeOfDay > 18)) {
+        data.state.timeOfDay = 12
+      }
       Object.assign(state, data.state)
-      // Clamp timeOfDay to valid sunrise/sunset range (heals stale saved values from older schemas)
-      const { sunrise, sunset } = getSunTimes(state.latitude)
-      state.timeOfDay = Math.max(sunrise + 0.5, Math.min(sunset - 0.5, state.timeOfDay))
       // Sync UI
       const todSlider = document.getElementById('tod-slider')
       if (todSlider) todSlider.value = state.timeOfDay
