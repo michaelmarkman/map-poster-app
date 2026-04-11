@@ -1246,6 +1246,8 @@
     display: grid;
     gap: 8px;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    /* Don't stretch cards to match row height — each card sizes to its own image */
+    align-items: start;
   }
   .gallery-grid.view-large { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
   .gallery-grid.view-list { grid-template-columns: 1fr; }
@@ -1265,10 +1267,12 @@
   }
   .gallery-card img {
     width: 100%;
-    aspect-ratio: 4/3;
-    object-fit: cover;
+    height: auto; /* preserve the image's natural aspect ratio */
     display: block;
     background: var(--bg-deep);
+    /* Cap very tall portrait posters so one giant card doesn't dominate the grid */
+    max-height: 70vh;
+    object-fit: contain;
   }
   .gallery-card .gc-info {
     padding: 9px 12px;
