@@ -50,8 +50,8 @@ const state = {
     on: true,
     focalUV: [0.5, 0.5],
     tightness: 70,
-    blur: 40,
-    colorPop: 50,
+    blur: 25,
+    colorPop: 60,
     globalPop: false
   }
 }
@@ -1715,6 +1715,9 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
       status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
     })
   }
+  // Clear the current selection so the user can pick something new without their old choice sticking
+  document.querySelectorAll('.ai-preset.active').forEach(b => b.classList.remove('active'))
+  if (geminiPromptEl) geminiPromptEl.value = ''
   renderQueue()
   processQueue()
 })

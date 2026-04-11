@@ -416,6 +416,8 @@
     opacity: 0.6;
   }
 </style>
+  <script type="module" crossorigin src="/assets/poster-v2-timemachine-BqXX6mEV.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/r3f-BxIZJSp6.js">
 </head>
 <body>
 
@@ -614,6 +616,8 @@
       </select>
     </div>
     <button class="export-btn" id="quick-download-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:4px;">Quick Download</button>
+    <button class="export-btn" id="render-decades-btn" style="background:transparent;border:1px solid var(--border);font-size:10px;padding:7px;margin-top:3px;font-weight:400;color:var(--text-2);">Render Decades (1900–2020)</button>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-top:3px;line-height:1.4;">Queues 13 Gemini jobs from current view. Scrubber appears when ready.</div>
     <div id="export-queue" style="margin-top:8px;"></div>
     <div id="export-status" style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--text-3);text-align:center;display:none;"></div>
   </div>
@@ -656,6 +660,25 @@
   <div class="pp-hint">drag to orbit</div>
 </div>
 
-<script type="module" src="./poster-v2.jsx"></script>
+<!-- Time Machine overlay -->
+<div id="tm-overlay" style="display:none;position:fixed;inset:0;background:rgba(9,9,11,0.96);z-index:120;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:24px;overflow-y:auto;">
+  <button id="tm-close" style="position:absolute;top:16px;right:16px;background:transparent;border:1px solid var(--border);color:var(--text-2);width:32px;height:32px;border-radius:4px;font-size:18px;cursor:pointer;">&times;</button>
+  <button id="tm-blurb-toggle" style="display:none;position:absolute;top:16px;left:16px;background:transparent;border:1px solid var(--border);color:var(--text-2);padding:6px 12px;border-radius:4px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer;">hide notes</button>
+  <div id="tm-location" style="display:none;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:1px;margin-bottom:12px;max-width:720px;text-align:center;"></div>
+  <div id="tm-image-wrap" style="display:flex;align-items:center;justify-content:center;max-width:90vw;max-height:62vh;">
+    <img id="tm-image" style="max-width:90vw;max-height:62vh;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,0.6);display:none;">
+    <div id="tm-empty" style="font-family:var(--mono);font-size:12px;color:var(--text-3);text-align:center;padding:40px;">Rendering decades...</div>
+  </div>
+  <div id="tm-year-label" style="font-family:var(--display);font-size:42px;font-weight:600;letter-spacing:6px;color:var(--text-1);margin-top:18px;">—</div>
+  <div style="display:flex;align-items:center;gap:16px;margin-top:10px;">
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);">1900</span>
+    <input id="tm-slider" type="range" min="1900" max="2020" step="10" value="2020" style="width:520px;">
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);">2020</span>
+  </div>
+  <div id="tm-progress" style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:1px;">0 / 13 rendered</div>
+  <div id="tm-blurb" style="display:none;margin-top:16px;max-width:680px;font-family:var(--body);font-size:13px;line-height:1.6;color:var(--text-2);text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;padding:16px 22px;"></div>
+  <div id="tm-status" style="display:none;margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:1px;text-align:center;max-width:620px;"></div>
+</div>
+
 </body>
 </html>
