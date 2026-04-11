@@ -1441,85 +1441,6 @@ let exportProcessing = false
 let exportNextId = 0
 const queueContainer = document.getElementById('export-queue')
 
-// Gallery: full-res images in IndexedDB, metadata in memory
-const GALLERY_DB = 'mapposter_gallery'
-const GALLERY_STORE = 'images'
-const gallery = []
-
-// IndexedDB helpers
-function openGalleryDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(GALLERY_DB, 1)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(GALLERY_STORE)) {
-        db.createObjectStore(GALLERY_STORE, { keyPath: 'id' })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function saveToGalleryDB(item) {
-  try {
-    const db = await openGalleryDB()
-    const tx = db.transaction(GALLERY_STORE, 'readwrite')
-    tx.objectStore(GALLERY_STORE).put({
-      id: item.id,
-      label: item.label,
-      filename: item.filename,
-      dataUrl: item.dataUrl,
-      time: item.time.toISOString(),
-      batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
-    })
-  } catch (e) { console.warn('[gallery] IndexedDB save failed:', e) }
-}
-
-async function loadGalleryDB() {
-  try {
-    const db = await openGalleryDB()
-    return new Promise((resolve) => {
-      const tx = db.transaction(GALLERY_STORE, 'readonly')
-      const req = tx.objectStore(GALLERY_STORE).getAll()
-      req.onsuccess = () => resolve(req.result || [])
-      req.onerror = () => resolve([])
-    })
-  } catch (e) { return [] }
-}
-
-async function deleteFromGalleryDB(id) {
-  try {
-    const db = await openGalleryDB()
-    const tx = db.transaction(GALLERY_STORE, 'readwrite')
-    tx.objectStore(GALLERY_STORE).delete(id)
-  } catch (e) {}
-}
-
-// Restore gallery from IndexedDB on load
-loadGalleryDB().then(items => {
-  items.sort((a, b) => new Date(a.time) - new Date(b.time))
-  items.forEach(item => {
-    gallery.push({
-      id: item.id,
-      label: item.label,
-      filename: item.filename,
-      dataUrl: item.dataUrl,
-      time: new Date(item.time),
-      batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
-    })
-  })
-  if (gallery.length > 0) {
-    const btn = document.getElementById('open-gallery-btn')
-    if (btn) btn.style.display = ''
-  }
-  renderGallery()
-})
-
-// Clean up old localStorage gallery data
-try { localStorage.removeItem('mapposter3d_gallery') } catch(e) {}
 
 function clearElement(el) {
   while (el.firstChild) el.removeChild(el.firstChild)
@@ -1568,14 +1489,6 @@ function renderQueue() {
       el.appendChild(remove)
     }
 
-    if (job.status === 'done' && job.resultUrl) {
-      el.style.cursor = 'pointer'
-      el.addEventListener('click', () => {
-        const gi = gallery.findIndex(g => g.dataUrl === job.resultUrl)
-        if (gi >= 0) openLightbox(gi)
-      })
-    }
-
     queueContainer.appendChild(el)
   })
 }
@@ -1585,20 +1498,6 @@ function updateJob(job, fields) {
   renderQueue()
 }
 
-function addToGallery(label, filename, dataUrl, opts = {}) {
-  const item = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-    label, filename, dataUrl,
-    time: new Date(),
-    batchId: opts.batchId || null,
-    batchLabel: opts.batchLabel || null
-  }
-  gallery.push(item)
-  saveToGalleryDB(item)
-  renderGallery()
-  const btn = document.getElementById('open-gallery-btn')
-  if (btn) btn.style.display = ''
-}
 
 function processQueue() {
   if (exportProcessing) return
@@ -1625,7 +1524,6 @@ function processQueue() {
     link.download = fname + '.png'
     link.href = snapshotUrl
     link.click()
-    addToGallery(job.label, fname, snapshotUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     exportProcessing = false
     processQueue()
@@ -1706,7 +1604,6 @@ function sendToGemini(img, job, geminiKey) {
     link.download = fname + '.png'
     link.href = dataUrl
     link.click()
-    addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     finish()
   }
@@ -1768,285 +1665,11 @@ document.getElementById('quick-download-btn')?.addEventListener('click', () => {
   link.download = fname + '.png'
   link.href = dataUrl
   link.click()
-  addToGallery('Quick', fname, dataUrl)
-})
-
-document.getElementById('generate-all-btn')?.addEventListener('click', () => {
-  const geminiKey = geminiKeyEl?.value.trim()
-  if (!geminiKey) { alert('Enter your Gemini API key first'); return }
-  const snapshot = snapshotCanvas()
-  // Create a batch — all jobs in this click share the same batchId so they group in the gallery
-  const batchId = 'batch-' + Date.now()
-  const loc = document.getElementById('location-search')?.value?.split(',')[0] || 'All Styles'
-  const batchLabel = loc + ' · All Styles'
-  for (const key in AI_PRESETS) {
-    const preset = AI_PRESETS[key]
-    const prompt = appendEffectPrompts(getPresetPrompt(key))
-    exportQueue.push({
-      id: exportNextId++, label: preset.label || key,
-      prompt, useAI: true, snapshot,
-      batchId, batchLabel,
-      status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
-    })
-  }
-  renderQueue()
-  processQueue()
-})
-
-// ─── Gallery ────────────────────────────────────────────────
-const galleryOverlay = document.getElementById('gallery-overlay')
-const galleryGrid = document.getElementById('gallery-grid')
-const galleryCount = document.getElementById('gallery-count')
-let galleryView = 'grid'
-
-// Group gallery into display entries: regular items as-is, batch items grouped.
-// Returns array of entries, each either { type: 'item', item, idx } or { type: 'batch', items: [{item, idx}], label, time }
-function buildGalleryEntries() {
-  const batches = new Map()
-  const entries = []
-  gallery.forEach((item, idx) => {
-    if (item.batchId) {
-      if (!batches.has(item.batchId)) {
-        const entry = {
-          type: 'batch',
-          batchId: item.batchId,
-          label: item.batchLabel || 'Batch',
-          items: [],
-          time: item.time
-        }
-        batches.set(item.batchId, entry)
-        entries.push(entry)
-      }
-      batches.get(item.batchId).items.push({ item, idx })
-      // Update batch time to the latest item's time
-      if (item.time > batches.get(item.batchId).time) {
-        batches.get(item.batchId).time = item.time
-      }
-    } else {
-      entries.push({ type: 'item', item, idx })
-    }
-  })
-  // Newest first
-  entries.reverse()
-  return entries
-}
-
-function renderGallery() {
-  if (!galleryGrid) return
-  clearElement(galleryGrid)
-  galleryGrid.className = 'gallery-grid' + (galleryView !== 'grid' ? ` view-${galleryView}` : '')
-  if (galleryCount) galleryCount.textContent = gallery.length + ' image' + (gallery.length !== 1 ? 's' : '')
-
-  const entries = buildGalleryEntries()
-
-  entries.forEach(entry => {
-    if (entry.type === 'item') {
-      galleryGrid.appendChild(buildGalleryCard(entry.item, entry.idx))
-    } else {
-      galleryGrid.appendChild(buildBatchCard(entry))
-    }
-  })
-}
-
-function buildGalleryCard(item, idx) {
-  const card = document.createElement('div')
-  card.className = 'gallery-card'
-  card.addEventListener('click', () => openLightbox(idx))
-
-  const img = document.createElement('img')
-  img.src = item.dataUrl
-  card.appendChild(img)
-
-  const dl = document.createElement('div')
-  dl.className = 'gc-dl'
-  dl.textContent = '\u2193'
-  dl.addEventListener('click', (e) => {
-    e.stopPropagation()
-    const link = document.createElement('a')
-    link.download = item.filename + '.png'
-    link.href = item.dataUrl
-    link.click()
-  })
-  card.appendChild(dl)
-
-  const info = document.createElement('div')
-  info.className = 'gc-info'
-  const lbl = document.createElement('span')
-  lbl.className = 'gc-label'
-  lbl.textContent = item.label
-  const tm = document.createElement('span')
-  tm.className = 'gc-time'
-  tm.textContent = item.time.getHours() + ':' + String(item.time.getMinutes()).padStart(2, '0')
-  info.appendChild(lbl)
-  info.appendChild(tm)
-  card.appendChild(info)
-  return card
-}
-
-function buildBatchCard(entry) {
-  const card = document.createElement('div')
-  card.className = 'gallery-card gallery-batch'
-  card.addEventListener('click', () => openBatchGrid(entry))
-
-  // Mosaic preview: up to 4 images in a 2x2
-  const mosaic = document.createElement('div')
-  mosaic.className = 'gc-mosaic'
-  const previews = entry.items.slice(0, 4)
-  previews.forEach(({ item }) => {
-    const im = document.createElement('img')
-    im.src = item.dataUrl
-    mosaic.appendChild(im)
-  })
-  card.appendChild(mosaic)
-
-  // Badge showing count
-  const badge = document.createElement('div')
-  badge.className = 'gc-badge'
-  badge.textContent = entry.items.length + ' styles'
-  card.appendChild(badge)
-
-  const info = document.createElement('div')
-  info.className = 'gc-info'
-  const lbl = document.createElement('span')
-  lbl.className = 'gc-label'
-  lbl.textContent = entry.label
-  const tm = document.createElement('span')
-  tm.className = 'gc-time'
-  tm.textContent = entry.time.getHours() + ':' + String(entry.time.getMinutes()).padStart(2, '0')
-  info.appendChild(lbl)
-  info.appendChild(tm)
-  card.appendChild(info)
-  return card
-}
-
-// Open a batch — show all items in the batch as a sub-grid via the existing gallery overlay
-// For simplicity: open the lightbox on the first item of the batch, with nav scoped to the batch
-function openBatchGrid(entry) {
-  if (!entry.items.length) return
-  openLightboxScoped(entry.items.map(({ idx }) => idx), 0, entry.label)
-}
-
-document.getElementById('open-gallery-btn')?.addEventListener('click', () => {
-  galleryOverlay?.classList.add('open')
-  renderGallery()
-})
-document.getElementById('gallery-close')?.addEventListener('click', () => {
-  galleryOverlay?.classList.remove('open')
-})
-
-document.querySelectorAll('.view-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.view-toggle').forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    galleryView = btn.dataset.view
-    renderGallery()
-  })
-})
-
-document.getElementById('gallery-download-all')?.addEventListener('click', () => {
-  gallery.forEach(item => {
-    const link = document.createElement('a')
-    link.download = item.filename + '.png'
-    link.href = item.dataUrl
-    link.click()
-  })
-})
-
-// ─── Lightbox ───────────────────────────────────────────────
-const lightbox = document.getElementById('lightbox')
-const lbImg = document.getElementById('lb-img')
-const lbLabel = document.getElementById('lb-label')
-let lbIdx = 0
-let lbScope = null // null = full gallery, array = scoped to these gallery indices
-let lbScopePos = 0 // position within the scoped array
-let lbScopeLabel = ''
-
-function openLightbox(idx) {
-  lbIdx = idx
-  lbScope = null
-  lbScopePos = 0
-  lbScopeLabel = ''
-  updateLightbox()
-  lightbox?.classList.add('open')
-}
-
-function openLightboxScoped(indices, startPos, label) {
-  lbScope = indices.slice()
-  lbScopePos = startPos
-  lbScopeLabel = label || ''
-  lbIdx = lbScope[lbScopePos]
-  updateLightbox()
-  lightbox?.classList.add('open')
-}
-
-function lbCanPrev() {
-  return lbScope ? lbScopePos > 0 : lbIdx > 0
-}
-function lbCanNext() {
-  return lbScope ? lbScopePos < lbScope.length - 1 : lbIdx < gallery.length - 1
-}
-function lbPrev() {
-  if (lbScope) { lbScopePos--; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx-- }
-  updateLightbox()
-}
-function lbNext() {
-  if (lbScope) { lbScopePos++; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx++ }
-  updateLightbox()
-}
-
-function updateLightbox() {
-  const item = gallery[lbIdx]
-  if (!item) return
-  if (lbImg) lbImg.src = item.dataUrl
-  if (lbLabel) {
-    const prefix = lbScopeLabel ? lbScopeLabel + ' · ' : ''
-    const pos = lbScope ? ` (${lbScopePos + 1}/${lbScope.length})` : ''
-    lbLabel.textContent = prefix + item.label + pos
-  }
-}
-
-document.getElementById('lb-close')?.addEventListener('click', () => lightbox?.classList.remove('open'))
-lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('open') })
-document.getElementById('lb-prev')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  if (lbCanPrev()) lbPrev()
-})
-document.getElementById('lb-next')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  if (lbCanNext()) lbNext()
-})
-document.getElementById('lb-download')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  const item = gallery[lbIdx]
-  if (!item) return
-  const link = document.createElement('a')
-  link.download = item.filename + '.png'
-  link.href = item.dataUrl
-  link.click()
-})
-
-// View in Frame from lightbox
-document.getElementById('lb-frame')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  const item = gallery[lbIdx]
-  if (!item) return
-  lightbox?.classList.remove('open')
-  if (window.openPosterPreview) window.openPosterPreview(item.dataUrl, item.label, lbIdx)
 })
 
 document.addEventListener('keydown', (e) => {
   if (posterPreview?.classList.contains('open')) {
     if (e.key === 'Escape') closePosterPreview()
-    if (e.key === 'ArrowLeft') ppNavigate(-1)
-    if (e.key === 'ArrowRight') ppNavigate(1)
-  } else if (lightbox?.classList.contains('open')) {
-    if (e.key === 'ArrowLeft' && lbCanPrev()) lbPrev()
-    if (e.key === 'ArrowRight' && lbCanNext()) lbNext()
-    if (e.key === 'Escape') lightbox.classList.remove('open')
-  } else if (galleryOverlay?.classList.contains('open')) {
-    if (e.key === 'Escape') galleryOverlay.classList.remove('open')
   }
 })
 
@@ -2075,7 +1698,6 @@ function updatePosterTransform() {
   }
 }
 
-let ppGalleryIdx = -1 // -1 = not from gallery (canvas capture)
 const ppScene = document.getElementById('pp-scene')
 
 function fitPosterScene(imgW, imgH) {
@@ -2112,13 +1734,12 @@ function closePosterPreview() {
   setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
 }
 
-function openPosterPreview(imageSrc, label, galleryIdx) {
+function openPosterPreview(imageSrc, label) {
   if (!posterPreview || !ppImage) return
   ppImage.src = imageSrc
   loadAndFit(imageSrc)
   if (ppLabel) ppLabel.textContent = label || ''
-  ppGalleryIdx = galleryIdx ?? -1
-  ppLiveMode = galleryIdx === undefined // live if opened from canvas, not gallery
+  ppLiveMode = true
   ppRotX = -5; ppRotY = 15
   updatePosterTransform()
   posterPreview.classList.add('open')
@@ -2187,18 +1808,6 @@ function startLiveUpdate() {
   requestAnimationFrame(tick)
 }
 
-function ppNavigate(dir) {
-  if (ppGalleryIdx < 0 || gallery.length === 0) return
-  const next = ppGalleryIdx + dir
-  if (next < 0 || next >= gallery.length) return
-  ppGalleryIdx = next
-  ppLiveMode = false
-  const item = gallery[ppGalleryIdx]
-  if (ppImage) ppImage.src = item.dataUrl
-  loadAndFit(item.dataUrl)
-  if (ppLabel) ppLabel.textContent = item.label
-}
-
 // Open from canvas
 document.getElementById('poster-3d-btn')?.addEventListener('click', () => {
   const canvas = document.querySelector('#r3f-root canvas')
@@ -2255,5 +1864,3 @@ window.addEventListener('pointerup', () => {
   requestAnimationFrame(coast)
 })
 
-// Also allow opening from gallery lightbox — expose globally
-window.openPosterPreview = openPosterPreview

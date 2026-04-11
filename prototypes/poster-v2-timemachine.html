@@ -258,106 +258,6 @@
   @keyframes qi-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
   .queue-item.qi-active .qi-status { animation: qi-pulse 2s ease infinite; color: var(--copper); }
 
-  /* ═══ Gallery ═══ */
-  #gallery-overlay {
-    position: fixed; inset: 0; z-index: 200; display: none;
-    background: rgba(9,9,11,0.94); backdrop-filter: blur(32px) saturate(1.1);
-    flex-direction: column;
-  }
-  #gallery-overlay.open { display: flex; }
-
-  .gallery-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 28px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-  }
-  .gallery-title {
-    font-family: var(--display); font-size: 20px; font-weight: 600; color: var(--text-1);
-  }
-  .gallery-count {
-    font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-left: 10px;
-  }
-  .gallery-actions { display: flex; gap: 6px; align-items: center; }
-
-  .gallery-btn {
-    padding: 5px 12px; border-radius: 3px; border: 1px solid var(--border);
-    background: transparent; color: var(--text-2); font-size: 10px;
-    font-family: var(--body); cursor: pointer; transition: all 0.2s;
-  }
-  .gallery-btn:hover { border-color: var(--border-hover); color: var(--text-1); }
-  .gallery-btn.accent { border-color: var(--copper); color: var(--copper); }
-  .gallery-btn.accent:hover { background: var(--copper-dim); }
-
-  .gallery-close {
-    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-    border-radius: 3px; border: none; background: transparent; color: var(--text-3);
-    font-size: 16px; cursor: pointer; transition: all 0.2s;
-  }
-  .gallery-close:hover { background: var(--bg-hover); color: var(--text-1); }
-
-  .gallery-body { flex: 1; overflow: auto; padding: 20px 28px; }
-
-  .gallery-grid {
-    display: grid; gap: 6px;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  }
-  .gallery-grid.view-large { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
-  .gallery-grid.view-list { grid-template-columns: 1fr; }
-
-  .gallery-card {
-    position: relative; border-radius: 3px; overflow: hidden;
-    background: var(--bg-surface); border: 1px solid var(--border);
-    cursor: pointer; transition: all 0.25s ease;
-  }
-  .gallery-card:hover { border-color: rgba(196,149,106,0.3); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-  .gallery-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--bg-deep); }
-  .gallery-card .gc-info {
-    padding: 7px 10px; display: flex; justify-content: space-between; align-items: center;
-  }
-  .gallery-card .gc-label { font-size: 10px; color: var(--text-2); }
-  .gallery-card .gc-time { font-family: var(--mono); font-size: 9px; color: var(--text-3); }
-  .gallery-card .gc-dl {
-    position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
-    border-radius: 3px; background: rgba(9,9,11,0.7); backdrop-filter: blur(8px);
-    border: 1px solid var(--border); color: var(--text-2);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; cursor: pointer; opacity: 0; transition: opacity 0.2s;
-  }
-  .gallery-card:hover .gc-dl { opacity: 1; }
-  .gallery-card .gc-dl:hover { background: var(--copper); color: var(--bg-deep); border-color: var(--copper); }
-
-  .view-toggles {
-    display: flex; gap: 1px; background: var(--bg-raised); border-radius: 3px;
-    padding: 2px; border: 1px solid var(--border);
-  }
-  .view-toggle {
-    padding: 3px 10px; border-radius: 2px; border: none; background: transparent;
-    color: var(--text-3); font-size: 10px; font-family: var(--mono);
-    cursor: pointer; transition: all 0.15s;
-  }
-  .view-toggle.active { background: var(--bg-hover); color: var(--text-1); }
-
-  /* ═══ Lightbox ═══ */
-  #lightbox {
-    position: fixed; inset: 0; z-index: 300; display: none;
-    background: rgba(0,0,0,0.96); align-items: center; justify-content: center;
-    flex-direction: column;
-  }
-  #lightbox.open { display: flex; }
-  #lightbox img { max-width: 90vw; max-height: 80vh; border-radius: 2px; object-fit: contain; }
-  .lb-label { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 14px; letter-spacing: 0.5px; }
-  .lb-nav {
-    position: absolute; top: 50%; width: 36px; height: 36px; border-radius: 3px;
-    background: var(--bg-raised); border: 1px solid var(--border);
-    color: var(--text-2); font-size: 16px; cursor: pointer; display: flex;
-    align-items: center; justify-content: center; transform: translateY(-50%);
-    transition: all 0.2s;
-  }
-  .lb-nav:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-hover); }
-  .lb-nav.prev { left: 20px; }
-  .lb-nav.next { right: 20px; }
-  .lb-close { position: absolute; top: 16px; right: 16px; }
-  .lb-download { position: absolute; top: 16px; right: 56px; }
-
   /* ═══ Status ═══ */
   #status {
     position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
@@ -394,7 +294,7 @@
   #api-key-prompt a:hover { text-decoration: underline; }
 
   /* ═══ Transitions ═══ */
-  .sidebar-section, .toggle, .text-input, .gallery-card, .queue-item {
+  .sidebar-section, .toggle, .text-input, .queue-item {
     transition-property: background, border-color, opacity, transform;
     transition-duration: 0.2s;
     transition-timing-function: ease;
@@ -714,11 +614,9 @@
       </select>
     </div>
     <button class="export-btn" id="quick-download-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:4px;">Quick Download</button>
-    <button class="export-btn" id="generate-all-btn" style="background:transparent;border:1px solid var(--border);font-size:10px;padding:7px;margin-top:3px;font-weight:400;color:var(--text-3);">Generate All Styles</button>
     <button class="export-btn" id="render-decades-btn" style="background:transparent;border:1px solid var(--border);font-size:10px;padding:7px;margin-top:3px;font-weight:400;color:var(--text-2);">Render Decades (1900–2020)</button>
     <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-top:3px;line-height:1.4;">Queues 13 Gemini jobs from current view. Scrubber appears when ready.</div>
     <div id="export-queue" style="margin-top:8px;"></div>
-    <button class="gallery-btn accent" id="open-gallery-btn" style="width:100%;margin-top:6px;display:none;padding:7px;font-size:10px;">Open Gallery</button>
     <div id="export-status" style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--text-3);text-align:center;display:none;"></div>
   </div>
 </div>
@@ -744,38 +642,6 @@
   </div>
 </div>
 
-<!-- Gallery -->
-<div id="gallery-overlay">
-  <div class="gallery-header">
-    <div style="display:flex;align-items:baseline;gap:10px;">
-      <span class="gallery-title">Gallery</span>
-      <span class="gallery-count" id="gallery-count">0 images</span>
-    </div>
-    <div class="gallery-actions">
-      <div class="view-toggles">
-        <button class="view-toggle active" data-view="grid">Grid</button>
-        <button class="view-toggle" data-view="large">Large</button>
-        <button class="view-toggle" data-view="list">List</button>
-      </div>
-      <button class="gallery-btn accent" id="gallery-download-all">Download All</button>
-      <button class="gallery-close" id="gallery-close">&times;</button>
-    </div>
-  </div>
-  <div class="gallery-body">
-    <div class="gallery-grid" id="gallery-grid"></div>
-  </div>
-</div>
-
-<!-- Lightbox -->
-<div id="lightbox">
-  <button class="lb-nav prev" id="lb-prev">&lsaquo;</button>
-  <button class="lb-nav next" id="lb-next">&rsaquo;</button>
-  <button class="gallery-close lb-close" id="lb-close">&times;</button>
-  <button class="gallery-btn lb-download" id="lb-frame" style="right:130px;">View in Frame</button>
-  <button class="gallery-btn accent lb-download" id="lb-download">Download</button>
-  <img id="lb-img" src="">
-  <div class="lb-label" id="lb-label"></div>
-</div>
 
 <!-- 3D Poster Preview -->
 <div id="poster-preview">

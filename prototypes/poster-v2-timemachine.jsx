@@ -1637,81 +1637,6 @@ let exportProcessing = false
 let exportNextId = 0
 const queueContainer = document.getElementById('export-queue')
 
-// Gallery: full-res images in IndexedDB, metadata in memory
-const GALLERY_DB = 'mapposter_gallery'
-const GALLERY_STORE = 'images'
-const gallery = []
-
-// IndexedDB helpers
-function openGalleryDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(GALLERY_DB, 1)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(GALLERY_STORE)) {
-        db.createObjectStore(GALLERY_STORE, { keyPath: 'id' })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function saveToGalleryDB(item) {
-  try {
-    const db = await openGalleryDB()
-    const tx = db.transaction(GALLERY_STORE, 'readwrite')
-    tx.objectStore(GALLERY_STORE).put({
-      id: item.id,
-      label: item.label,
-      filename: item.filename,
-      dataUrl: item.dataUrl,
-      time: item.time.toISOString()
-    })
-  } catch (e) { console.warn('[gallery] IndexedDB save failed:', e) }
-}
-
-async function loadGalleryDB() {
-  try {
-    const db = await openGalleryDB()
-    return new Promise((resolve) => {
-      const tx = db.transaction(GALLERY_STORE, 'readonly')
-      const req = tx.objectStore(GALLERY_STORE).getAll()
-      req.onsuccess = () => resolve(req.result || [])
-      req.onerror = () => resolve([])
-    })
-  } catch (e) { return [] }
-}
-
-async function deleteFromGalleryDB(id) {
-  try {
-    const db = await openGalleryDB()
-    const tx = db.transaction(GALLERY_STORE, 'readwrite')
-    tx.objectStore(GALLERY_STORE).delete(id)
-  } catch (e) {}
-}
-
-// Restore gallery from IndexedDB on load
-loadGalleryDB().then(items => {
-  items.sort((a, b) => new Date(a.time) - new Date(b.time))
-  items.forEach(item => {
-    gallery.push({
-      id: item.id,
-      label: item.label,
-      filename: item.filename,
-      dataUrl: item.dataUrl,
-      time: new Date(item.time)
-    })
-  })
-  if (gallery.length > 0) {
-    const btn = document.getElementById('open-gallery-btn')
-    if (btn) btn.style.display = ''
-  }
-  renderGallery()
-})
-
-// Clean up old localStorage gallery data
-try { localStorage.removeItem('mapposter3d_gallery') } catch(e) {}
 
 function clearElement(el) {
   while (el.firstChild) el.removeChild(el.firstChild)
@@ -1760,14 +1685,6 @@ function renderQueue() {
       el.appendChild(remove)
     }
 
-    if (job.status === 'done' && job.resultUrl) {
-      el.style.cursor = 'pointer'
-      el.addEventListener('click', () => {
-        const gi = gallery.findIndex(g => g.dataUrl === job.resultUrl)
-        if (gi >= 0) openLightbox(gi)
-      })
-    }
-
     queueContainer.appendChild(el)
   })
 }
@@ -1777,14 +1694,6 @@ function updateJob(job, fields) {
   renderQueue()
 }
 
-function addToGallery(label, filename, dataUrl) {
-  const item = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), label, filename, dataUrl, time: new Date() }
-  gallery.push(item)
-  saveToGalleryDB(item)
-  renderGallery()
-  const btn = document.getElementById('open-gallery-btn')
-  if (btn) btn.style.display = ''
-}
 
 function processQueue() {
   if (exportProcessing) return
@@ -1811,7 +1720,6 @@ function processQueue() {
     link.download = fname + '.png'
     link.href = snapshotUrl
     link.click()
-    addToGallery(job.label, fname, snapshotUrl)
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     exportProcessing = false
     processQueue()
@@ -1889,14 +1797,13 @@ function sendToGemini(img, job, geminiKey) {
     const fname = buildFilename(job.label)
     job.resultUrl = dataUrl
     // Skip auto-download for time machine jobs to avoid spamming 13 files;
-    // user can still download any decade from the gallery or scrubber.
+    // download is available from the scrubber.
     if (job.setId == null) {
       const link = document.createElement('a')
       link.download = fname + '.png'
       link.href = dataUrl
       link.click()
     }
-    addToGallery(job.label, fname, dataUrl)
     if (job.setId != null && job.decade != null) {
       if (!timeMachineSets[job.setId]) timeMachineSets[job.setId] = { images: {}, research: {} }
       if (!timeMachineSets[job.setId].images) timeMachineSets[job.setId].images = {}
@@ -1964,24 +1871,6 @@ document.getElementById('quick-download-btn')?.addEventListener('click', () => {
   link.download = fname + '.png'
   link.href = dataUrl
   link.click()
-  addToGallery('Quick', fname, dataUrl)
-})
-
-document.getElementById('generate-all-btn')?.addEventListener('click', () => {
-  const geminiKey = geminiKeyEl?.value.trim()
-  if (!geminiKey) { alert('Enter your Gemini API key first'); return }
-  const snapshot = snapshotCanvas()
-  for (const key in AI_PRESETS) {
-    const preset = AI_PRESETS[key]
-    const prompt = appendEffectPrompts(getPresetPrompt(key))
-    exportQueue.push({
-      id: exportNextId++, label: preset.label || key,
-      prompt, useAI: true, snapshot,
-      status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
-    })
-  }
-  renderQueue()
-  processQueue()
 })
 
 // ─── Time Machine ───────────────────────────────────────────
@@ -2146,141 +2035,9 @@ document.getElementById('render-decades-btn')?.addEventListener('click', async (
   processQueue()
 })
 
-// ─── Gallery ────────────────────────────────────────────────
-const galleryOverlay = document.getElementById('gallery-overlay')
-const galleryGrid = document.getElementById('gallery-grid')
-const galleryCount = document.getElementById('gallery-count')
-let galleryView = 'grid'
-
-function renderGallery() {
-  if (!galleryGrid) return
-  clearElement(galleryGrid)
-  galleryGrid.className = 'gallery-grid' + (galleryView !== 'grid' ? ` view-${galleryView}` : '')
-  if (galleryCount) galleryCount.textContent = gallery.length + ' image' + (gallery.length !== 1 ? 's' : '')
-
-  // Display newest first — use original indices for lightbox
-  const displayItems = gallery.map((item, idx) => ({ item, idx })).slice().reverse()
-
-  displayItems.forEach(({ item, idx }) => {
-    const card = document.createElement('div')
-    card.className = 'gallery-card'
-    card.addEventListener('click', () => openLightbox(idx))
-
-    const img = document.createElement('img')
-    img.src = item.dataUrl
-    card.appendChild(img)
-
-    const dl = document.createElement('div')
-    dl.className = 'gc-dl'
-    dl.textContent = '\u2193'
-    dl.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const link = document.createElement('a')
-      link.download = item.filename + '.png'
-      link.href = item.dataUrl
-      link.click()
-    })
-    card.appendChild(dl)
-
-    const info = document.createElement('div')
-    info.className = 'gc-info'
-    const lbl = document.createElement('span')
-    lbl.className = 'gc-label'
-    lbl.textContent = item.label
-    const tm = document.createElement('span')
-    tm.className = 'gc-time'
-    tm.textContent = item.time.getHours() + ':' + String(item.time.getMinutes()).padStart(2, '0')
-    info.appendChild(lbl)
-    info.appendChild(tm)
-    card.appendChild(info)
-    galleryGrid.appendChild(card)
-  })
-}
-
-document.getElementById('open-gallery-btn')?.addEventListener('click', () => {
-  galleryOverlay?.classList.add('open')
-  renderGallery()
-})
-document.getElementById('gallery-close')?.addEventListener('click', () => {
-  galleryOverlay?.classList.remove('open')
-})
-
-document.querySelectorAll('.view-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.view-toggle').forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    galleryView = btn.dataset.view
-    renderGallery()
-  })
-})
-
-document.getElementById('gallery-download-all')?.addEventListener('click', () => {
-  gallery.forEach(item => {
-    const link = document.createElement('a')
-    link.download = item.filename + '.png'
-    link.href = item.dataUrl
-    link.click()
-  })
-})
-
-// ─── Lightbox ───────────────────────────────────────────────
-const lightbox = document.getElementById('lightbox')
-const lbImg = document.getElementById('lb-img')
-const lbLabel = document.getElementById('lb-label')
-let lbIdx = 0
-
-function openLightbox(idx) {
-  lbIdx = idx
-  updateLightbox()
-  lightbox?.classList.add('open')
-}
-function updateLightbox() {
-  const item = gallery[lbIdx]
-  if (!item) return
-  if (lbImg) lbImg.src = item.dataUrl
-  if (lbLabel) lbLabel.textContent = item.label
-}
-
-document.getElementById('lb-close')?.addEventListener('click', () => lightbox?.classList.remove('open'))
-lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('open') })
-document.getElementById('lb-prev')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  if (lbIdx > 0) { lbIdx--; updateLightbox() }
-})
-document.getElementById('lb-next')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  if (lbIdx < gallery.length - 1) { lbIdx++; updateLightbox() }
-})
-document.getElementById('lb-download')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  const item = gallery[lbIdx]
-  if (!item) return
-  const link = document.createElement('a')
-  link.download = item.filename + '.png'
-  link.href = item.dataUrl
-  link.click()
-})
-
-// View in Frame from lightbox
-document.getElementById('lb-frame')?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  const item = gallery[lbIdx]
-  if (!item) return
-  lightbox?.classList.remove('open')
-  if (window.openPosterPreview) window.openPosterPreview(item.dataUrl, item.label, lbIdx)
-})
-
 document.addEventListener('keydown', (e) => {
   if (posterPreview?.classList.contains('open')) {
     if (e.key === 'Escape') closePosterPreview()
-    if (e.key === 'ArrowLeft') ppNavigate(-1)
-    if (e.key === 'ArrowRight') ppNavigate(1)
-  } else if (lightbox?.classList.contains('open')) {
-    if (e.key === 'ArrowLeft' && lbIdx > 0) { lbIdx--; updateLightbox() }
-    if (e.key === 'ArrowRight' && lbIdx < gallery.length - 1) { lbIdx++; updateLightbox() }
-    if (e.key === 'Escape') lightbox.classList.remove('open')
-  } else if (galleryOverlay?.classList.contains('open')) {
-    if (e.key === 'Escape') galleryOverlay.classList.remove('open')
   }
 })
 
@@ -2309,7 +2066,6 @@ function updatePosterTransform() {
   }
 }
 
-let ppGalleryIdx = -1 // -1 = not from gallery (canvas capture)
 const ppScene = document.getElementById('pp-scene')
 
 function fitPosterScene(imgW, imgH) {
@@ -2346,13 +2102,12 @@ function closePosterPreview() {
   setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
 }
 
-function openPosterPreview(imageSrc, label, galleryIdx) {
+function openPosterPreview(imageSrc, label) {
   if (!posterPreview || !ppImage) return
   ppImage.src = imageSrc
   loadAndFit(imageSrc)
   if (ppLabel) ppLabel.textContent = label || ''
-  ppGalleryIdx = galleryIdx ?? -1
-  ppLiveMode = galleryIdx === undefined // live if opened from canvas, not gallery
+  ppLiveMode = true
   ppRotX = -5; ppRotY = 15
   updatePosterTransform()
   posterPreview.classList.add('open')
@@ -2421,18 +2176,6 @@ function startLiveUpdate() {
   requestAnimationFrame(tick)
 }
 
-function ppNavigate(dir) {
-  if (ppGalleryIdx < 0 || gallery.length === 0) return
-  const next = ppGalleryIdx + dir
-  if (next < 0 || next >= gallery.length) return
-  ppGalleryIdx = next
-  ppLiveMode = false
-  const item = gallery[ppGalleryIdx]
-  if (ppImage) ppImage.src = item.dataUrl
-  loadAndFit(item.dataUrl)
-  if (ppLabel) ppLabel.textContent = item.label
-}
-
 // Open from canvas
 document.getElementById('poster-3d-btn')?.addEventListener('click', () => {
   const canvas = document.querySelector('#r3f-root canvas')
@@ -2489,5 +2232,3 @@ window.addEventListener('pointerup', () => {
   requestAnimationFrame(coast)
 })
 
-// Also allow opening from gallery lightbox — expose globally
-window.openPosterPreview = openPosterPreview
