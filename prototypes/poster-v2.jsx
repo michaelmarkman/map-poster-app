@@ -21,8 +21,11 @@ import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospat
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
 
 // ─── Config ──────────────────────────────────────────────────
-const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — do NOT use for Gemini
-const GEMINI_API_KEY = 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'  // Gemini only — do NOT use for tiles
+const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — client-side OK; do NOT use for Gemini
+
+// One-time cleanup: an earlier build cached a Gemini key in localStorage.
+// That key now lives server-side in /api/gemini — purge any stale local copies.
+try { localStorage.removeItem('mapposter3d_gemini_key') } catch (e) {}
 const EXPOSURE = 10
 
 // ?reset=1|true|yes → clear all mapposter3d_* localStorage and reload clean
@@ -1289,7 +1292,6 @@ function _doSave(camera) {
       ui: {
         aiEnhance: !!document.getElementById('toggle-ai-enhance')?.classList.contains('on'),
         textOverlay: !!document.getElementById('toggle-text-overlay')?.classList.contains('on'),
-        geminiKey: document.getElementById('gemini-api-key')?.value || '',
         geminiPrompt: document.getElementById('gemini-prompt')?.value || '',
         exportRes: document.getElementById('export-res')?.value || '2',
         location: document.getElementById('location-search')?.value || '',
@@ -1364,9 +1366,7 @@ function restoreSession(camera) {
       const textToggle = document.getElementById('toggle-text-overlay')
       const textOverlay = document.getElementById('text-overlay')
       if (textToggle && u.textOverlay) { textToggle.classList.add('on'); if (textOverlay) textOverlay.style.display = 'block' }
-      // Gemini key & prompt
-      const keyEl = document.getElementById('gemini-api-key')
-      if (keyEl && u.geminiKey) keyEl.value = u.geminiKey
+      // Gemini prompt
       const promptEl = document.getElementById('gemini-prompt')
       if (promptEl && u.geminiPrompt) promptEl.value = u.geminiPrompt
       // Export res
@@ -1431,13 +1431,7 @@ const PRESET_CATEGORIES = {
 }
 
 // Wire AI presets
-const geminiKeyEl = document.getElementById('gemini-api-key')
 const geminiPromptEl = document.getElementById('gemini-prompt')
-const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || GEMINI_API_KEY
-if (geminiKeyEl) geminiKeyEl.value = cachedGeminiKey
-if (geminiKeyEl) geminiKeyEl.addEventListener('change', function () {
-  localStorage.setItem('mapposter3d_gemini_key', this.value.trim())
-})
 
 document.querySelectorAll('.ai-preset').forEach(btn => {
   btn.addEventListener('click', function () {
@@ -1592,24 +1586,16 @@ function processQueue() {
     return
   }
 
-  const geminiKey = geminiKeyEl?.value.trim()
-  if (!geminiKey) {
-    updateJob(job, { status: 'error', statusText: 'No API key' })
-    exportProcessing = false
-    processQueue()
-    return
-  }
-
   updateJob(job, { statusText: 'AI enhancing...', progress: 25 })
 
   // Load the snapshot into an Image to scale it down for Gemini
   const img = new Image()
-  img.onload = () => sendToGemini(img, job, geminiKey)
+  img.onload = () => sendToGemini(img, job)
   img.onerror = () => { updateJob(job, { status: 'error', statusText: 'Snapshot load failed' }); exportProcessing = false; processQueue() }
   img.src = snapshotUrl
 }
 
-function sendToGemini(img, job, geminiKey) {
+function sendToGemini(img, job) {
   const maxDim = 1024
   const srcW = img.naturalWidth, srcH = img.naturalHeight
   const scl = Math.min(1, maxDim / Math.max(srcW, srcH))
@@ -1629,7 +1615,7 @@ function sendToGemini(img, job, geminiKey) {
 
   const xhr = new XMLHttpRequest()
   xhr.timeout = 120000
-  xhr.open('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${geminiKey}`, true)
+  xhr.open('POST', '/api/gemini?model=gemini-3.1-flash-image-preview', true)
   xhr.setRequestHeader('Content-Type', 'application/json')
 
   const pulseInterval = setInterval(() => {
