@@ -21,7 +21,8 @@ import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospat
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
 
 // ─── Config ──────────────────────────────────────────────────
-const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
+const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — do NOT use for Gemini
+const GEMINI_API_KEY = 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'  // Gemini only — do NOT use for tiles
 const EXPOSURE = 10
 
 const dracoLoader = new DRACOLoader()
@@ -1371,7 +1372,7 @@ const PRESET_CATEGORIES = {
 // Wire AI presets
 const geminiKeyEl = document.getElementById('gemini-api-key')
 const geminiPromptEl = document.getElementById('gemini-prompt')
-const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'
+const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || GEMINI_API_KEY
 if (geminiKeyEl) geminiKeyEl.value = cachedGeminiKey
 if (geminiKeyEl) geminiKeyEl.addEventListener('change', function () {
   localStorage.setItem('mapposter3d_gemini_key', this.value.trim())
