@@ -1000,6 +1000,40 @@ function FovListener() {
   return null
 }
 
+// ─── Subject coordinate listener ────────────────────────────
+// Raycasts from the center of the screen to find what the camera is actually
+// looking at (the subject), then converts the hit point to lat/lng. Consumed
+// by the Time Machine research call so it researches the subject, not the
+// camera's own GPS position (which can be far off-axis in a tilted view).
+function SubjectListener() {
+  const { camera, scene } = useThree()
+  const raycaster = useRef(new RaycasterClass())
+  const centerNDC = useRef(new Vector2(0, 0))
+
+  useEffect(() => {
+    const handler = (e) => {
+      const resolve = e.detail?.resolve
+      if (!resolve) return
+      raycaster.current.setFromCamera(centerNDC.current, camera)
+      const hits = raycaster.current.intersectObjects(scene.children, true)
+      if (!hits.length) { resolve(null); return }
+      try {
+        const geo = new Geodetic().setFromECEF(hits[0].point)
+        resolve({
+          lat: geo.latitude * 180 / Math.PI,
+          lng: geo.longitude * 180 / Math.PI,
+        })
+      } catch (err) {
+        resolve(null)
+      }
+    }
+    window.addEventListener('get-subject-coords', handler)
+    return () => window.removeEventListener('get-subject-coords', handler)
+  }, [camera, scene])
+
+  return null
+}
+
 // ─── Saved Views (R3F component — has camera access) ────────
 const VIEWS_KEY = 'mapposter3d_v2_views'
 
@@ -1188,6 +1222,7 @@ function App() {
     <Canvas dpr={2} gl={{ depth: false, preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }}>
       <Scene />
       <FovListener />
+      <SubjectListener />
       <SavedViewsHandler />
       <WasdFly />
     </Canvas>
@@ -1368,6 +1403,167 @@ const PRESET_CATEGORIES = {
   art: 'Art Styles'
 }
 
+// ─── Time Machine decades ───────────────────────────────────
+const DECADES = [1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
+
+// Per-decade style fallback used when research isn't available (network / API error).
+// When research IS available it takes precedence — these are only generic era cues.
+const DECADE_STYLE_FALLBACK = {
+  1900: 'Sepia-toned Edwardian era: horse-drawn wagons, gas street lamps, cobblestone streets, pedestrians in long coats and hats, coal-smoke haze, hand-painted signs.',
+  1910: 'Early monochrome photo: Model T automobiles mixing with horse carts, early electric lamps, bowler hats and long dresses, muted brown-grey palette.',
+  1920: 'Roaring twenties: vintage boxy automobiles, art deco marquees, flappers and fedoras, warm sepia-amber film tint, early neon signs.',
+  1930: 'Great Depression era: desaturated palette, streamline moderne details, fewer cars, art deco signage, overcast grey-brown tone, wool suits and flat caps.',
+  1940: 'WWII wartime: khaki and olive tones, 1940s sedans, wartime fashion, propaganda posters, desaturated warm film stock.',
+  1950: 'Post-war boom: chrome-heavy Cadillacs, neon diner signs, saturated Kodachrome palette, men in hats and women in swing dresses, sunny tone.',
+  1960: 'Mid-century mod: muscle cars and station wagons, vibrant Kodachrome color, crisp signage, tree-lined streets, bright blue sky.',
+  1970: 'Faded Kodak look: warm amber cast, boxy 70s sedans in browns and yellows, bell-bottoms, disco-era signage, hazy smoggy air.',
+  1980: 'Neon 1980s: boxy sedans, bright neon signs, VHS saturation, pastel awnings, slightly hazy urban air.',
+  1990: 'Early 90s film stock: minivans and boxy sedans, desaturated natural palette, grunge fashion, muted greens and browns.',
+  2000: 'Early digital photography: SUVs and sedans, Y2K signage, cooler color temperature, no smartphones, crisp daylight.',
+  2010: 'Smartphone era: modern sedans and hybrids, LED street lighting appearing, glass storefronts, contemporary digital photo look.',
+  2020: 'Present day: modern vehicles including electric cars, LED lighting throughout, HDR digital photo, sharp daylight, modern casual wear.',
+}
+
+function buildDecadePrompt(year, researchBlurb) {
+  // IMPORTANT: camera-lock instructions MUST come first. If the "transform" or "replace"
+  // language is the lede, the image model reads it as permission to re-frame the shot.
+  let prompt =
+      `STRICT CAMERA LOCK — read this before anything else.\n`
+    + `This is an oblique aerial photograph taken from a very specific camera position, altitude, tilt, heading, and field of view. `
+    + `Your output MUST use the IDENTICAL camera as the input: same position, same altitude, same tilt angle, same heading, same FOV, same crop. `
+    + `The horizon line must be at the exact same height in the frame. Vanishing points must land in the exact same places. `
+    + `The four edges of the frame must show the exact same geographic extent. `
+    + `The street grid — streets, intersections, curves, block shapes — must remain in the EXACT same pixel positions. `
+    + `Do not rotate, pan, tilt, zoom, dolly, or re-crop. Do not change the perspective. Do not flatten or exaggerate the tilt. `
+    + `If in doubt, copy the geometry of the input image pixel-for-pixel and only change surface appearance. `
+    + `\n\n`
+    + `WITHIN that locked camera, restyle the scene to show this EXACT location as it appeared in the ${year}s. `
+    + `Buildings that DID exist in the ${year}s: restyle their surface appearance to match the era (period materials, colors, signage, weathering). `
+    + `Keep their footprint and height unchanged. `
+    + `Buildings that did NOT exist in the ${year}s: replace IN PLACE — their footprint in the frame stays the same, but show what was historically there `
+    + `(empty lot, farmland, earlier and shorter structure, tenement, etc). The replacement must sit at the same spot in the frame and match the surrounding ground plane. `
+    + `Apply ${year}s-appropriate street-level vehicles, lighting, vegetation, atmospheric tone, and film-stock color grading. `
+    + `Do not add text, labels, captions, or watermarks.`
+
+  if (researchBlurb && researchBlurb.trim()) {
+    prompt += `\n\nHistorical context for this exact site in the ${year}s:\n${researchBlurb.trim()}\n\n`
+            + `Apply this historical description WITHIN the locked camera framing described above. `
+            + `Composition is non-negotiable; the historical content fills it.`
+  } else {
+    prompt += `\n\nStyle cues for the ${year}s: ${DECADE_STYLE_FALLBACK[year] || ''}`
+  }
+  return prompt
+}
+
+// timeMachineSets[setId] = { images: { [decade]: dataUrl }, research: { [decade]: text }, location: string }
+const timeMachineSets = {}
+let activeTimeMachineSetId = null
+let nextTimeMachineSetId = 0
+let tmBlurbVisible = true
+
+async function researchDecades(lat, lng) {
+  const geminiKey = geminiKeyEl?.value.trim()
+  if (!geminiKey) throw new Error('No API key')
+
+  // Reverse geocode to enrich the prompt with address/neighborhood/city.
+  let address = '', neighborhood = '', city = '', country = ''
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18`,
+      { headers: { 'User-Agent': 'MapPoster/1.0' } }
+    )
+    const data = await r.json()
+    const addr = data.address || {}
+    address = data.display_name || ''
+    neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || ''
+    city = addr.city || addr.town || addr.municipality || ''
+    country = addr.country || ''
+  } catch (e) { /* geocode is best-effort */ }
+
+  const locHeader = address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+
+  const prompt = `Research what was at this exact location in each decade from 1900 to 2020.
+
+Coordinates: ${lat.toFixed(5)}, ${lng.toFixed(5)}
+Address (reverse-geocoded): ${address || 'unknown'}
+Neighborhood: ${neighborhood || 'unknown'}
+City: ${city || 'unknown'}
+Country: ${country || 'unknown'}
+
+For each decade (1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020), write 3-4 sentences describing:
+- What buildings, lots, or land use occupied this exact spot (or the nearest matching block)
+- Era-appropriate street life, vehicles, vegetation, atmosphere
+- If the current building did not exist yet, explicitly say what was there instead (empty lot, farmland, tenement, older structure, etc)
+- Notable neighborhood character from that decade
+
+Use search grounding to find historical records. If you cannot find the specific site, describe the neighborhood as it was in that decade.
+
+Respond ONLY with a JSON object in this exact form, with no markdown code fences, no preface, and no trailing text:
+
+{
+  "1900": "...",
+  "1910": "...",
+  "1920": "...",
+  "1930": "...",
+  "1940": "...",
+  "1950": "...",
+  "1960": "...",
+  "1970": "...",
+  "1980": "...",
+  "1990": "...",
+  "2000": "...",
+  "2010": "...",
+  "2020": "..."
+}`
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+  }
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+  )
+
+  if (!res.ok) {
+    let msg = `Research API error ${res.status}`
+    try { const err = await res.json(); msg = err.error?.message?.substring(0, 200) || msg } catch(e) {}
+    throw new Error(msg)
+  }
+
+  const data = await res.json()
+  let text = ''
+  for (const cand of (data.candidates || [])) {
+    for (const part of (cand.content?.parts || [])) {
+      if (part.text) text += part.text
+    }
+  }
+
+  // Strip markdown code fences if Gemini ignored the instruction and wrapped the JSON.
+  text = text.trim()
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+  }
+  // If there's any prose before/after the JSON object, try to extract the braced block.
+  const firstBrace = text.indexOf('{')
+  const lastBrace = text.lastIndexOf('}')
+  if (firstBrace > 0 || lastBrace < text.length - 1) {
+    if (firstBrace >= 0 && lastBrace > firstBrace) text = text.slice(firstBrace, lastBrace + 1)
+  }
+
+  let parsed
+  try { parsed = JSON.parse(text) }
+  catch (e) { throw new Error('Could not parse research response: ' + text.substring(0, 120)) }
+
+  // Normalize — accept numeric or string keys, with or without 's' suffix
+  const normalized = {}
+  for (const year of DECADES) {
+    normalized[year] = parsed[year] || parsed[String(year)] || parsed[`${year}s`] || ''
+  }
+  return { research: normalized, location: locHeader }
+}
+
 // Wire AI presets
 const geminiKeyEl = document.getElementById('gemini-api-key')
 const geminiPromptEl = document.getElementById('gemini-prompt')
@@ -1470,9 +1666,7 @@ async function saveToGalleryDB(item) {
       label: item.label,
       filename: item.filename,
       dataUrl: item.dataUrl,
-      time: item.time.toISOString(),
-      batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
+      time: item.time.toISOString()
     })
   } catch (e) { console.warn('[gallery] IndexedDB save failed:', e) }
 }
@@ -1506,9 +1700,7 @@ loadGalleryDB().then(items => {
       label: item.label,
       filename: item.filename,
       dataUrl: item.dataUrl,
-      time: new Date(item.time),
-      batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
+      time: new Date(item.time)
     })
   })
   if (gallery.length > 0) {
@@ -1585,14 +1777,8 @@ function updateJob(job, fields) {
   renderQueue()
 }
 
-function addToGallery(label, filename, dataUrl, opts = {}) {
-  const item = {
-    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-    label, filename, dataUrl,
-    time: new Date(),
-    batchId: opts.batchId || null,
-    batchLabel: opts.batchLabel || null
-  }
+function addToGallery(label, filename, dataUrl) {
+  const item = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), label, filename, dataUrl, time: new Date() }
   gallery.push(item)
   saveToGalleryDB(item)
   renderGallery()
@@ -1625,7 +1811,7 @@ function processQueue() {
     link.download = fname + '.png'
     link.href = snapshotUrl
     link.click()
-    addToGallery(job.label, fname, snapshotUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    addToGallery(job.label, fname, snapshotUrl)
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     exportProcessing = false
     processQueue()
@@ -1702,11 +1888,21 @@ function sendToGemini(img, job, geminiKey) {
     const dataUrl = `data:${imageData.mimeType || 'image/png'};base64,${imageData.data}`
     const fname = buildFilename(job.label)
     job.resultUrl = dataUrl
-    const link = document.createElement('a')
-    link.download = fname + '.png'
-    link.href = dataUrl
-    link.click()
-    addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    // Skip auto-download for time machine jobs to avoid spamming 13 files;
+    // user can still download any decade from the gallery or scrubber.
+    if (job.setId == null) {
+      const link = document.createElement('a')
+      link.download = fname + '.png'
+      link.href = dataUrl
+      link.click()
+    }
+    addToGallery(job.label, fname, dataUrl)
+    if (job.setId != null && job.decade != null) {
+      if (!timeMachineSets[job.setId]) timeMachineSets[job.setId] = { images: {}, research: {} }
+      if (!timeMachineSets[job.setId].images) timeMachineSets[job.setId].images = {}
+      timeMachineSets[job.setId].images[job.decade] = dataUrl
+      onTimeMachineJobComplete(job.setId, job.decade)
+    }
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     finish()
   }
@@ -1775,18 +1971,175 @@ document.getElementById('generate-all-btn')?.addEventListener('click', () => {
   const geminiKey = geminiKeyEl?.value.trim()
   if (!geminiKey) { alert('Enter your Gemini API key first'); return }
   const snapshot = snapshotCanvas()
-  // Create a batch — all jobs in this click share the same batchId so they group in the gallery
-  const batchId = 'batch-' + Date.now()
-  const loc = document.getElementById('location-search')?.value?.split(',')[0] || 'All Styles'
-  const batchLabel = loc + ' · All Styles'
   for (const key in AI_PRESETS) {
     const preset = AI_PRESETS[key]
     const prompt = appendEffectPrompts(getPresetPrompt(key))
     exportQueue.push({
       id: exportNextId++, label: preset.label || key,
       prompt, useAI: true, snapshot,
-      batchId, batchLabel,
       status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
+    })
+  }
+  renderQueue()
+  processQueue()
+})
+
+// ─── Time Machine ───────────────────────────────────────────
+const tmOverlay = document.getElementById('tm-overlay')
+const tmImage = document.getElementById('tm-image')
+const tmEmpty = document.getElementById('tm-empty')
+const tmLabel = document.getElementById('tm-year-label')
+const tmSlider = document.getElementById('tm-slider')
+const tmProgress = document.getElementById('tm-progress')
+const tmClose = document.getElementById('tm-close')
+const tmBlurb = document.getElementById('tm-blurb')
+const tmStatus = document.getElementById('tm-status')
+const tmBlurbToggle = document.getElementById('tm-blurb-toggle')
+const tmLocation = document.getElementById('tm-location')
+
+function nearestCompletedDecade(year, completed) {
+  if (!completed.length) return null
+  return completed.reduce((best, d) =>
+    Math.abs(d - year) < Math.abs(best - year) ? d : best, completed[0])
+}
+
+function setTimeMachineStatus(text) {
+  if (!tmStatus) return
+  tmStatus.textContent = text || ''
+  tmStatus.style.display = text ? 'block' : 'none'
+}
+
+function updateTimeMachineUI(setId) {
+  if (setId !== activeTimeMachineSetId) return
+  const entry = timeMachineSets[setId] || {}
+  const images = entry.images || {}
+  const research = entry.research || {}
+  const completed = DECADES.filter(d => images[d])
+
+  if (tmProgress) tmProgress.textContent = `${completed.length} / ${DECADES.length} rendered`
+  if (tmLocation) {
+    tmLocation.textContent = entry.location || ''
+    tmLocation.style.display = entry.location ? 'block' : 'none'
+  }
+
+  // Slider label always tracks the actual slider position (research is pre-fetched,
+  // so dragging smoothly updates the label/blurb even while images are still rendering).
+  const requested = +tmSlider.value
+  if (tmLabel) tmLabel.textContent = `${requested}s`
+
+  // Image: show nearest completed decade, or the empty state if nothing is ready yet.
+  if (completed.length) {
+    const nearest = images[requested] ? requested : nearestCompletedDecade(requested, completed)
+    if (tmImage) { tmImage.style.display = 'block'; tmImage.src = images[nearest] }
+    if (tmEmpty) tmEmpty.style.display = 'none'
+  } else {
+    if (tmImage) tmImage.style.display = 'none'
+    if (tmEmpty) tmEmpty.style.display = 'block'
+  }
+
+  // Research blurb tracks the actual slider value, not the nearest-rendered image.
+  const blurb = research[requested] || ''
+  if (tmBlurb) {
+    tmBlurb.textContent = blurb
+    tmBlurb.style.display = (tmBlurbVisible && blurb) ? 'block' : 'none'
+  }
+  if (tmBlurbToggle) {
+    tmBlurbToggle.textContent = tmBlurbVisible ? 'hide notes' : 'show notes'
+    tmBlurbToggle.style.display = (Object.keys(research).length > 0) ? 'block' : 'none'
+  }
+}
+
+function showTimeMachineOverlay(setId) {
+  if (!tmOverlay) return
+  activeTimeMachineSetId = setId
+  tmOverlay.style.display = 'flex'
+  updateTimeMachineUI(setId)
+}
+
+function onTimeMachineJobComplete(setId, decade) {
+  if (setId !== activeTimeMachineSetId) return
+  // When the first decade's image arrives, snap the slider to it so the user sees something.
+  const entry = timeMachineSets[setId] || {}
+  const images = entry.images || {}
+  const prevCount = Object.keys(images).length - 1
+  if (prevCount === 0 && tmSlider) tmSlider.value = decade
+  updateTimeMachineUI(setId)
+}
+
+tmSlider?.addEventListener('input', () => {
+  if (activeTimeMachineSetId != null) updateTimeMachineUI(activeTimeMachineSetId)
+})
+
+tmClose?.addEventListener('click', () => {
+  if (tmOverlay) tmOverlay.style.display = 'none'
+})
+
+tmBlurbToggle?.addEventListener('click', () => {
+  tmBlurbVisible = !tmBlurbVisible
+  if (activeTimeMachineSetId != null) updateTimeMachineUI(activeTimeMachineSetId)
+})
+
+// Ask SubjectListener for the lat/lng the camera is currently aimed at.
+// Falls back to null after 250ms if the R3F listener hasn't responded.
+function getSubjectCoords() {
+  return new Promise(resolve => {
+    let settled = false
+    const finish = (v) => { if (!settled) { settled = true; resolve(v) } }
+    window.dispatchEvent(new CustomEvent('get-subject-coords', { detail: { resolve: finish } }))
+    setTimeout(() => finish(null), 250)
+  })
+}
+
+document.getElementById('render-decades-btn')?.addEventListener('click', async () => {
+  const geminiKey = geminiKeyEl?.value.trim()
+  if (!geminiKey) { alert('Enter your Gemini API key first'); return }
+  const snapshot = snapshotCanvas()
+  if (!snapshot) { alert('Canvas not ready'); return }
+
+  const setId = nextTimeMachineSetId++
+  timeMachineSets[setId] = { images: {}, research: {}, location: '' }
+  showTimeMachineOverlay(setId)
+  setTimeMachineStatus('Locating subject…')
+
+  // Raycast screen-center to get the ground point the camera is looking at.
+  // That's what we want to research, not the camera's own GPS position.
+  const subject = await getSubjectCoords()
+  const lat = subject?.lat ?? state.latitude
+  const lng = subject?.lng ?? state.longitude
+
+  setTimeMachineStatus('Researching historical context (Gemini 2.5 Pro + Google Search)…')
+
+  let research = {}
+  try {
+    const result = await researchDecades(lat, lng)
+    research = result.research
+    timeMachineSets[setId].research = research
+    timeMachineSets[setId].location = result.location
+  } catch (e) {
+    console.warn('Research failed:', e)
+    setTimeMachineStatus('Research failed: ' + e.message.substring(0, 120) + ' — rendering with style-only prompts.')
+    // Fall through with empty research — buildDecadePrompt uses style fallback.
+  }
+
+  updateTimeMachineUI(setId)
+  // Give the user a moment to see the research status, then clear it as image jobs start.
+  setTimeout(() => {
+    if (activeTimeMachineSetId === setId) setTimeMachineStatus('')
+  }, 2000)
+
+  for (const year of DECADES) {
+    exportQueue.push({
+      id: exportNextId++,
+      label: `${year}s`,
+      prompt: appendEffectPrompts(buildDecadePrompt(year, research[year])),
+      useAI: true,
+      snapshot,
+      setId,
+      decade: year,
+      status: 'pending',
+      statusText: 'Queued',
+      progress: 0,
+      resultUrl: null,
     })
   }
   renderQueue()
@@ -1799,131 +2152,49 @@ const galleryGrid = document.getElementById('gallery-grid')
 const galleryCount = document.getElementById('gallery-count')
 let galleryView = 'grid'
 
-// Group gallery into display entries: regular items as-is, batch items grouped.
-// Returns array of entries, each either { type: 'item', item, idx } or { type: 'batch', items: [{item, idx}], label, time }
-function buildGalleryEntries() {
-  const batches = new Map()
-  const entries = []
-  gallery.forEach((item, idx) => {
-    if (item.batchId) {
-      if (!batches.has(item.batchId)) {
-        const entry = {
-          type: 'batch',
-          batchId: item.batchId,
-          label: item.batchLabel || 'Batch',
-          items: [],
-          time: item.time
-        }
-        batches.set(item.batchId, entry)
-        entries.push(entry)
-      }
-      batches.get(item.batchId).items.push({ item, idx })
-      // Update batch time to the latest item's time
-      if (item.time > batches.get(item.batchId).time) {
-        batches.get(item.batchId).time = item.time
-      }
-    } else {
-      entries.push({ type: 'item', item, idx })
-    }
-  })
-  // Newest first
-  entries.reverse()
-  return entries
-}
-
 function renderGallery() {
   if (!galleryGrid) return
   clearElement(galleryGrid)
   galleryGrid.className = 'gallery-grid' + (galleryView !== 'grid' ? ` view-${galleryView}` : '')
   if (galleryCount) galleryCount.textContent = gallery.length + ' image' + (gallery.length !== 1 ? 's' : '')
 
-  const entries = buildGalleryEntries()
+  // Display newest first — use original indices for lightbox
+  const displayItems = gallery.map((item, idx) => ({ item, idx })).slice().reverse()
 
-  entries.forEach(entry => {
-    if (entry.type === 'item') {
-      galleryGrid.appendChild(buildGalleryCard(entry.item, entry.idx))
-    } else {
-      galleryGrid.appendChild(buildBatchCard(entry))
-    }
+  displayItems.forEach(({ item, idx }) => {
+    const card = document.createElement('div')
+    card.className = 'gallery-card'
+    card.addEventListener('click', () => openLightbox(idx))
+
+    const img = document.createElement('img')
+    img.src = item.dataUrl
+    card.appendChild(img)
+
+    const dl = document.createElement('div')
+    dl.className = 'gc-dl'
+    dl.textContent = '\u2193'
+    dl.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const link = document.createElement('a')
+      link.download = item.filename + '.png'
+      link.href = item.dataUrl
+      link.click()
+    })
+    card.appendChild(dl)
+
+    const info = document.createElement('div')
+    info.className = 'gc-info'
+    const lbl = document.createElement('span')
+    lbl.className = 'gc-label'
+    lbl.textContent = item.label
+    const tm = document.createElement('span')
+    tm.className = 'gc-time'
+    tm.textContent = item.time.getHours() + ':' + String(item.time.getMinutes()).padStart(2, '0')
+    info.appendChild(lbl)
+    info.appendChild(tm)
+    card.appendChild(info)
+    galleryGrid.appendChild(card)
   })
-}
-
-function buildGalleryCard(item, idx) {
-  const card = document.createElement('div')
-  card.className = 'gallery-card'
-  card.addEventListener('click', () => openLightbox(idx))
-
-  const img = document.createElement('img')
-  img.src = item.dataUrl
-  card.appendChild(img)
-
-  const dl = document.createElement('div')
-  dl.className = 'gc-dl'
-  dl.textContent = '\u2193'
-  dl.addEventListener('click', (e) => {
-    e.stopPropagation()
-    const link = document.createElement('a')
-    link.download = item.filename + '.png'
-    link.href = item.dataUrl
-    link.click()
-  })
-  card.appendChild(dl)
-
-  const info = document.createElement('div')
-  info.className = 'gc-info'
-  const lbl = document.createElement('span')
-  lbl.className = 'gc-label'
-  lbl.textContent = item.label
-  const tm = document.createElement('span')
-  tm.className = 'gc-time'
-  tm.textContent = item.time.getHours() + ':' + String(item.time.getMinutes()).padStart(2, '0')
-  info.appendChild(lbl)
-  info.appendChild(tm)
-  card.appendChild(info)
-  return card
-}
-
-function buildBatchCard(entry) {
-  const card = document.createElement('div')
-  card.className = 'gallery-card gallery-batch'
-  card.addEventListener('click', () => openBatchGrid(entry))
-
-  // Mosaic preview: up to 4 images in a 2x2
-  const mosaic = document.createElement('div')
-  mosaic.className = 'gc-mosaic'
-  const previews = entry.items.slice(0, 4)
-  previews.forEach(({ item }) => {
-    const im = document.createElement('img')
-    im.src = item.dataUrl
-    mosaic.appendChild(im)
-  })
-  card.appendChild(mosaic)
-
-  // Badge showing count
-  const badge = document.createElement('div')
-  badge.className = 'gc-badge'
-  badge.textContent = entry.items.length + ' styles'
-  card.appendChild(badge)
-
-  const info = document.createElement('div')
-  info.className = 'gc-info'
-  const lbl = document.createElement('span')
-  lbl.className = 'gc-label'
-  lbl.textContent = entry.label
-  const tm = document.createElement('span')
-  tm.className = 'gc-time'
-  tm.textContent = entry.time.getHours() + ':' + String(entry.time.getMinutes()).padStart(2, '0')
-  info.appendChild(lbl)
-  info.appendChild(tm)
-  card.appendChild(info)
-  return card
-}
-
-// Open a batch — show all items in the batch as a sub-grid via the existing gallery overlay
-// For simplicity: open the lightbox on the first item of the batch, with nav scoped to the batch
-function openBatchGrid(entry) {
-  if (!entry.items.length) return
-  openLightboxScoped(entry.items.map(({ idx }) => idx), 0, entry.label)
 }
 
 document.getElementById('open-gallery-btn')?.addEventListener('click', () => {
@@ -1957,65 +2228,28 @@ const lightbox = document.getElementById('lightbox')
 const lbImg = document.getElementById('lb-img')
 const lbLabel = document.getElementById('lb-label')
 let lbIdx = 0
-let lbScope = null // null = full gallery, array = scoped to these gallery indices
-let lbScopePos = 0 // position within the scoped array
-let lbScopeLabel = ''
 
 function openLightbox(idx) {
   lbIdx = idx
-  lbScope = null
-  lbScopePos = 0
-  lbScopeLabel = ''
   updateLightbox()
   lightbox?.classList.add('open')
 }
-
-function openLightboxScoped(indices, startPos, label) {
-  lbScope = indices.slice()
-  lbScopePos = startPos
-  lbScopeLabel = label || ''
-  lbIdx = lbScope[lbScopePos]
-  updateLightbox()
-  lightbox?.classList.add('open')
-}
-
-function lbCanPrev() {
-  return lbScope ? lbScopePos > 0 : lbIdx > 0
-}
-function lbCanNext() {
-  return lbScope ? lbScopePos < lbScope.length - 1 : lbIdx < gallery.length - 1
-}
-function lbPrev() {
-  if (lbScope) { lbScopePos--; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx-- }
-  updateLightbox()
-}
-function lbNext() {
-  if (lbScope) { lbScopePos++; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx++ }
-  updateLightbox()
-}
-
 function updateLightbox() {
   const item = gallery[lbIdx]
   if (!item) return
   if (lbImg) lbImg.src = item.dataUrl
-  if (lbLabel) {
-    const prefix = lbScopeLabel ? lbScopeLabel + ' · ' : ''
-    const pos = lbScope ? ` (${lbScopePos + 1}/${lbScope.length})` : ''
-    lbLabel.textContent = prefix + item.label + pos
-  }
+  if (lbLabel) lbLabel.textContent = item.label
 }
 
 document.getElementById('lb-close')?.addEventListener('click', () => lightbox?.classList.remove('open'))
 lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('open') })
 document.getElementById('lb-prev')?.addEventListener('click', (e) => {
   e.stopPropagation()
-  if (lbCanPrev()) lbPrev()
+  if (lbIdx > 0) { lbIdx--; updateLightbox() }
 })
 document.getElementById('lb-next')?.addEventListener('click', (e) => {
   e.stopPropagation()
-  if (lbCanNext()) lbNext()
+  if (lbIdx < gallery.length - 1) { lbIdx++; updateLightbox() }
 })
 document.getElementById('lb-download')?.addEventListener('click', (e) => {
   e.stopPropagation()
@@ -2042,8 +2276,8 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') ppNavigate(-1)
     if (e.key === 'ArrowRight') ppNavigate(1)
   } else if (lightbox?.classList.contains('open')) {
-    if (e.key === 'ArrowLeft' && lbCanPrev()) lbPrev()
-    if (e.key === 'ArrowRight' && lbCanNext()) lbNext()
+    if (e.key === 'ArrowLeft' && lbIdx > 0) { lbIdx--; updateLightbox() }
+    if (e.key === 'ArrowRight' && lbIdx < gallery.length - 1) { lbIdx++; updateLightbox() }
     if (e.key === 'Escape') lightbox.classList.remove('open')
   } else if (galleryOverlay?.classList.contains('open')) {
     if (e.key === 'Escape') galleryOverlay.classList.remove('open')

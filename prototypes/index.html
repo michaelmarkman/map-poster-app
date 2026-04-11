@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster Prototypes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #09090b;
+    color: #e8e4dc;
+    font-family: 'Outfit', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px;
+  }
+  h1 {
+    font-family: Georgia, serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #c4956a;
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+  p {
+    color: #5a5750;
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .links {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 400px;
+  }
+  a {
+    display: block;
+    padding: 16px 24px;
+    background: #0f0f12;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    color: #e8e4dc;
+    text-decoration: none;
+    font-size: 14px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  a:hover {
+    background: #151518;
+    border-color: rgba(196,149,106,0.3);
+  }
+  .label {
+    font-size: 11px;
+    color: #5a5750;
+    margin-top: 4px;
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+  <h1>MapPoster</h1>
+  <p>Prototype builds — click to explore</p>
+  <div class="links">
+    <a href="./poster-v2.html">
+      Poster v2
+      <div class="label">3D globe map poster builder</div>
+    </a>
+    <a href="./poster-v2-timemachine.html">
+      Poster v2 — Time Machine
+      <div class="label">Historical map exploration variant</div>
+    </a>
+  </div>
+</body>
+</html>
