@@ -1656,6 +1656,8 @@ function renderQueue() {
 
     queueContainer.appendChild(el)
   })
+  // Keep the sidebar queue count badge in sync
+  try { window.__updateQueueCount?.() } catch (e) {}
 }
 
 function updateJob(job, fields) {
@@ -1831,6 +1833,7 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
   document.querySelectorAll('.ai-preset.active').forEach(b => b.classList.remove('active'))
   if (geminiPromptEl) geminiPromptEl.value = ''
   renderQueue()
+  try { window.__openQueueDropdown?.() } catch (e) {}
   processQueue()
 })
 
@@ -1862,6 +1865,7 @@ document.getElementById('generate-all-btn')?.addEventListener('click', () => {
     })
   }
   renderQueue()
+  try { window.__openQueueDropdown?.() } catch (e) {}
   processQueue()
 })
 
@@ -2360,6 +2364,61 @@ window.openPosterPreview = openPosterPreview
       }
     })
   }
+
+  // Queue — independent collapsible dropdown + clear buttons
+  const queueBtn = document.getElementById('open-queue-btn')
+  const queuePanel = document.getElementById('queue-panel')
+  if (queueBtn && queuePanel) {
+    queueBtn.addEventListener('click', () => {
+      const open = queuePanel.classList.toggle('open')
+      queueBtn.classList.toggle('open', open)
+    })
+  }
+
+  // Clear done — remove finished + errored jobs, leave pending/active
+  document.getElementById('queue-clear-done-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (typeof exportQueue === 'undefined') return
+    for (let i = exportQueue.length - 1; i >= 0; i--) {
+      if (exportQueue[i].status === 'done' || exportQueue[i].status === 'error') {
+        exportQueue.splice(i, 1)
+      }
+    }
+    try { renderQueue() } catch (err) {}
+    updateQueueCount()
+  })
+
+  // Clear all — only safe when nothing is actively running
+  document.getElementById('queue-clear-all-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (typeof exportQueue === 'undefined') return
+    const hasActive = exportQueue.some(j => j.status === 'active')
+    if (hasActive && !confirm('A render is in progress — clear anyway?')) return
+    // Keep active jobs; drop everything else. If user confirmed, drop active too.
+    for (let i = exportQueue.length - 1; i >= 0; i--) {
+      if (hasActive && exportQueue[i].status === 'active') continue
+      exportQueue.splice(i, 1)
+    }
+    try { renderQueue() } catch (err) {}
+    updateQueueCount()
+  })
+
+  // Keep the queue count badge in sync
+  function updateQueueCount() {
+    const el = document.getElementById('queue-count')
+    if (!el || typeof exportQueue === 'undefined') return
+    el.textContent = String(exportQueue.length)
+  }
+  // Expose so renderQueue (defined elsewhere) can call it after each change
+  window.__updateQueueCount = updateQueueCount
+  // Also auto-open the queue when a job is added (initial open only)
+  window.__openQueueDropdown = () => {
+    if (queuePanel && !queuePanel.classList.contains('open')) {
+      queuePanel.classList.add('open')
+      queueBtn?.classList.add('open')
+    }
+  }
+  updateQueueCount()
 
   // Section collapse/expand — click the section head to toggle, persist to localStorage
   const COLLAPSE_KEY = 'mapposter_v3ui_collapsed_sections'

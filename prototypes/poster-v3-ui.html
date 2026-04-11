@@ -572,12 +572,33 @@
     display: block;
   }
   .dropdown-panel #export-queue {
-    margin-top: 10px;
     display: flex;
     flex-direction: column;
     gap: 3px;
   }
   .dropdown-panel #export-queue:empty { display: none; }
+
+  /* Queue empty state + actions row */
+  #queue-empty {
+    display: none;
+    padding: 14px 8px;
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 10px;
+    font-style: italic;
+  }
+  #export-queue:empty + #queue-empty { display: block; }
+  .queue-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .queue-actions .btn {
+    flex: 1;
+    padding: 7px 10px;
+    font-size: 10px;
+    border-radius: 6px;
+  }
 
   /* ═══════ MAIN WORKBENCH ═══════ */
   #main {
@@ -1758,9 +1779,6 @@
         </div>
       </div>
 
-      <div id="export-queue"></div>
-      <div id="export-status" style="margin-top:8px; font-size:10px; color:var(--ink-dim); text-align:center; display:none;"></div>
-
       <div class="render-actions">
         <select id="export-res">
           <option value="1">1x</option>
@@ -1770,6 +1788,20 @@
         </select>
         <button class="btn ghost" id="generate-all-btn" type="button">Generate all</button>
         <button class="btn primary" id="export-btn" type="button">Add to queue</button>
+      </div>
+    </div>
+
+    <button class="nav-row dropdown" id="open-queue-btn" type="button">
+      <span>Queue</span>
+      <span class="right"><span id="queue-count">0</span><span class="chev dropdown-chev">›</span></span>
+    </button>
+    <div class="dropdown-panel" id="queue-panel">
+      <div id="export-queue"></div>
+      <div id="queue-empty">Queue is empty.</div>
+      <div id="export-status" style="margin-top:8px; font-size:10px; color:var(--ink-dim); text-align:center; display:none;"></div>
+      <div class="queue-actions">
+        <button class="btn ghost" id="queue-clear-done-btn" type="button">Clear done</button>
+        <button class="btn ghost" id="queue-clear-all-btn" type="button">Clear all</button>
       </div>
     </div>
 
