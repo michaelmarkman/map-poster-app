@@ -338,8 +338,11 @@ function Scene() {
     if (window._posterRestore && window._posterRestore(camera)) {
       // Restored from session
     } else {
-      // Empire State Building, NY — altitude 700m, heading 20° (NNE), tilt 60° from straight-down → pitch -30°
-      new PointOfView(700, radians(20), radians(-30)).decompose(
+      // Empire State Building, NY. takram's PointOfView uses (distance, heading, pitch) where:
+      // • distance is line-of-sight (altitude = distance * |sin(pitch)|, so 1400 * sin(30°) = 700m)
+      // • heading is measured from east (UI heading = 90° - library heading, so 70° lib → 20° UI = NNE)
+      // • pitch -30° → camera looks 30° below horizon → sidebar Tilt = 60°
+      new PointOfView(1400, radians(70), radians(-30)).decompose(
         new Geodetic(radians(-73.985664), radians(40.748440)).toECEF(),
         camera.position, camera.quaternion, camera.up
       )
@@ -1264,7 +1267,7 @@ function renderSavedViews() {
 // ─── App ─────────────────────────────────────────────────────
 function App() {
   return (
-    <Canvas dpr={2} gl={{ depth: false, preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }}>
+    <Canvas dpr={2} camera={{ fov: 37.8 }} gl={{ depth: false, preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }}>
       <Scene />
       <FovListener />
       <SubjectListener />
