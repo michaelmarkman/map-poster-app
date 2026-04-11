@@ -39,17 +39,17 @@ dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/')
 
 // ─── Mutable state (no re-renders) ──────────────────────────
 const state = {
-  timeOfDay: new Date().getHours() + new Date().getMinutes() / 60,
-  latitude: 40.7330,
-  longitude: -73.9785,
+  timeOfDay: 12,
+  latitude: 40.748440,
+  longitude: -73.985664,
   bloom: { on: false },
   ssao: { on: false },
   vignette: { on: false },
-  clouds: { on: false, coverage: 0.3, shadows: true, paused: false, speed: 1 },
+  clouds: { on: true, coverage: 0.2, shadows: true, paused: false, speed: 1 },
   dof: {
     on: true,
     focalUV: [0.5, 0.5],
-    tightness: 65,
+    tightness: 70,
     blur: 40,
     colorPop: 50,
     globalPop: false
@@ -338,8 +338,9 @@ function Scene() {
     if (window._posterRestore && window._posterRestore(camera)) {
       // Restored from session
     } else {
-      new PointOfView(472, radians(67), radians(-39)).decompose(
-        new Geodetic(radians(-73.9785), radians(40.7330)).toECEF(),
+      // Empire State Building, NY — altitude 700m, heading 20° (NNE), tilt 60° from straight-down → pitch -30°
+      new PointOfView(700, radians(20), radians(-30)).decompose(
+        new Geodetic(radians(-73.985664), radians(40.748440)).toECEF(),
         camera.position, camera.quaternion, camera.up
       )
     }
@@ -529,7 +530,7 @@ function Scene() {
 
 // ─── Sync camera → sidebar (runs in useFrame) ────────────────
 let _lastSync = 0
-let _currentTilt = 51, _currentHeading = 67, _currentAlt = 472
+let _currentTilt = 60, _currentHeading = 20, _currentAlt = 700
 let _suppressSliderInput = false
 
 // Log mapping for altitude slider: 0-1000 slider range → 100m-10000m altitude
@@ -790,21 +791,28 @@ function wireUI() {
     window.dispatchEvent(new Event('effects-changed'))
   })
 
-  // Clouds toggle
+  // Clouds toggle — reflect current state.clouds.on (default: on)
   const toggleClouds = document.getElementById('toggle-clouds')
   if (toggleClouds) {
+    toggleClouds.classList.toggle('on', !!state.clouds.on)
     toggleClouds.addEventListener('click', function () {
       this.classList.toggle('on')
       state.clouds.on = this.classList.contains('on')
     })
   }
 
-  // Cloud coverage
-  document.getElementById('cloud-coverage-slider')?.addEventListener('input', (e) => {
-    const v = +e.target.value
-    state.clouds.coverage = v / 100
-    document.getElementById('cloud-coverage-val').textContent = v + '%'
-  })
+  // Cloud coverage — sync initial slider/label from state
+  const cloudCoverageSlider = document.getElementById('cloud-coverage-slider')
+  const cloudCoverageVal = document.getElementById('cloud-coverage-val')
+  if (cloudCoverageSlider) {
+    cloudCoverageSlider.value = Math.round(state.clouds.coverage * 100)
+    if (cloudCoverageVal) cloudCoverageVal.textContent = Math.round(state.clouds.coverage * 100) + '%'
+    cloudCoverageSlider.addEventListener('input', (e) => {
+      const v = +e.target.value
+      state.clouds.coverage = v / 100
+      if (cloudCoverageVal) cloudCoverageVal.textContent = v + '%'
+    })
+  }
 
   // Cloud speed (-10 rewind → 10 fast-forward)
   document.getElementById('cloud-speed-slider')?.addEventListener('input', (e) => {
@@ -899,6 +907,34 @@ function wireUI() {
         setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
       })
       sizeGrid.appendChild(btn)
+    })
+    // Default = Fill (first chip). Apply fill-mode class on init so canvas actually fills the container
+    // on first paint — otherwise the CSS uses --ratio:1.333 and the container is letterboxed.
+    document.body.classList.add('fill-mode')
+    container.style.removeProperty('--ratio')
+  }
+
+  // Force a resize once the container has non-zero dimensions. R3F uses ResizeObserver internally,
+  // but dispatching a synthetic resize after two rAFs guarantees the renderer/camera re-measure
+  // after the fill-mode CSS has been applied.
+  if (container) {
+    const nudge = () => {
+      if (container.clientWidth > 0 && container.clientHeight > 0) {
+        window.dispatchEvent(new Event('resize'))
+        return true
+      }
+      return false
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!nudge()) {
+          // Container still 0×0; watch for the first non-zero size
+          const ro = new ResizeObserver(() => {
+            if (nudge()) ro.disconnect()
+          })
+          ro.observe(container)
+        }
+      })
     })
   }
 }
@@ -1316,8 +1352,8 @@ function restoreSession(camera) {
       const aiToggle = document.getElementById('toggle-ai-enhance')
       const aiSettings = document.getElementById('ai-settings')
       if (aiToggle && u.aiEnhance) { aiToggle.classList.add('on'); if (aiSettings) aiSettings.style.display = 'block' }
-      // Fill mode
-      if (u.fillMode) document.body.classList.add('fill-mode')
+      // Fill mode — toggle so restoring a non-fill session also clears any fill-mode set at init
+      document.body.classList.toggle('fill-mode', !!u.fillMode)
       // Text overlay
       const textToggle = document.getElementById('toggle-text-overlay')
       const textOverlay = document.getElementById('text-overlay')
