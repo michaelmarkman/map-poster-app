@@ -1567,8 +1567,8 @@ Respond ONLY with a JSON object in this exact form, with no markdown code fences
 // Wire AI presets
 const geminiKeyEl = document.getElementById('gemini-api-key')
 const geminiPromptEl = document.getElementById('gemini-prompt')
-const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || ''
-if (geminiKeyEl && cachedGeminiKey) geminiKeyEl.value = cachedGeminiKey
+const cachedGeminiKey = localStorage.getItem('mapposter3d_gemini_key') || 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'
+if (geminiKeyEl) geminiKeyEl.value = cachedGeminiKey
 if (geminiKeyEl) geminiKeyEl.addEventListener('change', function () {
   localStorage.setItem('mapposter3d_gemini_key', this.value.trim())
 })
