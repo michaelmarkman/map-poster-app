@@ -25,6 +25,12 @@ const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6Zc
 const GEMINI_API_KEY = 'AIzaSyASq0u1-q4wkcE7eoj0ZSljanrmA-GgrLw'  // Gemini only — do NOT use for tiles
 const EXPOSURE = 10
 
+// ?reset=1 → clear all mapposter3d_* localStorage and reload clean
+if (new URLSearchParams(location.search).get('reset') === '1') {
+  Object.keys(localStorage).filter(k => k.startsWith('mapposter3d_')).forEach(k => localStorage.removeItem(k))
+  location.replace(location.pathname)
+}
+
 const dracoLoader = new DRACOLoader()
 dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/')
 
@@ -1263,9 +1269,18 @@ function restoreSession(camera) {
     }
     if (data.state) {
       Object.assign(state, data.state)
+      // Clamp timeOfDay to valid sunrise/sunset range (heals stale saved values from older schemas)
+      const { sunrise, sunset } = getSunTimes(state.latitude)
+      state.timeOfDay = Math.max(sunrise + 0.5, Math.min(sunset - 0.5, state.timeOfDay))
       // Sync UI
       const todSlider = document.getElementById('tod-slider')
       if (todSlider) todSlider.value = state.timeOfDay
+      const todVal = document.getElementById('tod-val')
+      if (todVal) {
+        const h = state.timeOfDay, hh = Math.floor(h), mm = Math.round((h - hh) * 60)
+        const ap = hh >= 12 ? 'PM' : 'AM', h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+        todVal.textContent = h12 + ':' + String(mm).padStart(2, '0') + ' ' + ap
+      }
       const dofSlider = document.getElementById('dof-focus-slider')
       if (dofSlider) { dofSlider.value = state.dof.tightness; }
       const dofVal = document.getElementById('dof-focus-val')
