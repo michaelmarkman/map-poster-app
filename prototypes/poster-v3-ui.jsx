@@ -40,11 +40,15 @@ const EXPOSURE = 10
 const dracoLoader = new DRACOLoader()
 dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/')
 
+// Reused scratch vector for the sun-rotation zenith calculation (avoids per-frame alloc)
+const _sunZenith = new Vector3()
+
 // ─── Mutable state (no re-renders) ──────────────────────────
 const state = {
   timeOfDay: 12,
   latitude: 40.748440,
   longitude: -73.985664,
+  sunRotation: 0, // degrees — stylistic rotation of the sun's path around the local zenith
   bloom: { on: false },
   ssao: { on: false },
   vignette: { on: false },
@@ -260,6 +264,39 @@ const CustomDof = forwardRef(function CustomDof(_, ref) {
   return <primitive object={effect} dispose={null} />
 })
 
+// ─── Subject coordinate listener ────────────────────────────
+// Raycasts from the center of the screen to find what the camera is actually
+// looking at (the subject), then converts the hit point to lat/lng. Used by
+// Time Machine to research the subject rather than the camera's GPS position.
+function SubjectListener() {
+  const { camera, scene } = useThree()
+  const raycaster = useRef(new RaycasterClass())
+  const centerNDC = useRef(new Vector2(0, 0))
+
+  useEffect(() => {
+    const handler = (e) => {
+      const resolve = e.detail?.resolve
+      if (!resolve) return
+      raycaster.current.setFromCamera(centerNDC.current, camera)
+      const hits = raycaster.current.intersectObjects(scene.children, true)
+      if (!hits.length) { resolve(null); return }
+      try {
+        const geo = new Geodetic().setFromECEF(hits[0].point)
+        resolve({
+          lat: geo.latitude * 180 / Math.PI,
+          lng: geo.longitude * 180 / Math.PI,
+        })
+      } catch (err) {
+        resolve(null)
+      }
+    }
+    window.addEventListener('get-subject-coords', handler)
+    return () => window.removeEventListener('get-subject-coords', handler)
+  }, [camera, scene])
+
+  return null
+}
+
 // ─── Click-to-focus ──────────────────────────────────────────
 function ClickToFocus() {
   const { gl } = useThree()
@@ -461,6 +498,15 @@ function Scene() {
     const date = getDateFromHour(state.timeOfDay, state.longitude)
     atmosphereRef.current?.updateByDate(date)
 
+    // Stylistic sun rotation — rotate the sun's direction around the local zenith
+    // (surface normal at the camera's current position). This shifts where the sun
+    // rises and sets in the sky without changing its elevation arc.
+    if (atmosphereRef.current?.sunDirection && state.sunRotation !== 0) {
+      const zenith = _sunZenith.copy(camera.position).normalize()
+      Ellipsoid.WGS84.getSurfaceNormal(camera.position, zenith)
+      atmosphereRef.current.sunDirection.applyAxisAngle(zenith, state.sunRotation * Math.PI / 180)
+    }
+
     // Update clouds
     const clouds = cloudsRef.current
     window._cloudsRef = clouds
@@ -517,6 +563,7 @@ function Scene() {
         <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
       </Globe>
       <ClickToFocus />
+      <SubjectListener />
 
       <EffectComposer ref={composerRef} multisampling={0}>
         <Clouds
@@ -724,6 +771,18 @@ function wireUI() {
       if (todVal) todVal.textContent = fmt(+e.target.value)
     })
     updateTodSliderRange()
+  }
+
+  // Sun rotation — stylistic azimuth offset applied around the local zenith
+  const sunRotSlider = document.getElementById('sun-rot-slider')
+  const sunRotVal = document.getElementById('sun-rot-val')
+  if (sunRotSlider) {
+    sunRotSlider.value = state.sunRotation
+    if (sunRotVal) sunRotVal.textContent = state.sunRotation + '°'
+    sunRotSlider.addEventListener('input', (e) => {
+      state.sunRotation = +e.target.value
+      if (sunRotVal) sunRotVal.textContent = e.target.value + '°'
+    })
   }
 
   // DoF toggle
@@ -1286,6 +1345,7 @@ function _doSave(camera) {
         timeOfDay: state.timeOfDay,
         latitude: state.latitude,
         longitude: state.longitude,
+        sunRotation: state.sunRotation,
         dof: { ...state.dof },
         bloom: { ...state.bloom },
         ssao: { ...state.ssao },
@@ -1326,6 +1386,10 @@ function restoreSession(camera) {
       // Sync UI
       const todSlider = document.getElementById('tod-slider')
       if (todSlider) todSlider.value = state.timeOfDay
+      const sunRotSlider = document.getElementById('sun-rot-slider')
+      const sunRotVal = document.getElementById('sun-rot-val')
+      if (sunRotSlider) sunRotSlider.value = state.sunRotation ?? 0
+      if (sunRotVal) sunRotVal.textContent = (state.sunRotation ?? 0) + '°'
       const todVal = document.getElementById('tod-val')
       if (todVal) {
         const h = state.timeOfDay, hh = Math.floor(h), mm = Math.round((h - hh) * 60)
@@ -1466,6 +1530,163 @@ if (toggleAI && aiSettings) {
     this.classList.toggle('on')
     aiSettings.style.display = this.classList.contains('on') ? 'block' : 'none'
   })
+}
+
+// ─── Time Machine: decades, prompts, research ───────────────
+const DECADES = [1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
+
+// Per-decade style fallback used when research isn't available (network / API error).
+// When research IS available it takes precedence — these are only generic era cues.
+const DECADE_STYLE_FALLBACK = {
+  1900: 'Sepia-toned Edwardian era: horse-drawn wagons, gas street lamps, cobblestone streets, pedestrians in long coats and hats, coal-smoke haze, hand-painted signs.',
+  1910: 'Early monochrome photo: Model T automobiles mixing with horse carts, early electric lamps, bowler hats and long dresses, muted brown-grey palette.',
+  1920: 'Roaring twenties: vintage boxy automobiles, art deco marquees, flappers and fedoras, warm sepia-amber film tint, early neon signs.',
+  1930: 'Great Depression era: desaturated palette, streamline moderne details, fewer cars, art deco signage, overcast grey-brown tone, wool suits and flat caps.',
+  1940: 'WWII wartime: khaki and olive tones, 1940s sedans, wartime fashion, propaganda posters, desaturated warm film stock.',
+  1950: 'Post-war boom: chrome-heavy Cadillacs, neon diner signs, saturated Kodachrome palette, men in hats and women in swing dresses, sunny tone.',
+  1960: 'Mid-century mod: muscle cars and station wagons, vibrant Kodachrome color, crisp signage, tree-lined streets, bright blue sky.',
+  1970: 'Faded Kodak look: warm amber cast, boxy 70s sedans in browns and yellows, bell-bottoms, disco-era signage, hazy smoggy air.',
+  1980: 'Neon 1980s: boxy sedans, bright neon signs, VHS saturation, pastel awnings, slightly hazy urban air.',
+  1990: 'Early 90s film stock: minivans and boxy sedans, desaturated natural palette, grunge fashion, muted greens and browns.',
+  2000: 'Early digital photography: SUVs and sedans, Y2K signage, cooler color temperature, no smartphones, crisp daylight.',
+  2010: 'Smartphone era: modern sedans and hybrids, LED street lighting appearing, glass storefronts, contemporary digital photo look.',
+  2020: 'Present day: modern vehicles including electric cars, LED lighting throughout, HDR digital photo, sharp daylight, modern casual wear.',
+}
+
+function buildDecadePrompt(year, researchBlurb) {
+  // Camera-lock instructions must come first. If "transform" / "replace" language leads,
+  // the image model reads it as permission to re-frame the shot.
+  let prompt =
+      `STRICT CAMERA LOCK — read this before anything else.\n`
+    + `This is an oblique aerial photograph taken from a very specific camera position, altitude, tilt, heading, and field of view. `
+    + `Your output MUST use the IDENTICAL camera as the input: same position, same altitude, same tilt angle, same heading, same FOV, same crop. `
+    + `The horizon line must be at the exact same height in the frame. Vanishing points must land in the exact same places. `
+    + `The four edges of the frame must show the exact same geographic extent. `
+    + `The street grid — streets, intersections, curves, block shapes — must remain in the EXACT same pixel positions. `
+    + `Do not rotate, pan, tilt, zoom, dolly, or re-crop. Do not change the perspective. Do not flatten or exaggerate the tilt. `
+    + `If in doubt, copy the geometry of the input image pixel-for-pixel and only change surface appearance. `
+    + `\n\n`
+    + `WITHIN that locked camera, restyle the scene to show this EXACT location as it appeared in the ${year}s. `
+    + `Buildings that DID exist in the ${year}s: restyle their surface appearance to match the era (period materials, colors, signage, weathering). `
+    + `Keep their footprint and height unchanged. `
+    + `Buildings that did NOT exist in the ${year}s: replace IN PLACE — their footprint in the frame stays the same, but show what was historically there `
+    + `(empty lot, farmland, earlier and shorter structure, tenement, etc). The replacement must sit at the same spot in the frame and match the surrounding ground plane. `
+    + `Apply ${year}s-appropriate street-level vehicles, lighting, vegetation, atmospheric tone, and film-stock color grading. `
+    + `Do not add text, labels, captions, or watermarks.`
+
+  if (researchBlurb && researchBlurb.trim()) {
+    prompt += `\n\nHistorical context for this exact site in the ${year}s:\n${researchBlurb.trim()}\n\n`
+            + `Apply this historical description WITHIN the locked camera framing described above. `
+            + `Composition is non-negotiable; the historical content fills it.`
+  } else {
+    prompt += `\n\nStyle cues for the ${year}s: ${DECADE_STYLE_FALLBACK[year] || ''}`
+  }
+  return prompt
+}
+
+// timeMachineSets[setId] = { images: { [decade]: dataUrl }, research: { [decade]: text }, location: string }
+const timeMachineSets = {}
+let activeTimeMachineSetId = null
+let nextTimeMachineSetId = 0
+let tmBlurbVisible = true
+
+async function researchDecades(lat, lng) {
+  // Reverse geocode to enrich the prompt with address/neighborhood/city.
+  let address = '', neighborhood = '', city = '', country = ''
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18`,
+      { headers: { 'User-Agent': 'MapPoster/1.0' } }
+    )
+    const data = await r.json()
+    const addr = data.address || {}
+    address = data.display_name || ''
+    neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || ''
+    city = addr.city || addr.town || addr.municipality || ''
+    country = addr.country || ''
+  } catch (e) { /* geocode is best-effort */ }
+
+  const locHeader = address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+
+  const prompt = `Research what was at this exact location in each decade from 1900 to 2020.
+
+Coordinates: ${lat.toFixed(5)}, ${lng.toFixed(5)}
+Address (reverse-geocoded): ${address || 'unknown'}
+Neighborhood: ${neighborhood || 'unknown'}
+City: ${city || 'unknown'}
+Country: ${country || 'unknown'}
+
+For each decade (1900, 1910, 1920, 1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020), write 3-4 sentences describing:
+- What buildings, lots, or land use occupied this exact spot (or the nearest matching block)
+- Era-appropriate street life, vehicles, vegetation, atmosphere
+- If the current building did not exist yet, explicitly say what was there instead (empty lot, farmland, tenement, older structure, etc)
+- Notable neighborhood character from that decade
+
+Use search grounding to find historical records. If you cannot find the specific site, describe the neighborhood as it was in that decade.
+
+Respond ONLY with a JSON object in this exact form, with no markdown code fences, no preface, and no trailing text:
+
+{
+  "1900": "...",
+  "1910": "...",
+  "1920": "...",
+  "1930": "...",
+  "1940": "...",
+  "1950": "...",
+  "1960": "...",
+  "1970": "...",
+  "1980": "...",
+  "1990": "...",
+  "2000": "...",
+  "2010": "...",
+  "2020": "..."
+}`
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+  }
+
+  const res = await fetch(
+    '/api/gemini?model=gemini-2.5-pro',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+  )
+
+  if (!res.ok) {
+    let msg = `Research API error ${res.status}`
+    try { const err = await res.json(); msg = err.error?.message?.substring(0, 200) || msg } catch(e) {}
+    throw new Error(msg)
+  }
+
+  const data = await res.json()
+  let text = ''
+  for (const cand of (data.candidates || [])) {
+    for (const part of (cand.content?.parts || [])) {
+      if (part.text) text += part.text
+    }
+  }
+
+  // Strip markdown code fences if Gemini ignored the instruction and wrapped the JSON.
+  text = text.trim()
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+  }
+  const firstBrace = text.indexOf('{')
+  const lastBrace = text.lastIndexOf('}')
+  if (firstBrace > 0 || lastBrace < text.length - 1) {
+    if (firstBrace >= 0 && lastBrace > firstBrace) text = text.slice(firstBrace, lastBrace + 1)
+  }
+
+  let parsed
+  try { parsed = JSON.parse(text) }
+  catch (e) { throw new Error('Could not parse research response: ' + text.substring(0, 120)) }
+
+  // Normalize — accept numeric or string keys, with or without 's' suffix
+  const normalized = {}
+  for (const year of DECADES) {
+    normalized[year] = parsed[year] || parsed[String(year)] || parsed[`${year}s`] || ''
+  }
+  return { research: normalized, location: locHeader }
 }
 
 // ─── Export helpers ─────────────────────────────────────────
@@ -1775,11 +1996,22 @@ function sendToGemini(img, job) {
     const dataUrl = `data:${imageData.mimeType || 'image/png'};base64,${imageData.data}`
     const fname = buildFilename(job.label)
     job.resultUrl = dataUrl
-    const link = document.createElement('a')
-    link.download = fname + '.png'
-    link.href = dataUrl
-    link.click()
+    // Skip auto-download for time machine jobs (13 jobs per set would spam the user);
+    // the user can still download individual decades from the gallery or scrubber.
+    if (job.setId == null) {
+      const link = document.createElement('a')
+      link.download = fname + '.png'
+      link.href = dataUrl
+      link.click()
+    }
     job.galleryIdx = addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    // If this was a time machine job, wire it into the overlay
+    if (job.setId != null && job.decade != null) {
+      if (!timeMachineSets[job.setId]) timeMachineSets[job.setId] = { images: {}, research: {} }
+      if (!timeMachineSets[job.setId].images) timeMachineSets[job.setId].images = {}
+      timeMachineSets[job.setId].images[job.decade] = dataUrl
+      try { onTimeMachineJobComplete(job.setId, job.decade) } catch (e) {}
+    }
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     finish()
   }
@@ -1862,6 +2094,165 @@ document.getElementById('generate-all-btn')?.addEventListener('click', () => {
       prompt, useAI: true, snapshot,
       batchId, batchLabel,
       status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
+    })
+  }
+  renderQueue()
+  try { window.__openQueueDropdown?.() } catch (e) {}
+  processQueue()
+})
+
+// ─── Time Machine ───────────────────────────────────────────
+const tmOverlay = document.getElementById('tm-overlay')
+const tmImage = document.getElementById('tm-image')
+const tmEmpty = document.getElementById('tm-empty')
+const tmLabel = document.getElementById('tm-year-label')
+const tmSlider = document.getElementById('tm-slider')
+const tmProgress = document.getElementById('tm-progress')
+const tmClose = document.getElementById('tm-close')
+const tmBlurb = document.getElementById('tm-blurb')
+const tmStatus = document.getElementById('tm-status')
+const tmBlurbToggle = document.getElementById('tm-blurb-toggle')
+const tmLocation = document.getElementById('tm-location')
+
+function nearestCompletedDecade(year, completed) {
+  if (!completed.length) return null
+  return completed.reduce((best, d) =>
+    Math.abs(d - year) < Math.abs(best - year) ? d : best, completed[0])
+}
+
+function setTimeMachineStatus(text) {
+  if (!tmStatus) return
+  tmStatus.textContent = text || ''
+  tmStatus.style.display = text ? 'block' : 'none'
+}
+
+function updateTimeMachineUI(setId) {
+  if (setId !== activeTimeMachineSetId) return
+  const entry = timeMachineSets[setId] || {}
+  const images = entry.images || {}
+  const research = entry.research || {}
+  const completed = DECADES.filter(d => images[d])
+
+  if (tmProgress) tmProgress.textContent = `${completed.length} / ${DECADES.length} rendered`
+  if (tmLocation) {
+    tmLocation.textContent = entry.location || ''
+    tmLocation.style.display = entry.location ? 'block' : 'none'
+  }
+
+  // Slider label always tracks the actual slider position (research is pre-fetched,
+  // so dragging smoothly updates the label/blurb even while images are still rendering).
+  const requested = +(tmSlider?.value || 2020)
+  if (tmLabel) tmLabel.textContent = `${requested}s`
+
+  // Image: show nearest completed decade, or the empty state if nothing is ready yet.
+  if (completed.length) {
+    const nearest = images[requested] ? requested : nearestCompletedDecade(requested, completed)
+    if (tmImage) { tmImage.style.display = 'block'; tmImage.src = images[nearest] }
+    if (tmEmpty) tmEmpty.style.display = 'none'
+  } else {
+    if (tmImage) tmImage.style.display = 'none'
+    if (tmEmpty) tmEmpty.style.display = 'block'
+  }
+
+  // Research blurb tracks the actual slider value, not the nearest-rendered image.
+  const blurb = research[requested] || ''
+  if (tmBlurb) {
+    tmBlurb.textContent = blurb
+    tmBlurb.style.display = (tmBlurbVisible && blurb) ? 'block' : 'none'
+  }
+  if (tmBlurbToggle) {
+    tmBlurbToggle.textContent = tmBlurbVisible ? 'hide notes' : 'show notes'
+    tmBlurbToggle.style.display = (Object.keys(research).length > 0) ? 'block' : 'none'
+  }
+}
+
+function showTimeMachineOverlay(setId) {
+  if (!tmOverlay) return
+  activeTimeMachineSetId = setId
+  tmOverlay.classList.add('open')
+  updateTimeMachineUI(setId)
+}
+
+function onTimeMachineJobComplete(setId, decade) {
+  if (setId !== activeTimeMachineSetId) return
+  // When the first decade's image arrives, snap the slider to it so the user sees something.
+  const entry = timeMachineSets[setId] || {}
+  const images = entry.images || {}
+  const prevCount = Object.keys(images).length - 1
+  if (prevCount === 0 && tmSlider) tmSlider.value = decade
+  updateTimeMachineUI(setId)
+}
+
+tmSlider?.addEventListener('input', () => {
+  if (activeTimeMachineSetId != null) updateTimeMachineUI(activeTimeMachineSetId)
+})
+
+tmClose?.addEventListener('click', () => {
+  tmOverlay?.classList.remove('open')
+})
+
+tmBlurbToggle?.addEventListener('click', () => {
+  tmBlurbVisible = !tmBlurbVisible
+  if (activeTimeMachineSetId != null) updateTimeMachineUI(activeTimeMachineSetId)
+})
+
+// Ask SubjectListener for the lat/lng the camera is currently aimed at.
+// Falls back to null after 250ms if the R3F listener hasn't responded.
+function getSubjectCoords() {
+  return new Promise(resolve => {
+    let settled = false
+    const finish = (v) => { if (!settled) { settled = true; resolve(v) } }
+    window.dispatchEvent(new CustomEvent('get-subject-coords', { detail: { resolve: finish } }))
+    setTimeout(() => finish(null), 250)
+  })
+}
+
+document.getElementById('render-decades-btn')?.addEventListener('click', async () => {
+  const snapshot = snapshotCanvas()
+  if (!snapshot) { alert('Canvas not ready'); return }
+
+  const setId = nextTimeMachineSetId++
+  timeMachineSets[setId] = { images: {}, research: {}, location: '' }
+  showTimeMachineOverlay(setId)
+  setTimeMachineStatus('Locating subject…')
+
+  // Raycast screen-center to get the ground point the camera is looking at.
+  // That's what we want to research, not the camera's own GPS position.
+  const subject = await getSubjectCoords()
+  const lat = subject?.lat ?? state.latitude
+  const lng = subject?.lng ?? state.longitude
+
+  setTimeMachineStatus('Researching historical context (Gemini 2.5 Pro + Google Search)…')
+
+  let research = {}
+  try {
+    const result = await researchDecades(lat, lng)
+    research = result.research
+    timeMachineSets[setId].research = research
+    timeMachineSets[setId].location = result.location
+  } catch (e) {
+    console.warn('Research failed:', e)
+    setTimeMachineStatus('Research failed: ' + e.message.substring(0, 120) + ' — rendering with style-only prompts.')
+  }
+
+  updateTimeMachineUI(setId)
+  setTimeout(() => {
+    if (activeTimeMachineSetId === setId) setTimeMachineStatus('')
+  }, 2000)
+
+  for (const year of DECADES) {
+    exportQueue.push({
+      id: exportNextId++,
+      label: `${year}s`,
+      prompt: appendEffectPrompts(buildDecadePrompt(year, research[year])),
+      useAI: true,
+      snapshot,
+      setId,
+      decade: year,
+      status: 'pending',
+      statusText: 'Queued',
+      progress: 0,
+      resultUrl: null,
     })
   }
   renderQueue()
@@ -2103,12 +2494,14 @@ document.getElementById('lb-download')?.addEventListener('click', (e) => {
   link.click()
 })
 
-// View in Frame from lightbox
+// View in Frame from lightbox — also dismiss the gallery modal so the
+// 3D frame preview isn't hidden behind it (gallery is z:200, preview is z:150).
 document.getElementById('lb-frame')?.addEventListener('click', (e) => {
   e.stopPropagation()
   const item = gallery[lbIdx]
   if (!item) return
   lightbox?.classList.remove('open')
+  document.getElementById('gallery-overlay')?.classList.remove('open')
   if (window.openPosterPreview) window.openPosterPreview(item.dataUrl, item.label, lbIdx)
 })
 
