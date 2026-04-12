@@ -1,0 +1,16 @@
+const s = {
+  page: {
+    minHeight: 'calc(100vh - 56px)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
+    background: '#09090b', fontFamily: "'Inter', system-ui, sans-serif",
+  },
+  text: { color: '#5a5750', fontSize: 15 },
+}
+
+export default function GalleryPage() {
+  return (
+    <div style={s.page}>
+      <p style={s.text}>Your gallery — coming soon</p>
+    </div>
+  )
+}
