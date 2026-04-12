@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MapPoster</title>
+<title>MapPoster — Create Stunning 3D Map Posters</title>
+<meta name="description" content="Turn any place on Earth into a beautiful 3D map poster. Customize camera angles, lighting, and AI art styles. Export print-ready artwork.">
+<meta property="og:title" content="MapPoster — Create Stunning 3D Map Posters">
+<meta property="og:description" content="Turn any place on Earth into a beautiful 3D map poster with AI-powered artistic styles.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MapPoster — 3D Map Poster Creator">
+<meta name="twitter:description" content="Create stunning 3D map posters of any place in the world.">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
@@ -1968,6 +1976,11 @@
       <span class="right"><span>13 decades</span><span class="chev">›</span></span>
     </button>
 
+    <button class="nav-row" id="print-export-btn" type="button">
+      <span>Print-ready export</span>
+      <span class="right"><span>300 DPI</span><span class="chev">›</span></span>
+    </button>
+
     <button class="nav-row" id="open-gallery-btn" type="button">
       <span>Gallery</span>
       <span class="right"><span id="gallery-nav-count">0</span><span class="chev">›</span></span>
@@ -1983,6 +1996,14 @@
       <button class="btn primary" id="save-view-btn" type="button" style="width:100%; margin-top:8px;">Save current view</button>
     </div>
     </div>
+  </div>
+
+  <!-- Pricing link -->
+  <div style="padding: 12px 22px 18px; border-top: 0.5px solid rgba(255,255,255,0.05);">
+    <a href="./pricing.html" class="nav-row" style="text-decoration:none; color:inherit; display:flex;">
+      <span style="color:var(--accent);">Upgrade to Pro</span>
+      <span class="right"><span class="chev">›</span></span>
+    </a>
   </div>
 </div>
 
@@ -2070,10 +2091,36 @@
   <button class="lb-nav prev" id="lb-prev" type="button">‹</button>
   <button class="lb-nav next" id="lb-next" type="button">›</button>
   <button class="modal-close lb-close" id="lb-close" type="button">×</button>
+  <button class="gallery-btn lb-download" id="lb-share" type="button" style="right:260px;">Share</button>
   <button class="gallery-btn lb-download" id="lb-frame" type="button" style="right:160px;">View in frame</button>
   <button class="gallery-btn accent lb-download" id="lb-download" type="button">Download</button>
   <img id="lb-img" src="">
   <div class="lb-label" id="lb-label"></div>
+</div>
+
+<!-- ╔═══════ SHARE TO COMMUNITY MODAL ═══════╗ -->
+<div id="share-modal" style="position:fixed;inset:0;z-index:400;display:none;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;">
+  <div style="background:#1e1d23;border:1px solid rgba(255,255,255,0.08);border-radius:16px;max-width:480px;width:calc(100% - 48px);padding:28px;position:relative;">
+    <button id="share-modal-close" type="button" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--ink-dim);font-size:20px;cursor:pointer;">&times;</button>
+    <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin-bottom:18px;">Share to Community</h3>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:5px;">Title</label>
+      <input id="share-title" type="text" placeholder="e.g. Golden Hour over Tokyo" style="width:100%;padding:9px 12px;background:var(--bg-deep);border:1px solid var(--panel-border);border-radius:8px;color:var(--ink);font-family:var(--body);font-size:14px;outline:none;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:5px;">Description (optional)</label>
+      <textarea id="share-desc" rows="3" placeholder="Tell the story behind this view..." style="width:100%;padding:9px 12px;background:var(--bg-deep);border:1px solid var(--panel-border);border-radius:8px;color:var(--ink);font-family:var(--body);font-size:14px;outline:none;resize:vertical;"></textarea>
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-dim);margin-bottom:5px;">Location</label>
+      <input id="share-location" type="text" placeholder="Location name" style="width:100%;padding:9px 12px;background:var(--bg-deep);border:1px solid var(--panel-border);border-radius:8px;color:var(--ink);font-family:var(--body);font-size:14px;outline:none;">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button id="share-cancel" type="button" class="btn ghost" style="padding:8px 18px;background:transparent;border:1px solid var(--panel-border);border-radius:8px;color:var(--ink-soft);cursor:pointer;font-family:var(--body);">Cancel</button>
+      <button id="share-submit" type="button" class="btn primary" style="padding:8px 18px;background:var(--accent);border:none;border-radius:8px;color:var(--bg-deep);cursor:pointer;font-family:var(--body);font-weight:500;">Share</button>
+    </div>
+    <div id="share-status" style="margin-top:12px;font-size:13px;color:var(--ink-soft);text-align:center;display:none;"></div>
+  </div>
 </div>
 
 <!-- ╔═══════ 3D POSTER PREVIEW ═══════╗ -->

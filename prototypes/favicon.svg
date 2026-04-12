@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c8b897"/>
+      <stop offset="100%" stop-color="#a08960"/>
+    </linearGradient>
+  </defs>
+  <path d="M16 2C10.5 2 6 6.5 6 12c0 7.5 10 18 10 18s10-10.5 10-18c0-5.5-4.5-10-10-10z" fill="url(#pin)"/>
+  <circle cx="16" cy="12" r="4" fill="#1c1b1f"/>
+</svg>

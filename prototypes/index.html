@@ -3,99 +3,305 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MapPoster Prototypes</title>
+<title>MapPoster — Turn any place into art</title>
+<meta name="description" content="Transform any location into stunning 3D aerial tilt-shift map posters. Search, customize, and print beautiful maps of your favorite places.">
+<meta property="og:title" content="MapPoster — Turn any place into art">
+<meta property="og:description" content="Transform any location into stunning 3D aerial tilt-shift map posters.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="./community.css">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #09090b;
-    color: #e8e4dc;
-    font-family: 'Outfit', system-ui, sans-serif;
+  /* ═══════ Landing Page Specific ═══════ */
+
+  /* Hero */
+  .hero {
     min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 80px 24px 60px;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 40%, rgba(200, 184, 151, 0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 30% 70%, rgba(120, 90, 200, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 40% at 70% 30%, rgba(200, 120, 80, 0.04) 0%, transparent 50%);
+    animation: heroPulse 12s ease-in-out infinite alternate;
+  }
+  @keyframes heroPulse {
+    0% { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.05); }
+  }
+
+  .hero-grid-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 20%, transparent 70%);
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 720px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+  }
+
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(40px, 7vw, 72px);
+    font-weight: 300;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    margin-bottom: 20px;
+    color: var(--ink);
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 19px);
+    color: var(--ink-soft);
+    max-width: 520px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+
+  .hero-ctas {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .hero-visual {
+    margin-top: 64px;
+    position: relative;
+  }
+
+  .hero-poster-wrap {
+    perspective: 800px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero-poster {
+    width: clamp(280px, 50vw, 480px);
+    aspect-ratio: 3/4;
+    border-radius: 12px;
+    background: var(--bg-2);
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    transform: rotateX(8deg) rotateY(-6deg);
+    box-shadow:
+      -20px 30px 60px rgba(0,0,0,0.5),
+      -5px 8px 20px rgba(0,0,0,0.3),
+      inset 0 0 0 1px rgba(255,255,255,0.05);
+    animation: posterFloat 6s ease-in-out infinite alternate;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-dim);
+    font-size: 14px;
+    position: relative;
+  }
+  @keyframes posterFloat {
+    0% { transform: rotateX(8deg) rotateY(-6deg) translateY(0); }
+    100% { transform: rotateX(6deg) rotateY(-4deg) translateY(-10px); }
+  }
+
+  .hero-poster-inner {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, rgba(200,184,151,0.06) 0%, transparent 40%),
+      linear-gradient(225deg, rgba(100,80,160,0.04) 0%, transparent 40%),
+      var(--bg-2);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    padding: 40px;
+    gap: 12px;
   }
-  h1 {
-    font-family: Georgia, serif;
-    font-size: 32px;
-    font-weight: 400;
-    color: #c4956a;
+
+  .poster-globe-icon {
+    font-size: 64px;
+    opacity: 0.25;
+  }
+
+  .poster-label {
+    font-family: var(--serif);
     font-style: italic;
-    margin-bottom: 8px;
+    font-size: 16px;
+    color: var(--ink-dim);
   }
-  p {
-    color: #5a5750;
-    font-size: 13px;
-    margin-bottom: 24px;
+
+  /* How It Works */
+  .how-section {
+    padding: 100px 0;
+    position: relative;
   }
-  .links {
+  .section-title {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  .section-title h2 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+  .section-title p {
+    color: var(--ink-soft);
+    font-size: 16px;
+  }
+
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  @media (max-width: 768px) { .steps-grid { grid-template-columns: 1fr; max-width: 400px; } }
+
+  .step-card {
+    background: var(--bg-1);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg);
+    padding: 36px 28px;
+    text-align: center;
+    transition: all var(--transition);
+  }
+  .step-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-4px); }
+
+  .step-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin: 0 auto 20px;
+  }
+  .step-number {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .step-card h3 { font-size: 17px; font-weight: 500; margin-bottom: 8px; }
+  .step-card p { font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+
+  /* Gallery Preview */
+  .gallery-section { padding: 80px 0; }
+  .gallery-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    max-width: 960px;
+    margin: 0 auto 32px;
+  }
+  @media (max-width: 768px) { .gallery-preview-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .gallery-preview-grid { grid-template-columns: 1fr; } }
+
+  .gallery-preview-card {
+    aspect-ratio: 3/4;
+    background: var(--bg-2);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    position: relative;
+    transition: all var(--transition);
+  }
+  .gallery-preview-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-3px); }
+  .gallery-preview-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .gallery-preview-card .gp-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    color: white;
+  }
+  .gp-overlay .gp-title { font-size: 14px; font-weight: 500; }
+  .gp-overlay .gp-location { font-size: 12px; opacity: 0.7; }
+
+  .gallery-preview-placeholder {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    width: 100%;
-    max-width: 400px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--ink-dim);
+    font-size: 13px;
   }
-  a {
-    display: block;
-    padding: 16px 24px;
-    background: #0f0f12;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
-    color: #e8e4dc;
-    text-decoration: none;
-    font-size: 14px;
-    transition: border-color 0.15s, background 0.15s;
+  .gpp-icon { font-size: 32px; opacity: 0.3; }
+
+  .see-more {
+    text-align: center;
   }
-  a:hover {
-    background: #151518;
-    border-color: rgba(196,149,106,0.3);
+
+  /* Pricing */
+  .pricing-section { padding: 80px 0; }
+
+  /* CTA */
+  .cta-section {
+    padding: 100px 0;
+    text-align: center;
+    position: relative;
   }
-  .label {
-    font-size: 11px;
-    color: #5a5750;
-    margin-top: 4px;
-    font-family: monospace;
+  .cta-section h2 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 300;
+    margin-bottom: 14px;
   }
-  .reset-hint {
-    margin-top: 24px;
-    font-size: 11px;
-    color: #3f3d38;
-  }
-  .reset-hint a {
-    display: inline;
-    padding: 0;
-    background: none;
-    border: none;
-    color: #5a5750;
-    text-decoration: underline;
-  }
-  .reset-hint a:hover {
-    background: none;
-    border: none;
-    color: #c4956a;
+  .cta-section p {
+    color: var(--ink-soft);
+    font-size: 16px;
+    margin-bottom: 28px;
   }
 </style>
 </head>
 <body>
-  <h1>MapPoster</h1>
-  <p>Prototype builds — click to explore. Gemini key pre-configured — no setup needed.</p>
-  <div class="links">
-    <a href="./poster-v3-ui.html">
-      Poster v3 — UI
-      <div class="label">Elegant glass redesign</div>
-    </a>
-    <a href="./poster-v2.html">
-      Poster v2
-      <div class="label">3D globe map poster builder</div>
-    </a>
-    <a href="./poster-v2-timemachine.html">
-      Poster v2 — Time Machine
-      <div class="label">Historical map exploration variant</div>
-    </a>
-  </div>
-  <div class="reset-hint">Stuck? <a href="./poster-v2.html?reset=1">Reset</a></div>
+
+<div id="root"></div>
+<script type="module" src="./index.jsx"></script>
+
 </body>
 </html>
