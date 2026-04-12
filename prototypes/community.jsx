@@ -38,11 +38,15 @@ function Toast({ message }) {
 
 // ─── Navbar ───
 function Navbar() {
+  const [menuOpen, setMenuOpen] = useState(false)
   return (
     <nav className="nav">
       <div className="nav-inner">
         <a href="./" className="nav-logo">MapPoster</a>
-        <div className="nav-links">
+        <button className="nav-hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
+          {menuOpen ? '\u2715' : '\u2630'}
+        </button>
+        <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
           <a href="./poster-v2.html">Editor</a>
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>

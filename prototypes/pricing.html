@@ -231,21 +231,43 @@
     padding: 10px 0;
   }
 
+  @media (max-width: 768px) {
+    .pricing-nav-links { display: none !important; }
+    .pricing-hamburger { display: block !important; }
+    .pricing-nav-links.open {
+      display: flex !important;
+      position: absolute;
+      top: 60px;
+      left: 0;
+      right: 0;
+      background: rgba(14, 13, 17, 0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--panel-border);
+      flex-direction: column;
+      padding: 16px 24px;
+      gap: 12px;
+    }
+    .pricing-nav-links.open a { font-size: 15px; padding: 8px 0; }
+  }
   @media (max-width: 640px) {
     .cards { grid-template-columns: 1fr; max-width: 380px; }
     .hero h1 { font-size: 28px; }
+    .waitlist-form { flex-direction: column; }
   }
 </style>
 </head>
 <body>
 
 <nav class="nav" style="position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(28,27,31,0.85);backdrop-filter:blur(20px) saturate(150%);border-bottom:1px solid var(--panel-border);height:60px;">
-  <a href="./" class="nav-logo" style="font-style:italic;color:var(--accent);">MapPoster</a>
-  <div style="display:flex;align-items:center;gap:28px;">
-    <a href="./poster-v2.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Editor</a>
-    <a href="./community.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Community</a>
-    <a href="./pricing.html" style="color:var(--ink);font-size:14px;text-decoration:none;">Pricing</a>
-    <a href="./poster-v2.html" style="display:inline-flex;align-items:center;padding:6px 14px;border-radius:10px;background:var(--accent);color:var(--bg-0);font-size:13px;font-weight:500;text-decoration:none;">Create</a>
+  <div class="nav-inner">
+    <a href="./" class="nav-logo" style="font-style:italic;color:var(--accent);">MapPoster</a>
+    <button class="pricing-hamburger" style="display:none;background:none;border:none;color:var(--ink);font-size:24px;cursor:pointer;padding:4px;line-height:1;" onclick="document.querySelector('.pricing-nav-links').classList.toggle('open');this.textContent=this.textContent==='\u2630'?'\u2715':'\u2630'" aria-label="Menu">&#9776;</button>
+    <div class="pricing-nav-links" style="display:flex;align-items:center;gap:28px;">
+      <a href="./poster-v2.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Editor</a>
+      <a href="./community.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Community</a>
+      <a href="./pricing.html" style="color:var(--ink);font-size:14px;text-decoration:none;">Pricing</a>
+      <a href="./poster-v2.html" class="btn btn-primary btn-sm" style="text-decoration:none;">Create</a>
+    </div>
   </div>
 </nav>
 

@@ -34,6 +34,7 @@ function FadeIn({ children, className = '', delay = 0 }) {
 // ─── Navbar ───
 function Navbar() {
   const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -44,7 +45,10 @@ function Navbar() {
     <nav className="nav" style={{ borderBottomColor: scrolled ? undefined : 'transparent' }}>
       <div className="nav-inner">
         <a href="./" className="nav-logo">MapPoster</a>
-        <div className="nav-links">
+        <button className="nav-hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
+          {menuOpen ? '\u2715' : '\u2630'}
+        </button>
+        <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
           <a href="./poster-v2.html">Editor</a>
           <a href="./community.html">Community</a>
           <a href="./pricing.html">Pricing</a>
