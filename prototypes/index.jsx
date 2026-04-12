@@ -285,6 +285,38 @@ function GalleryPreview() {
   )
 }
 
+// ─── Testimonials ───
+function Testimonials() {
+  const quotes = [
+    { text: 'I printed a poster of our wedding venue as an anniversary gift. My wife cried.', author: 'Jake M.', role: 'First-time user' },
+    { text: 'The AI style transfer is unreal — turned my neighborhood into a Studio Ghibli scene.', author: 'Priya K.', role: 'Digital artist' },
+    { text: 'We use MapPoster for all our real estate listing flyers. Clients love the 3D aerial views.', author: 'Sarah L.', role: 'Real estate agent' },
+  ]
+  return (
+    <section className="testimonials-section container">
+      <FadeIn>
+        <div className="section-title">
+          <h2>Loved by creators</h2>
+          <p>See what people are making with MapPoster</p>
+        </div>
+      </FadeIn>
+      <div className="testimonials-grid">
+        {quotes.map((q, i) => (
+          <FadeIn key={i} delay={i * 100}>
+            <blockquote className="testimonial-card">
+              <p>&ldquo;{q.text}&rdquo;</p>
+              <footer>
+                <div className="testimonial-author">{q.author}</div>
+                <div className="testimonial-role">{q.role}</div>
+              </footer>
+            </blockquote>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ─── Pricing ───
 function Pricing() {
   return (
@@ -381,6 +413,7 @@ function App() {
       <StatsStrip />
       <QuickStart />
       <GalleryPreview />
+      <Testimonials />
       <Pricing />
       <CTA />
       <Footer />
