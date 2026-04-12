@@ -12,7 +12,7 @@ const s = {
   },
   logo: {
     fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 18, fontWeight: 400, color: '#c4a467',
+    fontSize: 18, fontWeight: 400, color: '#c8b897',
     textDecoration: 'none', fontStyle: 'italic',
   },
   link: {
@@ -20,7 +20,7 @@ const s = {
     padding: '6px 12px', borderRadius: 6, transition: 'color 0.15s',
   },
   btn: {
-    padding: '7px 16px', background: '#c4a467', color: '#09090b',
+    padding: '7px 16px', background: '#c8b897', color: '#09090b',
     border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600,
     cursor: 'pointer', textDecoration: 'none',
   },
@@ -28,7 +28,7 @@ const s = {
     width: 32, height: 32, borderRadius: '50%', background: '#151518',
     border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 13, color: '#c4a467', fontWeight: 600, overflow: 'hidden',
+    fontSize: 13, color: '#c8b897', fontWeight: 600, overflow: 'hidden',
   },
   dropdown: {
     position: 'absolute', top: 48, right: 24, background: '#0f0f12',

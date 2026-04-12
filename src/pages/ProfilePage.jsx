@@ -155,7 +155,7 @@ export default function ProfilePage() {
             <button
               onClick={() => { setEditing(true); setSuccess('') }}
               style={{
-                padding: '12px 24px', background: '#c4a467', color: '#09090b',
+                padding: '12px 24px', background: '#c8b897', color: '#09090b',
                 border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600,
                 cursor: 'pointer',
               }}

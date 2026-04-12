@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
     return (
       <AuthLayout title="Check your email" subtitle="If an account exists with that email, we sent a password reset link.">
         <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <Link to="/login" style={{ color: '#c4a467', textDecoration: 'none', fontSize: 14 }}>
+          <Link to="/login" style={{ color: '#c8b897', textDecoration: 'none', fontSize: 14 }}>
             Back to sign in
           </Link>
         </div>

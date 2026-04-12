@@ -44,7 +44,7 @@ export default function SignupPage() {
     return (
       <AuthLayout title="Check your email" subtitle="We sent a confirmation link. Click it to activate your account.">
         <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <Link to="/login" style={{ color: '#c4a467', textDecoration: 'none', fontSize: 14 }}>
+          <Link to="/login" style={{ color: '#c8b897', textDecoration: 'none', fontSize: 14 }}>
             Back to sign in
           </Link>
         </div>
@@ -77,7 +77,7 @@ export default function SignupPage() {
       </form>
       <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: '#5a5750' }}>
         Already have an account?{' '}
-        <Link to="/login" style={{ color: '#c4a467', textDecoration: 'none' }}>Sign in</Link>
+        <Link to="/login" style={{ color: '#c8b897', textDecoration: 'none' }}>Sign in</Link>
       </div>
     </AuthLayout>
   )

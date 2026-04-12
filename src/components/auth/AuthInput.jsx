@@ -19,7 +19,7 @@ export default function AuthInput({ label, error, ...props }) {
           outline: 'none', transition: 'border-color 0.15s',
           ...(error ? { borderColor: '#e55353' } : {}),
         }}
-        onFocus={e => e.target.style.borderColor = '#c4a467'}
+        onFocus={e => e.target.style.borderColor = '#c8b897'}
         onBlur={e => e.target.style.borderColor = error ? '#e55353' : 'rgba(255,255,255,0.08)'}
       />
       {error && (

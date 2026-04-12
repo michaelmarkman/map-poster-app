@@ -13,10 +13,10 @@ const s = {
     fontSize: 48, fontWeight: 400, color: '#e8e4dc', marginBottom: 16,
     fontStyle: 'italic',
   },
-  accent: { color: '#c4a467' },
+  accent: { color: '#c8b897' },
   sub: { color: '#5a5750', fontSize: 16, maxWidth: 480, marginBottom: 40, lineHeight: 1.6 },
   btn: {
-    display: 'inline-block', padding: '14px 32px', background: '#c4a467',
+    display: 'inline-block', padding: '14px 32px', background: '#c8b897',
     color: '#09090b', border: 'none', borderRadius: 8, fontSize: 15,
     fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
   },
