@@ -456,7 +456,7 @@ function CollectionsView({ user, toast, onSelectPost }) {
 }
 
 // ─── Post Detail Modal ───
-function PostDetail({ post, onClose, user, toast }) {
+function PostDetail({ post, onClose, onPrev, onNext, user, toast }) {
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.like_count || 0)
@@ -488,8 +488,10 @@ function PostDetail({ post, onClose, user, toast }) {
 
   return (
     <div className="modal-overlay open" onClick={onClose}>
+      {onPrev && <button className="modal-nav modal-nav-prev" onClick={e => { e.stopPropagation(); onPrev() }} aria-label="Previous">&#8249;</button>}
+      {onNext && <button className="modal-nav modal-nav-next" onClick={e => { e.stopPropagation(); onNext() }} aria-label="Next">&#8250;</button>}
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
-        <button className="modal-close-btn" onClick={onClose}>&times;</button>
+        <button className="modal-close-btn" onClick={onClose} aria-label="Close">&times;</button>
         <div className="post-detail">
           <img className="post-detail-image" src={post.image_url} alt={post.title} />
           <div className="post-detail-body">
@@ -733,6 +735,20 @@ function App() {
     }
   }, [])
 
+  // Keyboard navigation: arrows for prev/next post, Escape to close
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!selectedPost || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === 'Escape') { setSelectedPost(null); return }
+      const idx = posts.findIndex(p => p.id === selectedPost.id)
+      if (idx === -1) return
+      if (e.key === 'ArrowRight' && idx < posts.length - 1) setSelectedPost(posts[idx + 1])
+      if (e.key === 'ArrowLeft' && idx > 0) setSelectedPost(posts[idx - 1])
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedPost, posts])
+
   useEffect(() => {
     setLoading(true)
     fetchPosts({ sort, ...activeFilters })
@@ -886,6 +902,8 @@ function App() {
         <PostDetail
           post={selectedPost}
           onClose={() => setSelectedPost(null)}
+          onPrev={(() => { const i = posts.findIndex(p => p.id === selectedPost.id); return i > 0 ? () => setSelectedPost(posts[i - 1]) : null })()}
+          onNext={(() => { const i = posts.findIndex(p => p.id === selectedPost.id); return i < posts.length - 1 ? () => setSelectedPost(posts[i + 1]) : null })()}
           user={user}
           toast={showToast}
         />
