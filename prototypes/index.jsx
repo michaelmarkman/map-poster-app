@@ -62,11 +62,32 @@ function Navbar() {
 
 // ─── Hero ───
 function Hero() {
+  const contentRef = useRef(null)
+  const posterRef = useRef(null)
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY
+      const vh = window.innerHeight
+      if (y > vh) return
+      const t = y / vh
+      if (contentRef.current) {
+        contentRef.current.style.opacity = String(1 - t * 1.2)
+        contentRef.current.style.transform = `translateY(${y * 0.3}px)`
+      }
+      if (posterRef.current) {
+        posterRef.current.style.transform = `translateY(${y * -0.15}px) scale(${1 - t * 0.1})`
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <section className="hero">
       <div className="hero-bg" />
       <div className="hero-grid-bg" />
-      <div className="hero-content">
+      <div className="hero-content" ref={contentRef}>
         <div className="hero-badge">3D Aerial Map Art</div>
         <h1>Your city, <em>reimagined</em></h1>
         <p className="hero-sub">
@@ -86,7 +107,7 @@ function Hero() {
           <span>Powered by Google 3D Tiles</span>
         </div>
 
-        <div className="hero-visual">
+        <div className="hero-visual" ref={posterRef}>
           <div className="hero-poster-wrap">
             <div className="hero-poster">
               <div className="hero-poster-inner">
