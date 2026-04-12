@@ -2916,6 +2916,67 @@ window.openPosterPreview = openPosterPreview
     })
   }
 
+  // Map Style — CSS filter-based map appearance
+  const mapStyleBtn = document.getElementById('open-map-style-btn')
+  const mapStylePanel = document.getElementById('map-style-panel')
+  const mapStyleLabel = document.getElementById('map-style-label')
+  const mapStyleGrid = document.getElementById('map-style-grid')
+  const canvasContainer = document.getElementById('canvas-container')
+
+  const MAP_STYLES = {
+    default:     { label: 'Default',    filter: 'none' },
+    satellite:   { label: 'Vivid',      filter: 'saturate(1.4) contrast(1.1)' },
+    warm:        { label: 'Warm',       filter: 'sepia(0.15) saturate(1.2) brightness(1.05)' },
+    cool:        { label: 'Cool',       filter: 'saturate(0.9) hue-rotate(15deg) brightness(1.02)' },
+    desaturated: { label: 'Muted',      filter: 'saturate(0.4) brightness(1.05)' },
+    noir:        { label: 'Noir',       filter: 'grayscale(1) contrast(1.3) brightness(0.9)' },
+    sepia:       { label: 'Sepia',      filter: 'sepia(0.6) saturate(0.8) brightness(0.95)' },
+    blueprint:   { label: 'Blueprint',  filter: 'grayscale(1) brightness(0.7) contrast(1.5) sepia(0.3) hue-rotate(190deg) saturate(2)' },
+    neon:        { label: 'Neon',       filter: 'saturate(2) contrast(1.2) brightness(1.1)' },
+  }
+
+  if (mapStyleBtn && mapStylePanel) {
+    mapStyleBtn.addEventListener('click', () => {
+      const open = mapStylePanel.classList.toggle('open')
+      mapStyleBtn.classList.toggle('open', open)
+    })
+  }
+
+  if (mapStyleGrid && canvasContainer) {
+    mapStyleGrid.querySelectorAll('[data-map-style]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.mapStyle
+        const style = MAP_STYLES[key]
+        if (!style) return
+
+        // Apply CSS filter to canvas container
+        canvasContainer.style.filter = style.filter
+
+        // Update active state
+        mapStyleGrid.querySelectorAll('[data-map-style]').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+
+        // Update label
+        if (mapStyleLabel) mapStyleLabel.textContent = style.label
+
+        // Store preference
+        try { localStorage.setItem('mapposter_map_style', key) } catch (e) {}
+      })
+    })
+
+    // Restore stored preference
+    try {
+      const stored = localStorage.getItem('mapposter_map_style')
+      if (stored && MAP_STYLES[stored]) {
+        canvasContainer.style.filter = MAP_STYLES[stored].filter
+        mapStyleGrid.querySelectorAll('[data-map-style]').forEach(b => {
+          b.classList.toggle('active', b.dataset.mapStyle === stored)
+        })
+        if (mapStyleLabel) mapStyleLabel.textContent = MAP_STYLES[stored].label
+      }
+    } catch (e) {}
+  }
+
   // Queue — independent collapsible dropdown + clear buttons
   const queueBtn = document.getElementById('open-queue-btn')
   const queuePanel = document.getElementById('queue-panel')
