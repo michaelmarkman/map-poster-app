@@ -2457,20 +2457,24 @@ function openLightboxScoped(indices, startPos, label) {
   lightbox?.classList.add('open')
 }
 
+// The full gallery is displayed newest-first (buildGalleryEntries reverses the array),
+// so "prev" (left arrow) should walk toward NEWER items = higher gallery indices,
+// and "next" (right arrow) should walk toward OLDER items = lower gallery indices.
+// Scoped mode (batches) preserves queue order in the scope array, so it stays linear.
 function lbCanPrev() {
-  return lbScope ? lbScopePos > 0 : lbIdx > 0
+  return lbScope ? lbScopePos > 0 : lbIdx < gallery.length - 1
 }
 function lbCanNext() {
-  return lbScope ? lbScopePos < lbScope.length - 1 : lbIdx < gallery.length - 1
+  return lbScope ? lbScopePos < lbScope.length - 1 : lbIdx > 0
 }
 function lbPrev() {
   if (lbScope) { lbScopePos--; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx-- }
+  else { lbIdx++ }
   updateLightbox()
 }
 function lbNext() {
   if (lbScope) { lbScopePos++; lbIdx = lbScope[lbScopePos] }
-  else { lbIdx++ }
+  else { lbIdx-- }
   updateLightbox()
 }
 
