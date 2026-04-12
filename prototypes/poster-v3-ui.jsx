@@ -2347,6 +2347,17 @@ function buildGalleryCard(item, idx) {
   })
   card.appendChild(dl)
 
+  const sh = document.createElement('div')
+  sh.className = 'gc-dl'
+  sh.style.cssText = 'right:38px;font-size:11px;'
+  sh.textContent = '\u2191'
+  sh.title = 'Share to Community'
+  sh.addEventListener('click', (e) => {
+    e.stopPropagation()
+    openShareModal(item.dataUrl)
+  })
+  card.appendChild(sh)
+
   const info = document.createElement('div')
   info.className = 'gc-info'
   const lbl = document.createElement('span')
@@ -2520,7 +2531,83 @@ document.getElementById('lb-frame')?.addEventListener('click', (e) => {
   if (window.openPosterPreview) window.openPosterPreview(item.dataUrl, item.label, lbIdx)
 })
 
+// ─── Share to Community ────────────────────────────────────
+const shareModal = document.getElementById('share-modal')
+const shareTitle = document.getElementById('share-title')
+const shareDesc = document.getElementById('share-desc')
+const shareLocation = document.getElementById('share-location')
+const shareStatus = document.getElementById('share-status')
+let shareImageDataUrl = null
+
+function openShareModal(dataUrl) {
+  shareImageDataUrl = dataUrl
+  if (shareTitle) shareTitle.value = ''
+  if (shareDesc) shareDesc.value = ''
+  // Auto-fill location from search bar
+  const locInput = document.getElementById('location-search')
+  if (shareLocation) shareLocation.value = locInput?.value || ''
+  if (shareStatus) { shareStatus.style.display = 'none'; shareStatus.textContent = '' }
+  if (shareModal) { shareModal.style.display = 'flex' }
+}
+
+document.getElementById('lb-share')?.addEventListener('click', (e) => {
+  e.stopPropagation()
+  const item = gallery[lbIdx]
+  if (!item) return
+  openShareModal(item.dataUrl)
+})
+
+document.getElementById('share-modal-close')?.addEventListener('click', () => {
+  if (shareModal) shareModal.style.display = 'none'
+})
+document.getElementById('share-cancel')?.addEventListener('click', () => {
+  if (shareModal) shareModal.style.display = 'none'
+})
+shareModal?.addEventListener('click', (e) => {
+  if (e.target === shareModal) shareModal.style.display = 'none'
+})
+
+document.getElementById('share-submit')?.addEventListener('click', async () => {
+  if (!shareImageDataUrl) return
+  const title = shareTitle?.value?.trim()
+  if (!title) { shareTitle?.focus(); return }
+
+  if (shareStatus) { shareStatus.style.display = 'block'; shareStatus.textContent = 'Uploading...' }
+
+  try {
+    const { createPost } = await import('./lib/community.js')
+    const { supabase } = await import('./lib/supabase.js')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      if (shareStatus) shareStatus.textContent = 'Please sign in first to share.'
+      return
+    }
+
+    // Convert data URL to blob
+    const resp = await fetch(shareImageDataUrl)
+    const blob = await resp.blob()
+
+    await createPost({
+      title,
+      description: shareDesc?.value?.trim() || '',
+      location_name: shareLocation?.value?.trim() || '',
+      image_blob: blob,
+      user_id: session.user.id
+    })
+
+    if (shareStatus) { shareStatus.textContent = 'Shared! 🎉'; shareStatus.style.color = '#5ec269' }
+    setTimeout(() => { if (shareModal) shareModal.style.display = 'none' }, 1200)
+  } catch (err) {
+    if (shareStatus) { shareStatus.textContent = 'Error: ' + (err.message || 'Upload failed'); shareStatus.style.color = '#e25555' }
+  }
+})
+
 document.addEventListener('keydown', (e) => {
+  if (shareModal?.style.display === 'flex') {
+    if (e.key === 'Escape') shareModal.style.display = 'none'
+    return
+  }
   if (posterPreview?.classList.contains('open')) {
     if (e.key === 'Escape') closePosterPreview()
     if (e.key === 'ArrowLeft') ppNavigate(-1)

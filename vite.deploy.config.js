@@ -20,6 +20,9 @@ export default {
         'poster-v3-ui': resolve(prototypes, 'poster-v3-ui.html'),
         'poster-v2': resolve(prototypes, 'poster-v2.html'),
         'poster-v2-timemachine': resolve(prototypes, 'poster-v2-timemachine.html'),
+        // Community & user pages
+        community: resolve(prototypes, 'community.html'),
+        user: resolve(prototypes, 'user.html'),
       }
     }
   }

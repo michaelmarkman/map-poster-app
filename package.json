@@ -18,7 +18,11 @@
     "postprocessing": "^6.36.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+<<<<<<< HEAD
     "react-router-dom": "^7.14.0",
+=======
+    "react-intersection-observer": "^10.0.3",
+>>>>>>> claude/unruffled-mclean
     "react-use": "^17.6.0",
     "stats-gl": "^4.1.0",
     "three": "^0.183.2"
