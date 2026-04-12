@@ -304,6 +304,54 @@
     margin: 0;
   }
 
+  /* Billing Toggle */
+  .billing-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .billing-label {
+    font-size: 14px;
+    color: var(--ink-dim);
+    transition: color 0.2s;
+  }
+  .billing-label.active { color: var(--ink); }
+  .save-badge {
+    display: inline-block;
+    background: rgba(200, 184, 151, 0.15);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 4px;
+  }
+  .toggle-switch {
+    width: 48px;
+    height: 26px;
+    background: var(--bg-3);
+    border: 1px solid var(--panel-border);
+    border-radius: 13px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    padding: 0;
+  }
+  .toggle-switch.active { background: rgba(200, 184, 151, 0.25); border-color: rgba(200, 184, 151, 0.4); }
+  .toggle-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: var(--ink-soft);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle-switch.active .toggle-knob { transform: translateX(22px); background: var(--accent); }
+
   @media (max-width: 640px) {
     .cards { grid-template-columns: 1fr; max-width: 380px; }
     .hero h1 { font-size: 28px; }
@@ -331,6 +379,14 @@
   <p>Start creating beautiful map posters for free. Upgrade to Pro for the full creative toolkit.</p>
 </div>
 
+<div class="billing-toggle" id="billing-toggle">
+  <span class="billing-label" data-period="monthly">Monthly</span>
+  <button class="toggle-switch" id="toggle-switch" type="button" aria-label="Toggle annual billing">
+    <span class="toggle-knob"></span>
+  </button>
+  <span class="billing-label" data-period="annual">Annual <span class="save-badge">Save 34%</span></span>
+</div>
+
 <div class="cards">
   <!-- Free -->
   <div class="card">
@@ -352,8 +408,8 @@
   <div class="card featured">
     <div class="badge">Recommended</div>
     <div class="card-name">Pro</div>
-    <div class="card-price">$9.99<span class="period">/mo</span></div>
-    <div class="card-yearly">or $79/year (save 34%)</div>
+    <div class="card-price" id="pro-price">$9.99<span class="period">/mo</span></div>
+    <div class="card-yearly" id="pro-yearly">or $79/year (save 34%)</div>
     <ul class="features">
       <li>High-res exports (up to 4x)</li>
       <li>Unlimited saved views</li>
@@ -406,6 +462,44 @@
 </footer>
 
 <script>
+  // Billing toggle
+  var isAnnual = false
+  var toggleBtn = document.getElementById('toggle-switch')
+  var labels = document.querySelectorAll('.billing-label')
+  var proPrice = document.getElementById('pro-price')
+  var proYearly = document.getElementById('pro-yearly')
+
+  function updateBilling() {
+    toggleBtn.classList.toggle('active', isAnnual)
+    labels.forEach(function(l) {
+      l.classList.toggle('active', l.dataset.period === (isAnnual ? 'annual' : 'monthly'))
+    })
+    if (isAnnual) {
+      proPrice.textContent = '$6.58'
+      var span = document.createElement('span')
+      span.className = 'period'
+      span.textContent = '/mo'
+      proPrice.appendChild(span)
+      proYearly.textContent = '$79 billed annually'
+    } else {
+      proPrice.textContent = '$9.99'
+      var span = document.createElement('span')
+      span.className = 'period'
+      span.textContent = '/mo'
+      proPrice.appendChild(span)
+      proYearly.textContent = 'or $79/year (save 34%)'
+    }
+  }
+
+  // Init: monthly is active by default
+  labels[0].classList.add('active')
+
+  toggleBtn.addEventListener('click', function() {
+    isAnnual = !isAnnual
+    updateBilling()
+  })
+
+  // Waitlist
   document.getElementById('waitlist-submit').addEventListener('click', function() {
     var email = document.getElementById('waitlist-email').value.trim()
     if (!email || email.indexOf('@') === -1) return
