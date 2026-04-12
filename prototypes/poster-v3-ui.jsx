@@ -2124,6 +2124,50 @@ document.getElementById('generate-all-btn')?.addEventListener('click', () => {
   processQueue()
 })
 
+// ─── Batch Export ────────────────────────────────────────────
+document.getElementById('batch-export-btn')?.addEventListener('click', async () => {
+  const views = loadSavedViews()
+  if (views.length === 0) {
+    toastInfo('No saved views to export')
+    return
+  }
+
+  const btn = document.getElementById('batch-export-btn')
+  const origText = btn.textContent
+  btn.disabled = true
+  btn.textContent = `Exporting 0/${views.length}...`
+
+  // For each saved view: restore, wait for render, snapshot, download
+  for (let i = 0; i < views.length; i++) {
+    btn.textContent = `Exporting ${i + 1}/${views.length}...`
+
+    // Restore the view
+    window.dispatchEvent(new CustomEvent('restore-view', { detail: views[i] }))
+
+    // Wait for scene to settle
+    await new Promise(r => setTimeout(r, 1500))
+
+    // Snapshot and download
+    const dataUrl = snapshotCanvas()
+    if (dataUrl) {
+      const safeName = (views[i].name || `view-${i + 1}`).replace(/[^a-zA-Z0-9°. -]/g, '_').slice(0, 60)
+      const link = document.createElement('a')
+      link.download = `mapposter_${safeName}.png`
+      link.href = dataUrl
+      link.click()
+    }
+
+    // Small delay between downloads so browser doesn't block them
+    if (i < views.length - 1) {
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
+
+  btn.disabled = false
+  btn.textContent = origText
+  toastSuccess(`Exported ${views.length} view${views.length > 1 ? 's' : ''}`)
+})
+
 // ─── Time Machine ───────────────────────────────────────────
 const tmOverlay = document.getElementById('tm-overlay')
 const tmImage = document.getElementById('tm-image')
