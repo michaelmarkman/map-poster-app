@@ -49,6 +49,20 @@ function Navbar() {
   )
 }
 
+function ShareButton() {
+  const [copied, setCopied] = useState(false)
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <button className="btn btn-secondary btn-sm" onClick={handleShare}>
+      {copied ? '\u2713 Copied!' : '\uD83D\uDD17 Share'}
+    </button>
+  )
+}
+
 function ProfileHeader({ profile, currentUser }) {
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
@@ -104,10 +118,7 @@ function ProfileHeader({ profile, currentUser }) {
               {followLoading ? '...' : following ? 'Following' : 'Follow'}
             </button>
           )}
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => navigator.clipboard.writeText(window.location.href)}
-          >&#128279; Share</button>
+          <ShareButton />
         </div>
       </div>
     </div>
@@ -186,17 +197,19 @@ function App() {
         {loading ? (
           <div>
             <div className="profile-header">
-              <div className="profile-avatar" style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div className="profile-avatar skeleton-image" style={{ aspectRatio: '1', borderRadius: '50%' }} />
               <div style={{ flex: 1 }}>
-                <div style={{ height: 24, width: '40%', background: 'var(--bg-3)', borderRadius: 6, marginBottom: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                <div style={{ height: 14, width: '25%', background: 'var(--bg-3)', borderRadius: 4, marginBottom: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                <div style={{ height: 12, width: '30%', background: 'var(--bg-3)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div className="skeleton-bar" style={{ width: '40%', height: 24 }} />
+                <div className="skeleton-bar" style={{ width: '25%' }} />
+                <div className="skeleton-bar short" style={{ width: '30%' }} />
               </div>
             </div>
             <div className="gallery-masonry">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="card" style={{ marginBottom: 16 }}>
-                  <div style={{ aspectRatio: '3/4', background: 'var(--bg-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div key={i} className="skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+                  <div className="skeleton-image" />
+                  <div className="skeleton-bar" style={{ width: '70%' }} />
+                  <div className="skeleton-bar short" style={{ width: '40%' }} />
                 </div>
               ))}
             </div>
