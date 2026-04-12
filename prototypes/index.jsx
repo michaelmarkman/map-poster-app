@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './lib/error-boundary.jsx'
 import { fetchPosts } from './lib/community.js'
 
 // ─── Intersection Observer hook ───
@@ -359,4 +360,4 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+createRoot(document.getElementById('root')).render(<ErrorBoundary name="landing"><App /></ErrorBoundary>)

@@ -32,6 +32,7 @@ import { initSeasonalPresets } from './seasonal-presets.jsx'
 import { initMockup } from './poster-mockup.jsx'
 import { startOnboarding } from './lib/onboarding.js'
 import { initKeyboardShortcuts } from './lib/keyboard-shortcuts.js'
+import { ErrorBoundary } from './lib/error-boundary.jsx'
 
 // ─── Config ──────────────────────────────────────────────────
 const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — client-side OK; do NOT use for Gemini
@@ -1268,7 +1269,7 @@ function App() {
 
 // Mount React into dedicated div inside canvas container
 const container = document.getElementById('r3f-root')
-createRoot(container).render(<App />)
+createRoot(container).render(<ErrorBoundary name="editor"><App /></ErrorBoundary>)
 
 // Wire sidebar after DOM is ready
 wireUI()

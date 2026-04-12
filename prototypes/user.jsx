@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './lib/error-boundary.jsx'
 import { fetchProfile, fetchUserPosts, toggleFollow, checkFollowing, getFollowerCount, getFollowingCount } from './lib/community.js'
 import { useAuth } from './lib/useAuth.js'
 
@@ -241,4 +242,4 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+createRoot(document.getElementById('root')).render(<ErrorBoundary name="profile"><App /></ErrorBoundary>)
