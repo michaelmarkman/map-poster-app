@@ -161,6 +161,39 @@ function HowItWorks() {
   )
 }
 
+// ─── Features ───
+function Features() {
+  const features = [
+    { icon: '📐', title: 'Tilt-shift camera', desc: 'Adjust pitch, heading, and field of view for cinematic miniature effects.' },
+    { icon: '🤖', title: 'AI style transfer', desc: 'Watercolor, oil paint, anime, blueprint — transform any view with Gemini AI.' },
+    { icon: '🔭', title: 'Depth of field', desc: 'Focus on a landmark with adjustable bokeh blur for professional results.' },
+    { icon: '🌅', title: 'Time of day', desc: 'Golden hour, blue hour, night — change lighting to set the mood.' },
+    { icon: '🖼️', title: 'Print-ready export', desc: 'High-res output with bleed marks, perfect for gallery-quality prints.' },
+    { icon: '💾', title: 'Saved views', desc: 'Bookmark camera angles and return to them anytime. Share links with others.' },
+  ]
+  return (
+    <section className="features-section container">
+      <FadeIn>
+        <div className="section-title">
+          <h2>A full creative toolkit</h2>
+          <p>Everything you need to turn maps into art</p>
+        </div>
+      </FadeIn>
+      <div className="features-grid">
+        {features.map((f, i) => (
+          <FadeIn key={i} delay={i * 80}>
+            <div className="feature-card">
+              <div className="feature-icon">{f.icon}</div>
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </div>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ─── Stats Strip ───
 function StatsStrip() {
   const stats = [
@@ -411,6 +444,7 @@ function App() {
       <Hero />
       <HowItWorks />
       <StatsStrip />
+      <Features />
       <QuickStart />
       <GalleryPreview />
       <Testimonials />

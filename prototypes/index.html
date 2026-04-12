@@ -398,6 +398,32 @@
     .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
   }
 
+  /* Features */
+  .features-section { padding: 80px 0; }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  @media (max-width: 768px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .features-grid { grid-template-columns: 1fr; max-width: 400px; } }
+  .feature-card {
+    background: var(--bg-1);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg);
+    padding: 28px 24px;
+    transition: all var(--transition);
+  }
+  .feature-card:hover { border-color: rgba(200,184,151,0.2); transform: translateY(-3px); }
+  .feature-icon {
+    font-size: 28px;
+    margin-bottom: 14px;
+  }
+  .feature-card h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+  .feature-card p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
   /* Quick Start Locations */
   .quickstart-section { padding: 80px 0; }
   .quickstart-grid {
