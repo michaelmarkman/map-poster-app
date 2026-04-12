@@ -387,6 +387,9 @@ function Pricing() {
             <button className="btn btn-primary" style={{ width: '100%' }}>Coming soon</button>
           </div>
         </div>
+        <div className="see-more" style={{ marginTop: 24 }}>
+          <a href="./pricing.html" className="btn btn-secondary">Compare plans &amp; FAQ &rarr;</a>
+        </div>
       </FadeIn>
     </section>
   )
