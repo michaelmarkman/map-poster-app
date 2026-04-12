@@ -93,7 +93,23 @@ img { display: block; max-width: 100%; }
 }
 
 .nav-links { display: flex; align-items: center; gap: 28px; }
-.nav-links a { color: var(--ink-soft); font-size: 14px; font-weight: 400; }
+.nav-links a {
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 400;
+  position: relative;
+}
+.nav-links a:not(.btn)::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+.nav-links a:not(.btn):hover::after { width: 100%; }
 .nav-links a:hover { color: var(--ink); }
 
 /* ─── Buttons ─── */
@@ -118,6 +134,7 @@ img { display: block; max-width: 100%; }
   color: var(--bg-0);
 }
 .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0) scale(0.97); }
 
 .btn-secondary {
   background: var(--bg-3);
@@ -125,6 +142,7 @@ img { display: block; max-width: 100%; }
   border: 1px solid var(--panel-border);
 }
 .btn-secondary:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); }
+.btn-secondary:active { transform: scale(0.97); }
 
 .btn-ghost {
   background: transparent;
@@ -147,7 +165,8 @@ img { display: block; max-width: 100%; }
   font-size: 16px;
 }
 .btn-icon:hover { color: var(--ink); border-color: rgba(255,255,255,0.15); }
-.btn-icon.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.btn-icon.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); animation: iconPop 0.3s ease; }
+@keyframes iconPop { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
 
 /* ─── Cards ─── */
 .card {
@@ -293,7 +312,10 @@ img { display: block; max-width: 100%; }
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  transform: scale(0.95) translateY(10px);
+  transition: transform 0.25s ease;
 }
+.modal-overlay.open .modal-content { transform: scale(1) translateY(0); }
 
 .modal-close-btn {
   position: absolute;
