@@ -111,8 +111,15 @@ function Hero() {
           <div className="hero-poster-wrap">
             <div className="hero-poster">
               <div className="hero-poster-inner">
-                <div className="poster-globe-icon">🌍</div>
-                <div className="poster-label">San Francisco, CA</div>
+                <div className="poster-shimmer" />
+                <div className="poster-grid-overlay" />
+                <div className="poster-content">
+                  <div className="poster-silhouette" />
+                  <div className="poster-label-group">
+                    <div className="poster-label">San Francisco</div>
+                    <div className="poster-sublabel">37.7749° N, 122.4194° W</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
