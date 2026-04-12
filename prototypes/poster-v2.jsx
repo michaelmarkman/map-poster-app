@@ -30,6 +30,8 @@ import { initVersionHistory, snapshotVersion, renderVersionHistory } from './ver
 import { initAIDescribe } from './ai-describe.jsx'
 import { initSeasonalPresets } from './seasonal-presets.jsx'
 import { initMockup } from './poster-mockup.jsx'
+import { startOnboarding } from './lib/onboarding.js'
+import { initKeyboardShortcuts } from './lib/keyboard-shortcuts.js'
 
 // ─── Config ──────────────────────────────────────────────────
 const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — client-side OK; do NOT use for Gemini
@@ -1284,6 +1286,8 @@ initVersionHistory()
 initAIDescribe()
 initSeasonalPresets(state)
 initMockup()
+initKeyboardShortcuts()
+setTimeout(() => startOnboarding(), 1000)
 
 // ─── Session persistence ────────────────────────────────────
 const SESSION_KEY = 'mapposter3d_poster_v2_session'
