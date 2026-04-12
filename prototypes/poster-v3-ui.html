@@ -1696,6 +1696,195 @@
     white-space: nowrap;
     opacity: 0.65;
   }
+
+  /* ═══ Editor Overlay ═══ */
+
+  /* Fabric.js wrapper — positioned by editor-overlay.jsx */
+  #canvas-container .canvas-container {
+    position: absolute !important;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+  }
+  #canvas-container .upper-canvas {
+    pointer-events: none;
+  }
+
+  /* ═══ Editor Toolbar ═══ */
+  #editor-toolbar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 400; display: none;
+    background: rgba(15,15,18,0.85); backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 8px 12px; gap: 4px;
+    align-items: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #editor-toolbar.active { display: flex; }
+
+  .ed-btn {
+    width: 36px; height: 36px; border-radius: 8px; border: none;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 16px; flex-shrink: 0;
+  }
+  .ed-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+  .ed-btn:active { transform: scale(0.92); }
+  .ed-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  .ed-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  /* Shape dropdown */
+  .ed-dropdown { position: relative; }
+  .ed-dropdown-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+    gap: 2px; min-width: 120px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-dropdown-menu.open { display: flex; flex-direction: column; }
+  .ed-dropdown-item {
+    padding: 6px 10px; border-radius: 4px; border: none;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    font-family: var(--body); font-size: 11px; text-align: left;
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.15s;
+  }
+  .ed-dropdown-item:hover { background: var(--bg-hover); color: var(--text-1); }
+  .ed-dropdown-item svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  /* Sticker dropdown */
+  .ed-sticker-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+    gap: 4px; flex-wrap: wrap; width: 180px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-sticker-menu.open { display: flex; }
+  .ed-sticker-btn {
+    width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-raised); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 18px;
+  }
+  .ed-sticker-btn:hover { border-color: var(--copper); background: var(--copper-dim); }
+
+  /* Frame dropdown */
+  .ed-frame-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+    min-width: 130px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-frame-menu.open { display: flex; flex-direction: column; }
+
+  /* ═══ Editor Properties Panel ═══ */
+  #editor-props {
+    position: fixed; top: 0; right: -260px; bottom: 0; width: 260px;
+    z-index: 400;
+    background: rgba(15,15,18,0.92); backdrop-filter: blur(20px) saturate(1.4);
+    border-left: 1px solid var(--border);
+    padding: 0; overflow-y: auto;
+    transition: right 0.25s ease;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.3);
+  }
+  #editor-props.open { right: 0; }
+
+  .ep-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .ep-header-title {
+    font-family: var(--mono, monospace); font-size: 9px; font-weight: 400;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+  }
+  .ep-close {
+    width: 24px; height: 24px; border-radius: 4px; border: none;
+    background: transparent; color: var(--text-3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s;
+  }
+  .ep-close:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  #editor-props-content { padding: 12px 16px; }
+
+  .ep-section-title {
+    font-family: var(--mono, monospace); font-size: 8px; font-weight: 400;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 8px; margin-top: 4px;
+  }
+
+  .ep-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 8px; font-size: 11px; color: var(--text-2);
+  }
+  .ep-row label { min-width: 50px; font-size: 10px; color: var(--text-3); flex-shrink: 0; }
+  .ep-input {
+    flex: 1; background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 3px; padding: 4px 6px; color: var(--text-1);
+    font-family: var(--body); font-size: 11px; outline: none;
+  }
+  .ep-input:focus { border-color: var(--copper); }
+  .ep-num { width: 60px; flex: none; font-family: var(--mono, monospace); font-size: 10px; }
+  .ep-slider { flex: 1; }
+  .ep-val { font-family: var(--mono, monospace); font-size: 9px; color: var(--text-3); min-width: 36px; text-align: right; }
+  .ep-color {
+    width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 4px;
+    background: none; cursor: pointer; padding: 0;
+  }
+  .ep-color::-webkit-color-swatch-wrapper { padding: 2px; }
+  .ep-color::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+  .ep-actions { gap: 3px; flex-wrap: wrap; }
+  .ep-btn {
+    padding: 4px 8px; border-radius: 3px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-3); font-size: 10px; cursor: pointer;
+    font-family: var(--body); transition: all 0.15s;
+  }
+  .ep-btn:hover { border-color: var(--border-hover, rgba(255,255,255,0.1)); color: var(--text-2); }
+  .ep-btn.active { border-color: var(--copper); color: var(--copper); background: var(--copper-dim); }
+  .ep-btn-danger:hover { border-color: var(--red); color: var(--red); }
+
+  .ep-layers-list { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+  .ep-layer-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; border-radius: 3px; cursor: pointer;
+    font-size: 10px; color: var(--text-3); transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .ep-layer-item:hover { background: rgba(255,255,255,0.03); color: var(--text-2); }
+  .ep-layer-item.active { border-color: var(--copper); color: var(--copper); background: var(--copper-dim); }
+  .ep-layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .ep-layer-vis {
+    background: none; border: none; color: var(--text-3); cursor: pointer;
+    font-size: 10px; padding: 2px 4px; opacity: 0.6;
+  }
+  .ep-layer-vis:hover { opacity: 1; }
+
+  /* ═══ Editor sidebar section ═══ */
+  .ed-template-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+  .ed-template-btn {
+    flex: 1; min-width: 90px; padding: 6px 4px; border-radius: 3px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-3); font-size: 9px; cursor: pointer;
+    text-align: center; transition: all 0.2s; font-family: var(--body);
+  }
+  .ed-template-btn:hover { border-color: var(--border-hover, rgba(255,255,255,0.1)); color: var(--text-2); }
+  .ed-template-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; border-radius: 3px; background: var(--bg-raised);
+    margin-bottom: 2px; cursor: pointer; transition: background 0.15s;
+  }
+  .ed-template-item:hover { background: var(--bg-hover); }
+  .ed-template-name { font-size: 10px; color: var(--text-2); }
+  .ed-template-del {
+    color: var(--text-3); font-size: 13px; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .ed-template-item:hover .ed-template-del { opacity: 1; }
+  .ed-template-del:hover { color: var(--red); }
 </style>
 </head>
 <body>
@@ -1887,6 +2076,30 @@
       <input class="text-input" id="text-title" value="East Village" placeholder="Title">
       <input class="text-input" id="text-subtitle" value="250 1st Avenue" placeholder="Subtitle">
       <input class="text-input" id="text-coords" value="40.7323° N, 73.9812° W" placeholder="Coordinates">
+    </div>
+  </div>
+
+  <!-- ═══ GRAPHIC EDITOR ═══ -->
+  <div class="sidebar-section" data-sec="editor">
+    <button class="section-head" type="button">
+      <span class="section-title">Graphic Editor</span>
+      <svg class="section-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="section-body">
+      <button class="btn" id="editor-toggle-btn" type="button" style="width:100%;background:var(--bg-2);color:var(--ink-soft);font-size:11px;padding:8px;margin-bottom:8px;border:1px solid var(--panel-border);">Open Editor</button>
+      <div style="font-size:9px;color:var(--ink-dim);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:8px;">TEMPLATES</div>
+      <div class="ed-template-grid">
+        <button class="ed-template-btn" data-template="0">City Name</button>
+        <button class="ed-template-btn" data-template="1">Minimal</button>
+        <button class="ed-template-btn" data-template="2">Vintage</button>
+        <button class="ed-template-btn" data-template="3">Journal</button>
+        <button class="ed-template-btn" data-template="4">Modern</button>
+      </div>
+      <div id="ed-custom-templates"></div>
+      <div style="display:flex;gap:4px;margin-top:4px;">
+        <button class="btn" id="ed-save-template" style="flex:1;background:var(--bg-2);color:var(--ink-soft);font-size:9px;padding:5px;border:1px solid var(--panel-border);">Save as Template</button>
+        <button class="btn" id="ed-clear-canvas" style="flex:1;background:var(--bg-2);color:var(--ink-dim);font-size:9px;padding:5px;border:1px solid var(--panel-border);">Clear Overlay</button>
+      </div>
     </div>
   </div>
 

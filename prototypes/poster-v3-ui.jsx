@@ -7,6 +7,7 @@ import { startOnboarding } from './lib/onboarding.js'
 import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
 import { showPrintExport } from './lib/print-export.js'
 import { fireConfetti } from './lib/confetti.js'
+import { initEditor, compositeExport, isEditorActive } from './editor-overlay.jsx'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { SMAA, ToneMapping, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { EffectComposer as WrappedEffectComposer } from '@react-three/postprocessing'
@@ -1329,6 +1330,9 @@ createRoot(container).render(
 // Wire sidebar after DOM is ready
 wireUI()
 
+// Init graphic editor overlay (Fabric.js canvas on top of 3D view)
+setTimeout(() => initEditor(), 500) // Delay to let R3F canvas mount first
+
 // ─── Session persistence ────────────────────────────────────
 const SESSION_KEY = 'mapposter3d_poster_v2_session'
 
@@ -2053,10 +2057,16 @@ function snapshotCanvas() {
   return canvas.toDataURL('image/png')
 }
 
-document.getElementById('export-btn')?.addEventListener('click', () => {
+// Async snapshot that composites the editor overlay onto the 3D render
+async function snapshotWithOverlay() {
+  const result = await compositeExport()
+  return result || snapshotCanvas()
+}
+
+document.getElementById('export-btn')?.addEventListener('click', async () => {
   const aiOn = toggleAI?.classList.contains('on')
   const selected = [...document.querySelectorAll('.ai-preset.active')]
-  const snapshot = snapshotCanvas() // capture view at click time
+  const snapshot = await snapshotWithOverlay() // capture view + overlay at click time
 
   if (aiOn && selected.length > 0) {
     // Queue each selected preset
@@ -2091,8 +2101,8 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
   processQueue()
 })
 
-document.getElementById('quick-download-btn')?.addEventListener('click', () => {
-  const dataUrl = snapshotCanvas()
+document.getElementById('quick-download-btn')?.addEventListener('click', async () => {
+  const dataUrl = await snapshotWithOverlay()
   if (!dataUrl) return
   const fname = buildFilename('raw')
   const link = document.createElement('a')
@@ -2103,8 +2113,8 @@ document.getElementById('quick-download-btn')?.addEventListener('click', () => {
   fireConfetti()
 })
 
-document.getElementById('generate-all-btn')?.addEventListener('click', () => {
-  const snapshot = snapshotCanvas()
+document.getElementById('generate-all-btn')?.addEventListener('click', async () => {
+  const snapshot = await snapshotWithOverlay()
   // Create a batch — all jobs in this click share the same batchId so they group in the gallery
   const batchId = 'batch-' + Date.now()
   const loc = document.getElementById('location-search')?.value?.split(',')[0] || 'All Styles'
@@ -2275,7 +2285,7 @@ function getSubjectCoords() {
 }
 
 document.getElementById('render-decades-btn')?.addEventListener('click', async () => {
-  const snapshot = snapshotCanvas()
+  const snapshot = await snapshotWithOverlay()
   if (!snapshot) { alert('Canvas not ready'); return }
 
   const setId = nextTimeMachineSetId++
