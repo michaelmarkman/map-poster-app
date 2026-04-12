@@ -50,17 +50,57 @@ function snapObject(target) {
   const bound = target.getBoundingRect()
   const objCx = bound.left + bound.width / 2
   const objCy = bound.top + bound.height / 2
+  const objLeft = bound.left, objTop = bound.top
+  const objRight = bound.left + bound.width, objBottom = bound.top + bound.height
 
-  // Snap to center X
+  // Snap center X
   if (Math.abs(objCx - cx) < SNAP_THRESHOLD) {
     target.set('left', target.left + (cx - objCx))
     addSnapLine(cx, 0, cx, ch)
   }
-  // Snap to center Y
+  // Snap center Y
   if (Math.abs(objCy - cy) < SNAP_THRESHOLD) {
     target.set('top', target.top + (cy - objCy))
     addSnapLine(0, cy, cw, cy)
   }
+  // Snap left edge
+  if (Math.abs(objLeft) < SNAP_THRESHOLD) {
+    target.set('left', target.left - objLeft)
+    addSnapLine(0, 0, 0, ch)
+  }
+  // Snap right edge
+  if (Math.abs(objRight - cw) < SNAP_THRESHOLD) {
+    target.set('left', target.left + (cw - objRight))
+    addSnapLine(cw, 0, cw, ch)
+  }
+  // Snap top edge
+  if (Math.abs(objTop) < SNAP_THRESHOLD) {
+    target.set('top', target.top - objTop)
+    addSnapLine(0, 0, cw, 0)
+  }
+  // Snap bottom edge
+  if (Math.abs(objBottom - ch) < SNAP_THRESHOLD) {
+    target.set('top', target.top + (ch - objBottom))
+    addSnapLine(0, ch, cw, ch)
+  }
+}
+
+// ─── Alignment helpers ──────────────────────────────────────
+function alignSelected(alignment) {
+  if (!selectedObject || !fabricCanvas) return
+  const cw = fabricCanvas.width, ch = fabricCanvas.height
+  const bound = selectedObject.getBoundingRect()
+  switch (alignment) {
+    case 'left': selectedObject.set('left', selectedObject.left - bound.left); break
+    case 'center-h': selectedObject.set('left', selectedObject.left + (cw / 2 - (bound.left + bound.width / 2))); break
+    case 'right': selectedObject.set('left', selectedObject.left + (cw - (bound.left + bound.width))); break
+    case 'top': selectedObject.set('top', selectedObject.top - bound.top); break
+    case 'center-v': selectedObject.set('top', selectedObject.top + (ch / 2 - (bound.top + bound.height / 2))); break
+    case 'bottom': selectedObject.set('top', selectedObject.top + (ch - (bound.top + bound.height))); break
+  }
+  selectedObject.setCoords()
+  fabricCanvas.renderAll()
+  saveHistory(); persistState()
 }
 
 // ─── History (undo/redo) ────────────────────────────────────
@@ -543,6 +583,33 @@ function updatePropertiesPanel() {
     appendShapeProperties(content, obj)
   }
 
+  // Alignment section
+  const alignTitle = document.createElement('div')
+  alignTitle.className = 'ep-section-title'
+  alignTitle.style.marginTop = '10px'
+  alignTitle.textContent = 'ALIGN'
+  content.appendChild(alignTitle)
+
+  const alignRow = document.createElement('div')
+  alignRow.className = 'ep-row ep-actions'
+  const aligns = [
+    { label: '⫷', title: 'Align left', key: 'left' },
+    { label: '⫿', title: 'Center horizontal', key: 'center-h' },
+    { label: '⫸', title: 'Align right', key: 'right' },
+    { label: '⫠', title: 'Align top', key: 'top' },
+    { label: '⫟', title: 'Center vertical', key: 'center-v' },
+    { label: '⫡', title: 'Align bottom', key: 'bottom' },
+  ]
+  aligns.forEach(a => {
+    const btn = document.createElement('button')
+    btn.className = 'ep-btn'
+    btn.textContent = a.label
+    btn.title = a.title
+    btn.addEventListener('click', () => alignSelected(a.key))
+    alignRow.appendChild(btn)
+  })
+  content.appendChild(alignRow)
+
   // Layer controls section title
   const layerTitle = document.createElement('div')
   layerTitle.className = 'ep-section-title'
@@ -566,6 +633,48 @@ function updatePropertiesPanel() {
     actionsRow.appendChild(btn)
   })
   content.appendChild(actionsRow)
+
+  // Layers list
+  const layersListTitle = document.createElement('div')
+  layersListTitle.className = 'ep-section-title'
+  layersListTitle.style.marginTop = '10px'
+  layersListTitle.textContent = 'ALL LAYERS'
+  content.appendChild(layersListTitle)
+
+  const layersList = document.createElement('div')
+  layersList.className = 'ep-layers-list'
+  const objects = fabricCanvas.getObjects().filter(o => !o.excludeFromExport)
+  objects.slice().reverse().forEach((o, i) => {
+    const item = document.createElement('div')
+    item.className = 'ep-layer-item' + (o === selectedObject ? ' active' : '')
+    const label = o.name || o.editorType || o.type || 'Object'
+    const preview = o.type === 'textbox' ? (o.text || '').substring(0, 16) : label
+
+    const nameSpan = document.createElement('span')
+    nameSpan.className = 'ep-layer-name'
+    nameSpan.textContent = preview
+    item.appendChild(nameSpan)
+
+    const visBtn = document.createElement('button')
+    visBtn.className = 'ep-layer-vis'
+    visBtn.textContent = o.visible === false ? '◻' : '◼'
+    visBtn.title = 'Toggle visibility'
+    visBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      o.set('visible', o.visible === false ? true : false)
+      fabricCanvas.renderAll()
+      persistState()
+      updatePropertiesPanel()
+    })
+    item.appendChild(visBtn)
+
+    item.addEventListener('click', () => {
+      fabricCanvas.setActiveObject(o)
+      fabricCanvas.renderAll()
+    })
+    layersList.appendChild(item)
+  })
+  content.appendChild(layersList)
 }
 
 // Safe DOM builder helpers for properties panel
