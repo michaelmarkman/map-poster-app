@@ -1728,6 +1728,32 @@ document.getElementById('quick-download-btn')?.addEventListener('click', async (
   link.click()
 })
 
+// Share view — encode camera state into URL and copy to clipboard
+document.getElementById('share-view-btn')?.addEventListener('click', () => {
+  const params = new URLSearchParams()
+  params.set('lat', state.latitude.toFixed(6))
+  params.set('lng', state.longitude.toFixed(6))
+  params.set('tod', String(state.timeOfDay))
+  params.set('dof', state.dof.on ? '1' : '0')
+  params.set('blur', String(state.dof.blur))
+  params.set('tight', String(state.dof.tightness))
+  params.set('pop', String(state.dof.colorPop))
+  const url = location.origin + location.pathname + '?' + params.toString()
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('share-view-btn')
+    if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = orig, 1500) }
+  }).catch(() => { prompt('Copy this link:', url) })
+})
+
+// Add All Styles to Queue — queue every active preset (or all presets if none active)
+document.getElementById('add-all-styles-btn')?.addEventListener('click', () => {
+  const allPresets = [...document.querySelectorAll('.ai-preset')]
+  if (allPresets.length === 0) return
+  // Activate all presets, trigger export for each
+  allPresets.forEach(btn => btn.classList.add('active'))
+  document.getElementById('export-btn')?.click()
+})
+
 document.addEventListener('keydown', (e) => {
   if (posterPreview?.classList.contains('open')) {
     if (e.key === 'Escape') closePosterPreview()

@@ -639,7 +639,11 @@
       Saved Views
     </div>
     <div id="saved-views-list"></div>
-    <button class="export-btn" id="save-view-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;">Save Current View</button>
+    <div style="display:flex;gap:4px;">
+      <button class="export-btn" id="save-view-btn" style="flex:1;background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;">Save Current View</button>
+      <button class="export-btn" id="share-view-btn" style="flex:1;background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;">Share View</button>
+    </div>
+    <a href="./community.html" class="export-btn" style="display:block;background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:4px;text-align:center;text-decoration:none;">Browse Gallery</a>
   </div>
 
   <!-- Sun -->
@@ -807,6 +811,7 @@
         <option value="4">4x</option>
       </select>
     </div>
+    <button class="export-btn" id="add-all-styles-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:4px;">Add All Styles to Queue</button>
     <button class="export-btn" id="quick-download-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:4px;">Quick Download</button>
     <div id="export-queue" style="margin-top:8px;"></div>
     <div id="export-status" style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--text-3);text-align:center;display:none;"></div>
