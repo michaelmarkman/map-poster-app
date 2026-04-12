@@ -6,6 +6,7 @@ import { initKeyboardShortcuts } from './lib/keyboard-shortcuts.js'
 import { startOnboarding } from './lib/onboarding.js'
 import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
 import { showPrintExport } from './lib/print-export.js'
+import { fireConfetti } from './lib/confetti.js'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { SMAA, ToneMapping, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { EffectComposer as WrappedEffectComposer } from '@react-three/postprocessing'
@@ -2099,6 +2100,7 @@ document.getElementById('quick-download-btn')?.addEventListener('click', () => {
   link.href = dataUrl
   link.click()
   addToGallery('Quick', fname, dataUrl)
+  fireConfetti()
 })
 
 document.getElementById('generate-all-btn')?.addEventListener('click', () => {

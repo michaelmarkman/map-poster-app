@@ -53,12 +53,32 @@ function Navbar() {
 }
 
 // ─── Post Card ───
+function BlurUpImage({ src, alt, className }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
+      <img
+        className={className}
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        style={{
+          filter: loaded ? 'blur(0)' : 'blur(12px)',
+          transform: loaded ? 'scale(1)' : 'scale(1.05)',
+          transition: 'filter 0.5s ease, transform 0.5s ease',
+        }}
+      />
+    </div>
+  )
+}
+
 function PostCard({ post, onClick, onLike, onSave, liked, saved }) {
   const profile = post.profiles || {}
   return (
     <div className="card" onClick={() => onClick(post)}>
       <div className="card-image-wrap">
-        <img className="card-image" src={post.image_url} alt={post.title} loading="lazy" />
+        <BlurUpImage className="card-image" src={post.image_url} alt={post.title} />
         <div className="card-actions">
           <button
             className={`btn-icon ${liked ? 'active' : ''}`}
