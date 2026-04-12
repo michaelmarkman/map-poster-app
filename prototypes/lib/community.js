@@ -16,16 +16,42 @@ async function withRetry(fn, retries = 2) {
 }
 
 // ── Fetch posts ──
-export async function fetchPosts({ sort = 'newest', limit = 30, offset = 0 } = {}) {
+export async function fetchPosts({ sort = 'newest', limit = 30, offset = 0, search = '', location = '', creator = '', dateFrom = '', dateTo = '' } = {}) {
   let query = supabase
     .from('community_posts')
     .select('*, profiles(username, display_name, avatar_url)')
     .eq('is_public', true)
-    .range(offset, offset + limit - 1)
+
+  // Text search on title/description
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`)
+  }
+
+  // Location filter
+  if (location) {
+    query = query.ilike('location_name', `%${location}%`)
+  }
+
+  // Creator filter — match against joined profile username or display_name
+  if (creator) {
+    query = query.or(`username.ilike.%${creator}%,display_name.ilike.%${creator}%`, { referencedTable: 'profiles' })
+  }
+
+  // Date range
+  if (dateFrom) {
+    query = query.gte('created_at', new Date(dateFrom).toISOString())
+  }
+  if (dateTo) {
+    const end = new Date(dateTo)
+    end.setDate(end.getDate() + 1)
+    query = query.lt('created_at', end.toISOString())
+  }
 
   if (sort === 'newest') query = query.order('created_at', { ascending: false })
-  else if (sort === 'most_liked') query = query.order('like_count', { ascending: false })
-  else if (sort === 'trending') query = query.order('like_count', { ascending: false }).gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+  else if (sort === 'most_liked') query = query.order('likes_count', { ascending: false })
+  else if (sort === 'trending') query = query.order('likes_count', { ascending: false }).gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+
+  query = query.range(offset, offset + limit - 1)
 
   return withRetry(async () => {
     const { data, error } = await query

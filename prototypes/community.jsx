@@ -302,6 +302,148 @@ function PostDetail({ post, onClose, user, toast }) {
   )
 }
 
+// ─── Search Panel ───
+function SearchPanel({ filters, onFilterChange, onSearch, onClear, resultCount, hasFilters }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="search-panel" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-1)', border: '1px solid var(--panel-border)',
+          borderRadius: 'var(--radius)', padding: '0 14px', transition: 'border-color 0.2s',
+        }}>
+          <span style={{ color: 'var(--ink-dim)', fontSize: 16, flexShrink: 0 }}>&#128269;</span>
+          <input
+            type="text"
+            placeholder="Search posters..."
+            value={filters.search}
+            onChange={e => onFilterChange('search', e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onSearch()}
+            style={{
+              flex: 1, background: 'none', border: 'none', color: 'var(--ink)',
+              fontFamily: 'var(--body)', fontSize: 14, padding: '10px 0', outline: 'none',
+            }}
+          />
+          {filters.search && (
+            <button
+              onClick={() => { onFilterChange('search', ''); onSearch() }}
+              style={{
+                background: 'none', border: 'none', color: 'var(--ink-dim)',
+                cursor: 'pointer', fontSize: 16, padding: '2px 4px',
+              }}
+            >&times;</button>
+          )}
+        </div>
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="btn btn-secondary btn-sm"
+          style={{ position: 'relative' }}
+        >
+          &#9776; Filters
+          {hasFilters && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4, width: 8, height: 8,
+              borderRadius: '50%', background: 'var(--accent)',
+            }} />
+          )}
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={onSearch}>Search</button>
+      </div>
+
+      {expanded && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12, marginTop: 12, padding: 16, background: 'var(--bg-1)',
+          border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+        }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 6 }}>
+              Location
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Tokyo, Paris..."
+              value={filters.location}
+              onChange={e => onFilterChange('location', e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', background: 'var(--bg-0)',
+                border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+                color: 'var(--ink)', fontFamily: 'var(--body)', fontSize: 13, outline: 'none',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 6 }}>
+              Creator
+            </label>
+            <input
+              type="text"
+              placeholder="Username or name..."
+              value={filters.creator}
+              onChange={e => onFilterChange('creator', e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', background: 'var(--bg-0)',
+                border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+                color: 'var(--ink)', fontFamily: 'var(--body)', fontSize: 13, outline: 'none',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 6 }}>
+              From
+            </label>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={e => onFilterChange('dateFrom', e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', background: 'var(--bg-0)',
+                border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+                color: 'var(--ink)', fontFamily: 'var(--body)', fontSize: 13, outline: 'none',
+                colorScheme: 'dark',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 6 }}>
+              To
+            </label>
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={e => onFilterChange('dateTo', e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', background: 'var(--bg-0)',
+                border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+                color: 'var(--ink)', fontFamily: 'var(--body)', fontSize: 13, outline: 'none',
+                colorScheme: 'dark',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={onClear}>Clear all</button>
+          </div>
+        </div>
+      )}
+
+      {hasFilters && !expanded && (
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--ink-dim)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>Showing {resultCount} result{resultCount !== 1 ? 's' : ''}</span>
+          <button
+            onClick={onClear}
+            style={{
+              background: 'none', border: 'none', color: 'var(--accent)',
+              cursor: 'pointer', fontSize: 13, fontFamily: 'var(--body)',
+            }}
+          >Clear filters</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main App ───
 function App() {
   const { user } = useAuth()
@@ -312,10 +454,28 @@ function App() {
   const [likedSet, setLikedSet] = useState(new Set())
   const [savedSet, setSavedSet] = useState(new Set())
   const [toastMsg, setToastMsg] = useState('')
+  const [filters, setFilters] = useState({ search: '', location: '', creator: '', dateFrom: '', dateTo: '' })
+  const [activeFilters, setActiveFilters] = useState({ search: '', location: '', creator: '', dateFrom: '', dateTo: '' })
+
+  const hasFilters = Object.values(activeFilters).some(v => v !== '')
 
   const showToast = useCallback((msg) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(''), 2000)
+  }, [])
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleSearch = useCallback(() => {
+    setActiveFilters({ ...filters })
+  }, [filters])
+
+  const handleClearFilters = useCallback(() => {
+    const empty = { search: '', location: '', creator: '', dateFrom: '', dateTo: '' }
+    setFilters(empty)
+    setActiveFilters(empty)
   }, [])
 
   // Check URL for ?post=ID deep link
@@ -329,13 +489,13 @@ function App() {
 
   useEffect(() => {
     setLoading(true)
-    fetchPosts({ sort })
+    fetchPosts({ sort, ...activeFilters })
       .then(data => {
         setPosts(data)
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [sort])
+  }, [sort, activeFilters])
 
   // Batch check liked/saved status
   useEffect(() => {
@@ -395,6 +555,15 @@ function App() {
             </p>
           </div>
         </FadeIn>
+
+        <SearchPanel
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onSearch={handleSearch}
+          onClear={handleClearFilters}
+          resultCount={posts.length}
+          hasFilters={hasFilters}
+        />
 
         <div className="toolbar">
           <div className="sort-tabs">
