@@ -513,6 +513,7 @@ img { display: block; max-width: 100%; }
   margin: 40px auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
 
 /* ─── Toast ─── */
 .toast {

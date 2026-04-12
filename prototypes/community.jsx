@@ -175,6 +175,9 @@ function PostDetail({ post, onClose, user, toast }) {
                 <button className="btn btn-sm btn-ghost" onClick={() => shareToFacebook(post)} title="Share on Facebook">
                   f
                 </button>
+                <button className="btn btn-sm btn-ghost" onClick={() => { console.log('Report post:', post.id); toast('Report submitted') }} title="Report" style={{ marginLeft: 'auto', color: 'var(--ink-dim)' }}>
+                  Report
+                </button>
               </div>
             </div>
           </div>
@@ -189,11 +192,15 @@ function App() {
   const { user } = useAuth()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [sort, setSort] = useState('newest')
   const [selectedPost, setSelectedPost] = useState(null)
   const [likedSet, setLikedSet] = useState(new Set())
   const [savedSet, setSavedSet] = useState(new Set())
   const [toastMsg, setToastMsg] = useState('')
+  const sentinelRef = useRef(null)
+  const PAGE_SIZE = 20
 
   const showToast = useCallback((msg) => {
     setToastMsg(msg)
@@ -211,13 +218,35 @@ function App() {
 
   useEffect(() => {
     setLoading(true)
-    fetchPosts({ sort })
+    setHasMore(true)
+    fetchPosts({ sort, limit: PAGE_SIZE })
       .then(data => {
         setPosts(data)
+        setHasMore(data.length >= PAGE_SIZE)
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [sort])
+
+  // Infinite scroll via IntersectionObserver on a sentinel element
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !loadingMore && !loading && hasMore) {
+        setLoadingMore(true)
+        fetchPosts({ sort, limit: PAGE_SIZE, offset: posts.length })
+          .then(data => {
+            setPosts(prev => [...prev, ...data])
+            setHasMore(data.length >= PAGE_SIZE)
+            setLoadingMore(false)
+          })
+          .catch(() => setLoadingMore(false))
+      }
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, loading, posts.length, sort])
 
   // Batch check liked/saved status
   useEffect(() => {
@@ -296,7 +325,17 @@ function App() {
         </div>
 
         {loading ? (
-          <div className="spinner" />
+          <div className="gallery-masonry">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="card" style={{ marginBottom: 16 }}>
+                <div style={{ aspectRatio: '3/4', background: 'var(--bg-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ padding: 14 }}>
+                  <div style={{ height: 12, width: '60%', background: 'var(--bg-3)', borderRadius: 4, marginBottom: 8 }} />
+                  <div style={{ height: 10, width: '40%', background: 'var(--bg-3)', borderRadius: 4 }} />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : posts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🗺️</div>
@@ -307,20 +346,24 @@ function App() {
             </a>
           </div>
         ) : (
-          <div className="gallery-masonry">
-            {posts.map((post, i) => (
-              <FadeIn key={post.id} delay={i * 40}>
-                <PostCard
-                  post={post}
-                  onClick={setSelectedPost}
-                  onLike={handleLike}
-                  onSave={handleSave}
-                  liked={likedSet.has(post.id)}
-                  saved={savedSet.has(post.id)}
-                />
-              </FadeIn>
-            ))}
-          </div>
+          <>
+            <div className="gallery-masonry">
+              {posts.map((post, i) => (
+                <FadeIn key={post.id} delay={Math.min(i, 12) * 40}>
+                  <PostCard
+                    post={post}
+                    onClick={setSelectedPost}
+                    onLike={handleLike}
+                    onSave={handleSave}
+                    liked={likedSet.has(post.id)}
+                    saved={savedSet.has(post.id)}
+                  />
+                </FadeIn>
+              ))}
+            </div>
+            <div ref={sentinelRef} style={{ height: 1 }} />
+            {loadingMore && <div className="spinner" />}
+          </>
         )}
       </main>
 
