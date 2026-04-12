@@ -693,6 +693,39 @@ kbd {
   text-align: center;
 }
 
+/* ═══════ Skeleton Loading ═══════ */
+.skeleton-card {
+  background: var(--bg-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+.skeleton-image {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: linear-gradient(110deg, var(--bg-2) 30%, var(--bg-3) 50%, var(--bg-2) 70%);
+  background-size: 200% 100%;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  animation: skeletonShimmer 1.8s ease-in-out infinite;
+}
+.skeleton-bar {
+  height: 12px;
+  background: var(--bg-2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.skeleton-bar.short { height: 10px; }
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ═══════ Reduced Motion ═══════ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

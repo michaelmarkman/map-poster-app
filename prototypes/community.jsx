@@ -862,7 +862,15 @@ function App() {
         </div>
 
         {loading ? (
-          <div className="spinner" />
+          <div className="gallery-masonry">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+                <div className="skeleton-image" />
+                <div className="skeleton-bar" style={{ width: '70%' }} />
+                <div className="skeleton-bar short" style={{ width: '40%' }} />
+              </div>
+            ))}
+          </div>
         ) : posts.length === 0 ? (
           <div style={{ padding: '80px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{
@@ -874,7 +882,7 @@ function App() {
             <p style={{ color: 'var(--ink-soft)', fontSize: 15, maxWidth: 360, lineHeight: 1.6, marginBottom: 24 }}>
               Be the first to share a map poster with the community
             </p>
-            <a href="./poster-v3-ui.html" className="btn btn-primary">
+            <a href="./poster-v2.html" className="btn btn-primary">
               Open the Editor
             </a>
           </div>
