@@ -65,7 +65,7 @@
 
   .hero {
     text-align: center;
-    padding: 60px 20px 40px;
+    padding: 100px 20px 40px;
     max-width: 600px;
   }
   .hero h1 {
@@ -262,11 +262,13 @@
 </head>
 <body>
 
-<nav class="nav">
-  <a href="./" class="nav-logo"><span class="map">map</span><span class="poster">poster</span></a>
-  <div style="display:flex;gap:16px;align-items:center">
-    <a href="./community.html" class="nav-back">Community</a>
-    <a href="./poster-v3-ui.html" class="nav-back">&larr; Editor</a>
+<nav class="nav" style="position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(28,27,31,0.85);backdrop-filter:blur(20px) saturate(150%);border-bottom:1px solid var(--panel-border);height:60px;">
+  <a href="./" class="nav-logo" style="font-style:italic;color:var(--accent);">MapPoster</a>
+  <div style="display:flex;align-items:center;gap:28px;">
+    <a href="./poster-v2.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Editor</a>
+    <a href="./community.html" style="color:var(--ink-soft);font-size:14px;text-decoration:none;">Community</a>
+    <a href="./pricing.html" style="color:var(--ink);font-size:14px;text-decoration:none;">Pricing</a>
+    <a href="./poster-v2.html" style="display:inline-flex;align-items:center;padding:6px 14px;border-radius:10px;background:var(--accent);color:var(--bg-0);font-size:13px;font-weight:500;text-decoration:none;">Create</a>
   </div>
 </nav>
 
@@ -289,7 +291,7 @@
       <li class="disabled">High-res exports</li>
       <li class="disabled">No watermark</li>
     </ul>
-    <a href="./poster-v3-ui.html" class="card-btn btn-free">Get started</a>
+    <a href="./poster-v2.html" class="card-btn btn-free">Get started</a>
   </div>
 
   <!-- Pro -->

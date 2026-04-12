@@ -41,11 +41,12 @@ function Navbar() {
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <a href="/src/" className="nav-logo">MapPoster</a>
+        <a href="./" className="nav-logo">MapPoster</a>
         <div className="nav-links">
+          <a href="./poster-v2.html">Editor</a>
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
+          <a href="./poster-v2.html" className="btn btn-primary btn-sm">Create</a>
         </div>
       </div>
     </nav>
@@ -157,7 +158,7 @@ function PostDetail({ post, onClose, user, toast }) {
 
               {post.saved_view_id && (
                 <a
-                  href={`./poster-v3-ui.html?view=${post.saved_view_id}`}
+                  href={`./poster-v2.html?view=${post.saved_view_id}`}
                   className="btn btn-sm btn-secondary"
                 >
                   Use this view
@@ -289,7 +290,7 @@ function App() {
               </button>
             ))}
           </div>
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">
+          <a href="./poster-v2.html" className="btn btn-primary btn-sm">
             + Share your creation
           </a>
         </div>
@@ -301,7 +302,7 @@ function App() {
             <div className="empty-state-icon">🗺️</div>
             <h3>No posts yet</h3>
             <p>Be the first to share a creation!</p>
-            <a href="./poster-v3-ui.html" className="btn btn-primary" style={{ marginTop: 16 }}>
+            <a href="./poster-v2.html" className="btn btn-primary" style={{ marginTop: 16 }}>
               Open the Editor
             </a>
           </div>
@@ -336,8 +337,8 @@ function App() {
         <div className="footer-inner">
           <div className="footer-col">
             <h4>MapPoster</h4>
-            <a href="/src/">Home</a>
-            <a href="./poster-v3-ui.html">Editor</a>
+            <a href="./">Home</a>
+            <a href="./poster-v2.html">Editor</a>
             <a href="./community.html">Community</a>
             <a href="./pricing.html">Pricing</a>
           </div>

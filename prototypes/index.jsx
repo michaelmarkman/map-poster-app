@@ -45,9 +45,10 @@ function Navbar() {
       <div className="nav-inner">
         <a href="./" className="nav-logo">MapPoster</a>
         <div className="nav-links">
+          <a href="./poster-v2.html">Editor</a>
           <a href="./community.html">Community</a>
           <a href="./pricing.html">Pricing</a>
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Start Creating</a>
+          <a href="./poster-v2.html" className="btn btn-primary btn-sm">Start Creating</a>
         </div>
       </div>
     </nav>
@@ -68,7 +69,7 @@ function Hero() {
           Search, customize the view, apply cinematic effects, and export print-ready art.
         </p>
         <div className="hero-ctas">
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-lg">Start Creating</a>
+          <a href="./poster-v2.html" className="btn btn-primary btn-lg">Start Creating</a>
           <a href="./community.html" className="btn btn-secondary btn-lg">Explore Gallery</a>
         </div>
 
@@ -202,7 +203,7 @@ function Pricing() {
               <li>All AI art styles</li>
               <li>Community gallery access</li>
             </ul>
-            <a href="./poster-v3-ui.html" className="btn btn-secondary" style={{ width: '100%' }}>Get started</a>
+            <a href="./poster-v2.html" className="btn btn-secondary" style={{ width: '100%' }}>Get started</a>
           </div>
           <div className="pricing-card featured">
             <div className="pricing-badge">Popular</div>
@@ -231,7 +232,7 @@ function Footer() {
         <div className="footer-col">
           <h4>MapPoster</h4>
           <a href="./">Home</a>
-          <a href="./poster-v3-ui.html">Editor</a>
+          <a href="./poster-v2.html">Editor</a>
           <a href="./community.html">Community</a>
           <a href="./pricing.html">Pricing</a>
         </div>
@@ -261,7 +262,7 @@ function CTA() {
       <FadeIn>
         <h2>Ready to create something beautiful?</h2>
         <p>No account needed. Jump in and start exploring the world in 3D.</p>
-        <a href="./poster-v3-ui.html" className="btn btn-primary btn-lg">Open the Editor</a>
+        <a href="./poster-v2.html" className="btn btn-primary btn-lg">Open the Editor</a>
       </FadeIn>
     </section>
   )
