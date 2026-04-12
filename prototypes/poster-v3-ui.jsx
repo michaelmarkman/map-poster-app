@@ -7,6 +7,16 @@ import { startOnboarding } from './lib/onboarding.js'
 import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
 import { showPrintExport } from './lib/print-export.js'
 import { fireConfetti } from './lib/confetti.js'
+import { initCameraHistory } from './lib/camera-history.js'
+import { initCompareMode } from './lib/compare-mode.js'
+import { initGalleryKeyboard } from './lib/gallery-keyboard.js'
+import { initSceneSuggestions } from './lib/scene-suggestions.js'
+import { initTheme } from './lib/theme.js'
+import { initCollab } from './collab.jsx'
+import { initVersionHistory } from './version-history.jsx'
+import { initAIDescribe } from './ai-describe.jsx'
+import { initSeasonalPresets } from './seasonal-presets.jsx'
+import { initMockup } from './poster-mockup.jsx'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { SMAA, ToneMapping, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { EffectComposer as WrappedEffectComposer } from '@react-three/postprocessing'
@@ -3223,3 +3233,15 @@ if (saveViewBtn) {
     } catch (err) {}
   }, true) // capture phase to intercept before save handler
 }
+
+// ─── Phase 6: v2 feature integrations ─────────────────────────
+initTheme()
+initCameraHistory()
+initCompareMode()
+initGalleryKeyboard()
+initSceneSuggestions()
+initCollab()
+initVersionHistory()
+initAIDescribe()
+initSeasonalPresets(state)
+initMockup()

@@ -147,7 +147,7 @@ function Navbar({ user }) {
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
           <NotificationBell user={user} />
-          <a href="./poster-v2.html" className="btn btn-primary btn-sm">Create</a>
+          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
         </div>
       </div>
     </nav>
@@ -523,7 +523,7 @@ function PostDetail({ post, onClose, onPrev, onNext, user, toast }) {
 
               {post.saved_view_id && (
                 <a
-                  href={`./poster-v2.html?view=${post.saved_view_id}`}
+                  href={`./poster-v3-ui.html?view=${post.saved_view_id}`}
                   className="btn btn-sm btn-secondary"
                 >
                   Use this view
@@ -792,7 +792,7 @@ function App() {
               </button>
             ))}
           </div>
-          <a href="./poster-v2.html" className="btn btn-primary btn-sm">
+          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">
             + Share your creation
           </a>
         </div>
@@ -818,7 +818,7 @@ function App() {
             <p style={{ color: 'var(--ink-soft)', fontSize: 15, maxWidth: 360, lineHeight: 1.6, marginBottom: 24 }}>
               Be the first to share a map poster with the community
             </p>
-            <a href="./poster-v2.html" className="btn btn-primary">
+            <a href="./poster-v3-ui.html" className="btn btn-primary">
               Open the Editor
             </a>
           </div>
@@ -860,7 +860,7 @@ function App() {
           <div className="footer-col">
             <h4>MapPoster</h4>
             <a href="./">Home</a>
-            <a href="./poster-v2.html">Editor</a>
+            <a href="./poster-v3-ui.html">Editor</a>
             <a href="./community.html">Community</a>
             <a href="./pricing.html">Pricing</a>
           </div>
