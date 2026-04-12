@@ -4,7 +4,9 @@ import { useAuth } from './lib/useAuth.js'
 import {
   fetchPosts, fetchPost, toggleLike, toggleSave, checkLiked, checkSaved,
   shareToTwitter, shareToFacebook, copyPostLink, getPostUrl,
-  getUnreadCount, fetchNotifications, markNotificationsRead
+  getUnreadCount, fetchNotifications, markNotificationsRead,
+  fetchCollections, createCollection, addToCollection, removeFromCollection,
+  fetchCollectionPosts, deleteCollection,
 } from './lib/community.js'
 
 // ─── Intersection Observer hook ───
@@ -211,6 +213,247 @@ function PostCard({ post, onClick, onLike, onSave, liked, saved }) {
   )
 }
 
+// ─── Collection Picker ───
+function CollectionPicker({ postId, user, toast }) {
+  const [open, setOpen] = useState(false)
+  const [collections, setCollections] = useState([])
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function close(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  const loadCollections = useCallback(async () => {
+    if (!user) return
+    const cols = await fetchCollections(user.id)
+    setCollections(cols)
+  }, [user])
+
+  useEffect(() => { if (open) loadCollections() }, [open, loadCollections])
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return
+    setCreating(true)
+    try {
+      const col = await createCollection(user.id, newName.trim())
+      await addToCollection(col.id, postId)
+      toast(`Added to "${col.name}"`)
+      setNewName('')
+      loadCollections()
+    } catch (e) {
+      toast('Failed to create collection')
+    }
+    setCreating(false)
+  }
+
+  const handleAdd = async (col) => {
+    try {
+      await addToCollection(col.id, postId)
+      toast(`Added to "${col.name}"`)
+      loadCollections()
+    } catch (e) {
+      toast('Already in collection')
+    }
+  }
+
+  if (!user) return null
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button className="btn btn-sm btn-secondary" onClick={() => setOpen(o => !o)}>
+        &#128193; Collect
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, width: 260,
+          background: 'var(--bg-1)', border: '1px solid var(--panel-border)',
+          borderRadius: 'var(--radius)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          zIndex: 300, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--panel-border)', fontWeight: 500, fontSize: 13 }}>
+            Add to collection
+          </div>
+          <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+            {collections.length === 0 ? (
+              <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--ink-dim)', fontSize: 13 }}>
+                No collections yet
+              </div>
+            ) : (
+              collections.map(col => (
+                <button
+                  key={col.id}
+                  onClick={() => handleAdd(col)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', padding: '10px 14px', background: 'none', border: 'none',
+                    borderBottom: '1px solid rgba(255,255,255,0.03)', color: 'var(--ink)',
+                    cursor: 'pointer', fontSize: 13, fontFamily: 'var(--body)', textAlign: 'left',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'none'}
+                >
+                  <span>{col.name}</span>
+                  <span style={{ color: 'var(--ink-dim)', fontSize: 11 }}>{col.item_count} items</span>
+                </button>
+              ))
+            )}
+          </div>
+          <div style={{
+            padding: '10px 14px', borderTop: '1px solid var(--panel-border)',
+            display: 'flex', gap: 6,
+          }}>
+            <input
+              type="text"
+              placeholder="New collection..."
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              style={{
+                flex: 1, padding: '6px 10px', background: 'var(--bg-0)',
+                border: '1px solid var(--panel-border)', borderRadius: 'var(--radius)',
+                color: 'var(--ink)', fontFamily: 'var(--body)', fontSize: 12, outline: 'none',
+              }}
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleCreate}
+              disabled={creating || !newName.trim()}
+              style={{ padding: '6px 10px', fontSize: 12 }}
+            >+</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── My Collections View ───
+function CollectionsView({ user, toast, onSelectPost }) {
+  const [collections, setCollections] = useState([])
+  const [selectedCol, setSelectedCol] = useState(null)
+  const [colPosts, setColPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return }
+    fetchCollections(user.id).then(cols => {
+      setCollections(cols)
+      setLoading(false)
+    })
+  }, [user])
+
+  const handleSelectCol = async (col) => {
+    setSelectedCol(col)
+    setLoading(true)
+    const posts = await fetchCollectionPosts(col.id)
+    setColPosts(posts)
+    setLoading(false)
+  }
+
+  const handleDeleteCol = async (colId) => {
+    await deleteCollection(colId)
+    setCollections(prev => prev.filter(c => c.id !== colId))
+    if (selectedCol?.id === colId) { setSelectedCol(null); setColPosts([]) }
+    toast('Collection deleted')
+  }
+
+  const handleRemovePost = async (postId) => {
+    if (!selectedCol) return
+    await removeFromCollection(selectedCol.id, postId)
+    setColPosts(prev => prev.filter(p => p.id !== postId))
+    toast('Removed from collection')
+  }
+
+  if (!user) {
+    return (
+      <div className="admin-empty" style={{ padding: '60px 24px' }}>
+        <div style={{ fontSize: 40, opacity: 0.3, marginBottom: 12 }}>&#128193;</div>
+        <div style={{ color: 'var(--ink-soft)', fontSize: 15 }}>Sign in to create collections</div>
+      </div>
+    )
+  }
+
+  if (loading) return <div className="spinner" />
+
+  if (selectedCol) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedCol(null); setColPosts([]) }}>
+            &larr; Back
+          </button>
+          <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 400 }}>{selectedCol.name}</h2>
+          <span style={{ color: 'var(--ink-dim)', fontSize: 13 }}>{colPosts.length} posts</span>
+        </div>
+        {colPosts.length === 0 ? (
+          <div className="admin-empty">
+            <div style={{ fontSize: 40, opacity: 0.3, marginBottom: 12 }}>&#128193;</div>
+            <div>This collection is empty</div>
+          </div>
+        ) : (
+          <div className="gallery-masonry">
+            {colPosts.map(post => (
+              <div key={post.id} className="card" style={{ cursor: 'pointer', position: 'relative' }}>
+                <div className="card-image-wrap" onClick={() => onSelectPost(post)}>
+                  <img className="card-image" src={post.image_url} alt={post.title} loading="lazy" />
+                </div>
+                <div className="card-body">
+                  <div className="card-title">{post.title}</div>
+                  {post.location_name && <div className="card-location">{post.location_name}</div>}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}
+                    onClick={() => handleRemovePost(post.id)}
+                  >Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {collections.length === 0 ? (
+        <div className="admin-empty" style={{ padding: '60px 24px' }}>
+          <div style={{ fontSize: 40, opacity: 0.3, marginBottom: 12 }}>&#128193;</div>
+          <div style={{ color: 'var(--ink-soft)', fontSize: 15, marginBottom: 8 }}>No collections yet</div>
+          <div style={{ color: 'var(--ink-dim)', fontSize: 13 }}>
+            Open a post and click "Collect" to start organizing
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          {collections.map(col => (
+            <div key={col.id} className="card" style={{ cursor: 'pointer' }}>
+              <div style={{ padding: 20 }} onClick={() => handleSelectCol(col)}>
+                <div style={{ fontSize: 28, marginBottom: 12, opacity: 0.4 }}>&#128193;</div>
+                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>{col.name}</div>
+                <div style={{ fontSize: 13, color: 'var(--ink-dim)' }}>{col.item_count} post{col.item_count !== 1 ? 's' : ''}</div>
+                {col.description && <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8 }}>{col.description}</div>}
+              </div>
+              <div style={{ padding: '8px 20px 16px', borderTop: '1px solid var(--panel-border)' }}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 12, color: 'var(--danger)' }}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteCol(col.id) }}
+                >Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Post Detail Modal ───
 function PostDetail({ post, onClose, user, toast }) {
   const [liked, setLiked] = useState(false)
@@ -273,6 +516,7 @@ function PostDetail({ post, onClose, user, toast }) {
               <button className={`btn btn-sm ${saved ? 'btn-primary' : 'btn-secondary'}`} onClick={handleSave}>
                 &#9733; {saved ? 'Saved' : 'Save'}
               </button>
+              <CollectionPicker postId={post.id} user={user} toast={toast} />
 
               {post.saved_view_id && (
                 <a
@@ -454,6 +698,7 @@ function App() {
   const [likedSet, setLikedSet] = useState(new Set())
   const [savedSet, setSavedSet] = useState(new Set())
   const [toastMsg, setToastMsg] = useState('')
+  const [tab, setTab] = useState('gallery') // 'gallery' | 'collections'
   const [filters, setFilters] = useState({ search: '', location: '', creator: '', dateFrom: '', dateTo: '' })
   const [activeFilters, setActiveFilters] = useState({ search: '', location: '', creator: '', dateFrom: '', dateTo: '' })
 
@@ -556,6 +801,23 @@ function App() {
           </div>
         </FadeIn>
 
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+          <button
+            className={`sort-tab ${tab === 'gallery' ? 'active' : ''}`}
+            onClick={() => setTab('gallery')}
+            style={{ fontSize: 14 }}
+          >Gallery</button>
+          <button
+            className={`sort-tab ${tab === 'collections' ? 'active' : ''}`}
+            onClick={() => setTab('collections')}
+            style={{ fontSize: 14 }}
+          >&#128193; My Collections</button>
+        </div>
+
+        {tab === 'collections' ? (
+          <CollectionsView user={user} toast={showToast} onSelectPost={setSelectedPost} />
+        ) : (
+        <>
         <SearchPanel
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -614,6 +876,8 @@ function App() {
               </FadeIn>
             ))}
           </div>
+        )}
+        </>
         )}
       </main>
 

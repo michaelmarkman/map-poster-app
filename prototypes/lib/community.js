@@ -283,6 +283,71 @@ export async function copyPostLink(postId) {
   return url
 }
 
+// ── Collections ──
+export async function fetchCollections(userId) {
+  if (!userId) return []
+  const { data, error } = await supabase
+    .from('collections')
+    .select('*, collection_items(id)')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+  if (error) return []
+  return (data || []).map(c => ({ ...c, item_count: c.collection_items?.length || 0 }))
+}
+
+export async function createCollection(userId, name, description = '') {
+  const { data, error } = await supabase
+    .from('collections')
+    .insert({ user_id: userId, name, description })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteCollection(collectionId) {
+  const { error } = await supabase.from('collections').delete().eq('id', collectionId)
+  if (error) throw error
+}
+
+export async function addToCollection(collectionId, postId) {
+  const { error } = await supabase
+    .from('collection_items')
+    .insert({ collection_id: collectionId, post_id: postId })
+  if (error && error.code !== '23505') throw error // ignore duplicate
+  // Update collection timestamp
+  await supabase.from('collections').update({ updated_at: new Date().toISOString() }).eq('id', collectionId)
+}
+
+export async function removeFromCollection(collectionId, postId) {
+  const { error } = await supabase
+    .from('collection_items')
+    .delete()
+    .eq('collection_id', collectionId)
+    .eq('post_id', postId)
+  if (error) throw error
+}
+
+export async function fetchCollectionPosts(collectionId) {
+  const { data, error } = await supabase
+    .from('collection_items')
+    .select('post_id, added_at, community_posts(*, profiles(username, display_name, avatar_url))')
+    .eq('collection_id', collectionId)
+    .order('added_at', { ascending: false })
+  if (error) return []
+  return (data || []).map(item => item.community_posts).filter(Boolean)
+}
+
+export async function getPostCollections(postId, userId) {
+  if (!userId) return []
+  const { data } = await supabase
+    .from('collections')
+    .select('id, name, collection_items!inner(post_id)')
+    .eq('user_id', userId)
+    .eq('collection_items.post_id', postId)
+  return data || []
+}
+
 // ── View encoding for share-this-view ──
 export function encodeViewState(state) {
   const compact = {
