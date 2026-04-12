@@ -103,6 +103,22 @@
     flex-wrap: wrap;
   }
 
+  .hero-proof {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+  .hero-proof-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--ink-dim);
+  }
+
   .hero-visual {
     margin-top: 64px;
     position: relative;
@@ -278,6 +294,33 @@
 
   .see-more {
     text-align: center;
+  }
+
+  /* Stats Strip */
+  .stats-strip {
+    padding: 60px 0;
+    border-top: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    text-align: center;
+  }
+  .stat-value {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3vw, 36px);
+    font-weight: 400;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
   }
 
   /* Pricing */

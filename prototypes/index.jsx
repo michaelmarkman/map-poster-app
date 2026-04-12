@@ -77,6 +77,14 @@ function Hero() {
           <a href="./community.html" className="btn btn-secondary btn-lg">Explore Gallery</a>
         </div>
 
+        <div className="hero-proof">
+          <span>No sign-up required</span>
+          <span className="hero-proof-dot" />
+          <span>Free to use</span>
+          <span className="hero-proof-dot" />
+          <span>Powered by Google 3D Tiles</span>
+        </div>
+
         <div className="hero-visual">
           <div className="hero-poster-wrap">
             <div className="hero-poster">
@@ -116,6 +124,30 @@ function HowItWorks() {
               <div className="step-number">Step {i + 1}</div>
               <h3>{s.title}</h3>
               <p>{s.desc}</p>
+            </div>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ─── Stats Strip ───
+function StatsStrip() {
+  const stats = [
+    { value: '100%', label: 'Free to start' },
+    { value: '3D', label: 'Photorealistic tiles' },
+    { value: 'AI', label: 'Artistic style transfer' },
+    { value: '4K+', label: 'Export resolution' },
+  ]
+  return (
+    <section className="stats-strip container">
+      <div className="stats-grid">
+        {stats.map((s, i) => (
+          <FadeIn key={i} delay={i * 80}>
+            <div className="stat-item">
+              <div className="stat-value">{s.value}</div>
+              <div className="stat-label">{s.label}</div>
             </div>
           </FadeIn>
         ))}
@@ -279,6 +311,7 @@ function App() {
       <Navbar />
       <Hero />
       <HowItWorks />
+      <StatsStrip />
       <GalleryPreview />
       <Pricing />
       <CTA />
