@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, 'prototypes')
 export default {
   plugins: [react()],
   root,
+  publicDir: resolve(import.meta.dirname, 'public'),
   build: {
     outDir: resolve(import.meta.dirname, 'dist-deploy'),
     emptyOutDir: true,
@@ -15,6 +16,7 @@ export default {
         'poster-v3-ui': resolve(root, 'poster-v3-ui.html'),
         'poster-v2': resolve(root, 'poster-v2.html'),
         'poster-v2-timemachine': resolve(root, 'poster-v2-timemachine.html'),
+        pricing: resolve(root, 'pricing.html'),
       }
     }
   }

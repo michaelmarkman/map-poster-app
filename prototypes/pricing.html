@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapPoster — Pricing</title>
+<meta name="description" content="Create stunning 3D map posters. Free to start, upgrade to Pro for high-res exports, no watermark, and exclusive styles.">
+<meta property="og:title" content="MapPoster — Pricing">
+<meta property="og:description" content="Create stunning 3D map posters. Free to start, upgrade to Pro for high-res exports and exclusive styles.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #1c1b1f;
+    --panel: rgba(20, 19, 23, 0.52);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --ink: #eceae3;
+    --ink-soft: rgba(236, 234, 227, 0.62);
+    --ink-dim: rgba(236, 234, 227, 0.38);
+    --accent: #c8b897;
+    --accent-soft: rgba(200, 184, 151, 0.18);
+    --green: #6b9b6e;
+    --serif: 'Fraunces', Georgia, serif;
+    --body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--body);
+    background: var(--bg-0);
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .nav {
+    width: 100%;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .nav-logo {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 300;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .nav-logo .poster { color: var(--ink-soft); font-style: italic; }
+  .nav-back {
+    font-size: 12px;
+    color: var(--ink-dim);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-back:hover { color: var(--ink); }
+
+  .hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+    max-width: 600px;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 300;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+  .hero p {
+    font-size: 15px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 720px;
+    width: 100%;
+    padding: 0 20px 60px;
+  }
+
+  .card {
+    background: var(--panel);
+    backdrop-filter: blur(40px) saturate(150%);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 36px 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3), inset 0 0.5px 0 rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .card.featured {
+    border-color: rgba(200, 184, 151, 0.3);
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.3),
+      inset 0 0.5px 0 rgba(255,255,255,0.06),
+      0 0 40px rgba(200, 184, 151, 0.08);
+  }
+
+  .badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #1c1b1f;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    border-radius: 20px;
+  }
+
+  .card-name {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 300;
+    margin-bottom: 4px;
+  }
+
+  .card-price {
+    font-size: 32px;
+    font-weight: 500;
+    margin: 12px 0 4px;
+  }
+  .card-price .period {
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--ink-soft);
+  }
+  .card-yearly {
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin-bottom: 20px;
+  }
+
+  .features {
+    list-style: none;
+    margin: 20px 0;
+  }
+  .features li {
+    font-size: 13px;
+    color: var(--ink-soft);
+    padding: 6px 0;
+    padding-left: 22px;
+    position: relative;
+    line-height: 1.4;
+  }
+  .features li::before {
+    content: '\2713';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-size: 12px;
+  }
+  .features li.disabled {
+    color: var(--ink-dim);
+    text-decoration: line-through;
+  }
+  .features li.disabled::before {
+    content: '\2717';
+    color: rgba(196, 90, 90, 0.5);
+  }
+
+  .card-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.15s;
+    margin-top: 8px;
+  }
+  .btn-free {
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    color: var(--ink-soft);
+  }
+  .btn-free:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--ink);
+  }
+  .btn-pro {
+    background: rgba(200, 184, 151, 0.2);
+    border: 0.5px solid rgba(200, 184, 151, 0.4);
+    color: var(--accent);
+  }
+  .btn-pro:hover {
+    background: rgba(200, 184, 151, 0.3);
+  }
+
+  .waitlist-section {
+    text-align: center;
+    padding: 0 20px 80px;
+    max-width: 480px;
+  }
+  .waitlist-section p {
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-bottom: 14px;
+  }
+  .waitlist-form {
+    display: flex;
+    gap: 8px;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .waitlist-form input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--ink);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .waitlist-form input:focus { border-color: rgba(200,184,151,0.4); }
+  .waitlist-form input::placeholder { color: var(--ink-dim); }
+  .waitlist-form button {
+    background: rgba(200, 184, 151, 0.2);
+    border: 0.5px solid rgba(200, 184, 151, 0.4);
+    color: var(--accent);
+    font-size: 13px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .waitlist-form button:hover { background: rgba(200, 184, 151, 0.3); }
+  .waitlist-done {
+    display: none;
+    font-size: 13px;
+    color: var(--green);
+    padding: 10px 0;
+  }
+
+  @media (max-width: 640px) {
+    .cards { grid-template-columns: 1fr; max-width: 380px; }
+    .hero h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="./poster-v3-ui.html" class="nav-logo"><span class="map">map</span><span class="poster">poster</span></a>
+  <a href="./poster-v3-ui.html" class="nav-back">&larr; Back to editor</a>
+</nav>
+
+<div class="hero">
+  <h1>Choose your plan</h1>
+  <p>Start creating beautiful map posters for free. Upgrade to Pro for the full creative toolkit.</p>
+</div>
+
+<div class="cards">
+  <!-- Free -->
+  <div class="card">
+    <div class="card-name">Free</div>
+    <div class="card-price">$0<span class="period"> forever</span></div>
+    <div class="card-yearly">&nbsp;</div>
+    <ul class="features">
+      <li>Standard resolution exports (1x)</li>
+      <li>5 saved views</li>
+      <li>All AI art styles</li>
+      <li>Community gallery access</li>
+      <li class="disabled">High-res exports</li>
+      <li class="disabled">No watermark</li>
+    </ul>
+    <a href="./poster-v3-ui.html" class="card-btn btn-free">Get started</a>
+  </div>
+
+  <!-- Pro -->
+  <div class="card featured">
+    <div class="badge">Recommended</div>
+    <div class="card-name">Pro</div>
+    <div class="card-price">$9.99<span class="period">/mo</span></div>
+    <div class="card-yearly">or $79/year (save 34%)</div>
+    <ul class="features">
+      <li>High-res exports (up to 4x)</li>
+      <li>Unlimited saved views</li>
+      <li>No watermark</li>
+      <li>Priority rendering</li>
+      <li>Exclusive style presets</li>
+      <li>Print-ready exports with bleed marks</li>
+    </ul>
+    <button class="card-btn btn-pro" id="pro-btn" type="button">Coming soon</button>
+  </div>
+</div>
+
+<div class="waitlist-section">
+  <p>Pro is launching soon. Join the waitlist to be notified and get early-bird pricing.</p>
+  <div class="waitlist-form" id="waitlist-form">
+    <input type="email" placeholder="your@email.com" id="waitlist-email" autocomplete="email">
+    <button type="button" id="waitlist-submit">Join waitlist</button>
+  </div>
+  <div class="waitlist-done" id="waitlist-done">You're on the list! We'll notify you at launch.</div>
+</div>
+
+<script>
+  document.getElementById('waitlist-submit').addEventListener('click', function() {
+    var email = document.getElementById('waitlist-email').value.trim()
+    if (!email || email.indexOf('@') === -1) return
+    var existing = JSON.parse(localStorage.getItem('mapposter_waitlist_email') || '[]')
+    if (existing.indexOf(email) === -1) {
+      existing.push(email)
+      localStorage.setItem('mapposter_waitlist_email', JSON.stringify(existing))
+    }
+    document.getElementById('waitlist-form').style.display = 'none'
+    document.getElementById('waitlist-done').style.display = 'block'
+  })
+
+  document.getElementById('pro-btn').addEventListener('click', function() {
+    document.getElementById('waitlist-email').focus()
+  })
+</script>
+
+</body>
+</html>
