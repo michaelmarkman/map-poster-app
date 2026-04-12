@@ -80,7 +80,7 @@ function PostCard({ post, onClick, onLike, onSave, liked, saved }) {
       <div className="card-body">
         <div className="card-meta">
           {profile.avatar_url
-            ? <img className="card-avatar" src={profile.avatar_url} alt="" />
+            ? <img className="card-avatar" src={profile.avatar_url} alt="" loading="lazy" />
             : <div className="card-avatar" />}
           <a className="card-username" href={`./user.html?u=${profile.username || ''}`} onClick={e => e.stopPropagation()}>
             {profile.display_name || profile.username || 'Anonymous'}

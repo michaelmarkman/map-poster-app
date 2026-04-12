@@ -91,6 +91,7 @@ function PostGrid({ posts }) {
           <a href={`./community.html?post=${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className="card">
               <img className="card-image" src={post.image_url} alt={post.title} loading="lazy" />
+
               <div className="card-body">
                 <div className="card-title">{post.title}</div>
                 {post.location_name && <div className="card-location">{post.location_name}</div>}
