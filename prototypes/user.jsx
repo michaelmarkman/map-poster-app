@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { fetchProfile, fetchUserPosts } from './lib/community.js'
+import { fetchProfile, fetchUserPosts, toggleFollow, checkFollowing, getFollowerCount, getFollowingCount } from './lib/community.js'
+import { useAuth } from './lib/useAuth.js'
 
 // ─── Intersection Observer hook ───
 function useInView(options = {}) {
@@ -47,10 +48,32 @@ function Navbar() {
   )
 }
 
-function ProfileHeader({ profile }) {
+function ProfileHeader({ profile, currentUser }) {
+  const [following, setFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [followLoading, setFollowLoading] = useState(false)
+
   const joinDate = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : ''
+
+  const isOwnProfile = currentUser?.id === profile.id
+
+  useEffect(() => {
+    getFollowerCount(profile.id).then(setFollowerCount)
+    getFollowingCount(profile.id).then(setFollowingCount)
+    if (currentUser) checkFollowing(profile.id, currentUser.id).then(setFollowing)
+  }, [profile.id, currentUser])
+
+  const handleFollow = async () => {
+    if (!currentUser || isOwnProfile) return
+    setFollowLoading(true)
+    const nowFollowing = await toggleFollow(profile.id, currentUser.id)
+    setFollowing(nowFollowing)
+    setFollowerCount(c => c + (nowFollowing ? 1 : -1))
+    setFollowLoading(false)
+  }
 
   return (
     <div className="profile-header">
@@ -66,15 +89,25 @@ function ProfileHeader({ profile }) {
         <div className="profile-stats-row">
           {joinDate && <span>Joined {joinDate}</span>}
           <span><strong>{profile.post_count || 0}</strong> posts</span>
-          <span><strong>{profile.follower_count || 0}</strong> followers</span>
+          <span><strong>{followerCount}</strong> followers</span>
+          <span><strong>{followingCount}</strong> following</span>
         </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          style={{ marginTop: 12 }}
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href)
-          }}
-        >&#128279; Share profile</button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {currentUser && !isOwnProfile && (
+            <button
+              className={`btn btn-sm ${following ? 'btn-secondary' : 'btn-primary'}`}
+              onClick={handleFollow}
+              disabled={followLoading}
+              style={following ? {} : {}}
+            >
+              {followLoading ? '...' : following ? 'Following' : 'Follow'}
+            </button>
+          )}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => navigator.clipboard.writeText(window.location.href)}
+          >&#128279; Share</button>
+        </div>
       </div>
     </div>
   )
@@ -116,6 +149,7 @@ function PostGrid({ posts }) {
 }
 
 function App() {
+  const { user: currentUser } = useAuth()
   const [profile, setProfile] = useState(null)
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -177,7 +211,7 @@ function App() {
         ) : (
           <>
             <FadeIn>
-              <ProfileHeader profile={profile} />
+              <ProfileHeader profile={profile} currentUser={currentUser} />
             </FadeIn>
             <FadeIn delay={100}>
               <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 400, fontSize: 24, marginBottom: 24 }}>

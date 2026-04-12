@@ -155,6 +155,86 @@ export async function checkSaved(postId, userId) {
   return !!data
 }
 
+// ── Follows ──
+export async function toggleFollow(targetUserId, currentUserId) {
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) return false
+  const { data: existing } = await supabase
+    .from('follows')
+    .select('id')
+    .eq('follower_id', currentUserId)
+    .eq('following_id', targetUserId)
+    .maybeSingle()
+
+  if (existing) {
+    await supabase.from('follows').delete().eq('id', existing.id)
+    return false
+  } else {
+    await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetUserId })
+    return true
+  }
+}
+
+export async function checkFollowing(targetUserId, currentUserId) {
+  if (!currentUserId || !targetUserId) return false
+  const { data } = await supabase
+    .from('follows')
+    .select('id')
+    .eq('follower_id', currentUserId)
+    .eq('following_id', targetUserId)
+    .maybeSingle()
+  return !!data
+}
+
+export async function getFollowerCount(userId) {
+  if (!userId) return 0
+  const { count } = await supabase
+    .from('follows')
+    .select('id', { count: 'exact', head: true })
+    .eq('following_id', userId)
+  return count || 0
+}
+
+export async function getFollowingCount(userId) {
+  if (!userId) return 0
+  const { count } = await supabase
+    .from('follows')
+    .select('id', { count: 'exact', head: true })
+    .eq('follower_id', userId)
+  return count || 0
+}
+
+// ── Notifications ──
+export async function fetchNotifications(userId, limit = 20) {
+  if (!userId) return []
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) return []
+  return data || []
+}
+
+export async function getUnreadCount(userId) {
+  if (!userId) return 0
+  const { count } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+  return count || 0
+}
+
+export async function markNotificationsRead(userId) {
+  if (!userId) return
+  await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+}
+
 // ── Share helpers ──
 export function getPostUrl(postId) {
   return `${window.location.origin}/community.html?post=${postId}`

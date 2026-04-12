@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { useAuth } from './lib/useAuth.js'
 import {
   fetchPosts, fetchPost, toggleLike, toggleSave, checkLiked, checkSaved,
-  shareToTwitter, shareToFacebook, copyPostLink, getPostUrl
+  shareToTwitter, shareToFacebook, copyPostLink, getPostUrl,
+  getUnreadCount, fetchNotifications, markNotificationsRead
 } from './lib/community.js'
 
 // ─── Intersection Observer hook ───
@@ -36,8 +37,105 @@ function Toast({ message }) {
   return <div className={`toast ${message ? 'show' : ''}`}>{message}</div>
 }
 
+// ─── Notification Bell ───
+function NotificationBell({ user }) {
+  const [unread, setUnread] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!user) return
+    getUnreadCount(user.id).then(setUnread)
+    const interval = setInterval(() => getUnreadCount(user.id).then(setUnread), 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  useEffect(() => {
+    function close(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  const handleOpen = async () => {
+    if (!open) {
+      const notifs = await fetchNotifications(user.id)
+      setNotifications(notifs)
+      if (unread > 0) {
+        await markNotificationsRead(user.id)
+        setUnread(0)
+      }
+    }
+    setOpen(!open)
+  }
+
+  const formatTime = (ts) => {
+    const d = new Date(ts)
+    const diff = Date.now() - d.getTime()
+    if (diff < 60000) return 'now'
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm'
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h'
+    return Math.floor(diff / 86400000) + 'd'
+  }
+
+  if (!user) return null
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={handleOpen}
+        style={{
+          background: 'none', border: 'none', color: 'var(--ink-soft)',
+          fontSize: 18, cursor: 'pointer', position: 'relative', padding: '4px 8px',
+        }}
+        title="Notifications"
+      >
+        🔔
+        {unread > 0 && (
+          <span style={{
+            position: 'absolute', top: 0, right: 2, minWidth: 16, height: 16,
+            borderRadius: 8, background: '#e55353', color: '#fff',
+            fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '0 4px',
+          }}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', right: 0, width: 300,
+          background: 'var(--bg-1)', border: '1px solid var(--panel-border)',
+          borderRadius: 'var(--radius)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          maxHeight: 360, overflowY: 'auto', zIndex: 200,
+        }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--panel-border)', fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>
+            Notifications
+          </div>
+          {notifications.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--ink-dim)', fontSize: 13 }}>
+              No notifications yet
+            </div>
+          ) : (
+            notifications.slice(0, 15).map(n => (
+              <div key={n.id} style={{
+                padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)',
+                fontSize: 13, color: n.is_read ? 'var(--ink-dim)' : 'var(--ink)',
+                display: 'flex', justifyContent: 'space-between', gap: 8,
+              }}>
+                <span>{n.message || 'New activity'}</span>
+                <span style={{ color: 'var(--ink-dim)', fontSize: 11, flexShrink: 0 }}>{formatTime(n.created_at)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Navbar ───
-function Navbar() {
+function Navbar({ user }) {
   return (
     <nav className="nav">
       <div className="nav-inner">
@@ -45,6 +143,7 @@ function Navbar() {
         <div className="nav-links">
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
+          <NotificationBell user={user} />
           <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
         </div>
       </div>
@@ -284,7 +383,7 @@ function App() {
 
   return (
     <>
-      <Navbar />
+      <Navbar user={user} />
       <main className="container" style={{ paddingTop: 84 }}>
         <FadeIn>
           <div style={{ marginBottom: 32 }}>
