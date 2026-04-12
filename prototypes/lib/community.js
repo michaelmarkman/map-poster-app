@@ -1,5 +1,20 @@
 import { supabase } from './supabase.js'
 
+async function withRetry(fn, retries = 2) {
+  let lastErr
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      const msg = (err.message || '').toLowerCase()
+      const retryable = /network|fetch|timeout|cors/i.test(msg) || err.code === 'PGRST301'
+      if (!retryable || i === retries) throw lastErr
+      await new Promise(r => setTimeout(r, 1000))
+    }
+  }
+}
+
 // ── Fetch posts ──
 export async function fetchPosts({ sort = 'newest', limit = 30, offset = 0 } = {}) {
   let query = supabase
@@ -12,30 +27,36 @@ export async function fetchPosts({ sort = 'newest', limit = 30, offset = 0 } = {
   else if (sort === 'most_liked') query = query.order('like_count', { ascending: false })
   else if (sort === 'trending') query = query.order('like_count', { ascending: false }).gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
 
-  const { data, error } = await query
-  if (error) throw error
-  return data
+  return withRetry(async () => {
+    const { data, error } = await query
+    if (error) throw error
+    return data
+  })
 }
 
 export async function fetchPost(id) {
-  const { data, error } = await supabase
-    .from('community_posts')
-    .select('*, profiles(username, display_name, avatar_url)')
-    .eq('id', id)
-    .single()
-  if (error) throw error
-  return data
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .select('*, profiles(username, display_name, avatar_url)')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function fetchUserPosts(username) {
-  const { data, error } = await supabase
-    .from('community_posts')
-    .select('*, profiles!inner(username, display_name, avatar_url)')
-    .eq('profiles.username', username)
-    .eq('is_public', true)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .select('*, profiles!inner(username, display_name, avatar_url)')
+      .eq('profiles.username', username)
+      .eq('is_public', true)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+  })
 }
 
 export async function fetchProfile(username) {

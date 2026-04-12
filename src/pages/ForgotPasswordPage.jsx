@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { friendlyError } from '../lib/errors'
 import AuthLayout from '../components/auth/AuthLayout'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
@@ -20,7 +21,7 @@ export default function ForgotPasswordPage() {
       await resetPassword(email)
       setSuccess(true)
     } catch (err) {
-      setError(err.message)
+      setError(friendlyError(err))
     } finally {
       setLoading(false)
     }
@@ -40,13 +41,14 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout title="Reset password" subtitle="Enter your email to receive a reset link">
+      <style>{`@keyframes shake { 0%, 100% { transform: translateX(0) } 20%, 60% { transform: translateX(-6px) } 40%, 80% { transform: translateX(6px) } } .auth-error.shake { animation: shake 0.4s ease }`}</style>
       <form onSubmit={handleSubmit}>
         <AuthInput
           label="Email" type="email" required autoComplete="email"
           value={email} onChange={e => setEmail(e.target.value)}
         />
         {error && (
-          <p style={{ color: '#e55353', fontSize: 13, marginBottom: 16, textAlign: 'center' }}>
+          <p className="auth-error shake" key={error} style={{ color: '#e55353', fontSize: 13, marginBottom: 16, textAlign: 'center' }}>
             {error}
           </p>
         )}

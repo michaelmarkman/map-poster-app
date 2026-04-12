@@ -10,12 +10,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   async function loadProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setProfile(data)
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      setProfile(data)
+    } catch {
+      setProfile(null)
+    }
   }
 
   useEffect(() => {
@@ -57,8 +61,11 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Sign out error:', err)
+    }
   }
 
   async function resetPassword(email) {

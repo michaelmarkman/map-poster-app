@@ -38,19 +38,14 @@ function Toast({ message }) {
 
 // ─── Navbar ───
 function Navbar() {
-  const [menuOpen, setMenuOpen] = useState(false)
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <a href="./" className="nav-logo">MapPoster</a>
-        <button className="nav-hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
-          {menuOpen ? '\u2715' : '\u2630'}
-        </button>
-        <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
-          <a href="./poster-v2.html">Editor</a>
+        <a href="/src/" className="nav-logo">MapPoster</a>
+        <div className="nav-links">
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
-          <a href="./poster-v2.html" className="btn btn-primary btn-sm">Create</a>
+          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
         </div>
       </div>
     </nav>
@@ -68,19 +63,19 @@ function PostCard({ post, onClick, onLike, onSave, liked, saved }) {
           <button
             className={`btn-icon ${liked ? 'active' : ''}`}
             onClick={e => { e.stopPropagation(); onLike(post.id) }}
-            aria-label="Like"
+            title="Like"
           >&#9829;</button>
           <button
             className={`btn-icon ${saved ? 'active' : ''}`}
             onClick={e => { e.stopPropagation(); onSave(post.id) }}
-            aria-label="Save"
+            title="Save"
           >&#9733;</button>
         </div>
       </div>
       <div className="card-body">
         <div className="card-meta">
           {profile.avatar_url
-            ? <img className="card-avatar" src={profile.avatar_url} alt="" loading="lazy" />
+            ? <img className="card-avatar" src={profile.avatar_url} alt="" />
             : <div className="card-avatar" />}
           <a className="card-username" href={`./user.html?u=${profile.username || ''}`} onClick={e => e.stopPropagation()}>
             {profile.display_name || profile.username || 'Anonymous'}
@@ -131,7 +126,7 @@ function PostDetail({ post, onClose, user, toast }) {
   return (
     <div className="modal-overlay open" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
-        <button className="modal-close-btn" onClick={onClose} aria-label="Close">&times;</button>
+        <button className="modal-close-btn" onClick={onClose}>&times;</button>
         <div className="post-detail">
           <img className="post-detail-image" src={post.image_url} alt={post.title} />
           <div className="post-detail-body">
@@ -162,7 +157,7 @@ function PostDetail({ post, onClose, user, toast }) {
 
               {post.saved_view_id && (
                 <a
-                  href={`./poster-v2.html?view=${post.saved_view_id}`}
+                  href={`./poster-v3-ui.html?view=${post.saved_view_id}`}
                   className="btn btn-sm btn-secondary"
                 >
                   Use this view
@@ -179,9 +174,6 @@ function PostDetail({ post, onClose, user, toast }) {
                 <button className="btn btn-sm btn-ghost" onClick={() => shareToFacebook(post)} title="Share on Facebook">
                   f
                 </button>
-                <button className="btn btn-sm btn-ghost" onClick={() => { console.log('Report post:', post.id); toast('Report submitted') }} title="Report" style={{ marginLeft: 'auto', color: 'var(--ink-dim)' }}>
-                  Report
-                </button>
               </div>
             </div>
           </div>
@@ -196,42 +188,15 @@ function App() {
   const { user } = useAuth()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
   const [sort, setSort] = useState('newest')
   const [selectedPost, setSelectedPost] = useState(null)
   const [likedSet, setLikedSet] = useState(new Set())
   const [savedSet, setSavedSet] = useState(new Set())
   const [toastMsg, setToastMsg] = useState('')
-  const [showTop, setShowTop] = useState(false)
-  const [showKbd, setShowKbd] = useState(false)
-  const sentinelRef = useRef(null)
-  const PAGE_SIZE = 20
 
   const showToast = useCallback((msg) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(''), 2000)
-  }, [])
-
-  // Back to top visibility
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 400)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === '?') setShowKbd(v => !v)
-      if (e.key === 'Escape') { setShowKbd(false); setSelectedPost(null) }
-      if (e.key === '1') setSort('newest')
-      if (e.key === '2') setSort('trending')
-      if (e.key === '3') setSort('most_liked')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Check URL for ?post=ID deep link
@@ -245,35 +210,13 @@ function App() {
 
   useEffect(() => {
     setLoading(true)
-    setHasMore(true)
-    fetchPosts({ sort, limit: PAGE_SIZE })
+    fetchPosts({ sort })
       .then(data => {
         setPosts(data)
-        setHasMore(data.length >= PAGE_SIZE)
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [sort])
-
-  // Infinite scroll via IntersectionObserver on a sentinel element
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el || !hasMore) return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !loadingMore && !loading && hasMore) {
-        setLoadingMore(true)
-        fetchPosts({ sort, limit: PAGE_SIZE, offset: posts.length })
-          .then(data => {
-            setPosts(prev => [...prev, ...data])
-            setHasMore(data.length >= PAGE_SIZE)
-            setLoadingMore(false)
-          })
-          .catch(() => setLoadingMore(false))
-      }
-    }, { rootMargin: '200px' })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [hasMore, loadingMore, loading, posts.length, sort])
 
   // Batch check liked/saved status
   useEffect(() => {
@@ -346,51 +289,43 @@ function App() {
               </button>
             ))}
           </div>
-          <a href="./poster-v2.html" className="btn btn-primary btn-sm">
+          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">
             + Share your creation
           </a>
         </div>
 
         {loading ? (
-          <div className="gallery-masonry">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="card" style={{ marginBottom: 16 }}>
-                <div style={{ aspectRatio: '3/4', background: 'var(--bg-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
-                <div style={{ padding: 14 }}>
-                  <div style={{ height: 12, width: '60%', background: 'var(--bg-3)', borderRadius: 4, marginBottom: 8 }} />
-                  <div style={{ height: 10, width: '40%', background: 'var(--bg-3)', borderRadius: 4 }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="spinner" />
         ) : posts.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">🗺️</div>
-            <h3>No posts yet</h3>
-            <p>Be the first to share a creation!</p>
-            <a href="./poster-v2.html" className="btn btn-primary" style={{ marginTop: 16 }}>
+          <div style={{ padding: '80px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(135deg, rgba(200,184,151,0.12), rgba(200,184,151,0.04))',
+              border: '1px solid rgba(200,184,151,0.15)', marginBottom: 24, fontSize: 36,
+            }}>🗺️</div>
+            <h3 style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 400, color: 'var(--ink)', marginBottom: 8 }}>No posts yet</h3>
+            <p style={{ color: 'var(--ink-soft)', fontSize: 15, maxWidth: 360, lineHeight: 1.6, marginBottom: 24 }}>
+              Be the first to share a map poster with the community
+            </p>
+            <a href="./poster-v3-ui.html" className="btn btn-primary">
               Open the Editor
             </a>
           </div>
         ) : (
-          <>
-            <div className="gallery-masonry">
-              {posts.map((post, i) => (
-                <FadeIn key={post.id} delay={Math.min(i, 12) * 40}>
-                  <PostCard
-                    post={post}
-                    onClick={setSelectedPost}
-                    onLike={handleLike}
-                    onSave={handleSave}
-                    liked={likedSet.has(post.id)}
-                    saved={savedSet.has(post.id)}
-                  />
-                </FadeIn>
-              ))}
-            </div>
-            <div ref={sentinelRef} style={{ height: 1 }} />
-            {loadingMore && <div className="spinner" />}
-          </>
+          <div className="gallery-masonry">
+            {posts.map((post, i) => (
+              <FadeIn key={post.id} delay={i * 40}>
+                <PostCard
+                  post={post}
+                  onClick={setSelectedPost}
+                  onLike={handleLike}
+                  onSave={handleSave}
+                  liked={likedSet.has(post.id)}
+                  saved={savedSet.has(post.id)}
+                />
+              </FadeIn>
+            ))}
+          </div>
         )}
       </main>
 
@@ -407,8 +342,8 @@ function App() {
         <div className="footer-inner">
           <div className="footer-col">
             <h4>MapPoster</h4>
-            <a href="./">Home</a>
-            <a href="./poster-v2.html">Editor</a>
+            <a href="/src/">Home</a>
+            <a href="./poster-v3-ui.html">Editor</a>
             <a href="./community.html">Community</a>
             <a href="./pricing.html">Pricing</a>
           </div>
@@ -424,23 +359,6 @@ function App() {
       </footer>
 
       <Toast message={toastMsg} />
-
-      <button
-        className={`back-to-top ${showTop ? 'visible' : ''}`}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        aria-label="Back to top"
-      >&#8593;</button>
-
-      <div className={`kbd-overlay ${showKbd ? 'open' : ''}`} onClick={() => setShowKbd(false)}>
-        <div className="kbd-panel" onClick={e => e.stopPropagation()}>
-          <h3>Keyboard shortcuts</h3>
-          <div className="kbd-row"><span>Show shortcuts</span><kbd>?</kbd></div>
-          <div className="kbd-row"><span>Close modal / overlay</span><kbd>Esc</kbd></div>
-          <div className="kbd-row"><span>Sort by newest</span><kbd>1</kbd></div>
-          <div className="kbd-row"><span>Sort by trending</span><kbd>2</kbd></div>
-          <div className="kbd-row"><span>Sort by most liked</span><kbd>3</kbd></div>
-        </div>
-      </div>
     </>
   )
 }
