@@ -415,6 +415,179 @@
     letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
     opacity: 0.6;
   }
+
+  /* ═══ Editor Overlay ═══ */
+
+  /* Fabric.js wrapper — positioned by editor-overlay.jsx */
+  #canvas-container .canvas-container {
+    position: absolute !important;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+  }
+  #canvas-container .upper-canvas {
+    pointer-events: none;
+  }
+
+  /* ═══ Editor Toolbar ═══ */
+  #editor-toolbar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 400; display: none;
+    background: rgba(15,15,18,0.85); backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 8px 12px; gap: 4px;
+    align-items: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #editor-toolbar.active { display: flex; }
+
+  .ed-btn {
+    width: 36px; height: 36px; border-radius: 8px; border: none;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 16px; flex-shrink: 0;
+  }
+  .ed-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+  .ed-btn:active { transform: scale(0.92); }
+  .ed-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  .ed-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  /* Shape dropdown */
+  .ed-dropdown { position: relative; }
+  .ed-dropdown-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+    gap: 2px; min-width: 120px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-dropdown-menu.open { display: flex; flex-direction: column; }
+  .ed-dropdown-item {
+    padding: 6px 10px; border-radius: 4px; border: none;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    font-family: var(--body); font-size: 11px; text-align: left;
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.15s;
+  }
+  .ed-dropdown-item:hover { background: var(--bg-hover); color: var(--text-1); }
+  .ed-dropdown-item svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+  /* Sticker dropdown */
+  .ed-sticker-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+    gap: 4px; flex-wrap: wrap; width: 180px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-sticker-menu.open { display: flex; }
+  .ed-sticker-btn {
+    width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-raised); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 18px;
+  }
+  .ed-sticker-btn:hover { border-color: var(--copper); background: var(--copper-dim); }
+
+  /* Frame dropdown */
+  .ed-frame-menu {
+    display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 8px; background: rgba(15,15,18,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+    min-width: 130px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .ed-frame-menu.open { display: flex; flex-direction: column; }
+
+  /* ═══ Editor Properties Panel ═══ */
+  #editor-props {
+    position: fixed; top: 0; right: -260px; bottom: 0; width: 260px;
+    z-index: 400;
+    background: rgba(15,15,18,0.92); backdrop-filter: blur(20px) saturate(1.4);
+    border-left: 1px solid var(--border);
+    padding: 0; overflow-y: auto;
+    transition: right 0.25s ease;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.3);
+  }
+  #editor-props.open { right: 0; }
+
+  .ep-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .ep-header-title {
+    font-family: var(--mono); font-size: 9px; font-weight: 400;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+  }
+  .ep-close {
+    width: 24px; height: 24px; border-radius: 4px; border: none;
+    background: transparent; color: var(--text-3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s;
+  }
+  .ep-close:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  #editor-props-content { padding: 12px 16px; }
+
+  .ep-section-title {
+    font-family: var(--mono); font-size: 8px; font-weight: 400;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 8px; margin-top: 4px;
+  }
+
+  .ep-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 8px; font-size: 11px; color: var(--text-2);
+  }
+  .ep-row label { min-width: 50px; font-size: 10px; color: var(--text-3); flex-shrink: 0; }
+  .ep-input {
+    flex: 1; background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 3px; padding: 4px 6px; color: var(--text-1);
+    font-family: var(--body); font-size: 11px; outline: none;
+  }
+  .ep-input:focus { border-color: var(--copper); }
+  .ep-num { width: 60px; flex: none; font-family: var(--mono); font-size: 10px; }
+  .ep-slider { flex: 1; }
+  .ep-val { font-family: var(--mono); font-size: 9px; color: var(--text-3); min-width: 36px; text-align: right; }
+  .ep-color {
+    width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 4px;
+    background: none; cursor: pointer; padding: 0;
+  }
+  .ep-color::-webkit-color-swatch-wrapper { padding: 2px; }
+  .ep-color::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+  .ep-actions { gap: 3px; flex-wrap: wrap; }
+  .ep-btn {
+    padding: 4px 8px; border-radius: 3px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-3); font-size: 10px; cursor: pointer;
+    font-family: var(--body); transition: all 0.15s;
+  }
+  .ep-btn:hover { border-color: var(--border-hover); color: var(--text-2); }
+  .ep-btn.active { border-color: var(--copper); color: var(--copper); background: var(--copper-dim); }
+  .ep-btn-danger:hover { border-color: var(--red); color: var(--red); }
+
+  /* ═══ Editor sidebar section ═══ */
+  .ed-template-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+  .ed-template-btn {
+    flex: 1; min-width: 90px; padding: 6px 4px; border-radius: 3px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-3); font-size: 9px; cursor: pointer;
+    text-align: center; transition: all 0.2s; font-family: var(--body);
+  }
+  .ed-template-btn:hover { border-color: var(--border-hover); color: var(--text-2); }
+  .ed-template-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; border-radius: 3px; background: var(--bg-raised);
+    margin-bottom: 2px; cursor: pointer; transition: background 0.15s;
+  }
+  .ed-template-item:hover { background: var(--bg-hover); }
+  .ed-template-name { font-size: 10px; color: var(--text-2); }
+  .ed-template-del {
+    color: var(--text-3); font-size: 13px; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .ed-template-item:hover .ed-template-del { opacity: 1; }
+  .ed-template-del:hover { color: var(--red); }
 </style>
 </head>
 <body>
@@ -559,6 +732,28 @@
     <button class="export-btn" id="poster-3d-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-top:8px;">3D Frame Preview</button>
   </div>
 
+  <!-- Editor -->
+  <div class="sidebar-section">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Graphic Editor
+    </div>
+    <button class="export-btn" id="editor-toggle-btn" style="background:var(--bg-raised);color:var(--text-2);font-size:10px;padding:7px;margin-bottom:8px;">Open Editor</button>
+    <div style="font-size:9px;color:var(--text-3);margin-bottom:8px;font-family:var(--mono);letter-spacing:0.3px;">TEMPLATES</div>
+    <div class="ed-template-grid">
+      <button class="ed-template-btn" data-template="0">City Name</button>
+      <button class="ed-template-btn" data-template="1">Minimal</button>
+      <button class="ed-template-btn" data-template="2">Vintage</button>
+      <button class="ed-template-btn" data-template="3">Journal</button>
+      <button class="ed-template-btn" data-template="4">Modern</button>
+    </div>
+    <div id="ed-custom-templates"></div>
+    <div style="display:flex;gap:4px;margin-top:4px;">
+      <button class="export-btn" id="ed-save-template" style="flex:1;background:var(--bg-raised);color:var(--text-2);font-size:9px;padding:5px;">Save as Template</button>
+      <button class="export-btn" id="ed-clear-canvas" style="flex:1;background:var(--bg-raised);color:var(--text-3);font-size:9px;padding:5px;">Clear Overlay</button>
+    </div>
+  </div>
+
   <!-- Export -->
   <div class="sidebar-section">
     <div class="section-title">
@@ -655,6 +850,142 @@
   <div class="pp-hint">drag to orbit</div>
 </div>
 
+<!-- Editor Floating Toolbar -->
+<div id="editor-toolbar">
+  <!-- Text -->
+  <button class="ed-btn" id="ed-tool-text" title="Add text">
+    <svg viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+  </button>
+
+  <div class="ed-sep"></div>
+
+  <!-- Shapes dropdown -->
+  <div class="ed-dropdown" id="ed-shapes-dropdown">
+    <button class="ed-btn" id="ed-shapes-toggle" title="Add shape">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+    </button>
+    <div class="ed-dropdown-menu" id="ed-shapes-menu">
+      <button class="ed-dropdown-item" id="ed-tool-rect">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Rectangle
+      </button>
+      <button class="ed-dropdown-item" id="ed-tool-circle">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+        Circle
+      </button>
+      <button class="ed-dropdown-item" id="ed-tool-line">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+        Line
+      </button>
+      <button class="ed-dropdown-item" id="ed-tool-arrow">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg>
+        Arrow
+      </button>
+    </div>
+  </div>
+
+  <div class="ed-sep"></div>
+
+  <!-- Image upload -->
+  <button class="ed-btn" id="ed-tool-image" title="Upload image">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+  </button>
+  <input type="file" id="ed-img-input" accept="image/*" style="display:none;">
+
+  <!-- Stickers dropdown -->
+  <div class="ed-dropdown" id="ed-stickers-dropdown">
+    <button class="ed-btn" id="ed-stickers-toggle" title="Add sticker">
+      <svg viewBox="0 0 24 24"><path d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </button>
+    <div class="ed-sticker-menu" id="ed-stickers-menu">
+      <button class="ed-sticker-btn" data-sticker="pin" title="Pin">&#128205;</button>
+      <button class="ed-sticker-btn" data-sticker="star" title="Star">&#11088;</button>
+      <button class="ed-sticker-btn" data-sticker="heart" title="Heart">&#10084;</button>
+      <button class="ed-sticker-btn" data-sticker="compass" title="Compass">&#129517;</button>
+      <button class="ed-sticker-btn" data-sticker="plane" title="Plane">&#9992;</button>
+      <button class="ed-sticker-btn" data-sticker="camera" title="Camera">&#128247;</button>
+    </div>
+  </div>
+
+  <div class="ed-sep"></div>
+
+  <!-- Frame dropdown -->
+  <div class="ed-dropdown" id="ed-frame-dropdown">
+    <button class="ed-btn" id="ed-frame-toggle" title="Add frame">
+      <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="0" stroke-dasharray="0"/><rect x="5" y="5" width="14" height="14" rx="0"/></svg>
+    </button>
+    <div class="ed-frame-menu" id="ed-frame-menu">
+      <button class="ed-dropdown-item" data-frame="simple">Simple</button>
+      <button class="ed-dropdown-item" data-frame="double">Double</button>
+      <button class="ed-dropdown-item" data-frame="dashed">Dashed</button>
+      <button class="ed-dropdown-item" data-frame="rounded">Rounded</button>
+      <button class="ed-dropdown-item" data-frame="ornate">Ornate</button>
+    </div>
+  </div>
+
+  <div class="ed-sep"></div>
+
+  <!-- Undo/Redo -->
+  <button class="ed-btn" id="ed-tool-undo" title="Undo (Cmd+Z)">
+    <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+  </button>
+  <button class="ed-btn" id="ed-tool-redo" title="Redo (Cmd+Shift+Z)">
+    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg>
+  </button>
+
+  <div class="ed-sep"></div>
+
+  <!-- Delete -->
+  <button class="ed-btn" id="ed-tool-delete" title="Delete selected" style="color:var(--red);">
+    <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+  </button>
+</div>
+
+<!-- Editor Properties Panel -->
+<div id="editor-props">
+  <div class="ep-header">
+    <span class="ep-header-title">Properties</span>
+    <button class="ep-close" id="ep-close">&times;</button>
+  </div>
+  <div id="editor-props-content"></div>
+</div>
+
 <script type="module" src="./poster-v2.jsx"></script>
+
+<!-- Wire toolbar dropdowns (plain JS, no innerHTML) -->
+<script>
+  // Toggle dropdown menus
+  function setupDropdown(toggleId, menuId) {
+    const toggle = document.getElementById(toggleId)
+    const menu = document.getElementById(menuId)
+    if (!toggle || !menu) return
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation()
+      // Close all other dropdowns
+      document.querySelectorAll('.ed-dropdown-menu, .ed-sticker-menu, .ed-frame-menu').forEach(m => {
+        if (m !== menu) m.classList.remove('open')
+      })
+      menu.classList.toggle('open')
+    })
+  }
+  setupDropdown('ed-shapes-toggle', 'ed-shapes-menu')
+  setupDropdown('ed-stickers-toggle', 'ed-stickers-menu')
+  setupDropdown('ed-frame-toggle', 'ed-frame-menu')
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.ed-dropdown-menu, .ed-sticker-menu, .ed-frame-menu').forEach(m => {
+      m.classList.remove('open')
+    })
+  })
+  // Close dropdowns when an item is clicked
+  document.querySelectorAll('.ed-dropdown-item, .ed-sticker-btn').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.ed-dropdown-menu, .ed-sticker-menu, .ed-frame-menu').forEach(m => {
+        m.classList.remove('open')
+      })
+    })
+  })
+</script>
 </body>
 </html>
