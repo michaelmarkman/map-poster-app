@@ -10,6 +10,7 @@
     { "source": "/community.html", "destination": "/prototypes/community.html" },
     { "source": "/user.html", "destination": "/prototypes/user.html" },
     { "source": "/pricing.html", "destination": "/prototypes/pricing.html" },
+    { "source": "/admin.html", "destination": "/prototypes/admin.html" },
     { "source": "/app", "destination": "/src/index.html" },
     { "source": "/app/(.*)", "destination": "/src/index.html" }
   ]

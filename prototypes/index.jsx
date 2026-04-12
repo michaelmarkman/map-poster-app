@@ -156,6 +156,44 @@ function StatsStrip() {
   )
 }
 
+// ─── Quick Start Locations ───
+function QuickStart() {
+  const locations = [
+    { name: 'New York', emoji: '🗽', query: 'Empire State Building, New York' },
+    { name: 'Paris', emoji: '🗼', query: 'Eiffel Tower, Paris' },
+    { name: 'Tokyo', emoji: '⛩️', query: 'Shibuya Crossing, Tokyo' },
+    { name: 'London', emoji: '🎡', query: 'Tower Bridge, London' },
+    { name: 'San Francisco', emoji: '🌉', query: 'Golden Gate Bridge, San Francisco' },
+    { name: 'Dubai', emoji: '🏗️', query: 'Burj Khalifa, Dubai' },
+    { name: 'Rome', emoji: '🏛️', query: 'Colosseum, Rome' },
+    { name: 'Sydney', emoji: '🎭', query: 'Sydney Opera House, Sydney' },
+  ]
+
+  return (
+    <section className="quickstart-section container">
+      <FadeIn>
+        <div className="section-title">
+          <h2>Jump right in</h2>
+          <p>Click a city to start creating instantly</p>
+        </div>
+      </FadeIn>
+      <div className="quickstart-grid">
+        {locations.map((loc, i) => (
+          <FadeIn key={i} delay={i * 60}>
+            <a
+              href={`./poster-v2.html?q=${encodeURIComponent(loc.query)}`}
+              className="quickstart-card"
+            >
+              <span className="quickstart-emoji">{loc.emoji}</span>
+              <span className="quickstart-name">{loc.name}</span>
+            </a>
+          </FadeIn>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ─── Gallery Preview ───
 function GalleryPreview() {
   const [posts, setPosts] = useState([])
@@ -312,6 +350,7 @@ function App() {
       <Hero />
       <HowItWorks />
       <StatsStrip />
+      <QuickStart />
       <GalleryPreview />
       <Pricing />
       <CTA />
