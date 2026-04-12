@@ -692,6 +692,22 @@ function SearchPanel({ filters, onFilterChange, onSearch, onClear, resultCount, 
 }
 
 // ─── Main App ───
+function BackToTop() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 600)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+  return (
+    <button
+      className={`back-to-top ${visible ? 'visible' : ''}`}
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      aria-label="Back to top"
+    >&#8593;</button>
+  )
+}
+
 function App() {
   const { user } = useAuth()
   const [posts, setPosts] = useState([])
@@ -917,12 +933,14 @@ function App() {
         />
       )}
 
+      <BackToTop />
+
       <footer className="footer">
         <div className="footer-inner">
           <div className="footer-col">
             <h4>MapPoster</h4>
-            <a href="/src/">Home</a>
-            <a href="./poster-v3-ui.html">Editor</a>
+            <a href="./">Home</a>
+            <a href="./poster-v2.html">Editor</a>
             <a href="./community.html">Community</a>
             <a href="./pricing.html">Pricing</a>
           </div>
