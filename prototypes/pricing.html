@@ -251,6 +251,59 @@
     }
     .pricing-nav-links.open a { font-size: 15px; padding: 8px 0; }
   }
+  /* FAQ */
+  .faq-section {
+    max-width: 640px;
+    width: 100%;
+    padding: 0 20px 80px;
+    margin: 0 auto;
+  }
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .faq-item {
+    background: var(--panel);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .faq-item[open] { border-color: rgba(200, 184, 151, 0.25); }
+  .faq-item summary {
+    padding: 16px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: color 0.15s;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: '+';
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--ink-dim);
+    transition: transform 0.2s;
+  }
+  .faq-item[open] summary::after {
+    content: '\2212';
+    color: var(--accent);
+  }
+  .faq-item summary:hover { color: var(--accent); }
+  .faq-item p {
+    padding: 0 20px 16px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+    margin: 0;
+  }
+
   @media (max-width: 640px) {
     .cards { grid-template-columns: 1fr; max-width: 380px; }
     .hero h1 { font-size: 28px; }
@@ -321,6 +374,36 @@
   </div>
   <div class="waitlist-done" id="waitlist-done">You're on the list! We'll notify you at launch.</div>
 </div>
+
+<div class="faq-section">
+  <h2 style="font-family:var(--serif);font-size:28px;font-weight:300;text-align:center;margin-bottom:32px;letter-spacing:-0.02em;">Frequently asked questions</h2>
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>What map data does MapPoster use?</summary>
+      <p>We use Google's Photorealistic 3D Tiles — the same technology behind Google Earth. Every location is rendered with real satellite imagery and 3D building models.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can I use my posters commercially?</summary>
+      <p>Free tier posters include a small watermark and are for personal use. Pro subscribers get watermark-free exports suitable for commercial use, gifts, and print sales.</p>
+    </details>
+    <details class="faq-item">
+      <summary>What resolution are the exports?</summary>
+      <p>Free exports are screen resolution (1x). Pro exports support up to 4K+ resolution with print-ready DPI settings and bleed marks for professional printing.</p>
+    </details>
+    <details class="faq-item">
+      <summary>How do AI art styles work?</summary>
+      <p>We use Google's Gemini vision models to transform your 3D map render into artistic styles — watercolor, oil painting, anime, blueprint, and more. The AI processes your exact camera view.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can I cancel my Pro subscription?</summary>
+      <p>Yes, cancel anytime. You'll keep Pro access until the end of your billing period. No lock-in, no hidden fees.</p>
+    </details>
+  </div>
+</div>
+
+<footer style="border-top:1px solid var(--panel-border);padding:32px 0;margin-top:60px;text-align:center;color:var(--ink-dim);font-size:12px;">
+  Made with &#9829; and Google 3D Tiles
+</footer>
 
 <script>
   document.getElementById('waitlist-submit').addEventListener('click', function() {
