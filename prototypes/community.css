@@ -176,7 +176,11 @@ img { display: block; max-width: 100%; }
   overflow: hidden;
   transition: all var(--transition);
 }
-.card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.card:hover {
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2);
+}
 
 /* ─── Gallery Grid ─── */
 .gallery-masonry {

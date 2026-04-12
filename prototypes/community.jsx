@@ -147,7 +147,7 @@ function Navbar({ user }) {
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
           <NotificationBell user={user} />
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
+          <a href="./poster-v2.html" className="btn btn-primary btn-sm">Create</a>
         </div>
       </div>
     </nav>
@@ -523,7 +523,7 @@ function PostDetail({ post, onClose, onPrev, onNext, user, toast }) {
 
               {post.saved_view_id && (
                 <a
-                  href={`./poster-v3-ui.html?view=${post.saved_view_id}`}
+                  href={`./poster-v2.html?view=${post.saved_view_id}`}
                   className="btn btn-sm btn-secondary"
                 >
                   Use this view
@@ -792,7 +792,7 @@ function App() {
               </button>
             ))}
           </div>
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">
+          <a href="./poster-v2.html" className="btn btn-primary btn-sm">
             + Share your creation
           </a>
         </div>
