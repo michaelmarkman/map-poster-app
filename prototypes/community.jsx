@@ -41,7 +41,7 @@ function Navbar() {
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <a href="./" className="nav-logo">MapPoster</a>
+        <a href="/src/" className="nav-logo">MapPoster</a>
         <div className="nav-links">
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
           <a href="./pricing.html">Pricing</a>
@@ -336,7 +336,7 @@ function App() {
         <div className="footer-inner">
           <div className="footer-col">
             <h4>MapPoster</h4>
-            <a href="./">Home</a>
+            <a href="/src/">Home</a>
             <a href="./poster-v3-ui.html">Editor</a>
             <a href="./community.html">Community</a>
             <a href="./pricing.html">Pricing</a>
