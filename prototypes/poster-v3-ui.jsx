@@ -6,6 +6,11 @@ import { initKeyboardShortcuts } from './lib/keyboard-shortcuts.js'
 import { startOnboarding } from './lib/onboarding.js'
 import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
 import { showPrintExport } from './lib/print-export.js'
+import { initTheme } from './lib/theme.js'
+import { trackCamera, initCameraHistory } from './lib/camera-history.js'
+import { initCompareMode } from './lib/compare-mode.js'
+import { initSceneSuggestions } from './lib/scene-suggestions.js'
+import { initGalleryKeyboard } from './lib/gallery-keyboard.js'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { SMAA, ToneMapping, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { EffectComposer as WrappedEffectComposer } from '@react-three/postprocessing'
@@ -398,6 +403,9 @@ function Scene() {
     }
   }, [camera])
 
+  // Initialize camera undo/redo history
+  useEffect(() => { initCameraHistory(camera) }, [camera])
+
   // Listen for save-session events
   useEffect(() => {
     const handler = () => { if (window._posterSave) window._posterSave(camera) }
@@ -558,6 +566,9 @@ function Scene() {
         }
       })
     }
+
+    // Track camera for undo/redo
+    trackCamera(camera)
 
     // Sync camera info to sidebar sliders
     syncCameraToUI(camera)
@@ -1758,6 +1769,7 @@ const queueContainer = document.getElementById('export-queue')
 const GALLERY_DB = 'mapposter_gallery'
 const GALLERY_STORE = 'images'
 const gallery = []
+window.__gallery = gallery // expose for compare mode
 
 // IndexedDB helpers
 function openGalleryDB() {
@@ -1841,55 +1853,87 @@ function clearElement(el) {
 function renderQueue() {
   if (!queueContainer) return
   clearElement(queueContainer)
-  exportQueue.forEach(job => {
+
+  // Compute queue stats for estimated time
+  const pendingCount = exportQueue.filter(j => j.status === 'pending').length
+  const activeCount = exportQueue.filter(j => j.status === 'active').length
+  const doneJobs = exportQueue.filter(j => j.status === 'done' && j._duration)
+  const avgTime = doneJobs.length > 0
+    ? Math.round(doneJobs.reduce((s, j) => s + j._duration, 0) / doneJobs.length / 1000)
+    : 30 // default estimate: 30s per job
+
+  exportQueue.forEach((job, jobIdx) => {
     const el = document.createElement('div')
     el.className = 'queue-item' +
       (job.status === 'done' ? ' qi-done' : '') +
       (job.status === 'error' ? ' qi-error' : '') +
       (job.status === 'active' ? ' qi-active' : '')
 
+    const topRow = document.createElement('div')
+    topRow.className = 'qi-top'
+
     const label = document.createElement('span')
     label.className = 'qi-label'
     label.textContent = job.label
-    el.appendChild(label)
+    topRow.appendChild(label)
 
     const statusEl = document.createElement('span')
     statusEl.className = 'qi-status'
     statusEl.textContent = job.statusText
-    el.appendChild(statusEl)
+    topRow.appendChild(statusEl)
 
-    if (job.status === 'active') {
+    el.appendChild(topRow)
+
+    // Progress bar — show for active AND pending (pending gets empty bar)
+    if (job.status === 'active' || job.status === 'pending') {
+      const barRow = document.createElement('div')
+      barRow.className = 'qi-bar-row'
+
       const bar = document.createElement('span')
       bar.className = 'qi-bar'
       const fill = document.createElement('span')
       fill.className = 'qi-bar-fill'
-      fill.style.width = job.progress + '%'
+      fill.style.width = (job.status === 'active' ? job.progress : 0) + '%'
       bar.appendChild(fill)
-      el.appendChild(bar)
+      barRow.appendChild(bar)
+
+      // Estimated time for pending jobs
+      if (job.status === 'pending') {
+        const queuePos = exportQueue.filter((j, i) => i < jobIdx && (j.status === 'pending' || j.status === 'active')).length
+        const eta = queuePos * avgTime
+        if (eta > 0) {
+          const etaEl = document.createElement('span')
+          etaEl.className = 'qi-eta'
+          etaEl.textContent = eta < 60 ? `~${eta}s` : `~${Math.ceil(eta / 60)}m`
+          barRow.appendChild(etaEl)
+        }
+      }
+
+      el.appendChild(barRow)
     }
 
+    // Cancel button for pending items
     if (job.status === 'pending') {
       const remove = document.createElement('span')
       remove.className = 'qi-remove'
       remove.textContent = '\u00d7'
+      remove.title = 'Cancel'
       remove.addEventListener('click', (e) => {
         e.stopPropagation()
         const idx = exportQueue.indexOf(job)
         if (idx >= 0) exportQueue.splice(idx, 1)
         renderQueue()
       })
-      el.appendChild(remove)
+      topRow.appendChild(remove)
     }
 
     if (job.status === 'done' && job.resultUrl) {
       el.classList.add('qi-clickable')
       el.addEventListener('click', () => {
-        // Prefer the stored gallery index; fall back to dataUrl match
         let gi = (typeof job.galleryIdx === 'number' && gallery[job.galleryIdx]?.dataUrl === job.resultUrl)
           ? job.galleryIdx
           : gallery.findIndex(g => g.dataUrl === job.resultUrl)
         if (gi < 0) return
-        // Open the gallery modal behind the lightbox so closing the lightbox lands in the gallery
         document.getElementById('gallery-overlay')?.classList.add('open')
         renderGallery()
         openLightbox(gi)
@@ -1929,6 +1973,7 @@ function processQueue() {
   if (!job) return
 
   exportProcessing = true
+  job._startTime = Date.now()
   updateJob(job, { status: 'active', statusText: 'Capturing...', progress: 10 })
 
   // Use the snapshot captured when the job was queued (locks the view at that moment)
@@ -1949,6 +1994,7 @@ function processQueue() {
     link.href = snapshotUrl
     link.click()
     addToGallery(job.label, fname, snapshotUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    job._duration = Date.now() - (job._startTime || Date.now())
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     exportProcessing = false
     processQueue()
@@ -2033,6 +2079,7 @@ function sendToGemini(img, job) {
       timeMachineSets[job.setId].images[job.decade] = dataUrl
       try { onTimeMachineJobComplete(job.setId, job.decade) } catch (e) {}
     }
+    job._duration = Date.now() - (job._startTime || Date.now())
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     finish()
   }
@@ -2968,6 +3015,18 @@ window.openPosterPreview = openPosterPreview
 })();
 
 // ─── Phase 5: Polish integrations ───────────────────────────
+
+// Dark/light mode
+initTheme()
+
+// Compare mode (gallery split-screen)
+initCompareMode()
+
+// AI scene suggestions ("Try this angle")
+initSceneSuggestions()
+
+// Gallery keyboard navigation (arrow keys, Enter)
+initGalleryKeyboard()
 
 // Keyboard shortcuts
 initKeyboardShortcuts()
