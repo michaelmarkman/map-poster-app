@@ -68,6 +68,13 @@ function ProfileHeader({ profile }) {
           <span><strong>{profile.post_count || 0}</strong> posts</span>
           <span><strong>{profile.follower_count || 0}</strong> followers</span>
         </div>
+        <button
+          className="btn btn-secondary btn-sm"
+          style={{ marginTop: 12 }}
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href)
+          }}
+        >&#128279; Share profile</button>
       </div>
     </div>
   )
@@ -142,7 +149,23 @@ function App() {
       <Navbar />
       <main className="container" style={{ paddingTop: 80 }}>
         {loading ? (
-          <div className="spinner" />
+          <div>
+            <div className="profile-header">
+              <div className="profile-avatar" style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ height: 24, width: '40%', background: 'var(--bg-3)', borderRadius: 6, marginBottom: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ height: 14, width: '25%', background: 'var(--bg-3)', borderRadius: 4, marginBottom: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ height: 12, width: '30%', background: 'var(--bg-3)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
+              </div>
+            </div>
+            <div className="gallery-masonry">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="card" style={{ marginBottom: 16 }}>
+                  <div style={{ aspectRatio: '3/4', background: 'var(--bg-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : error ? (
           <div className="empty-state">
             <div className="empty-state-icon">👤</div>
@@ -173,6 +196,7 @@ function App() {
             <a href="./">Home</a>
             <a href="./poster-v2.html">Editor</a>
             <a href="./community.html">Community</a>
+            <a href="./pricing.html">Pricing</a>
           </div>
         </div>
         <div className="footer-bottom container">
