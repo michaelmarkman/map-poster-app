@@ -105,14 +105,66 @@ export function showPrintExport(imageDataUrl) {
   exportBtn.type = 'button'
   exportBtn.textContent = 'Export Print-Ready File'
 
+  // ── Order a Print section ──
+  const orderSection = document.createElement('div')
+  orderSection.className = 'pe-order-section'
+
+  const orderTitle = document.createElement('div')
+  orderTitle.className = 'pe-help-title'
+  orderTitle.textContent = 'Order a print'
+
+  const orderDesc = document.createElement('div')
+  orderDesc.className = 'pe-order-desc'
+  orderDesc.textContent = 'Export first, then upload to a print service:'
+
+  const orderGrid = document.createElement('div')
+  orderGrid.className = 'pe-order-grid'
+
+  const PRINT_SERVICES = [
+    { name: 'Shutterfly', icon: '🖼️', url: 'https://www.shutterfly.com/photo-posters', desc: 'Custom posters' },
+    { name: 'Snapfish', icon: '📸', url: 'https://www.snapfish.com/posters', desc: 'Canvas & prints' },
+    { name: 'Printful', icon: '🖨️', url: 'https://www.printful.com/custom/posters', desc: 'Premium matte' },
+    { name: 'Canva Print', icon: '✨', url: 'https://www.canva.com/print/posters/', desc: 'Design & print' },
+  ]
+
+  PRINT_SERVICES.forEach(svc => {
+    const link = document.createElement('a')
+    link.className = 'pe-order-link'
+    link.href = svc.url
+    link.target = '_blank'
+    link.rel = 'noopener'
+
+    const icon = document.createElement('span')
+    icon.className = 'pe-order-icon'
+    icon.textContent = svc.icon
+
+    const nameEl = document.createElement('span')
+    nameEl.className = 'pe-order-name'
+    nameEl.textContent = svc.name
+
+    const descEl = document.createElement('span')
+    descEl.className = 'pe-order-svc-desc'
+    descEl.textContent = svc.desc
+
+    link.appendChild(icon)
+    link.appendChild(nameEl)
+    link.appendChild(descEl)
+    orderGrid.appendChild(link)
+  })
+
+  orderSection.appendChild(orderTitle)
+  orderSection.appendChild(orderDesc)
+  orderSection.appendChild(orderGrid)
+
+  // ── Print tips ──
   const printHelp = document.createElement('div')
   printHelp.className = 'pe-print-help'
   const helpTitle = document.createElement('div')
   helpTitle.className = 'pe-help-title'
-  helpTitle.textContent = 'Where to print'
+  helpTitle.textContent = 'Printing tips'
   const helpLinks = document.createElement('div')
   helpLinks.className = 'pe-help-links'
-  helpLinks.textContent = 'Print at home on a large-format printer, or use online services like Shutterfly, Snapfish, or your local print shop (Staples, FedEx Office, etc.)'
+  helpLinks.textContent = 'Use the exported file at 300 DPI for sharp prints. For best results, choose matte or lustre finish. Local print shops (Staples, FedEx Office) also accept custom-size files.'
   printHelp.appendChild(helpTitle)
   printHelp.appendChild(helpLinks)
 
@@ -133,6 +185,7 @@ export function showPrintExport(imageDataUrl) {
   panel.appendChild(sizesGrid)
   panel.appendChild(info)
   panel.appendChild(exportBtn)
+  panel.appendChild(orderSection)
   panel.appendChild(printHelp)
 
   printModal.appendChild(backdrop)
@@ -362,5 +415,43 @@ style.textContent = `
     color: rgba(236,234,227,0.35);
     line-height: 1.5;
   }
+  .pe-order-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 0.5px solid rgba(255,255,255,0.05);
+  }
+  .pe-order-desc {
+    font-size: 11px;
+    color: rgba(236,234,227,0.4);
+    margin-bottom: 12px;
+  }
+  .pe-order-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .pe-order-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 8px;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    text-decoration: none;
+    color: #eceae3;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .pe-order-link:hover {
+    border-color: rgba(200,184,151,0.3);
+    background: rgba(200,184,151,0.06);
+    transform: translateY(-1px);
+  }
+  .pe-order-icon { font-size: 20px; }
+  .pe-order-name { font-size: 13px; font-weight: 500; }
+  .pe-order-svc-desc { font-size: 10px; color: rgba(236,234,227,0.4); }
 `
 document.head.appendChild(style)
