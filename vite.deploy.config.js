@@ -25,6 +25,7 @@ export default {
         community: resolve(prototypes, 'community.html'),
         user: resolve(prototypes, 'user.html'),
         pricing: resolve(prototypes, 'pricing.html'),
+        admin: resolve(prototypes, 'admin.html'),
       }
     }
   }
