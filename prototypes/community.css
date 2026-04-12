@@ -167,7 +167,9 @@ img { display: block; max-width: 100%; }
 .gallery-masonry .card-image {
   width: 100%;
   display: block;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
+.gallery-masonry .card:hover .card-image { transform: scale(1.04); }
 .gallery-masonry .card-body { padding: 14px 16px; }
 
 @media (max-width: 1100px) { .gallery-masonry { columns: 3; } }
@@ -566,3 +568,78 @@ img { display: block; max-width: 100%; }
   pointer-events: none;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ─── Back to Top ─── */
+.back-to-top {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-3);
+  border: 1px solid var(--panel-border);
+  color: var(--ink-soft);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: all var(--transition);
+  z-index: 50;
+}
+.back-to-top.visible { opacity: 1; pointer-events: auto; }
+.back-to-top:hover { background: var(--bg-2); color: var(--ink); border-color: rgba(255,255,255,0.15); transform: translateY(-2px); }
+
+/* ─── Keyboard Shortcuts Overlay ─── */
+.kbd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.kbd-overlay.open { opacity: 1; pointer-events: auto; }
+.kbd-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 420px;
+  width: 90%;
+}
+.kbd-panel h3 {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 400;
+  margin-bottom: 20px;
+}
+.kbd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.kbd-row + .kbd-row { border-top: 1px solid var(--panel-border); }
+kbd {
+  display: inline-block;
+  background: var(--bg-3);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  min-width: 28px;
+  text-align: center;
+}

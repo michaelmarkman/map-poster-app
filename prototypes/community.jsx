@@ -203,12 +203,35 @@ function App() {
   const [likedSet, setLikedSet] = useState(new Set())
   const [savedSet, setSavedSet] = useState(new Set())
   const [toastMsg, setToastMsg] = useState('')
+  const [showTop, setShowTop] = useState(false)
+  const [showKbd, setShowKbd] = useState(false)
   const sentinelRef = useRef(null)
   const PAGE_SIZE = 20
 
   const showToast = useCallback((msg) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(''), 2000)
+  }, [])
+
+  // Back to top visibility
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === '?') setShowKbd(v => !v)
+      if (e.key === 'Escape') { setShowKbd(false); setSelectedPost(null) }
+      if (e.key === '1') setSort('newest')
+      if (e.key === '2') setSort('trending')
+      if (e.key === '3') setSort('most_liked')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Check URL for ?post=ID deep link
@@ -401,6 +424,23 @@ function App() {
       </footer>
 
       <Toast message={toastMsg} />
+
+      <button
+        className={`back-to-top ${showTop ? 'visible' : ''}`}
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        aria-label="Back to top"
+      >&#8593;</button>
+
+      <div className={`kbd-overlay ${showKbd ? 'open' : ''}`} onClick={() => setShowKbd(false)}>
+        <div className="kbd-panel" onClick={e => e.stopPropagation()}>
+          <h3>Keyboard shortcuts</h3>
+          <div className="kbd-row"><span>Show shortcuts</span><kbd>?</kbd></div>
+          <div className="kbd-row"><span>Close modal / overlay</span><kbd>Esc</kbd></div>
+          <div className="kbd-row"><span>Sort by newest</span><kbd>1</kbd></div>
+          <div className="kbd-row"><span>Sort by trending</span><kbd>2</kbd></div>
+          <div className="kbd-row"><span>Sort by most liked</span><kbd>3</kbd></div>
+        </div>
+      </div>
     </>
   )
 }
