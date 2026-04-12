@@ -46,7 +46,7 @@ function Navbar() {
         <a href="./" className="nav-logo">MapPoster</a>
         <div className="nav-links">
           <a href="./community.html">Community</a>
-          <a href="./poster-v3-ui.html">Editor</a>
+          <a href="./pricing.html">Pricing</a>
           <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Start Creating</a>
         </div>
       </div>
@@ -233,6 +233,7 @@ function Footer() {
           <a href="./">Home</a>
           <a href="./poster-v3-ui.html">Editor</a>
           <a href="./community.html">Community</a>
+          <a href="./pricing.html">Pricing</a>
         </div>
         <div className="footer-col">
           <h4>Legal</h4>
