@@ -1,5 +1,11 @@
 import React, { useRef, useLayoutEffect, useMemo, forwardRef, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './lib/error-boundary.jsx'
+import { toastSuccess, toastError, toastInfo } from './lib/toasts.js'
+import { initKeyboardShortcuts } from './lib/keyboard-shortcuts.js'
+import { startOnboarding } from './lib/onboarding.js'
+import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
+import { showPrintExport } from './lib/print-export.js'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { SMAA, ToneMapping, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
 import { EffectComposer as WrappedEffectComposer } from '@react-three/postprocessing'
@@ -1313,7 +1319,11 @@ function App() {
 
 // Mount React into dedicated div inside canvas container
 const container = document.getElementById('r3f-root')
-createRoot(container).render(<App />)
+createRoot(container).render(
+  <ErrorBoundary name="editor">
+    <App />
+  </ErrorBoundary>
+)
 
 // Wire sidebar after DOM is ready
 wireUI()
@@ -3043,3 +3053,66 @@ window.openPosterPreview = openPosterPreview
   updateRenderStylesCount()
   updateSavedViewsEmpty()
 })();
+
+// ─── Phase 5: Polish integrations ───────────────────────────
+
+// Keyboard shortcuts
+initKeyboardShortcuts()
+
+// Onboarding (first-time users only, delayed to let the 3D scene load)
+setTimeout(() => startOnboarding(), 3000)
+
+// Print-ready export button
+document.getElementById('print-export-btn')?.addEventListener('click', () => {
+  const canvas = document.querySelector('#r3f-root canvas')
+  if (!canvas) { toastError('Canvas not ready'); return }
+  const dataUrl = canvas.toDataURL('image/png')
+  showPrintExport(dataUrl)
+})
+
+// Toast notifications for existing actions
+window.addEventListener('save-view', () => toastSuccess('View saved!'))
+
+// Watermark on free-tier exports: patch the snapshotCanvas function
+const _origSnapshotCanvas = window.snapshotCanvas || snapshotCanvas
+const _patchedSnapshot = () => {
+  const canvas = document.querySelector('#r3f-root canvas')
+  if (!canvas) return null
+  if (!shouldWatermark()) return canvas.toDataURL('image/png')
+
+  // Create a copy canvas to add watermark without affecting the live canvas
+  const copy = document.createElement('canvas')
+  copy.width = canvas.width
+  copy.height = canvas.height
+  const ctx = copy.getContext('2d')
+  ctx.drawImage(canvas, 0, 0)
+  applyWatermark(copy)
+  return copy.toDataURL('image/png')
+}
+
+// Tier-gated export resolution: warn on high-res if free
+const exportResSelect = document.getElementById('export-res')
+if (exportResSelect) {
+  exportResSelect.addEventListener('change', () => {
+    const scale = +exportResSelect.value
+    if (!canExportScale(scale)) {
+      showUpgradePrompt('High-resolution exports (3x, 4x) require a Pro subscription.')
+      exportResSelect.value = '1'
+    }
+  })
+}
+
+// Tier-gated saved views
+const saveViewBtn = document.getElementById('save-view-btn')
+if (saveViewBtn) {
+  const origClickHandlers = saveViewBtn.onclick
+  saveViewBtn.addEventListener('click', (e) => {
+    try {
+      const views = JSON.parse(localStorage.getItem('mapposter3d_v2_views') || '[]')
+      if (!canSaveView(views.length)) {
+        e.stopImmediatePropagation()
+        showUpgradePrompt('Free accounts can save up to 5 views. Upgrade to Pro for unlimited saved views.')
+      }
+    } catch (err) {}
+  }, true) // capture phase to intercept before save handler
+}
