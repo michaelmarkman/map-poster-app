@@ -68,12 +68,12 @@ function PostCard({ post, onClick, onLike, onSave, liked, saved }) {
           <button
             className={`btn-icon ${liked ? 'active' : ''}`}
             onClick={e => { e.stopPropagation(); onLike(post.id) }}
-            title="Like"
+            aria-label="Like"
           >&#9829;</button>
           <button
             className={`btn-icon ${saved ? 'active' : ''}`}
             onClick={e => { e.stopPropagation(); onSave(post.id) }}
-            title="Save"
+            aria-label="Save"
           >&#9733;</button>
         </div>
       </div>
@@ -131,7 +131,7 @@ function PostDetail({ post, onClose, user, toast }) {
   return (
     <div className="modal-overlay open" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
-        <button className="modal-close-btn" onClick={onClose}>&times;</button>
+        <button className="modal-close-btn" onClick={onClose} aria-label="Close">&times;</button>
         <div className="post-detail">
           <img className="post-detail-image" src={post.image_url} alt={post.title} />
           <div className="post-detail-body">
