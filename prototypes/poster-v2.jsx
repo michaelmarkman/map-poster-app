@@ -20,6 +20,16 @@ import { Clouds } from '@takram/three-clouds/r3f'
 import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospatial'
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
 import { initEditor, compositeExport, isEditorActive } from './editor-overlay.jsx'
+import { initCameraHistory } from './lib/camera-history.js'
+import { initCompareMode } from './lib/compare-mode.js'
+import { initGalleryKeyboard } from './lib/gallery-keyboard.js'
+import { initSceneSuggestions } from './lib/scene-suggestions.js'
+import { initTheme } from './lib/theme.js'
+import { initCollab } from './collab.jsx'
+import { initVersionHistory, snapshotVersion, renderVersionHistory } from './version-history.jsx'
+import { initAIDescribe } from './ai-describe.jsx'
+import { initSeasonalPresets } from './seasonal-presets.jsx'
+import { initMockup } from './poster-mockup.jsx'
 
 // ─── Config ──────────────────────────────────────────────────
 const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — client-side OK; do NOT use for Gemini
@@ -1095,10 +1105,14 @@ function SavedViewsHandler() {
       }
 
       const views = loadSavedViews()
+      // Snapshot existing view at same location for version history
+      const existing = views.find(v => v.name === view.name || (v.id && Math.abs(v.id - view.id) < 60000))
+      if (existing) snapshotVersion(existing.id, existing)
       views.unshift(view)
       if (views.length > 20) views.pop()
       storeSavedViews(views)
       renderSavedViews()
+      renderVersionHistory()
 
       // Reverse-geocode for a nicer name
       fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=16`, {
@@ -1259,6 +1273,17 @@ wireUI()
 
 // Init graphic editor overlay (Fabric.js canvas on top of 3D view)
 setTimeout(() => initEditor(), 500) // Delay to let R3F canvas mount first
+
+// Init feature modules
+initTheme()
+initCompareMode()
+initGalleryKeyboard()
+initSceneSuggestions()
+initCollab()
+initVersionHistory()
+initAIDescribe()
+initSeasonalPresets(state)
+initMockup()
 
 // ─── Session persistence ────────────────────────────────────
 const SESSION_KEY = 'mapposter3d_poster_v2_session'
@@ -1433,6 +1458,9 @@ const PRESET_CATEGORIES = {
   weather: 'Seasons & Weather',
   art: 'Art Styles'
 }
+
+// Expose for seasonal presets module
+window._AI_PRESETS = AI_PRESETS
 
 // Wire AI presets
 const geminiPromptEl = document.getElementById('gemini-prompt')
