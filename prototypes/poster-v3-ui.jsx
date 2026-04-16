@@ -41,6 +41,20 @@ import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
 // ─── Config ──────────────────────────────────────────────────
 const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'  // Google 3D Tiles — client-side OK; do NOT use for Gemini
 
+// Mobile detection — used to gate heavy post-processing, clamp DPR,
+// and hide desktop-only features. We key on both viewport width AND
+// pointer type so a laptop at a narrow window keeps the full quality
+// (pointer:fine) while a tablet in landscape at 1180px drops to the
+// mobile pipeline. See docs/superpowers/specs/2026-04-16-mobile-
+// compatibility-plan.md §6.
+const IS_MOBILE = (() => {
+  try {
+    const narrow = window.matchMedia('(max-width: 1024px)').matches
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    return narrow && coarse
+  } catch (e) { return false }
+})()
+
 // One-time cleanup: an earlier build cached a Gemini key in localStorage.
 // That key now lives server-side in /api/gemini — purge any stale local copies.
 try { localStorage.removeItem('mapposter3d_gemini_key') } catch (e) {}
@@ -70,7 +84,16 @@ const state = {
   bloom: { on: false },
   ssao: { on: false },
   vignette: { on: false },
-  clouds: { on: true, coverage: 0.2, shadows: true, paused: false, speed: 1 },
+  // Cloud defaults vary by device — on mobile we cap coverage and kill
+  // shadows (the raymarched shadow pass is the single biggest frame-
+  // time cost). The user can turn these back on from the sidebar.
+  clouds: {
+    on: true,
+    coverage: IS_MOBILE ? 0.18 : 0.2,
+    shadows: !IS_MOBILE,
+    paused: false,
+    speed: 1,
+  },
   dof: {
     on: true,
     focalUV: [0.5, 0.5],
@@ -627,10 +650,15 @@ function Scene() {
         {state.bloom.on && <Bloom intensity={0.5} luminanceThreshold={0.7} luminanceSmoothing={0.3} />}
         {state.ssao.on && <SSAO intensity={2} radius={0.05} luminanceInfluence={0.5} />}
         {state.vignette.on && <Vignette darkness={0.5} offset={0.3} />}
-        <LensFlare />
+        {/* LensFlare + SMAA are decorative passes that cost frame time
+            mobile GPUs don't have to spare. Dithering stays (cheap
+            gradient fix) and ToneMapping stays (required for HDR
+            output). CustomDoF is the core of the poster look, so it
+            stays everywhere. */}
+        {!IS_MOBILE && <LensFlare />}
         <ToneMapping mode={ToneMappingMode.AGX} />
         <CustomDof ref={dofRef} />
-        <SMAA />
+        {!IS_MOBILE && <SMAA />}
         <Dithering />
       </EffectComposer>
     </Atmosphere>
@@ -1515,9 +1543,13 @@ function renderSavedViews() {
 }
 
 // ─── App ─────────────────────────────────────────────────────
+// dpr: desktop runs the full 2x pixel pipeline; mobile caps at ~1.5×
+// device pixel ratio (so a 3× phone renders at 1.5×, halving fragment
+// work — the single biggest perf win on a thermal-throttled device).
+const CANVAS_DPR = IS_MOBILE ? Math.min(1.5, window.devicePixelRatio || 1) : 2
 function App() {
   return (
-    <Canvas dpr={2} camera={{ fov: 37.8 }} gl={{ depth: false, preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }}>
+    <Canvas dpr={CANVAS_DPR} camera={{ fov: 37.8 }} gl={{ depth: false, preserveDrawingBuffer: true }} style={{ width: '100%', height: '100%' }}>
       <Scene />
       <FovListener />
       <SavedViewsHandler />

@@ -957,6 +957,35 @@
     }
   }
 
+  /* ═══════ MOBILE FEATURE GATING ═══════
+     The Graphic Editor (Fabric overlay with handles) and Time Machine
+     grid were designed for cursor precision + a wide canvas. On phones
+     they break more than they help. Hide the controls, drop a short
+     "best on desktop" note in their place. */
+  @media (max-width: 1024px) {
+    .sidebar-section[data-sec="editor"] .section-body { display: none; }
+    .sidebar-section[data-sec="editor"]::after {
+      content: 'Best on desktop — open this site on a bigger screen to edit text and graphics.';
+      display: block;
+      padding: 10px 20px 20px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+    }
+    /* Time Machine stays clickable so power-users can still trigger it
+       from a tablet, but gets dimmed + a tooltip. JS also disables the
+       button outright if the viewport is very narrow. */
+    #render-decades-btn { opacity: 0.55; }
+    #render-decades-btn::after {
+      content: 'desktop';
+      margin-left: 6px;
+      font-size: 9px;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+  }
+
   .gm-style-cc, [class*="TilesAttributionOverlay"] { display: none !important; }
 
   /* Text overlay on canvas */
