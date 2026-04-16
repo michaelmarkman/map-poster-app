@@ -368,12 +368,31 @@ function getSunTimes(lat) {
   return { sunrise, sunset }
 }
 
+// Persisted "unlock" flag — when on, the ToD slider exposes the full 0–24
+// range regardless of sunrise/sunset for the current latitude. Useful for
+// polar scenes (noon in Antarctica in June) or deliberately stylized dusk/
+// dawn/night renders.
+const TOD_UNLOCK_KEY = 'mapposter3d_tod_unlock'
+function isTodUnlocked() {
+  try { return localStorage.getItem(TOD_UNLOCK_KEY) === '1' } catch (e) { return false }
+}
+function setTodUnlocked(on) {
+  try { localStorage.setItem(TOD_UNLOCK_KEY, on ? '1' : '0') } catch (e) {}
+  state.todUnlocked = !!on
+  updateTodSliderRange()
+}
+
 function updateTodSliderRange() {
+  const slider = document.getElementById('tod-slider')
+  if (!slider) return
+  if (state.todUnlocked || isTodUnlocked()) {
+    slider.min = 0
+    slider.max = 24
+    return
+  }
   const { sunrise, sunset } = getSunTimes(state.latitude)
   const min = sunrise + 0.5
   const max = sunset - 0.5
-  const slider = document.getElementById('tod-slider')
-  if (!slider) return
   slider.min = min
   slider.max = max
   const val = +slider.value
@@ -571,6 +590,13 @@ function Scene() {
       })
     }
 
+    // Soft ground clamp: if the camera slips below the sea-level ellipsoid
+    // (happens when a user flies through terrain in a valley or right down
+    // through the ground), pull it back up along the local surface normal.
+    // Uses lerp rather than a hard set so it feels like bouncing off the
+    // ground, not a brick wall. Kept cheap — just one Geodetic per frame.
+    clampCameraAltitude(camera)
+
     // Sync camera info to sidebar sliders
     syncCameraToUI(camera)
   })
@@ -619,6 +645,46 @@ function sliderToAlt(s) {
 function altToSlider(alt) {
   const clamped = Math.max(ALT_MIN, Math.min(ALT_MAX, alt))
   return Math.round(1000 * Math.log(clamped / ALT_MIN) / Math.log(ALT_MAX / ALT_MIN))
+}
+
+// Ray/Earth-sphere intersection using the WGS84 equatorial radius. Used as a
+// fallback for dolly zoom when no loaded geometry is under the screen center
+// (e.g. looking at the horizon). Returns the near hit or null.
+const EARTH_RADIUS = 6378137
+function intersectEarthSphere(origin, dir) {
+  const a = dir.dot(dir)
+  const b = 2 * origin.dot(dir)
+  const c = origin.dot(origin) - EARTH_RADIUS * EARTH_RADIUS
+  const disc = b * b - 4 * a * c
+  if (disc < 0) return null
+  const t = (-b - Math.sqrt(disc)) / (2 * a)
+  if (t < 0) return null
+  return origin.clone().addScaledVector(dir, t)
+}
+
+// Minimum altitude above sea level the camera is allowed to reach. Low enough
+// to let you skim rooftops in flat areas, but high enough to prevent diving
+// straight through the ellipsoid.
+const GROUND_CLAMP_MIN_ALT = 5
+// How deep the buffer zone extends above the hard floor. Within this band,
+// we apply a soft upward lerp that ramps from 0 at the top of the band to
+// the full strength at the floor. Gives the "bouncing off" feel.
+const GROUND_CLAMP_BAND = 25
+
+function clampCameraAltitude(camera) {
+  try {
+    const geo = new Geodetic().setFromECEF(camera.position)
+    const alt = geo.height
+    if (alt >= GROUND_CLAMP_MIN_ALT + GROUND_CLAMP_BAND) return
+
+    // Target: same lat/lng but at the floor. We lerp toward this; when
+    // penetration is deep the pull is firm, when you're just grazing the
+    // band it's feather-light.
+    const target = new Geodetic(geo.longitude, geo.latitude, GROUND_CLAMP_MIN_ALT).toECEF()
+    const penetration = Math.max(0, (GROUND_CLAMP_MIN_ALT + GROUND_CLAMP_BAND - alt) / GROUND_CLAMP_BAND)
+    const strength = Math.min(0.45, penetration * penetration * 0.6)
+    camera.position.lerp(target, strength)
+  } catch (e) {}
 }
 
 function syncCameraToUI(camera) {
@@ -880,6 +946,20 @@ function wireUI() {
     window.dispatchEvent(new Event('effects-changed'))
   })
 
+  // Unlock time of day toggle — off by default, restores from localStorage
+  const toggleTodUnlock = document.getElementById('toggle-tod-unlock')
+  if (toggleTodUnlock) {
+    const initial = isTodUnlocked()
+    state.todUnlocked = initial
+    toggleTodUnlock.classList.toggle('on', initial)
+    // Apply the initial state now that the slider exists
+    updateTodSliderRange()
+    toggleTodUnlock.addEventListener('click', function () {
+      this.classList.toggle('on')
+      setTodUnlocked(this.classList.contains('on'))
+    })
+  }
+
   // Clouds toggle — reflect current state.clouds.on (default: on)
   const toggleClouds = document.getElementById('toggle-clouds')
   if (toggleClouds) {
@@ -1096,12 +1176,18 @@ function FovListener() {
       const newFov = 2 * Math.atan(12 / mm) * 180 / Math.PI
       if (Math.abs(oldFov - newFov) < 0.01) return
 
-      // Dolly zoom: raycast center of screen to find target point
+      // Dolly zoom: raycast center of screen to find the target point.
+      // We try the loaded geometry first (photogrammetry tiles), then fall
+      // back to intersecting the view ray with the Earth sphere so the
+      // effect still works when looking at the horizon or at angles where
+      // no tile is directly under the reticle.
       raycaster.current.setFromCamera(centerNDC.current, camera)
       const hits = raycaster.current.intersectObjects(scene.children, true)
+      const target = hits.length > 0
+        ? hits[0].point
+        : intersectEarthSphere(raycaster.current.ray.origin, raycaster.current.ray.direction)
 
-      if (hits.length > 0) {
-        const target = hits[0].point
+      if (target) {
         const oldDist = camera.position.distanceTo(target)
         // visible_size ∝ dist * tan(fov/2)
         // newDist = oldDist * tan(oldFov/2) / tan(newFov/2)
