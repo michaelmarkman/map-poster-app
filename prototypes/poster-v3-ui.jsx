@@ -3323,7 +3323,8 @@ window.openPosterPreview = openPosterPreview
 initKeyboardShortcuts()
 
 // Onboarding (first-time users only, delayed to let the 3D scene load)
-setTimeout(() => startOnboarding(), 3000)
+// Disabled for now — re-enable by uncommenting the line below.
+// setTimeout(() => startOnboarding(), 3000)
 
 // Print-ready export button
 document.getElementById('print-export-btn')?.addEventListener('click', () => {
