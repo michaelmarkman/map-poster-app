@@ -321,12 +321,18 @@ function ClickToFocus() {
   useEffect(() => {
     const canvas = gl.domElement
     let downPos = null
+    // On touch / coarse pointers a user's "tap" is rarely pixel-stable —
+    // 12px is the accepted comfort zone for tap-vs-drag (MDN, Material).
+    // Mouse pointers stay on the tight 8px threshold so precise clicks
+    // still land where the user aimed.
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    const tapThreshold = coarse ? 14 : 8
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
       if (!downPos || !state.dof.on) return
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
-      if (Math.sqrt(dx * dx + dy * dy) > 8) return
+      if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
       const rect = canvas.getBoundingClientRect()
       state.dof.focalUV = [
         (e.clientX - rect.left) / rect.width,
@@ -3560,6 +3566,31 @@ initKeyboardShortcuts()
   window.__toggleSidebar = () => {
     setCollapsed(!document.body.classList.contains('sidebar-collapsed'))
   }
+
+  // ── Mobile sheet behavior ──
+  // On narrow viewports the sidebar is a bottom sheet. Swap the reveal
+  // button's chevron from "›" to "⌃" so the direction matches "drag up
+  // to reveal". Also let a tap on the uncovered canvas (top 15% of the
+  // viewport while the sheet is open) dismiss the sheet, matching the
+  // native iOS sheet gesture.
+  const mobileMQ = window.matchMedia('(max-width: 1024px)')
+  const applyMobileRevealGlyph = () => {
+    if (!revealBtn) return
+    revealBtn.textContent = mobileMQ.matches ? '⌃' : '›'
+  }
+  applyMobileRevealGlyph()
+  mobileMQ.addEventListener?.('change', applyMobileRevealGlyph)
+
+  // Tap-outside-sheet to close. We attach on #main so we don't swallow
+  // clicks on the sidebar itself or on HUD overlays.
+  const mainEl = document.getElementById('main')
+  mainEl?.addEventListener('click', (e) => {
+    if (!mobileMQ.matches) return
+    if (document.body.classList.contains('sidebar-collapsed')) return
+    const sidebar = document.getElementById('sidebar')
+    if (sidebar && sidebar.contains(e.target)) return
+    setCollapsed(true)
+  })
 })();
 
 // Onboarding (first-time users only, delayed to let the 3D scene load).

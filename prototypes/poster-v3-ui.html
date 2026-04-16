@@ -839,17 +839,121 @@
     }
     #canvas-container::before { display: none; }
 
-    /* Sidebar becomes a bounded overlay — never wider than the screen
-       minus 32px so the reveal/close controls still have room. */
+    /* Sidebar becomes a bottom sheet on phones/tablets. Slides up from
+       the bottom edge, keeps the top ~15% of the viewport visible so
+       the canvas never fully disappears while the user is adjusting
+       controls. Collapsed state translates downward instead of the
+       desktop sideways slide. */
     #sidebar {
-      width: min(320px, calc(100vw - 32px));
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      max-width: none;
+      height: 85dvh;
+      max-height: 85dvh;
+      border-radius: 16px 16px 0 0;
+      padding-top: 18px; /* room for the drag-handle indicator */
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      transform: translateY(0);
+      z-index: 60;
+    }
+    body.sidebar-collapsed #sidebar {
+      transform: translateY(100%);
+      opacity: 1; /* opacity fade looks muddy on mobile sheets */
     }
 
-    /* Floating toolbar and tool buttons: respect safe-area at the
-       bottom (iOS home indicator / URL bar). */
-    #editor-toolbar,
+    /* Drag handle indicator at the top of the sheet (purely visual —
+       gesture support is Phase 2.5). Adds the scrim-pill that iOS and
+       Android sheets use to signal "this is draggable". */
+    #sidebar::before {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.22);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* Reveal button now sits bottom-center as an "open" affordance so
+       users land on the canvas and reach down to summon controls —
+       standard mobile pattern. */
     #sidebar-reveal {
+      top: auto;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0));
+      transform: translate(-50%, 8px);
+      width: 52px;
+      height: 40px;
+      border-radius: 14px;
+      font-size: 18px;
+    }
+    body.sidebar-collapsed #sidebar-reveal {
+      transform: translate(-50%, 0);
+    }
+    /* Collapse arrow at the top-right of the sheet is redundant — the
+       handle communicates "drag down to close" and tapping outside
+       also closes. Hide it on mobile so the sheet keeps a clean top
+       edge. */
+    #sidebar-toggle { display: none; }
+
+    /* Floating toolbar respects safe-area at the bottom (iOS home
+       indicator / URL bar). */
+    #editor-toolbar {
       padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+  }
+
+  /* ═══════ COARSE POINTER (touch) ═══════
+     Every input that reads as a <44pt tap target on touch gets bumped
+     to iOS's 44×44 minimum. Scoped to `(pointer: coarse)` so mouse
+     users keep the tighter desktop sizing. */
+  @media (pointer: coarse) {
+    /* Toggle pills (.toggle) */
+    .toggle {
+      width: 44px;
+      height: 26px;
+    }
+    .toggle::after {
+      width: 20px;
+      height: 20px;
+      top: 3px;
+      left: 3px;
+    }
+    .toggle.on::after {
+      transform: translateX(18px);
+    }
+    /* Sliders — native range thumbs */
+    input[type="range"]::-webkit-slider-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    /* Section heads, nav rows, gallery chips — comfier tap zones. */
+    .section-head,
+    .nav-row,
+    .toggle-row,
+    .control-row {
+      min-height: 44px;
+    }
+    .size-btn,
+    .ai-preset {
+      padding: 10px 14px;
+      min-height: 36px;
+    }
+    /* Lightbox action buttons — tiny text on touch is a pain. */
+    .gallery-btn {
+      font-size: 12px;
+      padding: 10px 14px;
     }
   }
 
