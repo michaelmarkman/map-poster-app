@@ -98,15 +98,94 @@
     overflow-y: auto;
     overflow-x: hidden;
     z-index: 50;
+    transition: transform 0.22s ease, opacity 0.22s ease;
   }
   body.fill-mode #sidebar,
   body.preview-open #sidebar {
     /* Still visible in fill mode */
   }
+  /* Collapsed state — slide sidebar off-screen */
+  body.sidebar-collapsed #sidebar {
+    transform: translateX(calc(-100% - 24px));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Sidebar collapse toggle — sits at top-right of the sidebar, hides with it */
+  #sidebar-toggle {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0.5px solid transparent;
+    border-radius: 6px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    z-index: 2;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+  #sidebar-toggle:hover {
+    color: var(--ink);
+    background: rgba(255,255,255,0.04);
+    border-color: var(--panel-border);
+  }
+
+  /* Floating reveal button — visible only when sidebar is collapsed */
+  #sidebar-reveal {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    backdrop-filter: blur(52px) saturate(150%);
+    -webkit-backdrop-filter: blur(52px) saturate(150%);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    z-index: 51;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-8px);
+    transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s, color 0.15s, border-color 0.15s, background 0.15s;
+    box-shadow:
+      0 20px 40px -15px rgba(0,0,0,0.5),
+      inset 0 0.5px 0 rgba(255,255,255,0.1);
+    pointer-events: none;
+  }
+  body.sidebar-collapsed #sidebar-reveal {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    pointer-events: auto;
+    transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0s, color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  #sidebar-reveal:hover {
+    color: var(--ink);
+    border-color: var(--panel-border-strong);
+    background: rgba(28, 27, 33, 0.62);
+  }
 
   /* Brand */
   .logo {
-    padding: 22px 22px 16px;
+    padding: 22px 52px 16px 22px;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -650,13 +729,16 @@
   body.preview-open #main { padding: 0; }
   body.preview-open #main::before,
   body.preview-open #main::after { display: none; }
+  /* Sidebar collapsed: give the canvas the full width */
+  body.sidebar-collapsed #main { padding: 20px; }
 
   #canvas-container {
     position: relative;
     overflow: hidden;
     --ratio: 1.333;
-    width: min(calc((100vh - 60px) * var(--ratio)), calc(100vw - 360px));
-    height: min(calc(100vh - 60px), calc((100vw - 360px) / var(--ratio)));
+    --main-h-padding: 360px;
+    width: min(calc((100vh - 60px) * var(--ratio)), calc(100vw - var(--main-h-padding)));
+    height: min(calc(100vh - 60px), calc((100vw - var(--main-h-padding)) / var(--ratio)));
     max-width: 1600px;
     max-height: 1400px;
     border-radius: 2px;
@@ -695,6 +777,8 @@
     box-shadow: none;
   }
   body.fill-mode #canvas-container::before { display: none; }
+  /* Sidebar collapsed: expand canvas to use the freed width */
+  body.sidebar-collapsed #canvas-container { --main-h-padding: 60px; }
   body.preview-open #canvas-container {
     width: 100vw;
     height: 100vh;
@@ -1901,6 +1985,8 @@
 <!-- ╔═══════ SIDEBAR ═══════╗ -->
 <div id="sidebar">
 
+  <button id="sidebar-toggle" type="button" title="Collapse sidebar (\)" aria-label="Collapse sidebar">‹</button>
+
   <a href="./" class="logo" style="text-decoration:none;color:inherit">
     <div class="logo-text"><span class="map">map</span><span class="poster">poster</span></div>
     <div class="logo-sub">v3.ui</div>
@@ -2252,6 +2338,9 @@
     </a>
   </div>
 </div>
+
+<!-- Floating reveal button — shown when sidebar is collapsed -->
+<button id="sidebar-reveal" type="button" title="Show sidebar (\)" aria-label="Show sidebar">›</button>
 
 <!-- ╔═══════ MAIN WORKBENCH ═══════╗ -->
 <div id="main">

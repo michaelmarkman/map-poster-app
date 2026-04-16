@@ -8,6 +8,7 @@ const SHORTCUTS = [
   { key: 'r', label: 'Reset to default view', action: 'reset-view' },
   { key: 't', label: 'Toggle render styles', action: 'toggle-styles' },
   { key: 'g', label: 'Open gallery', action: 'open-gallery' },
+  { key: '\\', display: '\\', label: 'Toggle sidebar', action: 'toggle-sidebar' },
   { key: 'Escape', display: 'Esc', label: 'Close modal / panel', action: 'close-modal' },
   { key: '?', label: 'Show keyboard shortcuts', action: 'show-help' },
 ]
@@ -128,6 +129,11 @@ export function initKeyboardShortcuts() {
       case 'g':
         e.preventDefault()
         document.getElementById('open-gallery-btn')?.click()
+        break
+
+      case '\\':
+        e.preventDefault()
+        if (typeof window.__toggleSidebar === 'function') window.__toggleSidebar()
         break
 
       case 'Escape':

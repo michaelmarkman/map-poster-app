@@ -3429,6 +3429,39 @@ window.openPosterPreview = openPosterPreview
 // Keyboard shortcuts
 initKeyboardShortcuts()
 
+// Sidebar show/hide toggle — persists to localStorage, re-triggers canvas resize
+;(() => {
+  const SIDEBAR_KEY = 'mapposter3d_sidebar_collapsed'
+  const toggleBtn = document.getElementById('sidebar-toggle')
+  const revealBtn = document.getElementById('sidebar-reveal')
+
+  const applyCollapsed = (collapsed) => {
+    document.body.classList.toggle('sidebar-collapsed', collapsed)
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
+    // Let the 3D canvas re-measure once the CSS transition settles.
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 260)
+  }
+
+  const setCollapsed = (collapsed) => {
+    applyCollapsed(collapsed)
+    try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0') } catch (e) {}
+  }
+
+  // Restore persisted state on load
+  let initial = false
+  try { initial = localStorage.getItem(SIDEBAR_KEY) === '1' } catch (e) {}
+  applyCollapsed(initial)
+
+  toggleBtn?.addEventListener('click', () => setCollapsed(true))
+  revealBtn?.addEventListener('click', () => setCollapsed(false))
+
+  // Expose a toggler for the keyboard-shortcuts module
+  window.__toggleSidebar = () => {
+    setCollapsed(!document.body.classList.contains('sidebar-collapsed'))
+  }
+})();
+
 // Onboarding (first-time users only, delayed to let the 3D scene load).
 // Mirrors the PAYWALL_ENABLED kill-switch pattern in pricing.js — flip to
 // true to re-enable. Keeping the conditional referenced so the import and
