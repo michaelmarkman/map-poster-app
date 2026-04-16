@@ -1712,7 +1712,79 @@
   .lb-nav.prev { left: 24px; }
   .lb-nav.next { right: 24px; }
   .lb-close { position: absolute; top: 18px; right: 18px; }
-  .lb-download { position: absolute; top: 18px; right: 62px; }
+
+  /* Action row sits inline across the top, with the close button on the
+     far right. Flex/gap/flex-wrap replaces the old `right: 160px/260px…`
+     cascade that pushed Share off-screen once a fifth button landed. */
+  .lb-actions {
+    position: absolute;
+    top: 14px;
+    right: 58px; /* leave room for lb-close at right: 18px */
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: calc(100vw - 80px);
+  }
+  .lb-actions .gallery-btn,
+  .lb-actions .lb-download {
+    position: static;
+  }
+  /* Flag that toggles the overflow menu; populated + wired up in JS.
+     On narrow widths we collapse Share / Jump to view / Save view into
+     this menu, keeping Preview + Download on the main row. */
+  .lb-more {
+    position: relative;
+  }
+  .lb-more-btn {
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 0.5px solid var(--ink-whisper);
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .lb-more-btn:hover { color: var(--ink); border-color: var(--panel-border-strong); }
+  .lb-more-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 160px;
+    background: rgba(20,19,23,0.96);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 10;
+  }
+  .lb-more.open .lb-more-menu { display: flex; }
+  .lb-more-menu .gallery-btn {
+    position: static;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    border-radius: 4px;
+    width: 100%;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 12px;
+  }
+  .lb-more-menu .gallery-btn:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--ink);
+  }
+  .lb-more-menu .gallery-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
 
   /* ═══════ 3D POSTER PREVIEW ═══════ */
   /* Inset from the left so the sidebar stays visible + clickable */
@@ -2488,11 +2560,17 @@
   <button class="lb-nav prev" id="lb-prev" type="button">‹</button>
   <button class="lb-nav next" id="lb-next" type="button">›</button>
   <button class="modal-close lb-close" id="lb-close" type="button">×</button>
-  <button class="gallery-btn lb-download" id="lb-share" type="button" style="right:460px;">Share</button>
-  <button class="gallery-btn lb-download" id="lb-jump-view" type="button" style="right:360px;" title="Jump to the camera view and settings this was rendered from">Jump to view</button>
-  <button class="gallery-btn lb-download" id="lb-save-view" type="button" style="right:260px;" title="Save this view to your saved-views list">Save view</button>
-  <button class="gallery-btn lb-download" id="lb-frame" type="button" style="right:160px;">View in frame</button>
-  <button class="gallery-btn accent lb-download" id="lb-download" type="button">Download</button>
+  <div class="lb-actions" id="lb-actions">
+    <button class="gallery-btn lb-download" id="lb-share" type="button">Share</button>
+    <button class="gallery-btn lb-download" id="lb-jump-view" type="button" title="Jump to the camera view and settings this was rendered from">Jump to view</button>
+    <button class="gallery-btn lb-download" id="lb-save-view" type="button" title="Save this view to your saved-views list">Save view</button>
+    <button class="gallery-btn lb-download" id="lb-frame" type="button" title="Preview this render inside a physical poster frame mockup">Preview as poster</button>
+    <div class="lb-more" id="lb-more" style="display:none;">
+      <button class="lb-more-btn" id="lb-more-btn" type="button" aria-label="More actions" aria-expanded="false">⋯</button>
+      <div class="lb-more-menu" id="lb-more-menu"></div>
+    </div>
+    <button class="gallery-btn accent lb-download" id="lb-download" type="button">Download</button>
+  </div>
   <img id="lb-img" src="">
   <div class="lb-label" id="lb-label"></div>
 </div>

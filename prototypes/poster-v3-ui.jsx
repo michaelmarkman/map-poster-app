@@ -2895,6 +2895,70 @@ document.getElementById('lb-share')?.addEventListener('click', (e) => {
   openShareModal(item.dataUrl)
 })
 
+// ─── Lightbox overflow menu ─────────────────────────────────
+// On narrow viewports we fold the less-critical actions (Share, Jump
+// to view, Save view) into a ⋯ dropdown so Preview + Download stay
+// on the primary row. On wide viewports we move them back.
+;(() => {
+  const actions = document.getElementById('lb-actions')
+  const more = document.getElementById('lb-more')
+  const moreBtn = document.getElementById('lb-more-btn')
+  const moreMenu = document.getElementById('lb-more-menu')
+  if (!actions || !more || !moreBtn || !moreMenu) return
+
+  const OVERFLOW_IDS = ['lb-share', 'lb-jump-view', 'lb-save-view']
+  const NARROW_MQ = '(max-width: 720px)'
+  const mq = window.matchMedia(NARROW_MQ)
+
+  // Remember the original (pre-move) position of each overflow button so
+  // we can restore them in the right order when the viewport widens.
+  const anchors = new Map()
+  OVERFLOW_IDS.forEach(id => {
+    const el = document.getElementById(id)
+    if (el) anchors.set(id, el.nextSibling) // what the button sat before on the main row
+  })
+
+  const apply = () => {
+    const narrow = mq.matches
+    OVERFLOW_IDS.forEach(id => {
+      const el = document.getElementById(id)
+      if (!el) return
+      if (narrow) {
+        if (el.parentElement !== moreMenu) moreMenu.appendChild(el)
+      } else {
+        if (el.parentElement !== actions) {
+          const anchor = anchors.get(id)
+          if (anchor && anchor.parentElement === actions) actions.insertBefore(el, anchor)
+          else actions.insertBefore(el, more) // fall back to before the ⋯ slot
+        }
+      }
+    })
+    more.style.display = narrow ? '' : 'none'
+    if (!narrow) more.classList.remove('open')
+  }
+
+  apply()
+  mq.addEventListener?.('change', apply)
+
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    more.classList.toggle('open')
+    moreBtn.setAttribute('aria-expanded', more.classList.contains('open') ? 'true' : 'false')
+  })
+  // Close when any item inside is clicked
+  moreMenu.addEventListener('click', () => {
+    more.classList.remove('open')
+    moreBtn.setAttribute('aria-expanded', 'false')
+  })
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    if (!more.contains(e.target)) {
+      more.classList.remove('open')
+      moreBtn.setAttribute('aria-expanded', 'false')
+    }
+  })
+})();
+
 document.getElementById('share-modal-close')?.addEventListener('click', () => {
   if (shareModal) shareModal.style.display = 'none'
 })
