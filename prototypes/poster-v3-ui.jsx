@@ -1140,13 +1140,73 @@ const VIEWS_KEY = 'mapposter3d_v2_views'
 
 // Module-level camera ref, populated by SavedViewsHandler. Lets non-R3F code
 // (export flows, gallery helpers) read the current camera without restructuring
-// them into components.
-let _cameraRef = null
+// them into components. Set on mount; we never null it out — SavedViewsHandler
+// lives as long as the <Canvas>, and nulling on cleanup is racy under React
+// strict-mode remounts.
+let moduleCameraRef = null
+
+// Read the ToD slider with a single fallback chain. Shared by save-view paths
+// so the two listeners don't drift.
+function readTodValue() {
+  return +(document.getElementById('tod-slider')?.value || state.timeOfDay || 12)
+}
+
+// Derive a human-readable name for a view from its stored ECEF camera position.
+// Used as the default saved-view name before reverse-geocoding (or when we
+// can't reverse-geocode, like the lightbox "Save view" path).
+function deriveViewCoordName(cameraState, fallback = 'View') {
+  try {
+    if (!cameraState || typeof cameraState.px !== 'number') return fallback
+    const v3 = new Vector3(cameraState.px, cameraState.py, cameraState.pz)
+    const g = new Geodetic().setFromECEF(v3)
+    const lat = g.latitude * 180 / Math.PI
+    const lng = g.longitude * 180 / Math.PI
+    return Math.abs(lat).toFixed(3) + '\u00b0' + (lat >= 0 ? 'N' : 'S') + ' ' +
+           Math.abs(lng).toFixed(3) + '\u00b0' + (lng >= 0 ? 'E' : 'W')
+  } catch (_) { return fallback }
+}
+
+// Build a 96x72 thumbnail data URL from a (possibly large) image data URL.
+// Used when saving a view from the gallery lightbox — the rendered image is
+// what the user sees and what should represent the view in the list.
+function buildThumbFromDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image()
+      img.onload = () => {
+        const thumb = document.createElement('canvas')
+        thumb.width = 96; thumb.height = 72
+        thumb.getContext('2d').drawImage(img, 0, 0, 96, 72)
+        resolve(thumb.toDataURL('image/jpeg', 0.6))
+      }
+      img.onerror = () => resolve(null)
+      img.src = dataUrl
+    } catch (_) { resolve(null) }
+  })
+}
+
+// Compose a saved-view object from a captured view-state plus optional metadata.
+// Keeps the shape in one place so the live save-view and lightbox-save-view
+// paths can't drift.
+function buildSavedViewFromCapture(view, { fromGalleryId = null, name = 'View', thumbnail = null } = {}) {
+  return {
+    id: Date.now(),
+    fromGalleryId,
+    name,
+    camera: { ...view.camera },
+    tod: view.tod,
+    focalUV: [...(view.focalUV || [0.5, 0.5])],
+    dofTightness: view.dofTightness,
+    dofBlur: view.dofBlur,
+    dofColorPop: view.dofColorPop,
+    thumbnail: thumbnail || undefined,
+  }
+}
 
 // Snapshot the current camera + effect state. Called at export-click time so
 // each gallery item can be linked back to the exact view it was rendered from.
 function captureViewState() {
-  const camera = _cameraRef
+  const camera = moduleCameraRef
   if (!camera) return null
   return {
     camera: {
@@ -1155,7 +1215,7 @@ function captureViewState() {
       qz: camera.quaternion.z, qw: camera.quaternion.w,
       fov: camera.fov,
     },
-    tod: +(document.getElementById('tod-slider')?.value || state.timeOfDay || 12),
+    tod: readTodValue(),
     focalUV: [...state.dof.focalUV],
     dofTightness: state.dof.tightness,
     dofBlur: state.dof.blur,
@@ -1167,7 +1227,7 @@ function SavedViewsHandler() {
   const { camera, gl } = useThree()
 
   useEffect(() => {
-    _cameraRef = camera
+    moduleCameraRef = camera
     const onSave = () => {
       const canvas = gl.domElement
       // Thumbnail
@@ -1191,7 +1251,7 @@ function SavedViewsHandler() {
           qz: camera.quaternion.z, qw: camera.quaternion.w,
           fov: camera.fov
         },
-        tod: +(document.getElementById('tod-slider')?.value || 12),
+        tod: readTodValue(),
         focalUV: [...state.dof.focalUV],
         dofTightness: state.dof.tightness,
         dofBlur: state.dof.blur,
@@ -1289,7 +1349,7 @@ function SavedViewsHandler() {
     return () => {
       window.removeEventListener('save-view', onSave)
       window.removeEventListener('restore-view', onRestore)
-      if (_cameraRef === camera) _cameraRef = null
+      // Intentionally don't null moduleCameraRef here — see comment above.
     }
   }, [camera, gl])
 
@@ -2682,58 +2742,19 @@ document.getElementById('lb-save-view')?.addEventListener('click', (e) => {
   const item = gallery[lbIdx]
   if (!item?.view) return
 
-  const views = loadSavedViews()
-  const existing = views.find(v => v.fromGalleryId === item.id)
-  if (existing) { toastInfo('Already saved as a view'); return }
+  if (loadSavedViews().some(v => v.fromGalleryId === item.id)) {
+    toastInfo('Already saved as a view')
+    return
+  }
 
-  // Derive a name from the camera position — mirrors the default used when
-  // saving a fresh view. Falls back to the gallery item's label.
-  let name = item.label || 'View'
-  try {
-    const lat = null, lng = null
-    // Decode the stored ECEF position back to lat/lng
-    const pos = item.view.camera
-    if (pos && typeof pos.px === 'number') {
-      const v3 = new Vector3(pos.px, pos.py, pos.pz)
-      const g = new Geodetic().setFromECEF(v3)
-      const la = g.latitude * 180 / Math.PI
-      const ln = g.longitude * 180 / Math.PI
-      name = Math.abs(la).toFixed(3) + '\u00b0' + (la >= 0 ? 'N' : 'S') + ' ' +
-             Math.abs(ln).toFixed(3) + '\u00b0' + (ln >= 0 ? 'E' : 'W')
-    }
-  } catch (_) {}
+  const name = deriveViewCoordName(item.view.camera, item.label || 'View')
 
-  // Build a thumbnail from the rendered image rather than the live canvas —
-  // it's what the user sees in the gallery and matches the render exactly.
-  const buildThumb = () => new Promise((resolve) => {
-    try {
-      const img = new Image()
-      img.onload = () => {
-        const thumb = document.createElement('canvas')
-        thumb.width = 96; thumb.height = 72
-        thumb.getContext('2d').drawImage(img, 0, 0, 96, 72)
-        resolve(thumb.toDataURL('image/jpeg', 0.6))
-      }
-      img.onerror = () => resolve(null)
-      img.src = item.dataUrl
-    } catch (_) { resolve(null) }
-  })
-
-  buildThumb().then(thumbnail => {
-    const v = item.view
-    const newView = {
-      id: Date.now(),
+  buildThumbFromDataUrl(item.dataUrl).then(thumbnail => {
+    const newView = buildSavedViewFromCapture(item.view, {
       fromGalleryId: item.id,
       name,
-      camera: { ...v.camera },
-      tod: v.tod,
-      focalUV: [...(v.focalUV || [0.5, 0.5])],
-      dofTightness: v.dofTightness,
-      dofBlur: v.dofBlur,
-      dofColorPop: v.dofColorPop,
-      thumbnail: thumbnail || undefined,
-    }
-
+      thumbnail,
+    })
     const list = loadSavedViews()
     list.unshift(newView)
     if (list.length > 20) list.pop()
@@ -3322,9 +3343,12 @@ window.openPosterPreview = openPosterPreview
 // Keyboard shortcuts
 initKeyboardShortcuts()
 
-// Onboarding (first-time users only, delayed to let the 3D scene load)
-// Disabled for now — re-enable by uncommenting the line below.
-// setTimeout(() => startOnboarding(), 3000)
+// Onboarding (first-time users only, delayed to let the 3D scene load).
+// Mirrors the PAYWALL_ENABLED kill-switch pattern in pricing.js — flip to
+// true to re-enable. Keeping the conditional referenced so the import and
+// the gate are both greppable in one place.
+const ONBOARDING_ENABLED = false
+if (ONBOARDING_ENABLED) setTimeout(() => startOnboarding(), 3000)
 
 // Print-ready export button
 document.getElementById('print-export-btn')?.addEventListener('click', () => {

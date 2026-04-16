@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './lib/error-boundary.jsx'
 import { fetchPosts } from './lib/community.js'
 
+// Kill switch mirrors PAYWALL_ENABLED in lib/pricing.js. When false,
+// pricing nav/footer/section are hidden across the landing page.
+const PAYWALL_ENABLED = false
+
 // ─── Intersection Observer hook ───
 function useInView(options = {}) {
   const ref = useRef(null)
@@ -52,7 +56,7 @@ function Navbar() {
         <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
           <a href="./poster-v3-ui.html">Editor</a>
           <a href="./community.html">Community</a>
-          <a href="./pricing.html">Pricing</a>
+          {PAYWALL_ENABLED && <a href="./pricing.html">Pricing</a>}
           <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Start Creating</a>
         </div>
       </div>
@@ -405,7 +409,7 @@ function Footer() {
           <a href="./">Home</a>
           <a href="./poster-v3-ui.html">Editor</a>
           <a href="./community.html">Community</a>
-          <a href="./pricing.html">Pricing</a>
+          {PAYWALL_ENABLED && <a href="./pricing.html">Pricing</a>}
         </div>
         <div className="footer-col">
           <h4>Legal</h4>
@@ -451,7 +455,7 @@ function App() {
       <QuickStart />
       <GalleryPreview />
       <Testimonials />
-      <Pricing />
+      {PAYWALL_ENABLED && <Pricing />}
       <CTA />
       <Footer />
     </>

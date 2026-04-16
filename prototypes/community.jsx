@@ -10,6 +10,9 @@ import {
   fetchCollectionPosts, deleteCollection,
 } from './lib/community.js'
 
+// Kill switch mirrors PAYWALL_ENABLED in lib/pricing.js.
+const PAYWALL_ENABLED = false
+
 // ─── Intersection Observer hook ───
 function useInView(options = {}) {
   const ref = useRef(null)
@@ -145,7 +148,7 @@ function Navbar({ user }) {
         <a href="/src/" className="nav-logo">MapPoster</a>
         <div className="nav-links">
           <a href="./community.html" style={{ color: 'var(--ink)' }}>Community</a>
-          <a href="./pricing.html">Pricing</a>
+          {PAYWALL_ENABLED && <a href="./pricing.html">Pricing</a>}
           <NotificationBell user={user} />
           <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Create</a>
         </div>
@@ -862,7 +865,7 @@ function App() {
             <a href="./">Home</a>
             <a href="./poster-v3-ui.html">Editor</a>
             <a href="./community.html">Community</a>
-            <a href="./pricing.html">Pricing</a>
+            {PAYWALL_ENABLED && <a href="./pricing.html">Pricing</a>}
           </div>
           <div className="footer-col">
             <h4>Legal</h4>
