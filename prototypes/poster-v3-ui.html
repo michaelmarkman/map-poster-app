@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>MapPoster — Create Stunning 3D Map Posters</title>
 <meta name="description" content="Turn any place on Earth into a beautiful 3D map poster. Customize camera angles, lighting, and AI art styles. Export print-ready artwork.">
 <meta property="og:title" content="MapPoster — Create Stunning 3D Map Posters">
@@ -75,7 +75,8 @@
     font-feature-settings: 'ss01', 'cv11', 'calt';
     -webkit-font-smoothing: antialiased;
     display: flex;
-    height: 100vh;
+    height: 100vh;  /* fallback for browsers without dvh */
+    height: 100dvh; /* mobile-safe: excludes collapsing browser chrome */
     overflow: hidden;
   }
   ::selection { background: var(--accent-soft); color: var(--ink); }
@@ -769,6 +770,7 @@
   body.fill-mode #canvas-container {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     max-width: none;
     max-height: none;
     position: absolute;
@@ -782,6 +784,7 @@
   body.preview-open #canvas-container {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     max-width: none;
     max-height: none;
     position: absolute;
@@ -790,6 +793,48 @@
     box-shadow: none;
   }
   body.preview-open #canvas-container::before { display: none; }
+
+  /* ═══════ MOBILE / NARROW VIEWPORT (Phase 1 — doesn't break) ═══════
+     Below 1024px (phones + most tablets) the canvas takes the full
+     viewport and the sidebar becomes an overlay. The JS bootstrap
+     defaults the sidebar to collapsed on narrow screens so the user
+     lands on the map, not the controls. Full mobile polish (bottom
+     sheet, larger touch targets, perf tuning) is Phase 2+. */
+  @media (max-width: 1024px) {
+    #main {
+      padding: 0;
+    }
+    /* Kill the decorative workbench art — it's noise when the canvas
+       fills the screen and just costs paint. */
+    #main::before,
+    #main::after { display: none; }
+
+    /* Canvas fills viewport minus safe-area so Safari bottom chrome
+       and notches don't eat into the scene. */
+    #canvas-container {
+      --main-h-padding: 0px;
+      width: 100vw;
+      height: 100dvh;
+      max-width: none;
+      max-height: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    #canvas-container::before { display: none; }
+
+    /* Sidebar becomes a bounded overlay — never wider than the screen
+       minus 32px so the reveal/close controls still have room. */
+    #sidebar {
+      width: min(320px, calc(100vw - 32px));
+    }
+
+    /* Floating toolbar and tool buttons: respect safe-area at the
+       bottom (iOS home indicator / URL bar). */
+    #editor-toolbar,
+    #sidebar-reveal {
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+  }
 
   .gm-style-cc, [class*="TilesAttributionOverlay"] { display: none !important; }
 

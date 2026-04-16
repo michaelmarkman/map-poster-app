@@ -2970,8 +2970,19 @@ const ppScene = document.getElementById('pp-scene')
 
 function fitPosterScene(imgW, imgH) {
   if (!ppScene) return
-  // Viewport minus sidebar (320px)
-  const availW = window.innerWidth - 320
+  // Read the live sidebar offset instead of the old hardcoded 320px.
+  // When the sidebar is collapsed or the viewport is narrow (mobile),
+  // the overlay preview should use the full width.
+  const sidebarEl = document.getElementById('sidebar')
+  const collapsed = document.body.classList.contains('sidebar-collapsed')
+  const isNarrow = window.innerWidth <= 1024
+  let sidebarOffset = 0
+  if (sidebarEl && !collapsed && !isNarrow) {
+    const r = sidebarEl.getBoundingClientRect()
+    // right edge of the sidebar + a small gutter
+    sidebarOffset = Math.max(0, Math.round(r.right)) + 40
+  }
+  const availW = Math.max(320, window.innerWidth - sidebarOffset)
   const maxW = Math.min(800, availW * 0.8)
   const maxH = Math.min(900, window.innerHeight * 0.85)
   const aspect = imgW / imgH
@@ -3448,9 +3459,15 @@ initKeyboardShortcuts()
     try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0') } catch (e) {}
   }
 
-  // Restore persisted state on load
-  let initial = false
-  try { initial = localStorage.getItem(SIDEBAR_KEY) === '1' } catch (e) {}
+  // Restore persisted state on load — but on narrow viewports (phones,
+  // tablets) we default to collapsed if the user hasn't touched it yet.
+  // Landing on a controls panel that covers the 3D canvas is worse than
+  // landing on the canvas with a visible reveal button.
+  let persisted = null
+  try { persisted = localStorage.getItem(SIDEBAR_KEY) } catch (e) {}
+  const initial = persisted === null
+    ? window.matchMedia('(max-width: 1024px)').matches
+    : persisted === '1'
   applyCollapsed(initial)
 
   toggleBtn?.addEventListener('click', () => setCollapsed(true))
