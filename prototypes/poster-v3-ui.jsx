@@ -1056,6 +1056,22 @@ function wireUI() {
     if (fillBtn) fillBtn.classList.remove('active')
   }
 
+  // Chrome has a bug where a nested `min(..., calc(... / var(--ratio)))`
+  // doesn't always recompute when the custom property changes via inline
+  // style — the height sticks to its previous value. Toggling display off
+  // and reading offsetHeight forces a style recalc + reflow, then the new
+  // --ratio takes effect. Cheaper than rewriting the whole layout with
+  // aspect-ratio CSS. Exposed on window so the session-restore path and
+  // any other setProperty('--ratio', …) caller can trigger it too.
+  window.__forceCanvasReflow = () => {
+    const el = container || document.getElementById('canvas-container')
+    if (!el) return
+    const prev = el.style.display
+    el.style.display = 'none'
+    void el.offsetHeight
+    el.style.display = prev
+  }
+
   allRatioBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       clearActive()
@@ -1064,6 +1080,7 @@ function wireUI() {
       document.body.classList.remove('fill-mode')
       container.style.setProperty('--ratio', ratio)
       if (hudRatio) hudRatio.textContent = btn.textContent
+      window.__forceCanvasReflow()
       setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
     })
   })
@@ -1075,6 +1092,7 @@ function wireUI() {
       document.body.classList.add('fill-mode')
       container.style.removeProperty('--ratio')
       if (hudRatio) hudRatio.textContent = 'Fill'
+      window.__forceCanvasReflow?.()
       setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
     })
   }
@@ -1653,6 +1671,7 @@ function restoreSession(camera) {
         if (u.aspectRatio) {
           document.getElementById('canvas-container')?.style.setProperty('--ratio', u.aspectRatio)
         }
+        window.__forceCanvasReflow?.()
         if (u.aspectLabel) {
           const match = [...document.querySelectorAll('#size-grid-portrait .size-btn, #size-grid-landscape .size-btn')]
             .find(b => b.textContent === u.aspectLabel)

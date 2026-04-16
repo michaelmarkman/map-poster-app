@@ -801,20 +801,37 @@
      lands on the map, not the controls. Full mobile polish (bottom
      sheet, larger touch targets, perf tuning) is Phase 2+. */
   @media (max-width: 1024px) {
-    #main {
+    /* Flatten all the #main padding variants that desktop layouts use —
+       on a phone the canvas should be flush with the viewport edges,
+       regardless of sidebar-collapsed / fill / preview state. */
+    #main,
+    body.sidebar-collapsed #main,
+    body.fill-mode #main,
+    body.preview-open #main {
       padding: 0;
+    }
+    /* Same idea for the canvas container — normally sidebar-collapsed
+       resets --main-h-padding to 60px; on mobile it's always 0 so the
+       aspect-ratio math lets the canvas span the full 100vw. */
+    body.sidebar-collapsed #canvas-container {
+      --main-h-padding: 0px;
     }
     /* Kill the decorative workbench art — it's noise when the canvas
        fills the screen and just costs paint. */
     #main::before,
     #main::after { display: none; }
 
-    /* Canvas fills viewport minus safe-area so Safari bottom chrome
-       and notches don't eat into the scene. */
+    /* Canvas uses the whole viewport width as its budget (no sidebar
+       gutter reservation) and the base ratio-aware width/height formula
+       still applies — so aspect-ratio buttons (4:3, 9:16, …) continue
+       to snap correctly on phones. We only drop the desktop chrome
+       (decorative frame shadow, border-radius, upper bound) and the
+       60px header reserve — on mobile the HUD is absolute-positioned
+       over the canvas, so we don't need to carve a strip out of it. */
     #canvas-container {
       --main-h-padding: 0px;
-      width: 100vw;
-      height: 100dvh;
+      width: min(calc(100dvh * var(--ratio)), 100vw);
+      height: min(100dvh, calc(100vw / var(--ratio)));
       max-width: none;
       max-height: none;
       border-radius: 0;
