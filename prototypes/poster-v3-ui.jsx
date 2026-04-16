@@ -1138,10 +1138,36 @@ function FovListener() {
 // ─── Saved Views (R3F component — has camera access) ────────
 const VIEWS_KEY = 'mapposter3d_v2_views'
 
+// Module-level camera ref, populated by SavedViewsHandler. Lets non-R3F code
+// (export flows, gallery helpers) read the current camera without restructuring
+// them into components.
+let _cameraRef = null
+
+// Snapshot the current camera + effect state. Called at export-click time so
+// each gallery item can be linked back to the exact view it was rendered from.
+function captureViewState() {
+  const camera = _cameraRef
+  if (!camera) return null
+  return {
+    camera: {
+      px: camera.position.x, py: camera.position.y, pz: camera.position.z,
+      qx: camera.quaternion.x, qy: camera.quaternion.y,
+      qz: camera.quaternion.z, qw: camera.quaternion.w,
+      fov: camera.fov,
+    },
+    tod: +(document.getElementById('tod-slider')?.value || state.timeOfDay || 12),
+    focalUV: [...state.dof.focalUV],
+    dofTightness: state.dof.tightness,
+    dofBlur: state.dof.blur,
+    dofColorPop: state.dof.colorPop,
+  }
+}
+
 function SavedViewsHandler() {
   const { camera, gl } = useThree()
 
   useEffect(() => {
+    _cameraRef = camera
     const onSave = () => {
       const canvas = gl.domElement
       // Thumbnail
@@ -1263,6 +1289,7 @@ function SavedViewsHandler() {
     return () => {
       window.removeEventListener('save-view', onSave)
       window.removeEventListener('restore-view', onRestore)
+      if (_cameraRef === camera) _cameraRef = null
     }
   }, [camera, gl])
 
@@ -1800,7 +1827,8 @@ async function saveToGalleryDB(item) {
       dataUrl: item.dataUrl,
       time: item.time.toISOString(),
       batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
+      batchLabel: item.batchLabel || null,
+      view: item.view || null
     })
   } catch (e) { console.warn('[gallery] IndexedDB save failed:', e) }
 }
@@ -1836,7 +1864,8 @@ loadGalleryDB().then(items => {
       dataUrl: item.dataUrl,
       time: new Date(item.time),
       batchId: item.batchId || null,
-      batchLabel: item.batchLabel || null
+      batchLabel: item.batchLabel || null,
+      view: item.view || null
     })
   })
   if (gallery.length > 0) {
@@ -1928,7 +1957,8 @@ function addToGallery(label, filename, dataUrl, opts = {}) {
     label, filename, dataUrl,
     time: new Date(),
     batchId: opts.batchId || null,
-    batchLabel: opts.batchLabel || null
+    batchLabel: opts.batchLabel || null,
+    view: opts.view || null
   }
   gallery.push(item)
   saveToGalleryDB(item)
@@ -1963,7 +1993,7 @@ function processQueue() {
     link.download = fname + '.png'
     link.href = snapshotUrl
     link.click()
-    addToGallery(job.label, fname, snapshotUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    addToGallery(job.label, fname, snapshotUrl, { batchId: job.batchId, batchLabel: job.batchLabel, view: job.view })
     updateJob(job, { status: 'done', statusText: 'Done', progress: 100 })
     exportProcessing = false
     processQueue()
@@ -2040,7 +2070,7 @@ function sendToGemini(img, job) {
       link.href = dataUrl
       link.click()
     }
-    job.galleryIdx = addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel })
+    job.galleryIdx = addToGallery(job.label, fname, dataUrl, { batchId: job.batchId, batchLabel: job.batchLabel, view: job.view })
     // If this was a time machine job, wire it into the overlay
     if (job.setId != null && job.decade != null) {
       if (!timeMachineSets[job.setId]) timeMachineSets[job.setId] = { images: {}, research: {} }
@@ -2077,6 +2107,7 @@ document.getElementById('export-btn')?.addEventListener('click', async () => {
   const aiOn = toggleAI?.classList.contains('on')
   const selected = [...document.querySelectorAll('.ai-preset.active')]
   const snapshot = await snapshotWithOverlay() // capture view + overlay at click time
+  const view = captureViewState()
 
   if (aiOn && selected.length > 0) {
     // Queue each selected preset
@@ -2087,7 +2118,7 @@ document.getElementById('export-btn')?.addEventListener('click', async () => {
       exportQueue.push({
         id: exportNextId++,
         label: preset?.label || btn.textContent,
-        prompt, useAI: true, snapshot,
+        prompt, useAI: true, snapshot, view,
         status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
       })
     })
@@ -2099,7 +2130,7 @@ document.getElementById('export-btn')?.addEventListener('click', async () => {
     exportQueue.push({
       id: exportNextId++,
       label: aiOn ? 'Custom' : 'Raw',
-      prompt, useAI: aiOn, snapshot,
+      prompt, useAI: aiOn, snapshot, view,
       status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
     })
   }
@@ -2114,17 +2145,19 @@ document.getElementById('export-btn')?.addEventListener('click', async () => {
 document.getElementById('quick-download-btn')?.addEventListener('click', async () => {
   const dataUrl = await snapshotWithOverlay()
   if (!dataUrl) return
+  const view = captureViewState()
   const fname = buildFilename('raw')
   const link = document.createElement('a')
   link.download = fname + '.png'
   link.href = dataUrl
   link.click()
-  addToGallery('Quick', fname, dataUrl)
+  addToGallery('Quick', fname, dataUrl, { view })
   fireConfetti()
 })
 
 document.getElementById('generate-all-btn')?.addEventListener('click', async () => {
   const snapshot = await snapshotWithOverlay()
+  const view = captureViewState()
   // Create a batch — all jobs in this click share the same batchId so they group in the gallery
   const batchId = 'batch-' + Date.now()
   const loc = document.getElementById('location-search')?.value?.split(',')[0] || 'All Styles'
@@ -2134,7 +2167,7 @@ document.getElementById('generate-all-btn')?.addEventListener('click', async () 
     const prompt = appendEffectPrompts(getPresetPrompt(key))
     exportQueue.push({
       id: exportNextId++, label: preset.label || key,
-      prompt, useAI: true, snapshot,
+      prompt, useAI: true, snapshot, view,
       batchId, batchLabel,
       status: 'pending', statusText: 'Queued', progress: 0, resultUrl: null
     })
@@ -2297,6 +2330,7 @@ function getSubjectCoords() {
 document.getElementById('render-decades-btn')?.addEventListener('click', async () => {
   const snapshot = await snapshotWithOverlay()
   if (!snapshot) { alert('Canvas not ready'); return }
+  const view = captureViewState()
 
   const setId = nextTimeMachineSetId++
   timeMachineSets[setId] = { images: {}, research: {}, location: '' }
@@ -2334,6 +2368,7 @@ document.getElementById('render-decades-btn')?.addEventListener('click', async (
       prompt: appendEffectPrompts(buildDecadePrompt(year, research[year])),
       useAI: true,
       snapshot,
+      view,
       setId,
       decade: year,
       status: 'pending',
@@ -2574,6 +2609,26 @@ function updateLightbox() {
     const pos = lbScope ? ` (${lbScopePos + 1}/${lbScope.length})` : ''
     lbLabel.textContent = prefix + item.label + pos
   }
+
+  // View-linked buttons: enabled only when this item captured a view state.
+  // Legacy items (rendered before this feature) have no view, so we show
+  // the buttons disabled with a tooltip rather than hiding them, so the
+  // affordance is still visible.
+  const hasView = !!item.view
+  const jumpBtn = document.getElementById('lb-jump-view')
+  const saveBtn = document.getElementById('lb-save-view')
+  if (jumpBtn) {
+    jumpBtn.disabled = !hasView
+    jumpBtn.title = hasView
+      ? 'Jump to the camera view and settings this was rendered from'
+      : 'No view data saved for this render'
+  }
+  if (saveBtn) {
+    saveBtn.disabled = !hasView
+    saveBtn.title = hasView
+      ? 'Save this view to your saved-views list'
+      : 'No view data saved for this render'
+  }
 }
 
 document.getElementById('lb-close')?.addEventListener('click', () => lightbox?.classList.remove('open'))
@@ -2605,6 +2660,87 @@ document.getElementById('lb-frame')?.addEventListener('click', (e) => {
   lightbox?.classList.remove('open')
   document.getElementById('gallery-overlay')?.classList.remove('open')
   if (window.openPosterPreview) window.openPosterPreview(item.dataUrl, item.label, lbIdx)
+})
+
+// Jump to view — restore the camera + settings the render was made from,
+// then close the lightbox and gallery so the editor is visible.
+document.getElementById('lb-jump-view')?.addEventListener('click', (e) => {
+  e.stopPropagation()
+  const item = gallery[lbIdx]
+  if (!item?.view) return
+  window.dispatchEvent(new CustomEvent('restore-view', { detail: item.view }))
+  lightbox?.classList.remove('open')
+  document.getElementById('gallery-overlay')?.classList.remove('open')
+  toastSuccess('Jumped to render view')
+})
+
+// Save as view — add this render's captured view to the saved-views list.
+// Idempotent: we tag the saved view with the gallery item id and skip if
+// one already exists.
+document.getElementById('lb-save-view')?.addEventListener('click', (e) => {
+  e.stopPropagation()
+  const item = gallery[lbIdx]
+  if (!item?.view) return
+
+  const views = loadSavedViews()
+  const existing = views.find(v => v.fromGalleryId === item.id)
+  if (existing) { toastInfo('Already saved as a view'); return }
+
+  // Derive a name from the camera position — mirrors the default used when
+  // saving a fresh view. Falls back to the gallery item's label.
+  let name = item.label || 'View'
+  try {
+    const lat = null, lng = null
+    // Decode the stored ECEF position back to lat/lng
+    const pos = item.view.camera
+    if (pos && typeof pos.px === 'number') {
+      const v3 = new Vector3(pos.px, pos.py, pos.pz)
+      const g = new Geodetic().setFromECEF(v3)
+      const la = g.latitude * 180 / Math.PI
+      const ln = g.longitude * 180 / Math.PI
+      name = Math.abs(la).toFixed(3) + '\u00b0' + (la >= 0 ? 'N' : 'S') + ' ' +
+             Math.abs(ln).toFixed(3) + '\u00b0' + (ln >= 0 ? 'E' : 'W')
+    }
+  } catch (_) {}
+
+  // Build a thumbnail from the rendered image rather than the live canvas —
+  // it's what the user sees in the gallery and matches the render exactly.
+  const buildThumb = () => new Promise((resolve) => {
+    try {
+      const img = new Image()
+      img.onload = () => {
+        const thumb = document.createElement('canvas')
+        thumb.width = 96; thumb.height = 72
+        thumb.getContext('2d').drawImage(img, 0, 0, 96, 72)
+        resolve(thumb.toDataURL('image/jpeg', 0.6))
+      }
+      img.onerror = () => resolve(null)
+      img.src = item.dataUrl
+    } catch (_) { resolve(null) }
+  })
+
+  buildThumb().then(thumbnail => {
+    const v = item.view
+    const newView = {
+      id: Date.now(),
+      fromGalleryId: item.id,
+      name,
+      camera: { ...v.camera },
+      tod: v.tod,
+      focalUV: [...(v.focalUV || [0.5, 0.5])],
+      dofTightness: v.dofTightness,
+      dofBlur: v.dofBlur,
+      dofColorPop: v.dofColorPop,
+      thumbnail: thumbnail || undefined,
+    }
+
+    const list = loadSavedViews()
+    list.unshift(newView)
+    if (list.length > 20) list.pop()
+    storeSavedViews(list)
+    renderSavedViews()
+    toastSuccess('View saved!')
+  })
 })
 
 // ─── Share to Community ────────────────────────────────────

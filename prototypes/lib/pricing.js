@@ -2,6 +2,11 @@
 // Free vs Pro tier definitions and gating
 // Note: All DOM construction uses safe methods (textContent, createElement).
 
+// Kill switch — flip to `true` to re-enable tier gating (watermark,
+// saved-view limit, high-res exports). While disabled every check behaves
+// as if the user is on Pro, so no call site needs to change.
+const PAYWALL_ENABLED = false
+
 const STORAGE_KEY = 'mapposter_tier'
 const WAITLIST_KEY = 'mapposter_waitlist_email'
 
@@ -27,6 +32,7 @@ export const TIERS = {
 }
 
 export function getCurrentTier() {
+  if (!PAYWALL_ENABLED) return 'pro'
   return localStorage.getItem(STORAGE_KEY) || 'free'
 }
 

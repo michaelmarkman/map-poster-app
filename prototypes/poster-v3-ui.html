@@ -1237,6 +1237,15 @@
     transition: all 0.15s;
   }
   .gallery-btn:hover { border-color: var(--panel-border-strong); color: var(--ink); }
+  .gallery-btn:disabled, .gallery-btn[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: auto; /* keep tooltip */
+  }
+  .gallery-btn:disabled:hover, .gallery-btn[disabled]:hover {
+    border-color: var(--ink-whisper);
+    color: var(--ink-soft);
+  }
   .gallery-btn.accent {
     border-color: var(--accent);
     color: var(--ink);
@@ -2230,8 +2239,8 @@
     </div>
   </div>
 
-  <!-- Pricing link -->
-  <div style="padding: 12px 22px 18px; border-top: 0.5px solid rgba(255,255,255,0.05);">
+  <!-- Pricing link (hidden while paywall is disabled — see prototypes/lib/pricing.js) -->
+  <div id="sidebar-pricing-link" style="display:none; padding: 12px 22px 18px; border-top: 0.5px solid rgba(255,255,255,0.05);">
     <a href="./pricing.html" class="nav-row" style="text-decoration:none; color:inherit; display:flex;">
       <span style="color:var(--accent);">Upgrade to Pro</span>
       <span class="right"><span class="chev">›</span></span>
@@ -2323,7 +2332,9 @@
   <button class="lb-nav prev" id="lb-prev" type="button">‹</button>
   <button class="lb-nav next" id="lb-next" type="button">›</button>
   <button class="modal-close lb-close" id="lb-close" type="button">×</button>
-  <button class="gallery-btn lb-download" id="lb-share" type="button" style="right:260px;">Share</button>
+  <button class="gallery-btn lb-download" id="lb-share" type="button" style="right:460px;">Share</button>
+  <button class="gallery-btn lb-download" id="lb-jump-view" type="button" style="right:360px;" title="Jump to the camera view and settings this was rendered from">Jump to view</button>
+  <button class="gallery-btn lb-download" id="lb-save-view" type="button" style="right:260px;" title="Save this view to your saved-views list">Save view</button>
   <button class="gallery-btn lb-download" id="lb-frame" type="button" style="right:160px;">View in frame</button>
   <button class="gallery-btn accent lb-download" id="lb-download" type="button">Download</button>
   <img id="lb-img" src="">
