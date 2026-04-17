@@ -6,3 +6,4 @@ dist-deploy/
 .vercel
 .playwright-mcp/
 editor-*.png
+*.png
