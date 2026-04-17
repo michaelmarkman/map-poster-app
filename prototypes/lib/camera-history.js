@@ -82,10 +82,15 @@ export function trackCamera(camera) {
   debounceTimer = setTimeout(() => pushState(camera), DEBOUNCE_MS)
 }
 
-// Take an initial snapshot
+// Take an initial snapshot. `camera` is optional — the poster-v3-ui
+// bootstrap calls this before R3F has mounted and the camera ref
+// exists, so we gracefully no-op the snapshot and let `trackCamera`
+// (fired from useFrame once the canvas renders) backfill it.
 export function initCameraHistory(camera) {
-  cameraRef = camera
-  pushState(camera)
+  if (camera) {
+    cameraRef = camera
+    pushState(camera)
+  }
   addButtons()
   addKeyListeners()
 }

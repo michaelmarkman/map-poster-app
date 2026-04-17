@@ -7,7 +7,7 @@ import { startOnboarding } from './lib/onboarding.js'
 import { shouldWatermark, applyWatermark, canSaveView, canExportScale, showUpgradePrompt } from './lib/pricing.js'
 import { showPrintExport } from './lib/print-export.js'
 import { fireConfetti } from './lib/confetti.js'
-import { initCameraHistory } from './lib/camera-history.js'
+import { initCameraHistory, trackCamera as _trackCameraHistory } from './lib/camera-history.js'
 import { initCompareMode } from './lib/compare-mode.js'
 import { initGalleryKeyboard } from './lib/gallery-keyboard.js'
 import { initSceneSuggestions } from './lib/scene-suggestions.js'
@@ -1366,6 +1366,9 @@ function SavedViewsHandler() {
 
   useEffect(() => {
     moduleCameraRef = camera
+    // Backfill the camera-history module (it was init'd before the
+    // canvas mounted and couldn't take an initial snapshot then).
+    try { _trackCameraHistory(camera) } catch (e) {}
     const onSave = () => {
       const canvas = gl.domElement
       // Thumbnail
