@@ -207,6 +207,23 @@ file is the raw log — CLAUDE.md is the curated summary.
   moves / time-of-day changes won't show until the transition ends.
   Acceptable for a deliberate UI action like picking a new ratio.
 
+## 2026-04-17 — `__forceCanvasReflow` (display:none + offsetHeight) kills the transition you just started
+
+- Snapshot-overlay approach landed. Ratio change appeared to skip animation
+  entirely — container snapped to the new size instead of transitioning.
+- `__forceCanvasReflow()` was being called right after setting --ratio.
+  It sets `display: none`, reads offsetHeight, then restores display.
+  Browsers treat display:none → display restored as 'start from new
+  computed value', which cancels the in-flight transition on width/height.
+- Fix: don't call the reflow helper on ratio change. @property --ratio
+  makes the min(calc(...)) formulas recompute without the hack. The
+  helper still exists on window for any legacy caller; it just isn't
+  the default anymore.
+- General pattern: any reflow trick that briefly removes the element
+  from composition will cancel CSS transitions on it. If you need both
+  a recalc AND an animation, do the recalc BEFORE the style change
+  you want to animate.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all

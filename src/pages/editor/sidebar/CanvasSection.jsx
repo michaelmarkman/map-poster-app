@@ -112,7 +112,11 @@ export default function CanvasSection() {
       if (fillMode) container.style.removeProperty('--ratio')
       else container.style.setProperty('--ratio', aspectRatio)
     }
-    window.__forceCanvasReflow?.()
+    // Do NOT call __forceCanvasReflow here. It toggles display:none
+    // → offsetHeight → display:'' to force a recalc, which interrupts
+    // the CSS transition we just kicked off. With @property --ratio
+    // registered the browser recomputes the min(calc()) formulas on
+    // its own — no reflow hack needed.
     const cleanupOverlay = playSnapshotTransition(container, snapshot)
 
     // One resize dispatch at the END of the transition so R3F's camera
