@@ -1,37 +1,38 @@
 import { useEffect, useRef } from 'react'
 import { IS_MOBILE } from '../atoms/scene'
 
-// Thin wrapper that loads the legacy Fabric.js graphic editor from the
-// prototypes tree on demand. The editor mounts a canvas + toolbar + props
-// panel as children of `#canvas-container`. We defer the import so the main
-// editor bundle doesn't include Fabric.js (~350KB) until the user clicks
-// "Open Editor".
+// Loads the legacy Fabric.js editor once the React DOM skeleton
+// (GraphicEditorOverlay) is mounted. Wires on next tick so the
+// toolbar/props-panel elements exist before `initEditor` runs
+// `document.getElementById(...)` to attach listeners.
+//
+// The editor is created as hidden (setEditorActive(false) inside
+// initEditor). The sidebar's "Open Editor" button has id="editor-toggle-btn"
+// which wireToolbar binds to a toggle handler — so the user's click
+// flips .active on the toolbar and the editor turns on.
 export default function useGraphicEditor() {
-  const loadedRef = useRef(null)
+  const initedRef = useRef(false)
+
   useEffect(() => {
-    // Skip on mobile — Fabric's tiny handles are unusable on touch. The
-    // EditorSection already shows a "desktop only" placeholder.
-    if (IS_MOBILE) return
+    if (IS_MOBILE) return // Fabric's tiny handles are unusable on touch
+    if (initedRef.current) return
+    initedRef.current = true
 
-    const handler = async () => {
-      if (!loadedRef.current) {
-        try {
-          // Vite-ignore: dev path is ../../../../prototypes, prod path
-          // depends on deploy layout. If the import fails (e.g. prototypes
-          // aren't bundled into the SPA entry), we silently skip.
-          loadedRef.current = await import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx')
-          loadedRef.current.initEditor?.()
-          return
-        } catch (e) {
-          console.warn('[graphic-editor] lazy import failed:', e?.message)
-          loadedRef.current = null
-          return
-        }
+    // Wait a tick so GraphicEditorOverlay is in the DOM, then load Fabric
+    // and initialize. The dynamic import keeps Fabric.js (~360KB) out of
+    // the critical-path bundle.
+    const t = setTimeout(async () => {
+      try {
+        const mod = await import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx')
+        // initEditor is idempotent-ish: it creates a Fabric canvas and
+        // attaches listeners. Calling twice would double-bind toolbar
+        // handlers — that's what initedRef guards against.
+        mod.initEditor?.()
+      } catch (e) {
+        console.warn('[graphic-editor] failed to load:', e?.message)
+        initedRef.current = false
       }
-      loadedRef.current.setEditorActive?.(!loadedRef.current.isEditorActive?.())
-    }
-
-    window.addEventListener('toggle-graphic-editor', handler)
-    return () => window.removeEventListener('toggle-graphic-editor', handler)
+    }, 0)
+    return () => clearTimeout(t)
   }, [])
 }
