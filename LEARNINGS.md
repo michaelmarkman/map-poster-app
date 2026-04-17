@@ -186,6 +186,27 @@ file is the raw log — CLAUDE.md is the curated summary.
 - Eased with `cubic-bezier(0.22, 1, 0.36, 1)` (ease-out-expo-ish) over
   450ms — more cinematic than the default ease.
 
+## 2026-04-17 — CSS-only aspect-ratio transition is impossible to make fully smooth with WebGL
+
+- Tried animating width/height + 4 resize dispatches, then tried animating
+  @property --ratio so the calc() recomputes continuously. Both still
+  felt jumpy because R3F calls `gl.setSize` every frame of the animation,
+  which reallocates the drawing buffer and re-runs the scene's post-
+  processing chain (clouds + DoF + atmosphere is ~20ms/frame on my
+  machine). Even at 60fps-ideal, the scene hitches.
+- Guaranteed-smooth approach: snapshot the canvas as a data URL at the
+  moment the ratio changes, overlay that as a `<img object-fit: cover>`
+  on top of the live canvas, let CSS animate the container to the new
+  size (the img scales with it, zero WebGL work), fade the overlay out
+  at the end so the live canvas reappears. User sees a static frame
+  scaling, not a jittery re-render.
+- `preserveDrawingBuffer: true` on the WebGL context is required for
+  `canvas.toDataURL()` to work — already set in EditorCanvas.jsx for
+  the export pipeline, so no extra cost.
+- Trade-off: during the ~500ms transition the scene is "frozen." Camera
+  moves / time-of-day changes won't show until the transition ends.
+  Acceptable for a deliberate UI action like picking a new ratio.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all
