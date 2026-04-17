@@ -181,15 +181,9 @@ export default function PosterPreviewModal() {
   return (
     <div id="poster-preview" className={open ? 'open' : ''}>
       <div className="pp-wall"></div>
-      <button
-        className="pp-close"
-        id="pp-close"
-        type="button"
-        onClick={close}
-        aria-label="Close preview"
-      >
-        ×
-      </button>
+      {/* No in-modal close button — the floating toggle in the top-right
+          (PosterPreviewToggle) and the P keyboard shortcut are the ways
+          to dismiss. Keeps the preview itself clean. Esc still works. */}
       <div
         className="pp-scene"
         id="pp-scene"

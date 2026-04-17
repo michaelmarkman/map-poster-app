@@ -340,6 +340,24 @@ export default function Lightbox() {
       <div className="lb-label" id="lb-label">
         {label + positionSuffix}
       </div>
+
+      {total > 1 && (
+        <div className="lb-strip" onClick={(e) => e.stopPropagation()}>
+          {entries.map((e, i) => (
+            <button
+              key={e.id ?? i}
+              type="button"
+              className={`lb-thumb${i === index ? ' active' : ''}`}
+              onClick={(ev) => { ev.stopPropagation(); setIndex(i) }}
+              title={e.label || ''}
+              aria-label={`Jump to ${e.label || 'poster'} ${i + 1} of ${total}`}
+              aria-current={i === index ? 'true' : undefined}
+            >
+              <img src={e.dataUrl} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

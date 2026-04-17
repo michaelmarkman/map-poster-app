@@ -58,15 +58,18 @@ export default function GalleryModal() {
   const openLightbox = (idx) => {
     const item = gallery[idx]
     if (!item) return
-    // Seed the lightbox with the full gallery + start index so prev/next
-    // navigation works. Also set lightboxEntryAtom to the item itself
-    // (not a wrapper) so a direct atom read resolves to something with
-    // a .dataUrl — otherwise the lightbox renders empty and you see
-    // black nothingness instead of your poster.
+    // The IndexedDB returns gallery oldest-first. The grid displays it
+    // newest-first (buildGalleryEntries reverses). For lightbox nav to
+    // feel correct — left arrow = previous grid item (newer), right =
+    // next (older) — we ship the reversed list to the lightbox and
+    // translate the clicked index accordingly. Without this the arrow
+    // keys walk the array in DB order, which is backwards to the user.
+    const displayEntries = [...gallery].reverse()
+    const displayStart = gallery.length - 1 - idx
     setLightboxEntry(item)
     window.dispatchEvent(
       new CustomEvent('open-lightbox', {
-        detail: { entries: gallery, startIndex: idx },
+        detail: { entries: displayEntries, startIndex: displayStart },
       }),
     )
     setModals((m) => ({ ...m, lightbox: true })) // keep gallery: true — they stack
