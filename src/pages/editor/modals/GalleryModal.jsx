@@ -58,7 +58,17 @@ export default function GalleryModal() {
   const openLightbox = (idx) => {
     const item = gallery[idx]
     if (!item) return
-    setLightboxEntry({ item, idx, gallery })
+    // Seed the lightbox with the full gallery + start index so prev/next
+    // navigation works. Also set lightboxEntryAtom to the item itself
+    // (not a wrapper) so a direct atom read resolves to something with
+    // a .dataUrl — otherwise the lightbox renders empty and you see
+    // black nothingness instead of your poster.
+    setLightboxEntry(item)
+    window.dispatchEvent(
+      new CustomEvent('open-lightbox', {
+        detail: { entries: gallery, startIndex: idx },
+      }),
+    )
     setModals((m) => ({ ...m, lightbox: true })) // keep gallery: true — they stack
   }
 

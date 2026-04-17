@@ -137,6 +137,19 @@ file is the raw log — CLAUDE.md is the curated summary.
   back to previous build" in any visible way on the live site. Check
   deployment status after every push that touches deps or build config.
 
+## 2026-04-17 — Gallery→Lightbox was passing a wrapper shape, rendering blank
+
+- Clicking a gallery entry opened the lightbox but the image was black.
+- `GalleryModal` was setting `lightboxEntryAtom` to `{ item, idx, gallery }`.
+  `Lightbox` reads the atom directly for `entry.dataUrl` — which was
+  undefined because dataUrl lives on `item`, not the wrapper.
+- Fixed: GalleryModal now sets the atom to the item itself AND dispatches
+  `open-lightbox` with `{ entries: gallery, startIndex: idx }` so prev/
+  next navigation also works. The shape that leaves GalleryModal matches
+  what Lightbox's event listener expected. Another case for
+  `event-contracts.test.js` — wrapper/bare-object shape drift across
+  hooks was a whole class of bug this session.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all
