@@ -165,10 +165,13 @@ export default function EnvironmentSection() {
       .catch(() => alert('Geocoding failed'))
   }
 
-  // Skip ahead — push the cloud weather offset forward. Prototype line 1028.
+  // Skip ahead — nudge the cloud weather offset forward. The prototype's
+  // +10 was far too aggressive (clouds jumped across the whole sky and
+  // felt like a disorienting teleport). 0.3 is a recognizable "weather
+  // just changed" shift without losing the current scene.
   const onSkipAhead = () => {
     const ref = window._cloudsRef
-    if (ref && ref.localWeatherOffset) ref.localWeatherOffset.x += 10
+    if (ref && ref.localWeatherOffset) ref.localWeatherOffset.x += 0.3
   }
 
   const toggleUnlock = () => {

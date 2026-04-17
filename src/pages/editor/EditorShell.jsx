@@ -3,6 +3,7 @@ import EditorCanvas from './scene/EditorCanvas'
 import Sidebar from './sidebar/Sidebar'
 import CanvasHUD from './overlays/CanvasHUD'
 import TextOverlay from './overlays/TextOverlay'
+import PosterPreviewToggle from './overlays/PosterPreviewToggle'
 import ModalManager from './modals/ModalManager'
 import useGalleryData from './hooks/useGalleryData'
 import useTimeMachine from './hooks/useTimeMachine'
@@ -59,6 +60,7 @@ export default function EditorShell() {
           <TextOverlay />
         </div>
         <CanvasHUD />
+        <PosterPreviewToggle />
       </div>
       <ModalManager />
     </div>
