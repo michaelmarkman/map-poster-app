@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAtom } from 'jotai'
 import SidebarSection from './SidebarSection'
 import { aspectRatioAtom, fillModeAtom } from '../atoms/ui'
@@ -35,34 +35,93 @@ if (typeof window !== 'undefined' && !window.__forceCanvasReflow) {
   }
 }
 
+const TRANSITION_MS = 500
+
+// Takes a PNG data URL of whatever's currently on the R3F canvas so we can
+// freeze the frame while the container animates to a new aspect ratio. If
+// the canvas isn't mounted yet, returns null — the caller falls through to
+// the plain (non-smoothed) CSS transition.
+function snapshotActiveCanvas() {
+  const canvas = document.querySelector('#r3f-root canvas')
+  if (!canvas) return null
+  try {
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
+// Overlay a static <img> of the current canvas content on top of the live
+// canvas while the container animates. Zero WebGL work happens during the
+// animation window — the img scales via CSS with the container, then we
+// fade it out and the live canvas takes over again. Guaranteed smooth at
+// the cost of a ~500ms "frozen" view during the transition.
+function playSnapshotTransition(container, snapshotUrl) {
+  if (!container || !snapshotUrl) return
+  const img = document.createElement('img')
+  img.src = snapshotUrl
+  img.alt = ''
+  img.setAttribute('aria-hidden', 'true')
+  img.style.cssText = [
+    'position: absolute',
+    'inset: 0',
+    'width: 100%',
+    'height: 100%',
+    'object-fit: cover',
+    'pointer-events: none',
+    'z-index: 5',
+    'opacity: 1',
+    // No transform; `object-fit: cover` + animated container width/height
+    // is enough to keep the frame centered and edge-to-edge.
+    'transition: opacity 140ms ease-out',
+  ].join(';')
+  container.appendChild(img)
+  const removeAt = setTimeout(() => {
+    img.style.opacity = '0'
+    setTimeout(() => { if (img.parentNode) img.parentNode.removeChild(img) }, 160)
+  }, TRANSITION_MS)
+  // Hand the cleanup back so a rapid re-trigger can cancel cleanly.
+  return () => {
+    clearTimeout(removeAt)
+    if (img.parentNode) img.parentNode.removeChild(img)
+  }
+}
+
 export default function CanvasSection() {
   const [aspectRatio, setAspectRatio] = useAtom(aspectRatioAtom)
   const [fillMode, setFillMode] = useAtom(fillModeAtom)
 
+  // Skip the snapshot overlay on the very first effect run — that's the
+  // initial mount / session-restore pass, where the container is already
+  // at the right size and we'd be overlaying the canvas with itself for
+  // no reason.
+  const firstRunRef = useRef(true)
+
   // Sync --ratio CSS var + fill-mode body class whenever state changes.
-  // editor.css registers --ratio via @property and transitions it, so
-  // setting the new value starts a 450ms interpolation. The container's
-  // width/height formulas (min(...) of var(--ratio)) recompute every
-  // frame, R3F's internal ResizeObserver picks up the continuous size
-  // changes, and the camera aspect tracks perfectly. No manual resize
-  // dispatches needed — they were competing with the ResizeObserver
-  // and causing the 4-step snap.
+  // Smooth animation strategy: snapshot the current canvas, overlay it as
+  // a static <img>, change the CSS, let the container transition to the
+  // new size while the img scales with it. Fade out + remove the overlay
+  // at the end. No gl.setSize churn → no jumpy re-renders.
   useEffect(() => {
     const container = document.getElementById('canvas-container')
+    const isFirstRun = firstRunRef.current
+    firstRunRef.current = false
+    const snapshot = isFirstRun ? null : snapshotActiveCanvas()
     document.body.classList.toggle('fill-mode', fillMode)
     if (container) {
       if (fillMode) container.style.removeProperty('--ratio')
       else container.style.setProperty('--ratio', aspectRatio)
     }
     window.__forceCanvasReflow?.()
-    // Safety net at the end of the transition for browsers that don't
-    // support @property (--ratio snaps instead of interpolates). Single
-    // resize at the end lets R3F settle on the final dimensions.
-    const timers = [
-      setTimeout(() => window.dispatchEvent(new Event('resize')), 470),
-    ]
+    const cleanupOverlay = playSnapshotTransition(container, snapshot)
 
-    // Let the HUD overlay (Phase 4) update its label without reaching into this component.
+    // One resize dispatch at the END of the transition so R3F's camera
+    // aspect lands on the final dimensions before the overlay fades.
+    const resizeTimer = setTimeout(
+      () => window.dispatchEvent(new Event('resize')),
+      TRANSITION_MS + 20,
+    )
+
     const label = fillMode
       ? 'Fill'
       : [...PORTRAIT_RATIOS, ...LANDSCAPE_RATIOS].find(
@@ -74,7 +133,10 @@ export default function CanvasSection() {
       }),
     )
 
-    return () => timers.forEach(clearTimeout)
+    return () => {
+      clearTimeout(resizeTimer)
+      cleanupOverlay?.()
+    }
   }, [aspectRatio, fillMode])
 
   const pickRatio = (ratio) => {
