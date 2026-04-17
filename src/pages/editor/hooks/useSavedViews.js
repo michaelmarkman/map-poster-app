@@ -100,15 +100,30 @@ function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorP
   }
 }
 
-// Build a coord-based display name from an ECEF camera position so the list
-// shows something useful before reverse-geocoding lands (Phase 5B).
+// Build a coord-based display name from camera state so the saved-views list
+// shows something useful before reverse-geocoding lands. Accepts any of the
+// shapes get-camera can respond with:
+//   { latitude, longitude, ... } — decimal degrees (Scene.jsx)
+//   { px, py, pz, ... }          — ECEF (legacy/test fixture)
+//   { position: [x, y, z], ... } — ECEF array
 function coordName(cam) {
   try {
-    // Rough ECEF -> lat/lng. Good enough for a fallback label.
-    const { px, py, pz } = cam
-    const r = Math.sqrt(px * px + py * py + pz * pz)
-    const lat = Math.asin(pz / r) * 180 / Math.PI
-    const lng = Math.atan2(py, px) * 180 / Math.PI
+    let lat = cam?.latitude
+    let lng = cam?.longitude
+    if (lat == null || lng == null) {
+      let x, y, z
+      if (cam?.px != null) { x = cam.px; y = cam.py; z = cam.pz }
+      else if (Array.isArray(cam?.position) && cam.position.length === 3) {
+        [x, y, z] = cam.position
+      } else {
+        return 'View'
+      }
+      const r = Math.sqrt(x * x + y * y + z * z)
+      if (!r) return 'View'
+      lat = Math.asin(z / r) * 180 / Math.PI
+      lng = Math.atan2(y, x) * 180 / Math.PI
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'View'
     const ns = lat >= 0 ? 'N' : 'S'
     const ew = lng >= 0 ? 'E' : 'W'
     return (

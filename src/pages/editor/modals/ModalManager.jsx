@@ -6,6 +6,7 @@ import TimeMachineModal from './TimeMachineModal'
 import Lightbox from './Lightbox'
 import ShareModal from './ShareModal'
 import PosterPreviewModal from './PosterPreviewModal'
+import HelpModal from './HelpModal'
 
 // Priority order for Esc — top of stack closes first. Each modal also has
 // its own self-gated Escape handler that cooperates via modalsAtom; the
@@ -39,6 +40,7 @@ export default function ModalManager() {
       <Lightbox />
       <ShareModal />
       <PosterPreviewModal />
+      <HelpModal />
     </>
   )
 }

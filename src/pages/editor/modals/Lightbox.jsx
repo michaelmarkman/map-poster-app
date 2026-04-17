@@ -66,6 +66,74 @@ export default function Lightbox() {
     if (canNext) setIndex(i => i + 1)
   }, [canNext])
 
+  // ── Swipe carousel (coarse-pointer only) ──────────────────────────
+  // Horizontal drag on the image translates it in real time; release past
+  // a 60px threshold triggers prev/next. Below threshold the image snaps
+  // back. Ignored on fine pointers (mouse/trackpad) — those users have
+  // the arrow keys + on-screen prev/next buttons.
+  const SWIPE_THRESHOLD = 60
+  const [dragDx, setDragDx] = useState(0)
+  const imgRef = useRef(null)
+  const isCoarse = typeof window !== 'undefined'
+    && window.matchMedia
+    && window.matchMedia('(pointer: coarse)').matches
+
+  // Attach touch handlers as native (non-passive) listeners so the
+  // touchmove handler can call preventDefault to stop horizontal rubber-
+  // band while tracking the finger. React's synthetic touchmove is
+  // passive by default, which would make preventDefault a no-op.
+  useEffect(() => {
+    if (!open || !isCoarse) return
+    const img = imgRef.current
+    if (!img) return
+    const state = { active: false, startX: 0, startY: 0, dx: 0 }
+    const onStart = (e) => {
+      const t = e.touches && e.touches[0]
+      if (!t) return
+      state.active = true
+      state.startX = t.clientX
+      state.startY = t.clientY
+      state.dx = 0
+    }
+    const onMove = (e) => {
+      if (!state.active) return
+      const t = e.touches && e.touches[0]
+      if (!t) return
+      const dx = t.clientX - state.startX
+      const dy = t.clientY - state.startY
+      // Mostly-vertical gestures: bail so native scroll still works.
+      if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+        state.active = false
+        setDragDx(0)
+        return
+      }
+      // Resist past first/last so the image doesn't fly into empty space.
+      let adjusted = dx
+      if ((!canPrev && dx > 0) || (!canNext && dx < 0)) adjusted = dx * 0.35
+      state.dx = adjusted
+      setDragDx(adjusted)
+      if (e.cancelable) e.preventDefault()
+    }
+    const onEnd = () => {
+      if (!state.active) return
+      state.active = false
+      const dx = state.dx
+      setDragDx(0)
+      if (dx <= -SWIPE_THRESHOLD && canNext) goNext()
+      else if (dx >= SWIPE_THRESHOLD && canPrev) goPrev()
+    }
+    img.addEventListener('touchstart', onStart, { passive: true })
+    img.addEventListener('touchmove', onMove, { passive: false })
+    img.addEventListener('touchend', onEnd)
+    img.addEventListener('touchcancel', onEnd)
+    return () => {
+      img.removeEventListener('touchstart', onStart)
+      img.removeEventListener('touchmove', onMove)
+      img.removeEventListener('touchend', onEnd)
+      img.removeEventListener('touchcancel', onEnd)
+    }
+  }, [open, isCoarse, canPrev, canNext, goPrev, goNext])
+
   const downloadCurrent = useCallback(() => {
     if (!entry?.dataUrl) return
     const link = document.createElement('a')
@@ -256,7 +324,19 @@ export default function Lightbox() {
         </button>
       </div>
 
-      <img id="lb-img" src={entry?.dataUrl || ''} alt={label} />
+      <img
+        id="lb-img"
+        ref={imgRef}
+        src={entry?.dataUrl || ''}
+        alt={label}
+        style={{
+          transform: dragDx ? `translateX(${dragDx}px)` : undefined,
+          // Snap back smoothly once the finger lifts; while dragging we
+          // skip the transition so the image tracks the finger 1:1.
+          transition: dragDx ? 'none' : 'transform 0.2s ease',
+          touchAction: isCoarse ? 'pan-y' : undefined,
+        }}
+      />
       <div className="lb-label" id="lb-label">
         {label + positionSuffix}
       </div>

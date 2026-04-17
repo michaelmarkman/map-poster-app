@@ -9,6 +9,8 @@ import useTimeMachine from './hooks/useTimeMachine'
 import useSessionPersistence from './hooks/useSessionPersistence'
 import useSavedViews from './hooks/useSavedViews'
 import useQueue from './hooks/useQueue'
+import useKeyboardShortcuts from './hooks/useKeyboardShortcuts'
+import useGraphicEditor from './hooks/useGraphicEditor'
 
 // Phase 4: modals + on-canvas overlays layered onto the sidebar+canvas shell.
 // Phase 5 wires data hooks (session/gallery/views).
@@ -32,6 +34,14 @@ export default function EditorShell() {
   // / batch-export / queue-clear-* events and drives queueAtom through the
   // render pipeline, firing gallery-add on each completed job.
   useQueue()
+
+  // Global keyboard shortcuts — `?` help, Cmd/Ctrl+S save, G gallery, T time
+  // machine, V save view, F fill-mode toggle. Sidebar.jsx still owns `\`.
+  useKeyboardShortcuts()
+
+  // Graphic editor (Fabric.js) — lazy-loaded on desktop when the Graphic
+  // Editor sidebar section's "Open Editor" button fires toggle-graphic-editor.
+  useGraphicEditor()
 
   return (
     <div className="editor-root" style={{ position: 'fixed', inset: 0, background: '#1c1b1f' }}>
