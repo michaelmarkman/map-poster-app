@@ -98,6 +98,23 @@ file is the raw log — CLAUDE.md is the curated summary.
   Any new window-event channel between hooks and Scene gets a test here
   that fires the real event and asserts both ends agree.
 
+## 2026-04-17 — Scoping a universal reset with `body.class *` raises its specificity above your component rules
+
+- Wrapped the editor's `* { margin: 0; padding: 0; box-sizing: border-box }`
+  reset behind `body.editor-mounted *` to keep it from leaking to other
+  React routes. The editor layout collapsed: every slider row, section
+  head, toggle row had its `padding` zeroed.
+- `*` has specificity (0,0,0,0). `body.editor-mounted *` has (0,0,1,1) —
+  higher than any single-class rule like `.control-row { padding: 10px }`
+  (0,0,1,0). The "reset" became an override.
+- Use `:where(body.editor-mounted) *` — `:where()` always contributes
+  zero specificity, so the reset keeps its "loses to everything" posture.
+  Same trick for the `html:has(body.editor-mounted) { height: 100% }`
+  rule. The smoke test missed this because the sidebar still rendered,
+  just with broken spacing — visual-regression tests would have caught
+  it. Fix in `src/pages/editor/styles/editor.css` first commit on branch
+  `fix-css-reset-specificity`.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all

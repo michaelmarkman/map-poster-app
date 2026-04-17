@@ -1,11 +1,12 @@
-  /* Everything below is scoped behind `body.editor-mounted`. EditorShell
-     toggles that class on mount and strips it on unmount so these global-
-     looking rules don't leak to other React routes (Login, Community,
-     Gallery, etc.) that share the same bundle. Without this scope the
-     landing/auth pages inherited the editor's flex/overflow/body-bg and
-     broke their own layouts. */
-  body.editor-mounted * { margin: 0; padding: 0; box-sizing: border-box; }
-  html:has(body.editor-mounted) { height: 100%; }
+  /* Layout rules below are scoped behind `body.editor-mounted`. EditorShell
+     toggles that class on mount so the editor's full-viewport flex doesn't
+     leak to other React routes (Login, Community, …).
+     The reset + height rules use :where() to keep specificity at 0 — without
+     that, `body.editor-mounted *` (specificity 0,1,1) beats every rule in
+     sidebar.css / modals.css that sets padding or margin on a single class
+     (0,1,0), which visibly destroys the layout. See LEARNINGS.md. */
+  :where(body.editor-mounted) * { margin: 0; padding: 0; box-sizing: border-box; }
+  :where(html):has(body.editor-mounted) { height: 100%; }
   body.editor-mounted #root { display: flex; flex: 1; min-height: 0; min-width: 0; }
   body.editor-mounted .editor-root { display: flex; flex: 1; min-height: 0; min-width: 0; }
   body.editor-mounted {
