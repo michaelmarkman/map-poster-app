@@ -1,0 +1,12 @@
+/* Editor CSS — split out of prototypes/poster-v3-ui.html.
+   Order matters: tokens first so CSS variables are defined before use,
+   then global layout, then the sidebar/modal/timemachine/graphics
+   modules that consume the tokens, responsive overrides last so their
+   media-query rules win. */
+@import './tokens.css';
+@import './editor.css';
+@import './sidebar.css';
+@import './modals.css';
+@import './timemachine.css';
+@import './graphics.css';
+@import './responsive.css';

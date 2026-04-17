@@ -4,3 +4,5 @@ dist-deploy/
 .env
 .env.*
 .vercel
+.playwright-mcp/
+editor-*.png

@@ -6,7 +6,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import EditorPage from './pages/EditorPage'
+import EditorPage from './pages/editor/EditorPage'
 import GalleryPage from './pages/GalleryPage'
 import CommunityPage from './pages/CommunityPage'
 import ProfilePage from './pages/ProfilePage'
@@ -21,11 +21,13 @@ export default function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
+          {/* Full-screen editor — no navbar; owns the whole viewport. */}
+          <Route path="/app" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+
           {/* Pages with navbar */}
           <Route element={<AppLayout />}>
             <Route path="/" element={<LandingPage />} />
             <Route path="/community" element={<CommunityPage />} />
-            <Route path="/app" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
             <Route path="/gallery" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           </Route>

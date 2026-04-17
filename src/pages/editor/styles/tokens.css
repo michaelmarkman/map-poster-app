@@ -1,0 +1,45 @@
+  :root {
+    /* Warm charcoal — the workbench */
+    --bg-0: #1c1b1f;
+    --bg-1: #232228;
+    --bg-2: #2c2b32;
+    --bg-deep: #0e0d11;
+
+    /* Glass panel */
+    --panel: rgba(20, 19, 23, 0.52);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-border-strong: rgba(255, 255, 255, 0.12);
+    --rule: rgba(255, 255, 255, 0.05);
+
+    /* Ink */
+    --ink: #eceae3;
+    --ink-soft: rgba(236, 234, 227, 0.62);
+    --ink-dim: rgba(236, 234, 227, 0.38);
+    --ink-ghost: rgba(236, 234, 227, 0.22);
+    --ink-whisper: rgba(236, 234, 227, 0.08);
+
+    /* Accent — champagne, used sparingly */
+    --accent: #c8b897;
+    --accent-soft: rgba(200, 184, 151, 0.18);
+    --accent-dim: rgba(200, 184, 151, 0.45);
+
+    /* Legacy tokens (used by some JS-driven bits) */
+    --copper: var(--accent);
+    --copper-dim: var(--accent-soft);
+    --copper-glow: rgba(200, 184, 151, 0.22);
+    --text-1: var(--ink);
+    --text-2: var(--ink-soft);
+    --text-3: var(--ink-dim);
+    --red: #c45a5a;
+    --green: #6b9b6e;
+    --border: var(--panel-border);
+    --border-hover: var(--panel-border-strong);
+    --bg-panel: var(--panel);
+    --bg-surface: rgba(255,255,255,0.03);
+    --bg-raised: rgba(255,255,255,0.05);
+    --bg-hover: rgba(255,255,255,0.08);
+
+    --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+    --body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+    --mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  }

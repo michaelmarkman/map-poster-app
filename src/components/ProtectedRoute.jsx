@@ -1,8 +1,14 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
+
+  // No Supabase client = no auth backend configured (dev without env vars,
+  // static preview deploys). Treat as public — the editor still works; it
+  // just can't sign you in or sync to the server.
+  if (!supabase) return children
 
   if (loading) {
     return (
