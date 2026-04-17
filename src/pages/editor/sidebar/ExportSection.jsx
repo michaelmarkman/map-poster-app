@@ -395,19 +395,10 @@ export default function ExportSection() {
         </div>
       </div>
 
-      {/* ─── Time machine ───────────────────────────────────────── */}
-      <button
-        className="nav-row"
-        id="render-decades-btn"
-        type="button"
-        onClick={() => fire('open-time-machine')}
-      >
-        <span>Time machine</span>
-        <span className="right">
-          <span>13 decades</span>
-          <span className="chev">&rsaquo;</span>
-        </span>
-      </button>
+      {/* ─── Time machine — hidden until the producer pipeline (Phase 7+) is
+          ready to stream historical decades. Keyboard shortcut 'T' still
+          opens the modal for anyone who knows about it; the sidebar
+          button is pulled so it doesn't look like a live feature. */}
 
       {/* ─── Print-ready export ─────────────────────────────────── */}
       <button
