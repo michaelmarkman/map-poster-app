@@ -858,21 +858,41 @@ function wirePropertiesPanel() {
 }
 
 // ─── Templates ──────────────────────────────────────────────
+// Templates use proportional positioning (fractions of cw/ch) so they
+// land sensibly on every aspect ratio. `originX: 'center'` means the
+// `left` value is the OBJECT'S CENTER, so cw/2 puts the object dead
+// center. Font sizes scale with the smaller canvas dimension so text
+// stays legible on narrow (portrait phone) canvases without overflowing.
 const BUILT_IN_TEMPLATES = [
   {
     name: 'City Name Poster',
     description: 'Big city name, coordinates, frame border',
     create: (cw, ch) => {
       addFrame('simple')
-      addText('NEW YORK', { left: cw / 2 - 140, top: 30, fontSize: 52, fontFamily: "'Cormorant Garamond', Georgia, serif", charSpacing: 400, fill: '#e8e4dc', textAlign: 'center', width: 280 })
-      addText('40.7128\u00b0 N, 74.0060\u00b0 W', { left: cw / 2 - 100, top: ch - 60, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", fill: '#908c84', textAlign: 'center', width: 200, charSpacing: 100 })
+      const s = Math.min(cw, ch)
+      addText('NEW YORK', {
+        left: cw / 2, top: ch * 0.06, originX: 'center', originY: 'top',
+        fontSize: s * 0.085, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        charSpacing: 400, fill: '#e8e4dc', textAlign: 'center', width: cw * 0.82,
+      })
+      addText('40.7128\u00b0 N, 74.0060\u00b0 W', {
+        left: cw / 2, top: ch - ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.022, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#908c84', textAlign: 'center', width: cw * 0.6, charSpacing: 100,
+      })
     }
   },
   {
     name: 'Minimal',
     description: 'Just the map, small location text bottom-right',
     create: (cw, ch) => {
-      addText('Location', { left: cw - 120, top: ch - 40, fontSize: 14, fontFamily: "'Outfit', system-ui, sans-serif", fill: '#908c84', textAlign: 'right', width: 100 })
+      const s = Math.min(cw, ch)
+      addText('Location', {
+        left: cw - cw * 0.04, top: ch - ch * 0.06,
+        originX: 'right', originY: 'top',
+        fontSize: s * 0.025, fontFamily: "'Outfit', system-ui, sans-serif",
+        fill: '#908c84', textAlign: 'right', width: cw * 0.3,
+      })
     }
   },
   {
@@ -880,29 +900,78 @@ const BUILT_IN_TEMPLATES = [
     description: 'Decorative border, retro greeting text',
     create: (cw, ch) => {
       addFrame('ornate')
-      addText('Greetings from', { left: cw / 2 - 110, top: 40, fontSize: 22, fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fill: '#e8e4dc', textAlign: 'center', width: 220 })
-      addText('THE CITY', { left: cw / 2 - 130, top: 70, fontSize: 48, fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 'bold', fill: '#c4956a', textAlign: 'center', width: 260, charSpacing: 300 })
-      addText('EST. 2024', { left: cw / 2 - 60, top: ch - 50, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fill: '#5a5750', textAlign: 'center', width: 120, charSpacing: 200 })
+      const s = Math.min(cw, ch)
+      addText('Greetings from', {
+        left: cw / 2, top: ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.038, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontStyle: 'italic', fill: '#e8e4dc', textAlign: 'center', width: cw * 0.7,
+      })
+      addText('THE CITY', {
+        left: cw / 2, top: ch * 0.14, originX: 'center', originY: 'top',
+        fontSize: s * 0.08, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontWeight: 'bold', fill: '#c4956a', textAlign: 'center',
+        width: cw * 0.82, charSpacing: 300,
+      })
+      addText('EST. 2024', {
+        left: cw / 2, top: ch - ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.02, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#5a5750', textAlign: 'center', width: cw * 0.4, charSpacing: 200,
+      })
     }
   },
   {
     name: 'Travel Journal',
     description: 'Date, location, body text area',
     create: (cw, ch) => {
-      addText('April 2024', { left: 30, top: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fill: '#908c84', textAlign: 'left', width: 120, charSpacing: 100 })
-      addText('City Name', { left: 30, top: 40, fontSize: 36, fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'left', width: 260 })
-      addShape('line', { left: 30, top: ch - 80, stroke: '#c4956a', strokeWidth: 1 })
-      addText('Write your memories here...', { left: 30, top: ch - 70, fontSize: 13, fontFamily: "'Outfit', system-ui, sans-serif", fill: '#908c84', textAlign: 'left', width: cw - 60 })
+      const pad = Math.min(cw, ch) * 0.05
+      const s = Math.min(cw, ch)
+      addText('April 2024', {
+        left: pad, top: pad, originX: 'left', originY: 'top',
+        fontSize: s * 0.02, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#908c84', textAlign: 'left', width: cw * 0.45, charSpacing: 100,
+      })
+      addText('City Name', {
+        left: pad, top: pad * 1.8, originX: 'left', originY: 'top',
+        fontSize: s * 0.06, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'left', width: cw - pad * 2,
+      })
+      addShape('line', {
+        left: pad, top: ch - ch * 0.14, stroke: '#c4956a', strokeWidth: 1,
+      })
+      addText('Write your memories here...', {
+        left: pad, top: ch - ch * 0.12, originX: 'left', originY: 'top',
+        fontSize: s * 0.022, fontFamily: "'Outfit', system-ui, sans-serif",
+        fill: '#908c84', textAlign: 'left', width: cw - pad * 2,
+      })
     }
   },
   {
     name: 'Modern Poster',
     description: 'Large bold text, geometric accent shapes',
     create: (cw, ch) => {
-      addText('EXPLORE', { left: cw / 2 - 150, top: 20, fontSize: 64, fontFamily: "'Outfit', system-ui, sans-serif", fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'center', width: 300, charSpacing: 200 })
-      addShape('circle', { left: cw - 70, top: 20, radius: 20, fill: 'rgba(196,149,106,0.5)', stroke: 'transparent', strokeWidth: 0 })
-      addShape('rect', { left: 20, top: ch - 60, width: 40, height: 4, fill: '#c4956a', stroke: 'transparent', strokeWidth: 0 })
-      addText('DISCOVER YOUR WORLD', { left: 20, top: ch - 48, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fill: '#5a5750', textAlign: 'left', width: 200, charSpacing: 200 })
+      const pad = Math.min(cw, ch) * 0.04
+      const s = Math.min(cw, ch)
+      addText('EXPLORE', {
+        left: cw / 2, top: pad, originX: 'center', originY: 'top',
+        fontSize: s * 0.11, fontFamily: "'Outfit', system-ui, sans-serif",
+        fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'center',
+        width: cw * 0.9, charSpacing: 200,
+      })
+      addShape('circle', {
+        left: cw - pad - s * 0.06, top: pad,
+        radius: s * 0.035, fill: 'rgba(196,149,106,0.5)',
+        stroke: 'transparent', strokeWidth: 0,
+      })
+      addShape('rect', {
+        left: pad, top: ch - ch * 0.1,
+        width: s * 0.07, height: 4, fill: '#c4956a',
+        stroke: 'transparent', strokeWidth: 0,
+      })
+      addText('DISCOVER YOUR WORLD', {
+        left: pad, top: ch - ch * 0.08, originX: 'left', originY: 'top',
+        fontSize: s * 0.018, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#5a5750', textAlign: 'left', width: cw * 0.6, charSpacing: 200,
+      })
     }
   },
 ]
