@@ -1229,27 +1229,44 @@ function FovListener() {
       if (Math.abs(oldFov - newFov) < 0.01) return
 
       // Dolly zoom: raycast center of screen to find the target point.
-      // We try the loaded geometry first (photogrammetry tiles), then fall
-      // back to intersecting the view ray with the Earth sphere so the
-      // effect still works when looking at the horizon or at angles where
-      // no tile is directly under the reticle.
+      // We try the loaded geometry first (photogrammetry tiles), then
+      // fall back to intersecting the view ray with the Earth sphere
+      // so the effect still works when looking at the horizon. The
+      // fallback can land many km away at the Earth's limb though,
+      // which would send the camera to orbit when narrowing FOV — so
+      // we bail on dolly entirely if the target is absurdly far, and
+      // cap any single dolly move to 3× the current altitude.
       raycaster.current.setFromCamera(centerNDC.current, camera)
       const hits = raycaster.current.intersectObjects(scene.children, true)
       const target = hits.length > 0
         ? hits[0].point
         : intersectEarthSphere(raycaster.current.ray.origin, raycaster.current.ray.direction)
 
+      // How high is the camera above sea level? Used to cap dolly motion.
+      let camAlt = 1000
+      try {
+        camAlt = new Geodetic().setFromECEF(camera.position).height || 1000
+      } catch (e) {}
+      const MAX_DOLLY_TARGET_DIST = Math.max(20000, camAlt * 30)
+      const MAX_MOVE_PER_STEP = Math.max(500, camAlt * 3)
+
       if (target) {
         const oldDist = camera.position.distanceTo(target)
-        // visible_size ∝ dist * tan(fov/2)
-        // newDist = oldDist * tan(oldFov/2) / tan(newFov/2)
-        const oldHalfRad = (oldFov * Math.PI / 180) / 2
-        const newHalfRad = (newFov * Math.PI / 180) / 2
-        const newDist = oldDist * Math.tan(oldHalfRad) / Math.tan(newHalfRad)
+        if (oldDist <= MAX_DOLLY_TARGET_DIST) {
+          const oldHalfRad = (oldFov * Math.PI / 180) / 2
+          const newHalfRad = (newFov * Math.PI / 180) / 2
+          const rawNewDist = oldDist * Math.tan(oldHalfRad) / Math.tan(newHalfRad)
+          // Clamp how far the camera can jump in a single input event so
+          // a slider drag can't launch us into space.
+          const maxNewDist = oldDist + MAX_MOVE_PER_STEP
+          const minNewDist = Math.max(1, oldDist - MAX_MOVE_PER_STEP)
+          const newDist = Math.min(maxNewDist, Math.max(minNewDist, rawNewDist))
 
-        // Move camera along the vector from target to camera
-        const dir = camera.position.clone().sub(target).normalize()
-        camera.position.copy(target).add(dir.multiplyScalar(newDist))
+          const dir = camera.position.clone().sub(target).normalize()
+          camera.position.copy(target).add(dir.multiplyScalar(newDist))
+        }
+        // else: target is too far (horizon/limb). Just change FOV; the
+        // scene will visibly zoom in or out without the dolly effect.
       }
 
       camera.fov = newFov
