@@ -21,7 +21,11 @@ let _skipHistory = false
 
 // ─── Snap guides ────────────────────────────────────────────
 let snapLines = []
-const SNAP_THRESHOLD = 8
+const SNAP_ENTER = 8    // pull toward the guide when this close
+const SNAP_EXIT = 20    // must drag this far off the guide to break free.
+                         // hysteresis — without it, tiny mouse jitter
+                         // while the object is snapped flips the snap
+                         // on/off every frame and the object shakes.
 
 function clearSnapLines() {
   snapLines.forEach(l => fabricCanvas.remove(l))
@@ -42,6 +46,17 @@ function addSnapLine(x1, y1, x2, y2) {
   snapLines.push(line)
 }
 
+// Per-axis sticky snap. If the object was snapped on the previous frame,
+// use the wider SNAP_EXIT threshold so small jitter keeps it stuck
+// instead of letting it oscillate between snapped and free.
+function sticky(target, axisKey, dist, enter = SNAP_ENTER, exit = SNAP_EXIT) {
+  const wasSnapped = target[axisKey] === true
+  const threshold = wasSnapped ? exit : enter
+  const snapped = Math.abs(dist) < threshold
+  target[axisKey] = snapped
+  return snapped
+}
+
 function snapObject(target) {
   clearSnapLines()
   if (!target) return
@@ -53,36 +68,42 @@ function snapObject(target) {
   const objLeft = bound.left, objTop = bound.top
   const objRight = bound.left + bound.width, objBottom = bound.top + bound.height
 
-  // Snap center X
-  if (Math.abs(objCx - cx) < SNAP_THRESHOLD) {
+  // X axis — only one horizontal snap wins per frame (center vs edges).
+  if (sticky(target, '_snapCx', objCx - cx)) {
     target.set('left', target.left + (cx - objCx))
     addSnapLine(cx, 0, cx, ch)
-  }
-  // Snap center Y
-  if (Math.abs(objCy - cy) < SNAP_THRESHOLD) {
-    target.set('top', target.top + (cy - objCy))
-    addSnapLine(0, cy, cw, cy)
-  }
-  // Snap left edge
-  if (Math.abs(objLeft) < SNAP_THRESHOLD) {
+  } else if (sticky(target, '_snapLeft', objLeft)) {
     target.set('left', target.left - objLeft)
     addSnapLine(0, 0, 0, ch)
-  }
-  // Snap right edge
-  if (Math.abs(objRight - cw) < SNAP_THRESHOLD) {
+  } else if (sticky(target, '_snapRight', objRight - cw)) {
     target.set('left', target.left + (cw - objRight))
     addSnapLine(cw, 0, cw, ch)
   }
-  // Snap top edge
-  if (Math.abs(objTop) < SNAP_THRESHOLD) {
+
+  // Y axis — independent of X, same hysteresis.
+  if (sticky(target, '_snapCy', objCy - cy)) {
+    target.set('top', target.top + (cy - objCy))
+    addSnapLine(0, cy, cw, cy)
+  } else if (sticky(target, '_snapTop', objTop)) {
     target.set('top', target.top - objTop)
     addSnapLine(0, 0, cw, 0)
-  }
-  // Snap bottom edge
-  if (Math.abs(objBottom - ch) < SNAP_THRESHOLD) {
+  } else if (sticky(target, '_snapBottom', objBottom - ch)) {
     target.set('top', target.top + (ch - objBottom))
     addSnapLine(0, ch, cw, ch)
   }
+
+  // Keep Fabric's internal coords in sync with the new left/top so the
+  // next pointer delta applies from the snapped position, not the pre-
+  // snap one — otherwise the object "catches up" in a jump on unsnap.
+  target.setCoords?.()
+}
+
+// Reset snap state on mouse-up so the next drag starts fresh.
+function clearSnapState(target) {
+  if (!target) return
+  target._snapCx = target._snapCy = false
+  target._snapLeft = target._snapRight = false
+  target._snapTop = target._snapBottom = false
 }
 
 // ─── Alignment helpers ──────────────────────────────────────
@@ -176,7 +197,10 @@ export function initEditor() {
   fabricCanvas.on('selection:updated', (e) => { selectedObject = e.selected?.[0] || null; updatePropertiesPanel() })
   fabricCanvas.on('selection:cleared', () => { selectedObject = null; updatePropertiesPanel() })
   fabricCanvas.on('object:moving', (e) => snapObject(e.target))
-  fabricCanvas.on('object:moved', () => clearSnapLines())
+  fabricCanvas.on('object:moved', (e) => {
+    clearSnapLines()
+    clearSnapState(e.target)
+  })
 
   // ResizeObserver to keep canvas in sync
   const ro = new ResizeObserver(() => resizeCanvas())
@@ -221,15 +245,26 @@ export function setEditorActive(active) {
   const toolbar = document.getElementById('editor-toolbar')
   const propsPanel = document.getElementById('editor-props')
 
-  // Fabric creates a wrapper div and upper-canvas — control pointer events on wrapper
+  // Fabric creates a wrapper div and upper-canvas. We toggle pointer-
+  // events so the rest of the app is interactive again when off, AND
+  // `visibility` on the upper-canvas so the selection handles (corner
+  // boxes, rotate arm) disappear. Without the visibility toggle the
+  // previously-selected object's handles keep drawing on top of the
+  // scene even after the editor is dismissed.
   const wrapper = canvasEl?.parentElement?.querySelector('.canvas-container')
-  if (wrapper) {
-    wrapper.style.pointerEvents = active ? 'auto' : 'none'
-  }
-  // Also the upper canvas Fabric generates
+  if (wrapper) wrapper.style.pointerEvents = active ? 'auto' : 'none'
   const upperCanvas = canvasEl?.parentElement?.querySelector('.upper-canvas')
   if (upperCanvas) {
     upperCanvas.style.pointerEvents = active ? 'auto' : 'none'
+    upperCanvas.style.visibility = active ? 'visible' : 'hidden'
+  }
+
+  // When switching off, drop the active selection so Fabric stops
+  // drawing its handles + clear any leftover snap guides.
+  if (!active && fabricCanvas) {
+    fabricCanvas.discardActiveObject()
+    clearSnapLines()
+    fabricCanvas.renderAll()
   }
 
   if (toolbar) toolbar.classList.toggle('active', active)
