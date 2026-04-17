@@ -115,6 +115,28 @@ file is the raw log — CLAUDE.md is the curated summary.
   it. Fix in `src/pages/editor/styles/editor.css` first commit on branch
   `fix-css-reset-specificity`.
 
+## 2026-04-17 — "Unused" deps may still be required as transitive peers
+
+- Removed 9 deps after grep confirmed zero direct imports in src/. Pushed,
+  Vercel build failed: `@takram/three-atmosphere/r3f` imports `ScreenQuad`
+  from `@react-three/drei`. Our code never imports drei directly; drei
+  (and its peers react-use + stats-gl) is pulled in by the atmosphere
+  package's r3f entry. Vercel stopped deploying and kept serving the
+  previous build — which was the CSS-reset-specificity-broken one — so
+  my `:where()` fix from PR #18 never reached users. They saw the
+  collapsed sidebar long after I thought I'd fixed it.
+- `npm run build` locally didn't reproduce the failure because
+  `node_modules` still had the deps cached from before the removal.
+  `rm -rf node_modules && npm install && npm run build` would have
+  surfaced it.
+- Fix: added drei + react-use + stats-gl back. Before declaring a dep
+  unused: (a) grep the kept packages' node_modules for imports of it,
+  or (b) nuke node_modules and rerun install+build. Smoke can't catch
+  it — smoke only runs if the build succeeds.
+- Also worth knowing: Vercel does NOT show you "build failed, falling
+  back to previous build" in any visible way on the live site. Check
+  deployment status after every push that touches deps or build config.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all
