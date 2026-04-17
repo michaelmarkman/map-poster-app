@@ -10,7 +10,9 @@ import {
   savedViewsAtom,
   queueAtom,
 } from '../atoms/sidebar'
-import { galleryCountAtom } from '../atoms/gallery'
+import { galleryCountAtom, galleryEntriesAtom } from '../atoms/gallery'
+import { useSetAtom } from 'jotai'
+import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
 
 // Export sidebar section — ported from prototypes/poster-v3-ui.html lines
 // 2473-2598. Contains: quick-download, render-styles dropdown (AI settings +
@@ -103,6 +105,43 @@ export default function ExportSection() {
   const [savedViews] = useAtom(savedViewsAtom)
   const [queue] = useAtom(queueAtom)
   const galleryCount = useAtomValue(galleryCountAtom)
+  const galleryEntries = useAtomValue(galleryEntriesAtom)
+  const setModals = useSetAtom(modalsAtom)
+  const setLightboxEntry = useSetAtom(lightboxEntryAtom)
+
+  // Click a finished queue job → open the gallery + focus its matching
+  // entry in the lightbox. Match order of preference: batchId collision,
+  // filename match, then resultUrl (dataUrl equality). If we can't find
+  // the gallery entry yet (hook hasn't finished the gallery-add dance),
+  // just open the gallery and scroll happens naturally.
+  const openQueueJob = (job) => {
+    if (job.status !== 'done') return
+    const match =
+      galleryEntries.find((e) => job.batchId && e.batchId === job.batchId && e.label === job.label) ||
+      galleryEntries.find((e) => e.filename === job.filename) ||
+      galleryEntries.find((e) => e.dataUrl === job.resultUrl)
+    setModals((m) => ({ ...m, gallery: true }))
+    if (match) {
+      // Build a scoped entries list matching the gallery's own rule: if
+      // the match is part of a batch, scope to that batch; otherwise
+      // scope to singletons. Mirrors GalleryModal.openLightboxWith so
+      // nav feels consistent.
+      const scope = match.batchId
+        ? galleryEntries.filter((e) => e.batchId === match.batchId)
+        : galleryEntries.filter((e) => !e.batchId)
+      const startIdx = scope.indexOf(match)
+      if (startIdx === -1 || !scope.length) return
+      const display = [...scope].reverse()
+      const displayStart = scope.length - 1 - startIdx
+      setLightboxEntry(match)
+      window.dispatchEvent(
+        new CustomEvent('open-lightbox', {
+          detail: { entries: display, startIndex: displayStart },
+        }),
+      )
+      setModals((m) => ({ ...m, gallery: true, lightbox: true }))
+    }
+  }
 
   // Dropdown open-state — each nav-row with `.dropdown-chev` toggles the
   // panel below. Tracked locally (matches the prototype's DOM-classlist
@@ -297,12 +336,33 @@ export default function ExportSection() {
       >
         <div id="export-queue">
           {/* TODO(Phase 5): render real queue cards once useQueue hook lands. */}
-          {queue.map((job) => (
-            <div key={job.id} className="queue-item" data-status={job.status}>
-              <span>{job.label ?? job.id}</span>
-              <span>{job.statusText ?? job.status}</span>
-            </div>
-          ))}
+          {queue.map((job) => {
+            const clickable = job.status === 'done'
+            return (
+              <div
+                key={job.id}
+                className={`queue-item${clickable ? ' clickable' : ''}`}
+                data-status={job.status}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => openQueueJob(job) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openQueueJob(job)
+                        }
+                      }
+                    : undefined
+                }
+                title={clickable ? 'View in gallery' : undefined}
+              >
+                <span>{job.label ?? job.id}</span>
+                <span>{job.statusText ?? job.status}</span>
+              </div>
+            )
+          })}
         </div>
         <div id="queue-empty" style={{ display: queue.length === 0 ? 'block' : 'none' }}>
           Queue is empty.

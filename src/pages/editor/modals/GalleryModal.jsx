@@ -55,21 +55,23 @@ export default function GalleryModal() {
     window.dispatchEvent(new CustomEvent('gallery-download-all', { detail: { gallery } }))
   }
 
-  const openLightbox = (idx) => {
-    const item = gallery[idx]
-    if (!item) return
-    // The IndexedDB returns gallery oldest-first. The grid displays it
-    // newest-first (buildGalleryEntries reverses). For lightbox nav to
-    // feel correct — left arrow = previous grid item (newer), right =
-    // next (older) — we ship the reversed list to the lightbox and
-    // translate the clicked index accordingly. Without this the arrow
-    // keys walk the array in DB order, which is backwards to the user.
-    const displayEntries = [...gallery].reverse()
-    const displayStart = gallery.length - 1 - idx
-    setLightboxEntry(item)
+  // Open the lightbox with a SCOPED set of items so prev/next only walks
+  // within the user's mental group: a batch (All Styles) browses only its
+  // own renders; a singleton browses only other singletons. Mixing them
+  // made 'next' surprise-jump from a styled render to an unrelated quick-
+  // download or vice versa.
+  const openLightboxWith = (items, startIdx) => {
+    if (!items?.length) return
+    const target = items[startIdx]
+    if (!target) return
+    // DB is oldest-first, grid is newest-first — reverse so left arrow
+    // walks toward newer items and index translates cleanly.
+    const display = [...items].reverse()
+    const displayStart = items.length - 1 - startIdx
+    setLightboxEntry(target)
     window.dispatchEvent(
       new CustomEvent('open-lightbox', {
-        detail: { entries: displayEntries, startIndex: displayStart },
+        detail: { entries: display, startIndex: displayStart },
       }),
     )
     setModals((m) => ({ ...m, lightbox: true })) // keep gallery: true — they stack
@@ -126,24 +128,31 @@ export default function GalleryModal() {
         </div>
         <div className="gallery-body">
           <div className={gridClass} id="gallery-grid">
-            {entries.map((entry) =>
-              entry.type === 'item' ? (
-                <GalleryCard
-                  key={entry.item.id}
-                  item={entry.item}
-                  onOpen={() => openLightbox(entry.idx)}
-                />
-              ) : (
+            {entries.map((entry) => {
+              if (entry.type === 'item') {
+                // Singleton scope = all other singletons. Excludes batch
+                // items so prev/next doesn't jump into an All Styles set.
+                const singletons = gallery.filter((g) => !g.batchId)
+                const startIdx = singletons.indexOf(entry.item)
+                return (
+                  <GalleryCard
+                    key={entry.item.id}
+                    item={entry.item}
+                    onOpen={() => openLightboxWith(singletons, startIdx)}
+                  />
+                )
+              }
+              // Batch card: scope is exactly the batch's items. No
+              // quick-downloads bleed in; nav stays within the set.
+              const batchItems = entry.items.map((b) => b.item)
+              return (
                 <BatchCard
                   key={entry.batchId}
                   entry={entry}
-                  onOpen={() => {
-                    const first = entry.items[0]
-                    if (first) openLightbox(first.idx)
-                  }}
+                  onOpen={() => openLightboxWith(batchItems, 0)}
                 />
-              ),
-            )}
+              )
+            })}
           </div>
         </div>
       </div>
