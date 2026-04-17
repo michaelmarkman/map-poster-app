@@ -97,7 +97,10 @@ function fire(name, detail) {
 }
 
 export default function ExportSection() {
-  const [aiEnhance, setAiEnhance] = useAtom(aiEnhanceAtom)
+  // aiEnhanceAtom stays for useQueue's read path + session persistence
+  // but we don't render a toggle; opening the Render Styles panel IS
+  // the AI mode.
+  useAtom(aiEnhanceAtom)
   const [aiPrompt, setAiPrompt] = useAtom(aiPromptAtom)
   const [aiPreset, setAiPreset] = useAtom(aiPresetAtom)
   const [aiKey, setAiKey] = useAtom(aiApiKeyAtom)
@@ -236,16 +239,9 @@ export default function ExportSection() {
         className={`dropdown-panel${renderOpen ? ' open' : ''}`}
         id="render-styles-panel"
       >
-        <div className="toggle-row" style={{ padding: '6px 0 8px' }}>
-          <span>AI enhance</span>
-          <div
-            className={`toggle${aiEnhance ? ' on' : ''}`}
-            id="toggle-ai-enhance"
-            onClick={() => setAiEnhance((v) => !v)}
-          />
-        </div>
-
-        <div id="ai-settings" style={{ display: aiEnhance ? 'block' : 'none' }}>
+        {/* No AI-enhance toggle here — opening this panel implies AI
+            rendering. Quick download (above) is the non-AI path. */}
+        <div id="ai-settings">
           <input
             className="text-input"
             id="gemini-api-key"

@@ -13,7 +13,11 @@ export const openSectionsAtom = atom({
 })
 
 // AI enhance panel state
-export const aiEnhanceAtom = atom(false)
+// AI render is implicitly on whenever the Render Styles panel is used
+// — the panel's whole reason to exist is AI renders. The atom stays so
+// useQueue + session persistence don't need a rewrite, but it defaults
+// to true and the UI no longer exposes a toggle.
+export const aiEnhanceAtom = atom(true)
 export const aiPromptAtom = atom(
   'Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.'
 )
