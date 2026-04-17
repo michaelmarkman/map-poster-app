@@ -110,37 +110,62 @@ export default function Scene() {
     // ECEF position / quaternion / up on save, and rehydrate them on load.
     registerCamera(camera)
 
-    // If there's a saved session, use its camera directly and skip the
-    // Empire-State default. Otherwise, place the camera at the default
-    // view (Empire State Building, NY) — see buildSavedView docblock for
-    // the math behind distance/heading/pitch.
+    // Try to restore from the saved session. Three levels of fallback:
+    //   1. Full ECEF (position+quaternion+up) — exact restore
+    //   2. Geodetic (latitude/longitude/altitude + tilt/heading) — rebuilds camera from stored lat/lng/altitude (older sessions)
+    //   3. Empire State default
+    // Validates every array element is finite so a corrupt session
+    // (NaN crept in) doesn't silently break the camera forever.
+    const isFiniteArray = (a, n) =>
+      Array.isArray(a) && a.length === n && a.every((x) => Number.isFinite(x))
     try {
       const raw = localStorage.getItem('mapposter3d_poster_v2_session')
       if (raw) {
         const s = JSON.parse(raw)
         const c = s?.camera
-        if (c && Array.isArray(c.position) && Array.isArray(c.quaternion) && Array.isArray(c.up)) {
+        if (c && isFiniteArray(c.position, 3) && isFiniteArray(c.quaternion, 4) && isFiniteArray(c.up, 3)) {
           camera.position.set(c.position[0], c.position[1], c.position[2])
           camera.quaternion.set(c.quaternion[0], c.quaternion[1], c.quaternion[2], c.quaternion[3])
           camera.up.set(c.up[0], c.up[1], c.up[2])
-          if (typeof c.fovMm === 'number') {
-            // three.js camera.fov is VERTICAL fov. Full-frame sensor height is
-        // 24mm, so vfov = 2 * atan(12 / mm). Matches syncCameraToUI and the
-        // FovListener — keeping this consistent avoids a bogus dolly-zoom
-        // on restore (previous horizontal-sensor math sent the camera to
-        // space when the restored fovMm didn't match the mount default).
-        camera.fov = 2 * Math.atan(12 / c.fovMm) * 180 / Math.PI
+          if (typeof c.fovMm === 'number' && Number.isFinite(c.fovMm)) {
+            // three.js camera.fov is VERTICAL fov. Full-frame sensor height
+            // is 24mm, so vfov = 2 * atan(12 / mm). Matches syncCameraToUI
+            // and the FovListener — keeping this consistent avoids a bogus
+            // dolly-zoom on restore.
+            camera.fov = 2 * Math.atan(12 / c.fovMm) * 180 / Math.PI
             camera.updateProjectionMatrix()
           }
+          if (typeof window !== 'undefined') window.__sessionRestore = 'ecef'
+          return
+        }
+        // Older sessions may only have tilt/heading/altitude. Rebuild from
+        // the saved scene lat/lng if they exist.
+        const lat = s?.state?.latitude
+        const lng = s?.state?.longitude
+        const alt = typeof c?.altitude === 'number' ? c.altitude : 700
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          const tilt = Number.isFinite(c?.tilt) ? c.tilt : 60
+          const heading = Number.isFinite(c?.heading) ? c.heading : 20
+          new PointOfView(1020, radians(90 - heading), radians(-(90 - tilt))).decompose(
+            new Geodetic(radians(lng), radians(lat), alt).toECEF(),
+            camera.position, camera.quaternion, camera.up,
+          )
+          if (typeof window !== 'undefined') window.__sessionRestore = 'geodetic'
           return
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      if (typeof window !== 'undefined') window.__sessionRestore = 'error:' + String(e?.message || e)
+    }
 
     new PointOfView(1020, radians(70), radians(-30)).decompose(
       new Geodetic(radians(-73.985664), radians(40.748440), 190).toECEF(),
       camera.position, camera.quaternion, camera.up,
     )
+    if (typeof window !== 'undefined') {
+      const raw = (() => { try { return localStorage.getItem('mapposter3d_poster_v2_session') } catch { return null } })()
+      window.__sessionRestore = raw ? 'fallback:session-present-but-incomplete' : 'fallback:no-session'
+    }
   }, [camera])
 
   // Fly-to animation from location search. A ref holds the in-flight tween
