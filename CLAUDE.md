@@ -3,6 +3,7 @@
 ## Working Style
 - Research before editing. Never change code you haven't read.
 - `npm run smoke` before claiming anything is done — unit tests miss the minifier / concurrent-render / event-contract classes of bug.
+- **When you discover something non-obvious, append to `LEARNINGS.md` before moving on.** One dated entry, 3 bullets (what bit you, why, how it's avoided now). This is how sessions and subagents stay in sync — the SessionStart hook surfaces the most recent entries automatically. Durable patterns graduate from LEARNINGS.md into this file's Gotchas section during cleanup passes.
 
 ## Commands
 
@@ -92,6 +93,7 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 
 ## References
 
+- `LEARNINGS.md` — running log of gotchas discovered while working here. Read the top of it when something feels weird.
 - `docs/superpowers/specs/2026-04-17-editor-react-migration-design.md` — architecture spec
 - `docs/superpowers/plans/2026-04-17-editor-react-migration-plan.md` — phase-by-phase plan
 - `docs/superpowers/specs/2026-04-16-mobile-compatibility-plan.md` — mobile bottom-sheet, touch targets, perf tiers
