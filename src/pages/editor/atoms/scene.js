@@ -28,13 +28,22 @@ export const cloudsAtom = atom({
   paused: false,
   speed: 1,
 })
+// DoF + color pop.
+//   sceneColorPop  — saturation boost applied everywhere (works with DoF off)
+//   focusColorPop  — additional boost applied only in the focal area on top
+//                    of sceneColorPop; grayed out in the UI when DoF is off
+//                    (no focal plane to scope it to). Sum is clamped to 1.0
+//                    in the shader so both maxed doesn't oversaturate.
+// Legacy sessions stored `colorPop` + `globalPop`; useSessionPersistence
+// maps those forward on restore: globalPop=true → sceneColorPop=colorPop,
+// focusColorPop=0; globalPop=false → sceneColorPop=0, focusColorPop=colorPop.
 export const dofAtom = atom({
   on: true,
   focalUV: [0.5, 0.5],
   tightness: 70,
   blur: 25,
-  colorPop: 60,
-  globalPop: false,
+  sceneColorPop: 0,
+  focusColorPop: 60,
 })
 
 // Map style — one of default | satellite | warm | cool | desaturated | noir |

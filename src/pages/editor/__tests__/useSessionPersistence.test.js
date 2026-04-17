@@ -100,7 +100,14 @@ describe('useSessionPersistence', () => {
     expect(result.current.sunRotation).toBe(22)
     expect(result.current.bloom).toEqual({ on: true })
     expect(result.current.dof.tightness).toBe(30)
-    expect(result.current.dof.globalPop).toBe(true)
+    // Legacy colorPop=40 + globalPop=true should migrate forward to
+    // sceneColorPop=40, focusColorPop=0 (global mapping keeps the pop
+    // everywhere and hands the old "focus" channel nothing).
+    expect(result.current.dof.sceneColorPop).toBe(40)
+    expect(result.current.dof.focusColorPop).toBe(0)
+    // Legacy keys stripped after migration.
+    expect('colorPop' in result.current.dof).toBe(false)
+    expect('globalPop' in result.current.dof).toBe(false)
     expect(result.current.clouds.coverage).toBe(0.5)
     expect(result.current.mapStyle).toBe('noir')
     expect(result.current.todUnlocked).toBe(true)
