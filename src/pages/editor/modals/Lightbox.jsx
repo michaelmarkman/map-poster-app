@@ -56,6 +56,24 @@ export default function Lightbox() {
     }
   }, [open])
 
+  // When the lightbox index changes WHILE the poster-preview modal is
+  // open, re-dispatch open-poster-preview with the new entry so the
+  // frame mockup updates to match. Without this, flipping prev/next
+  // in the lightbox showed the new image in the lightbox but the
+  // preview was stuck on whatever you had clicked through to first.
+  const currentEntry = entries[index] || entryFromAtom || null
+  useEffect(() => {
+    if (!modals.posterPreview) return
+    if (!currentEntry?.dataUrl) return
+    window.dispatchEvent(new CustomEvent('open-poster-preview', {
+      detail: {
+        imageSrc: currentEntry.dataUrl,
+        label: currentEntry.label,
+        entryId: currentEntry.id ?? null,
+      },
+    }))
+  }, [currentEntry, modals.posterPreview])
+
   const canPrev = index > 0
   const canNext = index < total - 1
 

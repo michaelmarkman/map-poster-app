@@ -271,6 +271,18 @@
     gap: 4px;
   }
   #export-queue:empty { display: none; }
+  .queue-item.clickable {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .queue-item.clickable:hover {
+    background: var(--bg-hover);
+    border-color: var(--panel-border-strong);
+  }
+  .queue-item.clickable:focus-visible {
+    outline: 1px solid var(--accent-dim);
+    outline-offset: -1px;
+  }
   .queue-item {
     display: flex;
     align-items: center;
