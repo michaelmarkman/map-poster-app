@@ -250,6 +250,54 @@ export default function useSessionPersistence() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // GlobeControls drag-to-orbit + WASD fly don't fire camera-set events —
+  // they mutate camera.position/quaternion directly every frame. Poll the
+  // registered camera at 1Hz and persist if anything moved by more than a
+  // pixel-equivalent threshold. Gated on `restored.current` so we don't
+  // clobber the saved session with defaults during the mount race.
+  useEffect(() => {
+    let last = null
+    const POS_EPSILON = 0.5 // meters in ECEF — smaller than a pixel at any altitude
+    const QUAT_EPSILON = 1e-4
+    const tick = () => {
+      if (!restored.current || !_camera) return
+      const p = _camera.position, q = _camera.quaternion
+      if (last) {
+        const posMoved =
+          Math.abs(p.x - last.px) > POS_EPSILON ||
+          Math.abs(p.y - last.py) > POS_EPSILON ||
+          Math.abs(p.z - last.pz) > POS_EPSILON
+        const quatMoved =
+          Math.abs(q.x - last.qx) > QUAT_EPSILON ||
+          Math.abs(q.y - last.qy) > QUAT_EPSILON ||
+          Math.abs(q.z - last.qz) > QUAT_EPSILON ||
+          Math.abs(q.w - last.qw) > QUAT_EPSILON
+        if (posMoved || quatMoved) writeNow()
+      }
+      last = { px: p.x, py: p.y, pz: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w }
+    }
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Last-chance save: capture the current camera before the tab is hidden
+  // or the page unloads. Guarantees the final mouse-drag position survives
+  // even if the user closes the tab mid-debounce.
+  useEffect(() => {
+    const onFlush = () => { if (restored.current) writeNow() }
+    window.addEventListener('beforeunload', onFlush)
+    window.addEventListener('pagehide', onFlush)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') onFlush()
+    })
+    return () => {
+      window.removeEventListener('beforeunload', onFlush)
+      window.removeEventListener('pagehide', onFlush)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Immediate save on explicit request (Export, user-triggered saves, etc).
   useEffect(() => {
     const handler = () => writeNow()

@@ -149,7 +149,8 @@ describe('useSessionPersistence', () => {
     window.addEventListener('fov-change', onFov)
 
     renderHook(() => useSessionPersistence())
-    await act(async () => { vi.runAllTimers() })
+    // Only pending timers (not recurring setInterval for the camera poll).
+    await act(async () => { vi.runOnlyPendingTimers() })
 
     window.removeEventListener('fov-change', onFov)
 
