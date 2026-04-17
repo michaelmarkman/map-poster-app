@@ -1,0 +1,67 @@
+import { useEffect } from 'react'
+import { useAtomValue } from 'jotai'
+import {
+  timeOfDayAtom,
+  latitudeAtom,
+  longitudeAtom,
+  sunRotationAtom,
+  bloomAtom,
+  ssaoAtom,
+  vignetteAtom,
+  cloudsAtom,
+  dofAtom,
+  IS_MOBILE,
+} from '../atoms/scene'
+
+// Mutable mirror of the scene atoms. The R3F useFrame runs at up to 60fps;
+// React re-renders from atom changes only fire at UI frequency. Scene code
+// reads from this ref inside useFrame so frame rate stays decoupled from
+// React's render cycle.
+export const sceneRef = {
+  timeOfDay: 12,
+  latitude: 40.748440,
+  longitude: -73.985664,
+  sunRotation: 0,
+  bloom: { on: false },
+  ssao: { on: false },
+  vignette: { on: false },
+  clouds: {
+    on: true,
+    coverage: IS_MOBILE ? 0.18 : 0.2,
+    shadows: !IS_MOBILE,
+    paused: false,
+    speed: 1,
+  },
+  dof: {
+    on: true,
+    focalUV: [0.5, 0.5],
+    tightness: 70,
+    blur: 25,
+    colorPop: 60,
+    globalPop: false,
+  },
+}
+
+// Subscribes to every scene atom via useAtomValue and copies the current
+// value into sceneRef on every change. Mount once at the top of <Scene>.
+export function useSceneRefSync() {
+  const timeOfDay = useAtomValue(timeOfDayAtom)
+  const latitude = useAtomValue(latitudeAtom)
+  const longitude = useAtomValue(longitudeAtom)
+  const sunRotation = useAtomValue(sunRotationAtom)
+  const bloom = useAtomValue(bloomAtom)
+  const ssao = useAtomValue(ssaoAtom)
+  const vignette = useAtomValue(vignetteAtom)
+  const clouds = useAtomValue(cloudsAtom)
+  const dof = useAtomValue(dofAtom)
+
+  useEffect(() => { sceneRef.timeOfDay = timeOfDay }, [timeOfDay])
+  useEffect(() => { sceneRef.latitude = latitude }, [latitude])
+  useEffect(() => { sceneRef.longitude = longitude }, [longitude])
+  useEffect(() => { sceneRef.sunRotation = sunRotation }, [sunRotation])
+  useEffect(() => { sceneRef.bloom = bloom }, [bloom])
+  useEffect(() => { sceneRef.ssao = ssao }, [ssao])
+  useEffect(() => { sceneRef.vignette = vignette }, [vignette])
+  useEffect(() => { sceneRef.clouds = clouds }, [clouds])
+  useEffect(() => { sceneRef.dof = dof }, [dof])
+}

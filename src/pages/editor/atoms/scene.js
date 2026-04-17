@@ -1,0 +1,40 @@
+import { atom } from 'jotai'
+
+// Mobile detection — same logic as poster-v3-ui.jsx:50-56. Mirrors the
+// prototype so scene defaults line up across both versions.
+const IS_MOBILE = (() => {
+  try {
+    const narrow = window.matchMedia('(max-width: 1024px)').matches
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    return narrow && coarse
+  } catch (e) { return false }
+})()
+
+// Scene atoms — one per field of the legacy `state` object. Scene components
+// read these through the `sceneRef` mirror inside useFrame so 60fps frame
+// updates don't trigger React re-renders; UI components read/write them
+// directly via useAtom.
+export const timeOfDayAtom = atom(12)
+export const latitudeAtom = atom(40.748440)
+export const longitudeAtom = atom(-73.985664)
+export const sunRotationAtom = atom(0)
+export const bloomAtom = atom({ on: false })
+export const ssaoAtom = atom({ on: false })
+export const vignetteAtom = atom({ on: false })
+export const cloudsAtom = atom({
+  on: true,
+  coverage: IS_MOBILE ? 0.18 : 0.2,
+  shadows: !IS_MOBILE,
+  paused: false,
+  speed: 1,
+})
+export const dofAtom = atom({
+  on: true,
+  focalUV: [0.5, 0.5],
+  tightness: 70,
+  blur: 25,
+  colorPop: 60,
+  globalPop: false,
+})
+
+export { IS_MOBILE }

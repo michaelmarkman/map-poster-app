@@ -1,0 +1,191 @@
+  /* ═══════ MOBILE / NARROW VIEWPORT (Phase 1 — doesn't break) ═══════
+     Below 1024px (phones + most tablets) the canvas takes the full
+     viewport and the sidebar becomes an overlay. The JS bootstrap
+     defaults the sidebar to collapsed on narrow screens so the user
+     lands on the map, not the controls. Full mobile polish (bottom
+     sheet, larger touch targets, perf tuning) is Phase 2+. */
+  @media (max-width: 1024px) {
+    /* Flatten all the #main padding variants that desktop layouts use —
+       on a phone the canvas should be flush with the viewport edges,
+       regardless of sidebar-collapsed / fill / preview state. */
+    #main,
+    body.sidebar-collapsed #main,
+    body.fill-mode #main,
+    body.preview-open #main {
+      padding: 0;
+    }
+    /* Same idea for the canvas container — normally sidebar-collapsed
+       resets --main-h-padding to 60px; on mobile it's always 0 so the
+       aspect-ratio math lets the canvas span the full 100vw. */
+    body.sidebar-collapsed #canvas-container {
+      --main-h-padding: 0px;
+    }
+    /* Kill the decorative workbench art — it's noise when the canvas
+       fills the screen and just costs paint. */
+    #main::before,
+    #main::after { display: none; }
+
+    /* Canvas uses the whole viewport width as its budget (no sidebar
+       gutter reservation) and the base ratio-aware width/height formula
+       still applies — so aspect-ratio buttons (4:3, 9:16, …) continue
+       to snap correctly on phones. We only drop the desktop chrome
+       (decorative frame shadow, border-radius, upper bound) and the
+       60px header reserve — on mobile the HUD is absolute-positioned
+       over the canvas, so we don't need to carve a strip out of it. */
+    #canvas-container {
+      --main-h-padding: 0px;
+      width: min(calc(100dvh * var(--ratio)), 100vw);
+      height: min(100dvh, calc(100vw / var(--ratio)));
+      max-width: none;
+      max-height: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    #canvas-container::before { display: none; }
+
+    /* Sidebar becomes a bottom sheet on phones/tablets. Slides up from
+       the bottom edge, keeps the top ~15% of the viewport visible so
+       the canvas never fully disappears while the user is adjusting
+       controls. Collapsed state translates downward instead of the
+       desktop sideways slide. */
+    #sidebar {
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      max-width: none;
+      height: 85dvh;
+      max-height: 85dvh;
+      border-radius: 16px 16px 0 0;
+      padding-top: 18px; /* room for the drag-handle indicator */
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      transform: translateY(0);
+      z-index: 60;
+    }
+    body.sidebar-collapsed #sidebar {
+      transform: translateY(100%);
+      opacity: 1; /* opacity fade looks muddy on mobile sheets */
+    }
+
+    /* Drag handle indicator at the top of the sheet (purely visual —
+       gesture support is Phase 2.5). Adds the scrim-pill that iOS and
+       Android sheets use to signal "this is draggable". */
+    #sidebar::before {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.22);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* Reveal button now sits bottom-center as an "open" affordance so
+       users land on the canvas and reach down to summon controls —
+       standard mobile pattern. */
+    #sidebar-reveal {
+      top: auto;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0));
+      transform: translate(-50%, 8px);
+      width: 52px;
+      height: 40px;
+      border-radius: 14px;
+      font-size: 18px;
+    }
+    body.sidebar-collapsed #sidebar-reveal {
+      transform: translate(-50%, 0);
+    }
+    /* Collapse arrow at the top-right of the sheet is redundant — the
+       handle communicates "drag down to close" and tapping outside
+       also closes. Hide it on mobile so the sheet keeps a clean top
+       edge. */
+    #sidebar-toggle { display: none; }
+
+    /* Floating toolbar respects safe-area at the bottom (iOS home
+       indicator / URL bar). */
+    #editor-toolbar {
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+  }
+
+  /* ═══════ COARSE POINTER (touch) ═══════
+     Every input that reads as a <44pt tap target on touch gets bumped
+     to iOS's 44×44 minimum. Scoped to `(pointer: coarse)` so mouse
+     users keep the tighter desktop sizing. */
+  @media (pointer: coarse) {
+    /* Toggle pills (.toggle) */
+    .toggle {
+      width: 44px;
+      height: 26px;
+    }
+    .toggle::after {
+      width: 20px;
+      height: 20px;
+      top: 3px;
+      left: 3px;
+    }
+    .toggle.on::after {
+      transform: translateX(18px);
+    }
+    /* Sliders — native range thumbs */
+    input[type="range"]::-webkit-slider-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    /* Section heads, nav rows, gallery chips — comfier tap zones. */
+    .section-head,
+    .nav-row,
+    .toggle-row,
+    .control-row {
+      min-height: 44px;
+    }
+    .size-btn,
+    .ai-preset {
+      padding: 10px 14px;
+      min-height: 36px;
+    }
+    /* Lightbox action buttons — tiny text on touch is a pain. */
+    .gallery-btn {
+      font-size: 12px;
+      padding: 10px 14px;
+    }
+  }
+
+  /* ═══════ MOBILE FEATURE GATING ═══════
+     The Graphic Editor (Fabric overlay with handles) and Time Machine
+     grid were designed for cursor precision + a wide canvas. On phones
+     they break more than they help. Hide the controls, drop a short
+     "best on desktop" note in their place. */
+  @media (max-width: 1024px) {
+    .sidebar-section[data-sec="editor"] .section-body { display: none; }
+    .sidebar-section[data-sec="editor"]::after {
+      content: 'Best on desktop — open this site on a bigger screen to edit text and graphics.';
+      display: block;
+      padding: 10px 20px 20px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+    }
+    /* Time Machine stays clickable so power-users can still trigger it
+       from a tablet, but gets dimmed + a tooltip. JS also disables the
+       button outright if the viewport is very narrow. */
+    #render-decades-btn { opacity: 0.55; }
+    #render-decades-btn::after {
+      content: 'desktop';
+      margin-left: 6px;
+      font-size: 9px;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+  }

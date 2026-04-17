@@ -1,0 +1,285 @@
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--body);
+    background: var(--bg-0);
+    color: var(--ink);
+    font-size: 11px;
+    line-height: 1.5;
+    letter-spacing: 0.005em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'ss01', 'cv11', 'calt';
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    height: 100vh;  /* fallback for browsers without dvh */
+    height: 100dvh; /* mobile-safe: excludes collapsing browser chrome */
+    overflow: hidden;
+  }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* ═══════ MAIN WORKBENCH ═══════ */
+  #main {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 20px 20px 320px;
+    transition: padding 0.4s ease;
+    background:
+      radial-gradient(ellipse 70% 55% at 68% 22%, rgba(255, 240, 210, 0.09) 0%, transparent 55%),
+      radial-gradient(ellipse 90% 80% at 50% 60%, #2e2d34 0%, #222125 40%, #151418 85%, #0c0b10 100%);
+  }
+  /* Layered workbench grid (dots + lines) */
+  #main::before {
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 0.5px, transparent 0.5px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0.5px, transparent 0.5px);
+    background-size: 80px 80px;
+    background-position: -1px -1px;
+    mask-image: radial-gradient(ellipse 90% 85% at 58% 45%, #000 25%, transparent 92%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 85% at 58% 45%, #000 25%, transparent 92%);
+  }
+  #main::after {
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0.8px, transparent 1px);
+    background-size: 20px 20px;
+    mask-image: radial-gradient(ellipse 85% 75% at 58% 48%, #000 20%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse 85% 75% at 58% 48%, #000 20%, transparent 85%);
+  }
+  /* Fill mode: no grid, no padding — poster fills viewport */
+  body.fill-mode #main { padding: 0; background: var(--bg-deep); }
+  body.fill-mode #main::before,
+  body.fill-mode #main::after { display: none; }
+  body.preview-open #main { padding: 0; }
+  body.preview-open #main::before,
+  body.preview-open #main::after { display: none; }
+  /* Sidebar collapsed: give the canvas the full width */
+  body.sidebar-collapsed #main { padding: 20px; }
+
+  #canvas-container {
+    position: relative;
+    overflow: hidden;
+    --ratio: 1.333;
+    --main-h-padding: 360px;
+    width: min(calc((100vh - 60px) * var(--ratio)), calc(100vw - var(--main-h-padding)));
+    height: min(calc(100vh - 60px), calc((100vw - var(--main-h-padding)) / var(--ratio)));
+    max-width: 1600px;
+    max-height: 1400px;
+    border-radius: 2px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.05),
+      0 100px 140px -40px rgba(0,0,0,0.85),
+      0 60px 80px -25px rgba(0,0,0,0.55),
+      0 25px 50px rgba(0,0,0,0.35),
+      0 2px 10px rgba(0,0,0,0.4);
+    transition: all 0.4s ease;
+    z-index: 1;
+  }
+  #canvas-container canvas { display: block; width: 100%; height: 100%; }
+
+  /* Contact shadow under the canvas — grounds it on the workbench */
+  #canvas-container::before {
+    content: '';
+    position: absolute;
+    left: 4%; right: 4%;
+    bottom: -30px;
+    height: 50px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 70%);
+    filter: blur(18px);
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  body.fill-mode #canvas-container {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body.fill-mode #canvas-container::before { display: none; }
+  /* Sidebar collapsed: expand canvas to use the freed width */
+  body.sidebar-collapsed #canvas-container { --main-h-padding: 60px; }
+  body.preview-open #canvas-container {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body.preview-open #canvas-container::before { display: none; }
+
+  .gm-style-cc, [class*="TilesAttributionOverlay"] { display: none !important; }
+
+  /* Text overlay on canvas */
+  #text-overlay {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 28px 32px 24px;
+    text-align: left;
+    background: linear-gradient(0deg, rgba(0,0,0,0.75) 0%, transparent 100%);
+    z-index: 10;
+    pointer-events: none;
+  }
+  #overlay-title {
+    font-family: var(--serif);
+    font-optical-sizing: auto;
+    font-variation-settings: 'opsz' 144;
+    font-size: clamp(28px, 3vw, 48px);
+    font-weight: 300;
+    letter-spacing: -0.025em;
+    line-height: 0.95;
+    color: rgba(245, 242, 234, 0.96);
+    margin-bottom: 8px;
+  }
+  #overlay-subtitle {
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(245, 242, 234, 0.68);
+  }
+  #overlay-coords {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: rgba(245, 242, 234, 0.44);
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* On-canvas HUD (top-right) */
+  .canvas-hud {
+    position: absolute;
+    top: 32px; right: 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 10px;
+    color: var(--ink-dim);
+    letter-spacing: 0.04em;
+    z-index: 20;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .canvas-hud .dot {
+    width: 3px; height: 3px;
+    background: var(--ink-ghost);
+    border-radius: 50%;
+  }
+  .canvas-hud .val { color: var(--ink-soft); }
+  body.fill-mode .canvas-hud,
+  body.preview-open .canvas-hud { color: rgba(255,255,255,0.65); }
+  body.fill-mode .canvas-hud .val,
+  body.preview-open .canvas-hud .val { color: rgba(255,255,255,0.9); }
+
+  /* Corner meta (bottom-right) */
+  .corner-meta {
+    position: absolute;
+    bottom: 32px; right: 32px;
+    font-size: 9px;
+    color: var(--ink-ghost);
+    letter-spacing: 0.05em;
+    text-align: right;
+    line-height: 1.6;
+    z-index: 20;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  body.fill-mode .corner-meta,
+  body.preview-open .corner-meta { color: rgba(255,255,255,0.5); }
+
+  /* Status readout */
+  #status {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 13, 11, 0.72);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 10px;
+    color: var(--ink-soft);
+    z-index: 60;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ═══════ API KEY PROMPT ═══════ */
+  #api-key-prompt {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg-deep);
+    z-index: 100;
+    gap: 16px;
+    padding: 40px;
+  }
+  #api-key-prompt h2 {
+    font-family: var(--serif);
+    font-optical-sizing: auto;
+    font-variation-settings: 'opsz' 144;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+  #api-key-prompt p {
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: center;
+    max-width: 440px;
+    line-height: 1.6;
+  }
+  #api-key-prompt input {
+    width: 100%;
+    max-width: 440px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 0.5px solid var(--panel-border);
+    background: rgba(255,255,255,0.03);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+  }
+  #api-key-prompt input:focus { border-color: var(--panel-border-strong); }
+  #api-key-prompt button {
+    padding: 11px 28px;
+    border-radius: 8px;
+    border: 0.5px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  #api-key-prompt button:hover {
+    background: var(--accent-soft);
+  }
+  #api-key-prompt .hint {
+    font-size: 10px;
+    color: var(--ink-dim);
+    text-align: center;
+    max-width: 440px;
+    line-height: 1.5;
+  }
+  #api-key-prompt a { color: var(--accent); text-decoration: none; }
+  #api-key-prompt a:hover { text-decoration: underline; }

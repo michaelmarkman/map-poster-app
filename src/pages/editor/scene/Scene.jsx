@@ -1,0 +1,234 @@
+import { useRef, useLayoutEffect, useEffect, useState } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { Vector2, Vector3, Quaternion, Raycaster as RaycasterClass } from 'three'
+import { EffectMaterial } from 'postprocessing'
+import { GlobeControls } from '3d-tiles-renderer/r3f'
+import { Atmosphere, AerialPerspective } from '@takram/three-atmosphere/r3f'
+import { Clouds } from '@takram/three-clouds/r3f'
+import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospatial'
+import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
+
+import Globe from './Globe'
+import PostProcessing from './PostProcessing'
+import { sceneRef, useSceneRefSync } from './stateRef'
+import { IS_MOBILE } from '../atoms/scene'
+import { EXPOSURE, _sunZenith } from '../utils/three'
+import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
+import { getDateFromHour } from '../utils/sun'
+
+// Raycasts from the center of the screen to find what the camera is actually
+// looking at (the subject), then converts the hit point to lat/lng. Used by
+// Time Machine to research the subject rather than the camera's GPS position.
+function SubjectListener() {
+  const { camera, scene } = useThree()
+  const raycaster = useRef(new RaycasterClass())
+  const centerNDC = useRef(new Vector2(0, 0))
+
+  useEffect(() => {
+    const handler = (e) => {
+      const resolve = e.detail?.resolve
+      if (!resolve) return
+      raycaster.current.setFromCamera(centerNDC.current, camera)
+      const hits = raycaster.current.intersectObjects(scene.children, true)
+      if (!hits.length) { resolve(null); return }
+      try {
+        const geo = new Geodetic().setFromECEF(hits[0].point)
+        resolve({
+          lat: geo.latitude * 180 / Math.PI,
+          lng: geo.longitude * 180 / Math.PI,
+        })
+      } catch (err) {
+        resolve(null)
+      }
+    }
+    window.addEventListener('get-subject-coords', handler)
+    return () => window.removeEventListener('get-subject-coords', handler)
+  }, [camera, scene])
+
+  return null
+}
+
+// Click-to-focus — tap anywhere on the canvas to update the DoF focal point.
+// Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
+function ClickToFocus() {
+  const { gl } = useThree()
+  useEffect(() => {
+    const canvas = gl.domElement
+    let downPos = null
+    // On touch / coarse pointers a user's "tap" is rarely pixel-stable —
+    // 12-14px is the accepted comfort zone for tap-vs-drag (MDN, Material).
+    // Mouse pointers stay on the tight 8px threshold so precise clicks
+    // still land where the user aimed.
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    const tapThreshold = coarse ? 14 : 8
+    const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
+    const onUp = (e) => {
+      if (!downPos || !sceneRef.dof.on) return
+      const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
+      downPos = null
+      if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
+      const rect = canvas.getBoundingClientRect()
+      sceneRef.dof.focalUV = [
+        (e.clientX - rect.left) / rect.width,
+        1.0 - (e.clientY - rect.top) / rect.height,
+      ]
+    }
+    canvas.addEventListener('pointerdown', onDown)
+    canvas.addEventListener('pointerup', onUp)
+    return () => { canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp) }
+  }, [gl])
+  return null
+}
+
+export default function Scene() {
+  // Mirror atom values into sceneRef so per-frame reads don't pay React cost.
+  useSceneRefSync()
+
+  const camera = useThree(({ camera }) => camera)
+  const composerRef = useRef(null)
+  const atmosphereRef = useRef(null)
+  const dofRef = useRef(null)
+  const [, forceRender] = useState(0)
+  const cloudsRef = useRef(null)
+  const aerialRef = useRef(null)
+
+  // Initial camera — Empire State Building, NY. Target is aimed at the
+  // building's mid-height (190m above base) so the shader DoF (which samples
+  // depth at screen center = focalUV [0.5,0.5]) focuses on the building
+  // rather than the ground. Distance is chosen so the eye altitude works
+  // out to 700m:
+  //   eye.alt - target.h = distance * sin(|pitch|) = distance * 0.5
+  //   (700 - 190) = 510 = 1020 * 0.5  →  distance = 1020
+  // takram's PointOfView uses (distance, heading, pitch): heading measured
+  // from east so library heading 70° → UI heading 90°-70°=20° (NNE), pitch
+  // -30° → UI tilt 60°.
+  useLayoutEffect(() => {
+    // TODO phase 5: restore from session via useSessionPersistence hook
+    new PointOfView(1020, radians(70), radians(-30)).decompose(
+      new Geodetic(radians(-73.985664), radians(40.748440), 190).toECEF(),
+      camera.position, camera.quaternion, camera.up,
+    )
+  }, [camera])
+
+  // TODO phase 5: save-session, fly-to, camera-set event listeners belong
+  // in dedicated hooks. Leaving placeholders so Phase 3 sidebar code knows
+  // these channels exist.
+
+  // Re-render when effects are toggled (kept for backward compat with
+  // legacy dispatchers until Phase 3 wires atoms everywhere).
+  useEffect(() => {
+    const handler = () => forceRender(n => n + 1)
+    window.addEventListener('effects-changed', handler)
+    return () => window.removeEventListener('effects-changed', handler)
+  }, [])
+
+  useFrame(({ gl }, delta) => {
+    // TODO phase 5: fly-to animation state lives here (flyRef.current).
+
+    gl.toneMappingExposure = EXPOSURE
+
+    // Update longitude/latitude from current camera position so sun tracks
+    // the place you're flying over. Written back into sceneRef — the atom
+    // sync runs the other way only (atom → ref), so we skip the atom write
+    // here. (Phase 3 will add an atom setter so the sidebar can read these.)
+    try {
+      const geo = new Geodetic().setFromECEF(camera.position)
+      sceneRef.longitude = geo.longitude * 180 / Math.PI
+      sceneRef.latitude = geo.latitude * 180 / Math.PI
+    } catch (e) {}
+
+    // Update atmosphere from time slider
+    const date = getDateFromHour(sceneRef.timeOfDay, sceneRef.longitude)
+    atmosphereRef.current?.updateByDate(date)
+
+    // Stylistic sun rotation — rotate the sun's direction around the local
+    // zenith (surface normal at the camera's current position). This shifts
+    // where the sun rises and sets in the sky without changing its elevation
+    // arc.
+    if (atmosphereRef.current?.sunDirection && sceneRef.sunRotation !== 0) {
+      const zenith = _sunZenith.copy(camera.position).normalize()
+      Ellipsoid.WGS84.getSurfaceNormal(camera.position, zenith)
+      atmosphereRef.current.sunDirection.applyAxisAngle(zenith, sceneRef.sunRotation * Math.PI / 180)
+    }
+
+    // Update clouds
+    const clouds = cloudsRef.current
+    window._cloudsRef = clouds
+    if (clouds) {
+      clouds.coverage = sceneRef.clouds.on ? sceneRef.clouds.coverage : 0
+      const spd = sceneRef.clouds.paused ? 0 : sceneRef.clouds.speed * 0.001
+      clouds.localWeatherVelocity.set(spd, 0)
+    }
+    // Toggle cloud shadows on aerial perspective
+    const aerial = aerialRef.current
+    if (aerial) {
+      if (!sceneRef.clouds.shadows) {
+        aerial.shadow = null
+      }
+      // When shadows are on, the Clouds change event handler restores it automatically
+    }
+
+    // Update DoF uniforms
+    const fx = dofRef.current
+    if (fx && fx.uniforms) {
+      // Color pop is independent of DoF and always applied. When DoF is off,
+      // it's always global (no focus area to limit it to). When DoF is on,
+      // the user's globalPop toggle decides limited-to-focus vs. whole scene.
+      fx.uniforms.get('colorPop').value = sceneRef.dof.colorPop / 100
+      if (!sceneRef.dof.on) {
+        fx.uniforms.get('maxBlur').value = 0
+        fx.uniforms.get('globalPop').value = 1.0
+      } else {
+        fx.uniforms.get('focalPoint').value.set(sceneRef.dof.focalUV[0], sceneRef.dof.focalUV[1])
+        const t = sceneRef.dof.tightness / 100
+        fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
+        fx.uniforms.get('maxBlur').value = 2 + (sceneRef.dof.blur / 100) * 48
+        fx.uniforms.get('globalPop').value = sceneRef.dof.globalPop ? 1.0 : 0.0
+      }
+    }
+
+    // Sync camera near/far into effects
+    const composer = composerRef.current
+    if (composer) {
+      composer.passes.forEach(pass => {
+        if (pass.fullscreenMaterial instanceof EffectMaterial) {
+          pass.fullscreenMaterial.adoptCameraSettings(camera)
+        }
+      })
+    }
+
+    // Soft ground clamp: if the camera slips below the sea-level ellipsoid
+    // (happens when a user flies through terrain in a valley or right down
+    // through the ground), pull it back up along the local surface normal.
+    // Uses lerp rather than a hard set so it feels like bouncing off the
+    // ground, not a brick wall. Kept cheap — just one Geodetic per frame.
+    clampCameraAltitude(camera)
+
+    // Sync camera info to sidebar sliders
+    // TODO phase 3: replace with atom writes once sidebar is ported
+    syncCameraToUI(camera)
+  })
+
+  return (
+    <Atmosphere ref={atmosphereRef} correctAltitude>
+      <Globe>
+        <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
+      </Globe>
+      <ClickToFocus />
+      <SubjectListener />
+
+      <PostProcessing composerRef={composerRef} dofRef={dofRef}>
+        <Clouds
+          ref={cloudsRef}
+          coverage={sceneRef.clouds.coverage}
+          qualityPreset="high"
+          shadow-farScale={0.25}
+          localWeatherVelocity={[0.001, 0]}
+        />
+        <AerialPerspective ref={aerialRef} sky sunLight skyLight correctGeometricError albedoScale={2 / Math.PI} />
+        {!IS_MOBILE && <LensFlare />}
+        <Dithering />
+      </PostProcessing>
+    </Atmosphere>
+  )
+}
