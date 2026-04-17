@@ -23,6 +23,13 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    // Graceful fallback when Supabase isn't configured (no VITE_SUPABASE_ANON_KEY).
+    // The editor still works — just without auth gating.
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
