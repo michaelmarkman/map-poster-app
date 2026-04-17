@@ -9,6 +9,7 @@ import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospat
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
 import { useSetAtom } from 'jotai'
 import { cameraReadoutAtom } from '../atoms/ui'
+import { registerCamera } from '../hooks/useSessionPersistence'
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
@@ -105,7 +106,32 @@ export default function Scene() {
   // from east so library heading 70° → UI heading 90°-70°=20° (NNE), pitch
   // -30° → UI tilt 60°.
   useLayoutEffect(() => {
-    // TODO phase 5: restore from session via useSessionPersistence hook
+    // Expose the camera to useSessionPersistence so it can serialize raw
+    // ECEF position / quaternion / up on save, and rehydrate them on load.
+    registerCamera(camera)
+
+    // If there's a saved session, use its camera directly and skip the
+    // Empire-State default. Otherwise, place the camera at the default
+    // view (Empire State Building, NY) — see buildSavedView docblock for
+    // the math behind distance/heading/pitch.
+    try {
+      const raw = localStorage.getItem('mapposter3d_poster_v2_session')
+      if (raw) {
+        const s = JSON.parse(raw)
+        const c = s?.camera
+        if (c && Array.isArray(c.position) && Array.isArray(c.quaternion) && Array.isArray(c.up)) {
+          camera.position.set(c.position[0], c.position[1], c.position[2])
+          camera.quaternion.set(c.quaternion[0], c.quaternion[1], c.quaternion[2], c.quaternion[3])
+          camera.up.set(c.up[0], c.up[1], c.up[2])
+          if (typeof c.fovMm === 'number') {
+            camera.fov = 2 * Math.atan(36 / (2 * c.fovMm)) * 180 / Math.PI
+            camera.updateProjectionMatrix()
+          }
+          return
+        }
+      }
+    } catch (e) {}
+
     new PointOfView(1020, radians(70), radians(-30)).decompose(
       new Geodetic(radians(-73.985664), radians(40.748440), 190).toECEF(),
       camera.position, camera.quaternion, camera.up,
