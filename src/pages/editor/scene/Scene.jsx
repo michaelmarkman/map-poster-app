@@ -226,13 +226,15 @@ export default function Scene() {
     return () => window.removeEventListener('get-camera', handler)
   }, [camera])
 
-  // Saved-view consumer: restore-view applies a saved payload directly to the
-  // camera. Accepts either raw {position, quaternion, up} OR a geodetic
-  // triple {latitude, longitude, altitude} + quaternion.
+  // Saved-view consumer: restore-view applies a saved payload directly to
+  // the camera. Accepts either the bare camera object {position, quaternion,
+  // up, ...} OR a wrapped saved-view {camera: {...}, tod, ...}. Geodetic
+  // {latitude, longitude, altitude} is the last-resort fallback.
   useEffect(() => {
     const handler = (e) => {
-      const v = e.detail
-      if (!v) return
+      const detail = e.detail
+      if (!detail) return
+      const v = detail.camera && typeof detail.camera === 'object' ? detail.camera : detail
       if (Array.isArray(v.position) && v.position.length === 3) {
         camera.position.set(v.position[0], v.position[1], v.position[2])
       } else if (v.latitude != null && v.longitude != null && v.altitude != null) {
