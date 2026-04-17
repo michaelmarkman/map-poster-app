@@ -15,6 +15,18 @@ npm run smoke         # Build + serve dist-deploy + run Playwright canary (19 ch
 npm run smoke:headed  # Same, but with a visible browser window
 ```
 
+## Stack
+
+React 19 + React Router 7 + Jotai (state) + R3F / three.js + @takram/three-atmosphere (sky/clouds) + Supabase (auth, DB, storage) + Gemini (AI styles, server-side only). Vite 8 build, Vitest + Playwright tests, deployed on Vercel.
+
+## Environment
+
+Copy `.env.example` → `.env.local` and fill in:
+
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — client-side, safe to expose. Auth, AuthContext, and the bridge all tolerate these being missing: the app loads in "no-Supabase" mode (`supabaseReady=false`), ProtectedRoute bypasses, and a banner surfaces the missing config.
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only; not read by the client.
+- `GEMINI_API_KEY` — server-only. **Never prefix with `VITE_`** — that leaks it into the client bundle. The Gemini key flows through the `/api/gemini` serverless proxy only.
+
 ## Architecture
 
 The editor is a React SPA at `/app`. It was migrated from the standalone HTML prototype at `prototypes/poster-v3-ui.{html,jsx}` — that prototype still builds and routes (via `vercel.json`), kept as a reference implementation. Changes go into the React tree; the prototype is intentionally frozen.
@@ -25,7 +37,13 @@ src/
 ├── main.jsx                    # React root
 ├── index.html                  # SPA entry — script src is absolute /src/main.jsx
 ├── contexts/AuthContext.jsx    # Supabase auth (falls back gracefully if env missing)
-├── components/ProtectedRoute   # Bypasses when no Supabase configured
+├── components/
+│   ├── ProtectedRoute.jsx      # Bypasses when no Supabase configured
+│   ├── auth/                   # RequireAuth (preserves ?next=), safeNext
+│   └── layout/                 # AppLayout + navbar shared by non-editor pages
+├── lib/
+│   ├── supabase.js             # Singleton client + supabaseReady flag
+│   └── errors.js               # Error boundary / friendly error helpers
 ├── pages/editor/               # The editor — everything below matters
 │   ├── EditorPage.jsx          # Route entry
 │   ├── EditorShell.jsx         # Layout + mounts all hooks (order matters)
@@ -41,6 +59,10 @@ src/
 │   ├── overlays/               # CanvasHUD, TextOverlay, PosterPreviewToggle
 │   ├── hooks/                  # useSession, useSavedViews, useGallery, useQueue, …
 │   └── styles/                 # 8 co-located CSS files (don't put CSS elsewhere)
+api/                            # Vercel serverless functions
+├── gemini.js                   # Proxies Gemini calls; keeps GEMINI_API_KEY off the client
+└── og.js                       # OG image renderer for share links
+supabase/migrations/*.sql       # Canonical schema. Add new migrations here; don't edit old ones
 scripts/smoke.js                # Prod-build canary; run after every change
 docs/superpowers/               # Migration spec + plan — read before big changes
 prototypes/                     # Reference implementation; don't edit
@@ -93,6 +115,7 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 Vercel auto-deploys on push to `main`. Rewrites in `vercel.json`:
 - `/` → `/prototypes/index.html` (landing is the prototype page, not React)
 - `/app`, `/app/*` → `/src/index.html` (React SPA takes over)
+- `/login`, `/signup`, `/forgot-password`, `/community`, `/gallery`, `/profile` → `/src/index.html`
 - `/*.html` → their matching prototype pages
 
-React routes like `/login`, `/signup`, `/community`, `/profile`, `/gallery` are NOT rewritten in `vercel.json`. They work in dev via the SPA-fallback middleware in `vite.config.js` but deep-linking them in prod will 404. Add them to `vercel.json` if needed.
+**Still missing from `vercel.json`:** `/u/:username` (public profiles) and `/reset-password`. They work in dev via the SPA-fallback middleware in `vite.config.js`, but deep-linking them in prod 404s. When adding a new React route, add the rewrite here too.
