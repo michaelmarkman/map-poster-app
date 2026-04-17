@@ -12,6 +12,12 @@ export default {
   build: {
     outDir: resolve(base, 'dist-deploy'),
     emptyOutDir: true,
+    // Rolldown's default CSS minifier de-duplicates prefixed properties
+    // and was stripping the unprefixed `backdrop-filter:` in favor of the
+    // `-webkit-backdrop-filter:` form — which Chrome/Firefox don't read,
+    // so the sidebar glass effect disappeared in prod. esbuild keeps
+    // both forms.
+    cssMinify: 'esbuild',
     rollupOptions: {
       input: {
         // Main app (auth + React SPA)
