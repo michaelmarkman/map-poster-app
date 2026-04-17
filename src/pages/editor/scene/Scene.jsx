@@ -7,6 +7,8 @@ import { Atmosphere, AerialPerspective } from '@takram/three-atmosphere/r3f'
 import { Clouds } from '@takram/three-clouds/r3f'
 import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospatial'
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
+import { useSetAtom } from 'jotai'
+import { cameraReadoutAtom } from '../atoms/ui'
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
@@ -110,20 +112,94 @@ export default function Scene() {
     )
   }, [camera])
 
-  // TODO phase 5: save-session, fly-to, camera-set event listeners belong
-  // in dedicated hooks. Leaving placeholders so Phase 3 sidebar code knows
-  // these channels exist.
+  // Fly-to animation from location search. A ref holds the in-flight tween
+  // so useFrame can step it; when done we clear the ref.
+  const flyRef = useRef(null)
+  useEffect(() => {
+    const handler = (e) => {
+      const { lat, lng } = e.detail
+      const endPos = new Vector3()
+      const endQuat = new Quaternion()
+      const endUp = new Vector3()
+      new PointOfView(500, radians(45), radians(-35)).decompose(
+        new Geodetic(radians(lng), radians(lat)).toECEF(),
+        endPos, endQuat, endUp,
+      )
+      flyRef.current = {
+        startPos: camera.position.clone(),
+        startQuat: camera.quaternion.clone(),
+        startUp: camera.up.clone(),
+        endPos, endQuat, endUp, progress: 0,
+      }
+    }
+    window.addEventListener('fly-to', handler)
+    return () => window.removeEventListener('fly-to', handler)
+  }, [camera])
 
-  // Re-render when effects are toggled (kept for backward compat with
-  // legacy dispatchers until Phase 3 wires atoms everywhere).
+  // Camera-set from tilt/heading/altitude sliders.
+  useEffect(() => {
+    const handler = (e) => {
+      const { tilt, heading, altitude } = e.detail
+      const geo = new Geodetic().setFromECEF(camera.position)
+      const newEye = new Geodetic(geo.longitude, geo.latitude, altitude).toECEF()
+      const up = newEye.clone().normalize()
+      const pole = new Vector3(0, 0, 1)
+      const east = new Vector3().crossVectors(pole, up).normalize()
+      const north = new Vector3().crossVectors(up, east).normalize()
+      const hRad = radians(heading)
+      const horizDir = new Vector3()
+        .addScaledVector(north, Math.cos(hRad))
+        .addScaledVector(east, Math.sin(hRad))
+      const belowHorizon = radians(90 - tilt)
+      const lookDir = new Vector3()
+        .addScaledVector(horizDir, Math.cos(belowHorizon))
+        .addScaledVector(up, -Math.sin(belowHorizon))
+        .normalize()
+      camera.position.copy(newEye)
+      camera.up.copy(up)
+      camera.lookAt(newEye.clone().add(lookDir.multiplyScalar(1000)))
+    }
+    window.addEventListener('camera-set', handler)
+    return () => window.removeEventListener('camera-set', handler)
+  }, [camera])
+
+  // Focal-length slider (fov-change) — mm → three.js fov degrees.
+  // 35mm equivalent: fov = 2 * atan(36 / (2 * mm)) in degrees.
+  useEffect(() => {
+    const handler = (e) => {
+      const mm = e.detail
+      const fov = 2 * Math.atan(36 / (2 * mm)) * 180 / Math.PI
+      camera.fov = fov
+      camera.updateProjectionMatrix()
+    }
+    window.addEventListener('fov-change', handler)
+    return () => window.removeEventListener('fov-change', handler)
+  }, [camera])
+
+  // Re-render when effects are toggled (backward compat — atoms drive the
+  // sceneRef sync already, this just lets conditional mounts re-evaluate).
   useEffect(() => {
     const handler = () => forceRender(n => n + 1)
     window.addEventListener('effects-changed', handler)
     return () => window.removeEventListener('effects-changed', handler)
   }, [])
 
+  // Expose the live camera readout (tilt/heading/altitude) so the Camera
+  // sidebar section can display current values without polling the DOM.
+  const setCameraReadout = useSetAtom(cameraReadoutAtom)
+
   useFrame(({ gl }, delta) => {
-    // TODO phase 5: fly-to animation state lives here (flyRef.current).
+    // Step fly-to tween (smoothstep ease, 2s duration).
+    const fly = flyRef.current
+    if (fly && fly.progress < 1) {
+      fly.progress = Math.min(1, fly.progress + delta / 2)
+      const t = fly.progress
+      const s = t * t * (3 - 2 * t)
+      camera.position.lerpVectors(fly.startPos, fly.endPos, s)
+      camera.quaternion.slerpQuaternions(fly.startQuat, fly.endQuat, s)
+      camera.up.lerpVectors(fly.startUp, fly.endUp, s)
+      if (fly.progress >= 1) flyRef.current = null
+    }
 
     gl.toneMappingExposure = EXPOSURE
 
@@ -204,9 +280,8 @@ export default function Scene() {
     // ground, not a brick wall. Kept cheap — just one Geodetic per frame.
     clampCameraAltitude(camera)
 
-    // Sync camera info to sidebar sliders
-    // TODO phase 3: replace with atom writes once sidebar is ported
-    syncCameraToUI(camera)
+    // Sync live camera geometry → UI atom (5Hz).
+    syncCameraToUI(camera, setCameraReadout)
   })
 
   return (

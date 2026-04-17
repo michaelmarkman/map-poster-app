@@ -64,31 +64,29 @@ export function clampCameraAltitude(camera) {
   } catch (e) {}
 }
 
-export function syncCameraToUI(camera) {
+// Reads live camera geometry and calls `setReadout({tilt, heading, altitude,
+// fovMm})` with current values. Throttled to 5Hz so we don't pay React
+// render cost per frame. Designed to be called from useFrame.
+export function syncCameraToUI(camera, setReadout) {
   const now = Date.now()
   if (now - _lastSync < 200) return
   _lastSync = now
 
   try {
     const pos = camera.position
-    // Geodetic for altitude
     const geo = new Geodetic().setFromECEF(pos)
     const alt = Math.round(Math.max(0, geo.height))
     _currentAlt = alt
 
-    // Compute local up at camera position (radial out from earth center)
     const up = pos.clone().normalize()
-
-    // Camera forward direction
     const fwd = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
 
-    // Tilt: angle between camera-down and forward (0 = straight down, 90 = horizon)
+    // Tilt: 0 = straight down, 90 = horizon
     const downDot = fwd.dot(up.clone().negate())
     const tilt = Math.round(Math.acos(Math.max(-1, Math.min(1, downDot))) * 180 / Math.PI)
     _currentTilt = Math.max(0, Math.min(90, tilt))
 
-    // Heading: project forward onto local tangent plane, measure azimuth
-    // East = (north pole × up).normalize()
+    // Heading: 0 = north, 90 = east
     const pole = new Vector3(0, 0, 1)
     const east = new Vector3().crossVectors(pole, up).normalize()
     const north = new Vector3().crossVectors(up, east).normalize()
@@ -96,35 +94,17 @@ export function syncCameraToUI(camera) {
     const heading = Math.round(Math.atan2(flatFwd.dot(east), flatFwd.dot(north)) * 180 / Math.PI)
     _currentHeading = heading
 
+    // FOV → 35mm equivalent focal length
+    const mm = Math.max(14, Math.min(200, Math.round(12 / Math.tan(camera.fov * Math.PI / 360))))
+
     _suppressSliderInput = true
-    // TODO phase 3: replace DOM writes with atom setters once sidebar is ported
-    const tiltVal = document.getElementById('tilt-val')
-    if (tiltVal) tiltVal.textContent = _currentTilt + '\u00b0'
-    const tiltSlider = document.getElementById('tilt-slider')
-    if (tiltSlider) tiltSlider.value = _currentTilt
-
-    const headingVal = document.getElementById('heading-val')
-    if (headingVal) headingVal.textContent = heading + '\u00b0'
-    const headingSlider = document.getElementById('heading-slider')
-    if (headingSlider) headingSlider.value = heading
-
-    const el = document.getElementById('range-val')
-    if (el) el.textContent = alt.toLocaleString() + 'm'
-    const rs = document.getElementById('range-slider')
-    if (rs) rs.value = altToSlider(alt)
-
-    // FOV → focal length
-    const fov = camera.fov
-    const mm = Math.round(12 / Math.tan(fov * Math.PI / 360))
-    const fovVal = document.getElementById('fov-val')
-    if (fovVal) fovVal.textContent = Math.max(14, Math.min(200, mm)) + 'mm'
-    const fovSlider = document.getElementById('fov-slider')
-    if (fovSlider) fovSlider.value = Math.max(14, Math.min(200, mm))
+    setReadout?.({ tilt: _currentTilt, heading, altitude: alt, fovMm: mm })
     _suppressSliderInput = false
   } catch (e) {}
 }
 
-// Dispatch camera-set event with desired tilt/heading/alt
+// Dispatch camera-set event with desired tilt/heading/alt. Falls back to the
+// last synced values so a single-axis change keeps the other two stable.
 export function dispatchCameraSet(partial) {
   if (_suppressSliderInput) return
   window.dispatchEvent(new CustomEvent('camera-set', {

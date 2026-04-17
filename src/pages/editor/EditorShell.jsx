@@ -1,13 +1,20 @@
 import './styles/index.css'
-
-// Phase 2: mounts the R3F canvas. Phase 3 will add the sidebar alongside,
-// Phase 4 will layer modals + overlays on top.
 import EditorCanvas from './scene/EditorCanvas'
+import Sidebar from './sidebar/Sidebar'
 
+// Phase 3: sidebar + canvas laid out side-by-side. Phase 4 will layer modals
+// + overlays on top; Phase 5 will plug in data hooks (session/gallery/views).
 export default function EditorShell() {
   return (
     <div className="editor-root" style={{ position: 'fixed', inset: 0, background: '#1c1b1f' }}>
-      <EditorCanvas />
+      <Sidebar />
+      <div id="main">
+        <div id="canvas-container">
+          <div id="r3f-root" style={{ position: 'absolute', inset: 0 }}>
+            <EditorCanvas />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

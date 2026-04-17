@@ -13,3 +13,15 @@ export const textFieldsAtom = atom({
   subtitle: '250 1st Avenue',
   coords: '40.7323\u00b0 N, 73.9812\u00b0 W',
 })
+
+// Live camera readout — updated from Scene's useFrame via a setter, read by
+// the sidebar Camera section's tilt/heading/altitude/focal sliders. User input
+// dispatches 'camera-set' (tilt/heading/altitude) or 'fov-change' (fovMm)
+// which Scene applies to the actual camera; next sync cycle writes the
+// resulting values back here.
+export const cameraReadoutAtom = atom({
+  tilt: 51,
+  heading: 67,
+  altitude: 472,
+  fovMm: 41,
+})

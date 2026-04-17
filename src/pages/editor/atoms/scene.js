@@ -37,4 +37,13 @@ export const dofAtom = atom({
   globalPop: false,
 })
 
+// Map style — one of default | satellite | warm | cool | desaturated | noir |
+// sepia | blueprint | neon. See `#map-style-grid` in the sidebar HTML.
+export const mapStyleAtom = atom('default')
+
+// Time-of-day unlock — when off, the slider clamps to sunrise/sunset at the
+// current latitude; when on, the user can drag into deep night. Persists via
+// localStorage key `mapposter3d_tod_unlocked`.
+export const todUnlockedAtom = atom(false)
+
 export { IS_MOBILE }
