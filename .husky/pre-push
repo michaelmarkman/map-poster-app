@@ -1,0 +1,5 @@
+# Run lint + unit tests before pushing. Smoke is skipped here (it takes
+# ~20s and needs a Chromium install) — CI runs it on every PR instead.
+# To bypass this hook in an emergency: git push --no-verify
+npm run lint || exit 1
+npm run test:run || exit 1

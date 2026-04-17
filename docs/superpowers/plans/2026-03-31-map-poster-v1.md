@@ -1,5 +1,10 @@
 # Map Poster App v1 Implementation Plan
 
+> **[ARCHIVED]** — This is the v1 (2D) plan. The app pivoted to the 3D
+> photorealistic-tiles approach (v2, v3) and then through a React SPA
+> migration documented in `docs/superpowers/plans/2026-04-17-editor-react-migration-plan.md`.
+> Kept as historical context.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a client-side web app where users search a location, frame it on a map, pick a style preset, customize text, and export a high-resolution map poster as PNG/PDF — supporting both single-pin and multi-pin (2-5 locations) posters.

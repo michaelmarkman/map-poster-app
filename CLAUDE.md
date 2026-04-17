@@ -13,7 +13,15 @@ npm test              # Vitest watch mode
 npm run test:run      # Vitest single run (63 tests)
 npm run smoke         # Build + serve dist-deploy + run Playwright canary (19 checks)
 npm run smoke:headed  # Same, but with a visible browser window
+npm run lint          # ESLint flat config — fails on errors, allows warnings
+npm run lint:fix      # ESLint with --fix
+npm run format        # Prettier write
+npm run format:check  # Prettier verify only
 ```
+
+A pre-push hook (`.husky/pre-push`) runs lint + `test:run` automatically. CI
+(`.github/workflows/ci.yml`) adds the smoke check on every PR. Bypass
+with `git push --no-verify` in an emergency.
 
 ## Architecture
 
@@ -87,6 +95,8 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 - `docs/superpowers/specs/2026-04-17-editor-react-migration-design.md` — architecture spec
 - `docs/superpowers/plans/2026-04-17-editor-react-migration-plan.md` — phase-by-phase plan
 - `docs/superpowers/specs/2026-04-16-mobile-compatibility-plan.md` — mobile bottom-sheet, touch targets, perf tiers
+- `docs/superpowers/adr/` — architecture decisions worth remembering
+  (scene-ref mirror pattern, event channels, build-minifier choice)
 
 ## Deployment
 

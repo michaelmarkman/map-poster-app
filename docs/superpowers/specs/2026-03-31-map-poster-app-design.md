@@ -1,5 +1,13 @@
 # Map Poster App — Product Design Spec
 
+> **[ARCHIVED]** — This spec describes the originally-conceived product
+> (2D tile-based poster editor). The current implementation is the 3D
+> photorealistic-tiles editor in `src/pages/editor/` — see
+> `docs/superpowers/specs/2026-04-17-editor-react-migration-design.md`
+> for the architecture that actually shipped. Kept here as historical
+> context for the "search a place that matters" product thesis, which
+> is still the north star.
+
 ## Concept
 
 "Search a place that matters." A web app that turns meaningful locations into beautiful, print-ready map posters. Users search for a place, frame it on a map, pick a style, customize text, and export a high-resolution poster — either as a digital download or a physical print.
