@@ -124,7 +124,12 @@ export default function Scene() {
           camera.quaternion.set(c.quaternion[0], c.quaternion[1], c.quaternion[2], c.quaternion[3])
           camera.up.set(c.up[0], c.up[1], c.up[2])
           if (typeof c.fovMm === 'number') {
-            camera.fov = 2 * Math.atan(36 / (2 * c.fovMm)) * 180 / Math.PI
+            // three.js camera.fov is VERTICAL fov. Full-frame sensor height is
+        // 24mm, so vfov = 2 * atan(12 / mm). Matches syncCameraToUI and the
+        // FovListener — keeping this consistent avoids a bogus dolly-zoom
+        // on restore (previous horizontal-sensor math sent the camera to
+        // space when the restored fovMm didn't match the mount default).
+        camera.fov = 2 * Math.atan(12 / c.fovMm) * 180 / Math.PI
             camera.updateProjectionMatrix()
           }
           return
@@ -189,18 +194,11 @@ export default function Scene() {
     return () => window.removeEventListener('camera-set', handler)
   }, [camera])
 
-  // Focal-length slider (fov-change) — mm → three.js fov degrees.
-  // 35mm equivalent: fov = 2 * atan(36 / (2 * mm)) in degrees.
-  useEffect(() => {
-    const handler = (e) => {
-      const mm = e.detail
-      const fov = 2 * Math.atan(36 / (2 * mm)) * 180 / Math.PI
-      camera.fov = fov
-      camera.updateProjectionMatrix()
-    }
-    window.addEventListener('fov-change', handler)
-    return () => window.removeEventListener('fov-change', handler)
-  }, [camera])
+  // `fov-change` is handled by <FovListener> in scene/Controls.jsx, which
+  // uses the vertical-sensor formula (2 * atan(12/mm)) AND runs a dolly
+  // zoom so the subject stays the same size on screen. This Scene used to
+  // have a second listener using the wrong horizontal-sensor formula,
+  // which sent the camera to space on restore. Removed — Controls owns it.
 
   // Saved-view producer: hook dispatches 'get-camera' with a resolve callback
   // in detail; we fill it with the current camera state.
@@ -248,7 +246,9 @@ export default function Scene() {
         camera.up.set(v.up[0], v.up[1], v.up[2])
       }
       if (v.fovMm != null) {
-        camera.fov = 2 * Math.atan(36 / (2 * v.fovMm)) * 180 / Math.PI
+        // Vertical fov from 24mm-full-frame-sensor-height formula (see
+        // useLayoutEffect above). Must match syncCameraToUI / FovListener.
+        camera.fov = 2 * Math.atan(12 / v.fovMm) * 180 / Math.PI
         camera.updateProjectionMatrix()
       }
     }
