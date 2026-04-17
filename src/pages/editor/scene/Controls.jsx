@@ -2,8 +2,10 @@ import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector2, Vector3, Raycaster as RaycasterClass } from 'three'
 import { Geodetic } from '@takram/three-geospatial'
+import { useSetAtom } from 'jotai'
 import { sceneRef } from './stateRef'
 import { intersectEarthSphere } from '../utils/camera'
+import { dofAtom } from '../atoms/scene'
 
 // WASD flight — each frame, move the camera in the direction of the held keys
 // along the local tangent plane (W/S = forward along ground, A/D = strafe,
@@ -70,6 +72,7 @@ function FovListener() {
   const { camera, scene } = useThree()
   const raycaster = useRef(new RaycasterClass())
   const centerNDC = useRef(new Vector2(0, 0))
+  const setDof = useSetAtom(dofAtom)
 
   useEffect(() => {
     const handler = (e) => {
@@ -94,12 +97,9 @@ function FovListener() {
       if (target) {
         const oldDist = camera.position.distanceTo(target)
         // visible_size ∝ dist * tan(fov/2)
-        // newDist = oldDist * tan(oldFov/2) / tan(newFov/2)
         const oldHalfRad = (oldFov * Math.PI / 180) / 2
         const newHalfRad = (newFov * Math.PI / 180) / 2
         const newDist = oldDist * Math.tan(oldHalfRad) / Math.tan(newHalfRad)
-
-        // Move camera along the vector from target to camera
         const dir = camera.position.clone().sub(target).normalize()
         camera.position.copy(target).add(dir.multiplyScalar(newDist))
       }
@@ -107,23 +107,17 @@ function FovListener() {
       camera.fov = newFov
       camera.updateProjectionMatrix()
 
-      // Adjust DoF tightness to match focal length (longer lens = shallower DoF)
+      // Adjust DoF tightness to match focal length (longer lens = shallower
+      // DoF). Writes through the atom so the sidebar slider updates.
       if (sceneRef.dof.on) {
         const focalScale = Math.sqrt(mm / 41)
         const newTightness = Math.round(Math.min(100, Math.max(50, 55 + 20 * focalScale)))
-        sceneRef.dof.tightness = newTightness
-        // TODO phase 3: wire through dofAtom so the sidebar slider updates.
-        // For now we fall back to DOM reads for compatibility with the
-        // prototype sidebar HTML.
-        const slider = document.getElementById('dof-focus-slider')
-        const val = document.getElementById('dof-focus-val')
-        if (slider) slider.value = newTightness
-        if (val) val.textContent = newTightness + '%'
+        setDof((d) => ({ ...d, tightness: newTightness }))
       }
     }
     window.addEventListener('fov-change', handler)
     return () => window.removeEventListener('fov-change', handler)
-  }, [camera, scene])
+  }, [camera, scene, setDof])
 
   return null
 }
