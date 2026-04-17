@@ -15,7 +15,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     z-index: 50;
-    transition: transform 0.22s ease, bottom 0.22s ease, opacity 0.22s ease;
+    transition: transform 0.22s ease, opacity 0.22s ease;
   }
   body.fill-mode #sidebar,
   body.preview-open #sidebar {

@@ -60,17 +60,11 @@
       border-radius: 16px 16px 0 0;
       padding-top: 18px; /* room for the drag-handle indicator */
       padding-bottom: env(safe-area-inset-bottom, 0);
-      /* NOTE: we deliberately do NOT set `transform: translateY(0)` here.
-         An identity transform still creates a new stacking context, which
-         on mobile Safari traps backdrop-filter inside the sidebar's own
-         context and leaves it with nothing to blur. Positioning via
-         top/bottom only keeps the filter working. */
+      transform: translateY(0);
       z-index: 60;
     }
     body.sidebar-collapsed #sidebar {
-      /* Slide down with bottom instead of transform so backdrop-filter
-         keeps working. Transform only kicks in during the hidden state. */
-      bottom: -85dvh;
+      transform: translateY(100%);
       opacity: 1; /* opacity fade looks muddy on mobile sheets */
     }
 
@@ -248,7 +242,7 @@
        grabs taps, and the handle itself (the ::before strip) is a visual
        affordance — tapping the reveal button reopens. */
     body.sidebar-collapsed #sidebar {
-      bottom: calc(-60dvh + 56px); /* 56px handle peek stays visible */
+      transform: translateY(calc(100% - 56px));
       opacity: 1;
       pointer-events: none;
     }
