@@ -169,6 +169,23 @@ file is the raw log — CLAUDE.md is the curated summary.
   poster-preview to 400. Whole stacking plan is now: modal 200,
   lightbox 300, poster-preview 400, help/share 400+.
 
+## 2026-04-17 — Animate the CSS custom property, not width/height, for a smooth aspect transition
+
+- Aspect-ratio changes felt jumpy. Animating `width` + `height` directly
+  made the DOM rect interpolate but the WebGL drawing buffer only updated
+  on discrete resize events (we were dispatching 4 across the window) —
+  in between frames, the canvas content was CSS-stretched until the next
+  resize event snapped it back.
+- Fix: register `--ratio` via `@property { syntax: '<number>' … }` so the
+  browser treats it as an animatable number. Transition `--ratio` itself.
+  The `width/height: min(...)` formulas recompute continuously as --ratio
+  interpolates, and R3F's internal ResizeObserver fires on every frame
+  of the animation — camera aspect tracks perfectly, no snap.
+- Removed the 4 manual `dispatchEvent('resize')` timers; left a single
+  safety-net resize at 470ms for browsers without @property support.
+- Eased with `cubic-bezier(0.22, 1, 0.36, 1)` (ease-out-expo-ish) over
+  450ms — more cinematic than the default ease.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all

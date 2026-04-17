@@ -40,11 +40,13 @@ export default function CanvasSection() {
   const [fillMode, setFillMode] = useAtom(fillModeAtom)
 
   // Sync --ratio CSS var + fill-mode body class whenever state changes.
-  // The canvas-container has a CSS width/height transition (see editor.css),
-  // so we fire synthetic resize events across the animation window —
-  // R3F's internal ResizeObserver picks each one up and the camera aspect
-  // updates continuously instead of snapping at the end. This is what
-  // makes ratio changes feel seamless.
+  // editor.css registers --ratio via @property and transitions it, so
+  // setting the new value starts a 450ms interpolation. The container's
+  // width/height formulas (min(...) of var(--ratio)) recompute every
+  // frame, R3F's internal ResizeObserver picks up the continuous size
+  // changes, and the camera aspect tracks perfectly. No manual resize
+  // dispatches needed — they were competing with the ResizeObserver
+  // and causing the 4-step snap.
   useEffect(() => {
     const container = document.getElementById('canvas-container')
     document.body.classList.toggle('fill-mode', fillMode)
@@ -53,11 +55,12 @@ export default function CanvasSection() {
       else container.style.setProperty('--ratio', aspectRatio)
     }
     window.__forceCanvasReflow?.()
-    const timers = []
-    // Tick R3F four times across the 300ms CSS transition.
-    for (const delay of [16, 100, 200, 320]) {
-      timers.push(setTimeout(() => window.dispatchEvent(new Event('resize')), delay))
-    }
+    // Safety net at the end of the transition for browsers that don't
+    // support @property (--ratio snaps instead of interpolates). Single
+    // resize at the end lets R3F settle on the final dimensions.
+    const timers = [
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 470),
+    ]
 
     // Let the HUD overlay (Phase 4) update its label without reaching into this component.
     const label = fillMode
