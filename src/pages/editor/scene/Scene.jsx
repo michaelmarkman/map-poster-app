@@ -327,22 +327,21 @@ export default function Scene() {
     // Update DoF uniforms
     const fx = dofRef.current
     if (fx && fx.uniforms) {
-      // Color pop is a DoF-only effect: it boosts saturation at the focal
-      // plane. When DoF is off we zero it out entirely — otherwise the
-      // shader applied it globally to the whole scene because there was
-      // no focus region to scope it to. The globalPop toggle only has
-      // meaning when DoF is on.
+      // Color pop — two independent amounts:
+      //   sceneColorPop applies everywhere, regardless of DoF.
+      //   focusColorPop applies on top within the focal area — only
+      //     meaningful when DoF is on (no focal plane otherwise).
+      // The shader clamps sceneColorPop + focusAmount*focusColorPop to 1.
+      fx.uniforms.get('sceneColorPop').value = (sceneRef.dof.sceneColorPop ?? 0) / 100
       if (!sceneRef.dof.on) {
-        fx.uniforms.get('colorPop').value = 0
+        fx.uniforms.get('focusColorPop').value = 0
         fx.uniforms.get('maxBlur').value = 0
-        fx.uniforms.get('globalPop').value = 0
       } else {
-        fx.uniforms.get('colorPop').value = sceneRef.dof.colorPop / 100
+        fx.uniforms.get('focusColorPop').value = (sceneRef.dof.focusColorPop ?? 0) / 100
         fx.uniforms.get('focalPoint').value.set(sceneRef.dof.focalUV[0], sceneRef.dof.focalUV[1])
         const t = sceneRef.dof.tightness / 100
         fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
         fx.uniforms.get('maxBlur').value = 2 + (sceneRef.dof.blur / 100) * 48
-        fx.uniforms.get('globalPop').value = sceneRef.dof.globalPop ? 1.0 : 0.0
       }
     }
 

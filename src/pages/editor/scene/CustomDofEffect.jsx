@@ -3,15 +3,22 @@ import { Effect, EffectAttribute, BlendFunction } from 'postprocessing'
 import { Uniform, Vector2 } from 'three'
 
 // Custom depth-of-field shader — reads screen-center depth, blurs everything
-// outside the focal plane, and applies a color-pop grade to the in-focus
-// region. Ported verbatim from poster-v3-ui.jsx:207-310.
+// outside the focal plane, and applies a color-pop grade.
+//
+// Two independent pop amounts (see dofAtom docs for the UX reasoning):
+//   sceneColorPop — saturation lift applied uniformly across the frame.
+//                   Works regardless of whether DoF blur is active.
+//   focusColorPop — extra boost scoped to the focal area via the same
+//                   smoothstep mask the blur uses. Only meaningful when
+//                   DoF is on; the UI disables the slider when it isn't.
+// Final pop = clamp(sceneColorPop + focusAmount * focusColorPop, 0, 1).
 const DOF_FRAG = /* glsl */`
 #define getViewZ(d) perspectiveDepthToViewZ(d, cameraNear, cameraFar)
 uniform vec2 focalPoint;
 uniform float depthRange;
 uniform float maxBlur;
-uniform float colorPop;
-uniform float globalPop;
+uniform float sceneColorPop;
+uniform float focusColorPop;
 
 // Multi-ring disk sampler — concentric rings of samples for smooth bokeh
 // 1 + 8 + 16 + 24 + 32 = 81 samples in a circular pattern
@@ -59,10 +66,11 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
     color = ringBlur(uv, coc);
   }
 
-  // Color pop — applied to focus zone (or everywhere if globalPop)
+  // Color pop — scene baseline everywhere + focus boost on top of the
+  // focal area. Clamped so two maxed sliders can't exceed the shader's
+  // natural "fully popped" range.
   float focusAmount = 1.0 - smoothstep(0.0, depthRange, relDiff);
-  float popMask = mix(focusAmount, 1.0, globalPop);
-  float pop = popMask * colorPop;
+  float pop = min(1.0, sceneColorPop + focusAmount * focusColorPop);
   float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 
   // Saturation boost
@@ -93,8 +101,8 @@ export class CustomDofEffect extends Effect {
         ['focalPoint', new Uniform(new Vector2(0.5, 0.5))],
         ['depthRange', new Uniform(1.5)],
         ['maxBlur', new Uniform(20)],
-        ['colorPop', new Uniform(0.5)],
-        ['globalPop', new Uniform(0.0)],
+        ['sceneColorPop', new Uniform(0.0)],
+        ['focusColorPop', new Uniform(0.6)],
       ]),
     })
   }

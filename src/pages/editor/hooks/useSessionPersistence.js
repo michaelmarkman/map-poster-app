@@ -113,7 +113,27 @@ export default function useSessionPersistence() {
         if ('latitude' in s) setLatitude(s.latitude)
         if ('longitude' in s) setLongitude(s.longitude)
         if ('sunRotation' in s) setSunRotation(s.sunRotation)
-        if (s.dof) setDof(mergeObj(latest.current.dof, s.dof))
+        if (s.dof) {
+          const saved = { ...s.dof }
+          // Legacy migration: sessions before the Scene/Focus split stored
+          // a single `colorPop` + a boolean `globalPop`. Map forward:
+          //   globalPop=true  → sceneColorPop=colorPop, focusColorPop=0
+          //   globalPop=false → sceneColorPop=0, focusColorPop=colorPop
+          // Once migrated, drop the old keys so they don't leak into the
+          // atom shape (mergeObj would otherwise carry them along).
+          if (!('sceneColorPop' in saved) && typeof saved.colorPop === 'number') {
+            if (saved.globalPop) {
+              saved.sceneColorPop = saved.colorPop
+              saved.focusColorPop = 0
+            } else {
+              saved.sceneColorPop = 0
+              saved.focusColorPop = saved.colorPop
+            }
+          }
+          delete saved.colorPop
+          delete saved.globalPop
+          setDof(mergeObj(latest.current.dof, saved))
+        }
         if (s.clouds) setClouds(mergeObj(latest.current.clouds, s.clouds))
         if (s.bloom) setBloom(mergeObj(latest.current.bloom, s.bloom))
         if (s.ssao) setSsao(mergeObj(latest.current.ssao, s.ssao))

@@ -37,8 +37,8 @@ export const sceneRef = {
     focalUV: [0.5, 0.5],
     tightness: 70,
     blur: 25,
-    colorPop: 60,
-    globalPop: false,
+    sceneColorPop: 0,
+    focusColorPop: 60,
   },
 }
 

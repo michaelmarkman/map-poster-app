@@ -82,21 +82,32 @@ export default function CameraSection() {
               onChange={(e) => setDof({ ...dof, blur: +e.target.value })}
             />
           </div>
-          <div className="toggle-row">
-            <span>Pop whole scene</span>
-            <div
-              className={dof.globalPop ? 'toggle on' : 'toggle'}
-              id="toggle-global-pop"
-              onClick={() => setDof({ ...dof, globalPop: !dof.globalPop })}
+          {/* Focus-only saturation boost. Stacks on top of Scene pop
+              below — combined value is clamped in the shader. Only
+              interactive while DoF is on; hidden otherwise. */}
+          <div className="control-row">
+            <div className="control-label">
+              <span>Focus pop</span>
+              <span className="control-value" id="dof-focus-pop-val">{dof.focusColorPop ?? 0}%</span>
+            </div>
+            <input
+              type="range"
+              id="dof-focus-pop-slider"
+              min="0"
+              max="100"
+              step="1"
+              value={dof.focusColorPop ?? 0}
+              onChange={(e) => setDof({ ...dof, focusColorPop: +e.target.value })}
             />
           </div>
         </div>
       )}
 
+      {/* Scene-wide saturation lift. Works with or without DoF. */}
       <div className="control-row">
         <div className="control-label">
-          <span>Color pop</span>
-          <span className="control-value" id="dof-pop-val">{dof.colorPop}%</span>
+          <span>Scene pop</span>
+          <span className="control-value" id="dof-pop-val">{dof.sceneColorPop ?? 0}%</span>
         </div>
         <input
           type="range"
@@ -104,8 +115,8 @@ export default function CameraSection() {
           min="0"
           max="100"
           step="1"
-          value={dof.colorPop}
-          onChange={(e) => setDof({ ...dof, colorPop: +e.target.value })}
+          value={dof.sceneColorPop ?? 0}
+          onChange={(e) => setDof({ ...dof, sceneColorPop: +e.target.value })}
         />
       </div>
 
