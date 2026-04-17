@@ -136,7 +136,7 @@ describe('useSessionPersistence', () => {
     expect(document.body.classList.contains('fill-mode')).toBe(true)
   })
 
-  it('dispatches camera-set and fov-change when camera state is present', async () => {
+  it('dispatches fov-change when a saved camera is present', async () => {
     vi.useFakeTimers()
     const saved = {
       camera: { tilt: 55, heading: 120, altitude: 600, fovMm: 35 },
@@ -145,21 +145,19 @@ describe('useSessionPersistence', () => {
     storage.api.setItem(SESSION_KEY, JSON.stringify(saved))
 
     const events = []
-    const onCamSet = (e) => events.push({ type: 'camera-set', detail: e.detail })
     const onFov = (e) => events.push({ type: 'fov-change', detail: e.detail })
-    window.addEventListener('camera-set', onCamSet)
     window.addEventListener('fov-change', onFov)
 
     renderHook(() => useSessionPersistence())
-    // Restore dispatches via setTimeout(0) so Scene's listeners can attach first.
     await act(async () => { vi.runAllTimers() })
 
-    window.removeEventListener('camera-set', onCamSet)
     window.removeEventListener('fov-change', onFov)
 
-    const camSet = events.find(e => e.type === 'camera-set')
+    // Camera position / quaternion / up are restored directly by Scene's
+    // useLayoutEffect reading the same session blob — no camera-set event
+    // fires from this hook anymore. Only the fov slider still needs a
+    // nudge so the Controls hook re-derives DoF tightness on restore.
     const fov = events.find(e => e.type === 'fov-change')
-    expect(camSet?.detail).toEqual({ tilt: 55, heading: 120, altitude: 600 })
     expect(fov?.detail).toBe(35)
   })
 

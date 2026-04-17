@@ -139,22 +139,15 @@ export default function useSessionPersistence() {
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
       }
 
-      // Camera — dispatch events so Scene's existing handlers apply. Scene
-      // listens for 'camera-set' (tilt/heading/altitude) and 'fov-change'
-      // (fovMm). We dispatch on the next tick so Scene's useEffect listeners
-      // are guaranteed to be attached by the time the event fires.
-      if (data.camera) {
-        const c = data.camera
+      // Camera is rehydrated directly by Scene's useLayoutEffect reading
+      // the same session blob — that runs before the first R3F frame so
+      // there's no visible "reset to default then move to saved" flash.
+      // The fov slider atom still needs an event so the Controls hook
+      // aligns the DoF tightness etc.; fire it after a tick.
+      if (data.camera && typeof data.camera.fovMm === 'number') {
         setTimeout(() => {
           try {
-            if (typeof c.tilt === 'number' && typeof c.heading === 'number' && typeof c.altitude === 'number') {
-              window.dispatchEvent(new CustomEvent('camera-set', {
-                detail: { tilt: c.tilt, heading: c.heading, altitude: c.altitude },
-              }))
-            }
-            if (typeof c.fovMm === 'number') {
-              window.dispatchEvent(new CustomEvent('fov-change', { detail: c.fovMm }))
-            }
+            window.dispatchEvent(new CustomEvent('fov-change', { detail: data.camera.fovMm }))
           } catch (e) {}
         }, 0)
       }
