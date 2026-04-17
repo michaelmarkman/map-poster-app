@@ -9,6 +9,7 @@ import {
   queueAtom,
   savedViewsAtom,
 } from '../atoms/sidebar'
+import { dofAtom } from '../atoms/scene'
 import {
   buildFilename,
   composite,
@@ -272,6 +273,7 @@ export default function useQueue() {
   const aiKey = useAtomValue(aiApiKeyAtom)
   const resolution = useAtomValue(exportResolutionAtom)
   const savedViews = useAtomValue(savedViewsAtom)
+  const dof = useAtomValue(dofAtom)
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
   const settingsRef = useRef({})
@@ -282,6 +284,7 @@ export default function useQueue() {
     aiKey,
     resolution,
     savedViews,
+    dof,
   }
 
   // Queue snapshot ref so async processors can read the newest array without
@@ -434,14 +437,17 @@ export default function useQueue() {
       })
     }
 
-    // DOF-aware prompt suffix. The prototype reads state.dof.on to decide
-    // whether to tack on the "preserve the DOF blur" note. We don't have that
-    // atom threaded in yet (scene.dofAtom lives in atoms/scene but consuming
-    // it here would mean the hook re-runs on every DOF change) — defer until
-    // it's actually needed.
+    // Tell the AI model to preserve the in-scene DoF blur when the user
+    // has DoF turned on. Without this, realistic / golden-hour / etc.
+    // presets re-render a sharp-everywhere photo and the focal plane is
+    // lost. Mirrors `appendEffectPrompts` in the prototype (poster-v3-ui.jsx:~2291).
     function appendEffectPrompts(prompt) {
-      // TODO(Phase 6+): read dofAtom when available and append the DOF-
-      // preserve note (prototype: poster-v3-ui.jsx:2291-2294).
+      if (settingsRef.current.dof?.on) {
+        return (
+          prompt +
+          ' Preserve the depth-of-field blur exactly as shown in the input — keep the focused area tack-sharp and reproduce the background and foreground blur with the same falloff and intensity. Do not sharpen blurred regions.'
+        )
+      }
       return prompt
     }
 
@@ -484,6 +490,10 @@ export default function useQueue() {
 
       if (s.aiEnhance && s.aiPreset) {
         const preset = AI_PRESETS[s.aiPreset]
+        // promptFor(preset) already runs appendEffectPrompts, but the
+        // preset's baseline prompt is what's stored — re-invoke here so
+        // the DoF suffix lands every time, even if promptFor is bypassed
+        // elsewhere in the future.
         addJob({
           label: preset?.label || s.aiPreset,
           prompt: promptFor(s.aiPreset, s.aiPrompt),
