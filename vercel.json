@@ -12,6 +12,12 @@
     { "source": "/pricing.html", "destination": "/prototypes/pricing.html" },
     { "source": "/admin.html", "destination": "/prototypes/admin.html" },
     { "source": "/app", "destination": "/src/index.html" },
-    { "source": "/app/(.*)", "destination": "/src/index.html" }
+    { "source": "/app/(.*)", "destination": "/src/index.html" },
+    { "source": "/login", "destination": "/src/index.html" },
+    { "source": "/signup", "destination": "/src/index.html" },
+    { "source": "/forgot-password", "destination": "/src/index.html" },
+    { "source": "/community", "destination": "/src/index.html" },
+    { "source": "/gallery", "destination": "/src/index.html" },
+    { "source": "/profile", "destination": "/src/index.html" }
   ]
 }

@@ -1,12 +1,14 @@
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  /* The React mount point and the editor wrapper pass through body's flex
-     layout so #sidebar (position:fixed) + #main (flex:1) behave exactly
-     as they do in the prototype HTML. No opaque backgrounds, no new
-     stacking contexts — those interfere with backdrop-filter. */
-  #root { display: flex; flex: 1; min-height: 0; min-width: 0; }
-  .editor-root { display: flex; flex: 1; min-height: 0; min-width: 0; }
-  body {
+  /* Everything below is scoped behind `body.editor-mounted`. EditorShell
+     toggles that class on mount and strips it on unmount so these global-
+     looking rules don't leak to other React routes (Login, Community,
+     Gallery, etc.) that share the same bundle. Without this scope the
+     landing/auth pages inherited the editor's flex/overflow/body-bg and
+     broke their own layouts. */
+  body.editor-mounted * { margin: 0; padding: 0; box-sizing: border-box; }
+  html:has(body.editor-mounted) { height: 100%; }
+  body.editor-mounted #root { display: flex; flex: 1; min-height: 0; min-width: 0; }
+  body.editor-mounted .editor-root { display: flex; flex: 1; min-height: 0; min-width: 0; }
+  body.editor-mounted {
     font-family: var(--body);
     background: var(--bg-0);
     color: var(--ink);

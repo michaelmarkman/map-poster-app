@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import './styles/index.css'
 import EditorCanvas from './scene/EditorCanvas'
 import Sidebar from './sidebar/Sidebar'
@@ -16,6 +17,15 @@ import useGraphicEditor from './hooks/useGraphicEditor'
 // Phase 4: modals + on-canvas overlays layered onto the sidebar+canvas shell.
 // Phase 5 wires data hooks (session/gallery/views).
 export default function EditorShell() {
+  // Scope the editor's body/html/flex styles behind a body class. Other
+  // React routes (Login, Community, etc.) share the same CSS bundle —
+  // without the scope they'd inherit the editor's full-viewport flex
+  // layout and render broken.
+  useEffect(() => {
+    document.body.classList.add('editor-mounted')
+    return () => document.body.classList.remove('editor-mounted')
+  }, [])
+
   // Session persistence — restores atoms from localStorage on mount, saves
   // on atom changes (debounced) and on 'save-session' events.
   useSessionPersistence()

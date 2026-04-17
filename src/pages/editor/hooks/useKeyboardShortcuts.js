@@ -72,6 +72,11 @@ export default function useKeyboardShortcuts() {
           e.preventDefault()
           setFillMode((v) => !v)
           break
+        case 'p':
+        case 'P':
+          e.preventDefault()
+          setModals((m) => ({ ...m, posterPreview: !m.posterPreview }))
+          break
         default:
           break
       }

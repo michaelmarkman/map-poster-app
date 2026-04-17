@@ -11,6 +11,7 @@ const SHORTCUTS = [
   { keys: ['T'], label: 'Open time machine' },
   { keys: ['V'], label: 'Save current view' },
   { keys: ['F'], label: 'Toggle fill mode' },
+  { keys: ['P'], label: 'Toggle poster preview' },
   { keys: ['\\'], label: 'Toggle sidebar' },
   { keys: ['Esc'], label: 'Close modal / panel' },
 ]
