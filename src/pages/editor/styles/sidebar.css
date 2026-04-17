@@ -3,13 +3,9 @@
     position: fixed;
     top: 18px; left: 18px; bottom: 18px;
     width: 280px;
-    /* Higher-opacity background than the shared --panel token. Backdrop-
-       filter is flaky on mobile Safari and inside transformed ancestors,
-       so the panel itself does most of the visual work — the blur is a
-       desktop bonus, not a load-bearing effect. */
-    background: rgba(20, 19, 23, 0.88);
-    backdrop-filter: blur(32px) saturate(160%);
-    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    background: var(--panel);
+    backdrop-filter: blur(52px) saturate(150%);
+    -webkit-backdrop-filter: blur(52px) saturate(150%);
     border: 0.5px solid var(--panel-border);
     border-radius: 14px;
     box-shadow:
@@ -19,7 +15,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     z-index: 50;
-    transition: transform 0.22s ease, opacity 0.22s ease;
+    transition: transform 0.22s ease, bottom 0.22s ease, opacity 0.22s ease;
   }
   body.fill-mode #sidebar,
   body.preview-open #sidebar {
@@ -70,9 +66,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(20, 19, 23, 0.88);
-    backdrop-filter: blur(32px) saturate(160%);
-    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    background: var(--panel);
+    backdrop-filter: blur(52px) saturate(150%);
+    -webkit-backdrop-filter: blur(52px) saturate(150%);
     border: 0.5px solid var(--panel-border);
     border-radius: 10px;
     color: var(--ink-soft);
