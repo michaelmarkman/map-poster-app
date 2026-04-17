@@ -21,6 +21,42 @@
     height: 100dvh; /* mobile-safe: excludes collapsing browser chrome */
     overflow: hidden;
   }
+  /* Floating poster-preview toggle — top-right of the workbench. Flat glass
+     chip; active state gets the accent tint to mirror other "on" toggles. */
+  .poster-preview-toggle {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border: 0.5px solid var(--panel-border);
+    border-radius: 10px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 0;
+    z-index: 60;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .poster-preview-toggle:hover {
+    color: var(--ink);
+    border-color: var(--panel-border-strong);
+  }
+  .poster-preview-toggle.on {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+    background: rgba(200, 184, 151, 0.08);
+  }
+  body.preview-open .poster-preview-toggle {
+    /* Keep the toggle above the preview backdrop so it stays tappable. */
+    z-index: 501;
+  }
+
   ::selection { background: var(--accent-soft); color: var(--ink); }
   ::-webkit-scrollbar { width: 0; height: 0; }
 
@@ -85,7 +121,14 @@
       0 60px 80px -25px rgba(0,0,0,0.55),
       0 25px 50px rgba(0,0,0,0.35),
       0 2px 10px rgba(0,0,0,0.4);
-    transition: all 0.4s ease;
+    /* Smooth ratio transitions. Animating width/height here makes the
+       letterbox feel like one fluid motion; CanvasSection dispatches
+       resize events across the same window so R3F's camera aspect keeps
+       up in real time and the scene stays centered. */
+    transition:
+      width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.3s ease;
     z-index: 1;
   }
   #canvas-container canvas { display: block; width: 100%; height: 100%; }

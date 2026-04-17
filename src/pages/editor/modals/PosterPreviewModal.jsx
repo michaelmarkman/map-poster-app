@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { modalsAtom } from '../atoms/modals'
+import { aspectRatioAtom, fillModeAtom } from '../atoms/ui'
+import { snapshotCanvas } from '../utils/export'
 
 // 3D Poster Preview modal. Ported from prototypes/poster-v3-ui.{html,jsx}.
 // Uses refs for rotation state and direct DOM writes so the pointermove path
@@ -10,6 +12,16 @@ import { modalsAtom } from '../atoms/modals'
 export default function PosterPreviewModal() {
   const [modals, setModals] = useAtom(modalsAtom)
   const open = modals.posterPreview
+
+  // Frame dimensions follow the user's current aspect ratio. `fillMode`
+  // falls back to 4:3 since "fill" has no natural aspect of its own.
+  const aspect = useAtomValue(aspectRatioAtom)
+  const fillMode = useAtomValue(fillModeAtom)
+  const effectiveAspect = fillMode ? 1.333 : aspect
+  // Keep the frame a comfortable size — the larger of 440px wide
+  // (landscape) or 480px tall (portrait) anchors it.
+  const frameW = effectiveAspect >= 1 ? 560 : Math.round(480 * effectiveAspect)
+  const frameH = effectiveAspect >= 1 ? Math.round(560 / effectiveAspect) : 480
 
   const [imageSrc, setImageSrc] = useState('')
   const [label, setLabel] = useState('')
@@ -37,22 +49,41 @@ export default function PosterPreviewModal() {
       `inset 0 0 0 1px rgba(255,255,255,0.04)`
   }
 
-  // Listen for the open-poster-preview custom event. Payload:
-  //   { imageSrc, label, galleryIdx? }
-  // galleryIdx is accepted for API parity but not used yet (live-update mode
-  // from the canvas is out of scope for this port).
+  // Listen for the open-poster-preview custom event. Payload is optional —
+  // when nothing is passed, we snapshot the live canvas on open. Explicit
+  // imageSrc still wins (that's how the Lightbox previews a gallery entry).
   useEffect(() => {
     const onOpen = (e) => {
       const detail = e?.detail || {}
-      setImageSrc(detail.imageSrc || '')
+      if (detail.imageSrc) setImageSrc(detail.imageSrc)
+      else setImageSrc(snapshotCanvas(2) || '')
       setLabel(detail.label || '')
-      // Reset rotation to the prototype's default tilt.
       rotRef.current = { x: -5, y: 15 }
       setModals((m) => ({ ...m, posterPreview: true }))
     }
     window.addEventListener('open-poster-preview', onOpen)
     return () => window.removeEventListener('open-poster-preview', onOpen)
   }, [setModals])
+
+  // When the atom flips to true without a preceding open-poster-preview
+  // event (e.g. the floating toggle button just set the atom), grab a
+  // fresh canvas snapshot so the frame has something to show. Reset the
+  // default tilt too.
+  useEffect(() => {
+    if (!open) return
+    if (!imageSrc) {
+      const snap = snapshotCanvas(2) || ''
+      if (snap) setImageSrc(snap)
+    }
+    rotRef.current = { x: -5, y: 15 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Clear the stored snapshot when the modal closes so the next open grabs
+  // a fresh view rather than showing a stale one.
+  useEffect(() => {
+    if (!open) setImageSrc('')
+  }, [open])
 
   const close = () => setModals((m) => ({ ...m, posterPreview: false }))
 
@@ -159,7 +190,12 @@ export default function PosterPreviewModal() {
       >
         ×
       </button>
-      <div className="pp-scene" id="pp-scene" ref={sceneRef}>
+      <div
+        className="pp-scene"
+        id="pp-scene"
+        ref={sceneRef}
+        style={{ width: frameW, height: frameH }}
+      >
         <div className="pp-frame" id="pp-frame" ref={frameRef}>
           <div className="pp-mat">
             {imageSrc && <img className="pp-image" id="pp-image" src={imageSrc} alt={label} />}
