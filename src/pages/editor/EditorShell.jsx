@@ -43,8 +43,13 @@ export default function EditorShell() {
   // Editor sidebar section's "Open Editor" button fires toggle-graphic-editor.
   useGraphicEditor()
 
+  // `.editor-root` is intentionally transparent with no position — just a
+  // flex pass-through so #main's `flex: 1` resolves. The previous
+  // position:fixed + solid background broke sidebar backdrop-filter
+  // because an opaque ancestor fill prevents the filter from reaching
+  // the canvas underneath.
   return (
-    <div className="editor-root" style={{ position: 'fixed', inset: 0, background: '#1c1b1f' }}>
+    <div className="editor-root">
       <Sidebar />
       <div id="main">
         <div id="canvas-container">

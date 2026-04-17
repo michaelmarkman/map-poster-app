@@ -1,5 +1,11 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
+  /* The React mount point and the editor wrapper pass through body's flex
+     layout so #sidebar (position:fixed) + #main (flex:1) behave exactly
+     as they do in the prototype HTML. No opaque backgrounds, no new
+     stacking contexts — those interfere with backdrop-filter. */
+  #root { display: flex; flex: 1; min-height: 0; min-width: 0; }
+  .editor-root { display: flex; flex: 1; min-height: 0; min-width: 0; }
   body {
     font-family: var(--body);
     background: var(--bg-0);
