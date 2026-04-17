@@ -1,7 +1,10 @@
 # Mobile Compatibility Plan — Poster v3 Editor
 
-Status: proposal, 2026-04-16
-Scope: `prototypes/poster-v3-ui.html` + `prototypes/poster-v3-ui.jsx`. Landing/auth and `community.jsx` are out of scope.
+Status: **Phase 1–4 shipped** (commits 8b1bba9, 478ff74, 74129f3, a12046c
+on main). Phase 5 (PWA manifest, iPad-as-desktop, `navigator.share`) open.
+Scope at authoring time: `prototypes/poster-v3-ui.html` + `prototypes/poster-v3-ui.jsx`.
+The work has since been carried forward into `src/pages/editor/` as part
+of the React migration — the responsive rules live in `src/pages/editor/styles/responsive.css`.
 
 ## 1. Audit — what breaks today
 

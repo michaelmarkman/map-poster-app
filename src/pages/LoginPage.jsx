@@ -55,7 +55,7 @@ export default function LoginPage() {
         </Link>
       </div>
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: 13, color: '#5a5750' }}>
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link to="/signup" style={{ color: '#c8b897', textDecoration: 'none' }}>Sign up</Link>
       </div>
     </AuthLayout>

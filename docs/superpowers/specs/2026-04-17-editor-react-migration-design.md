@@ -1,6 +1,8 @@
 # Editor React Migration — Design
 
-Status: proposal, 2026-04-17
+Status: **complete**, shipped 2026-04-17 (PR #1). All 7 phases landed; see
+the plan file for phase-by-phase checklist and `CLAUDE.md` for the
+gotchas-list distilled from the bugfix round that followed.
 Scope: migrate `prototypes/poster-v3-ui.html` + `prototypes/poster-v3-ui.jsx` into the React SPA at `src/`, done incrementally with a safe visual/functional parity gate at every phase.
 
 ## 1. Why
