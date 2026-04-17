@@ -568,12 +568,12 @@
     color: var(--ink);
     box-shadow: inset 0 0 0 0.5px var(--accent);
   }
+  /* ai-settings used to be gated on a `.open` class that the old
+     AI-enhance toggle added. The toggle is gone (opening Render Styles
+     implies AI); this block is always visible now. */
   .dropdown-panel #ai-settings {
-    display: none;
-    margin-top: 4px;
-  }
-  .dropdown-panel #ai-settings.open {
     display: block;
+    margin-top: 4px;
   }
   .dropdown-panel #export-queue {
     display: flex;
