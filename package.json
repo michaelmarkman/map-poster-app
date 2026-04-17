@@ -4,6 +4,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@react-three/postprocessing": "^3.0.4",
     "@supabase/supabase-js": "^2.103.0",
@@ -19,6 +20,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
+    "react-use": "^17.6.0",
+    "stats-gl": "^4.1.0",
     "three": "^0.183.2"
   },
   "scripts": {
