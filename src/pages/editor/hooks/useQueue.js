@@ -414,6 +414,26 @@ export default function useQueue() {
       )
     }
 
+    // Request the current camera state from Scene so we can persist it on a
+    // gallery entry. Returns null if Scene's get-camera listener doesn't
+    // reply within 300ms (e.g. Scene not mounted). Same pattern as
+    // useSavedViews.requestCameraState.
+    function captureCurrentView() {
+      return new Promise((resolve) => {
+        let done = false
+        const finish = (v) => { if (!done) { done = true; resolve(v) } }
+        const timer = setTimeout(() => finish(null), 300)
+        try {
+          window.dispatchEvent(new CustomEvent('get-camera', {
+            detail: { resolve: (cam) => { clearTimeout(timer); finish(cam || null) } },
+          }))
+        } catch {
+          clearTimeout(timer)
+          finish(null)
+        }
+      })
+    }
+
     // DOF-aware prompt suffix. The prototype reads state.dof.on to decide
     // whether to tack on the "preserve the DOF blur" note. We don't have that
     // atom threaded in yet (scene.dofAtom lives in atoms/scene but consuming
@@ -447,7 +467,11 @@ export default function useQueue() {
         location: getLocation(),
       })
       downloadDataUrl(dataUrl, fname)
-      dispatchGalleryAdd('Quick', fname, dataUrl, {})
+      // Capture the current camera view so the gallery entry can power
+      // 'Jump to view' later. Without this, quick-download entries have
+      // view=null and the lightbox greys the button out.
+      const view = await captureCurrentView()
+      dispatchGalleryAdd('Quick', fname, dataUrl, { view })
     }
 
     async function onAddToQueue() {
@@ -455,6 +479,8 @@ export default function useQueue() {
       if (!snapshot) return
       const s = settingsRef.current
       const location = getLocation()
+      // Capture once up front — the whole batch of jobs share this view.
+      const view = await captureCurrentView()
 
       if (s.aiEnhance && s.aiPreset) {
         const preset = AI_PRESETS[s.aiPreset]
@@ -467,6 +493,7 @@ export default function useQueue() {
           location,
           apiKey: s.aiKey,
           preset: s.aiPreset,
+          view,
         })
       } else {
         const useAI = !!s.aiEnhance
@@ -480,6 +507,7 @@ export default function useQueue() {
           resolution: s.resolution,
           location,
           apiKey: s.aiKey,
+          view,
         })
       }
 

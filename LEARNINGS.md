@@ -150,6 +150,25 @@ file is the raw log — CLAUDE.md is the curated summary.
   `event-contracts.test.js` — wrapper/bare-object shape drift across
   hooks was a whole class of bug this session.
 
+## 2026-04-17 — Lightbox nav felt reversed because DB order ≠ grid order
+
+- Gallery stored entries oldest-first (IndexedDB insertion order). The
+  grid displayed them newest-first (buildGalleryEntries reversed).
+  Lightbox used raw DB index, so left-arrow went to the OLDER item —
+  visually to the right/below in the grid. Counter-intuitive.
+- Fix: GalleryModal now reverses the entries list when dispatching
+  `open-lightbox`, and translates startIndex to the reversed position.
+  Prev/next now walk the grid left-to-right, top-to-bottom as expected.
+
+## 2026-04-17 — z-index between modals needs a stacking plan
+
+- Opening poster-preview from inside the lightbox-in-gallery made the
+  preview appear behind both — looked like the button did nothing.
+- Modals live at `.modal` (200), `#lightbox` (300), `#poster-preview`
+  was at (150). Anything opened from 200+ needs to be higher. Bumped
+  poster-preview to 400. Whole stacking plan is now: modal 200,
+  lightbox 300, poster-preview 400, help/share 400+.
+
 ## 2026-04-17 — `npm run smoke` catches what unit tests can't
 
 - Minifier bugs, concurrent-render drops, event-contract mismatches all
