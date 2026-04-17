@@ -83,14 +83,18 @@ export default function useSessionPersistence() {
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
 
-  // Latest-value refs so the save function (defined outside the atom-value
-  // deps) reads fresh data without us having to re-create it on every change.
+  // Latest-value ref — updated inside an effect (NOT during render) so
+  // React's concurrent features can't drop the write if a render bails.
+  // Without this, the minified prod build was serializing stale default
+  // values on save while the UI correctly reflected the new atom state.
   const latest = useRef({})
-  latest.current = {
-    timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-    clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-    textFields, cameraReadout,
-  }
+  useEffect(() => {
+    latest.current = {
+      timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
+      clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
+      textFields, cameraReadout,
+    }
+  })
 
   // Restore — runs once on mount. Guarded by a ref so StrictMode's double
   // invocation doesn't overwrite freshly-set atoms with stale storage twice.
@@ -209,9 +213,7 @@ export default function useSessionPersistence() {
   const writeNow = () => {
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(buildPayload()))
-    } catch (e) {
-      // Quota exceeded or serialization error — swallow so editor stays usable.
-    }
+    } catch (e) {}
   }
 
   // Debounced save — fires on any atom change this hook subscribes to.
@@ -225,12 +227,35 @@ export default function useSessionPersistence() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
+  // NOTE: `cameraReadout` is deliberately NOT in this deps list. Scene
+  // pushes it ~5x/second via useFrame, which would reset the debounce
+  // every 200ms and prevent the save from ever firing. Camera-derived
+  // state still gets into the payload via latest.current, and the
+  // camera-set + fov-change events below trigger their own saves when
+  // the user actually moves the camera.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-    textFields, cameraReadout,
+    textFields,
   ])
+
+  // Save on camera movement too — debounced so a drag-to-orbit gesture
+  // only writes once when the user lets go.
+  useEffect(() => {
+    const scheduleSave = () => {
+      if (!restored.current) return
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(writeNow, DEBOUNCE_MS)
+    }
+    window.addEventListener('camera-set', scheduleSave)
+    window.addEventListener('fov-change', scheduleSave)
+    return () => {
+      window.removeEventListener('camera-set', scheduleSave)
+      window.removeEventListener('fov-change', scheduleSave)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Immediate save on explicit request (Export, user-triggered saves, etc).
   useEffect(() => {
