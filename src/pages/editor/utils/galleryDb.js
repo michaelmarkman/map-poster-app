@@ -54,6 +54,43 @@ export async function deleteGalleryEntry(id) {
   } catch (e) {}
 }
 
+// Persist a single gallery entry. Port of `saveToGalleryDB` (prototype 2022).
+// Time is stored as ISO string; caller passes a Date.
+export async function saveGalleryEntry(item) {
+  try {
+    const db = await openGalleryDB()
+    const tx = db.transaction(GALLERY_STORE, 'readwrite')
+    tx.objectStore(GALLERY_STORE).put({
+      id: item.id,
+      label: item.label,
+      filename: item.filename,
+      dataUrl: item.dataUrl,
+      time: item.time instanceof Date ? item.time.toISOString() : item.time,
+      batchId: item.batchId || null,
+      batchLabel: item.batchLabel || null,
+      view: item.view || null,
+    })
+  } catch (e) {
+    console.warn('[gallery] IndexedDB save failed:', e)
+  }
+}
+
+// Build a gallery entry from the raw (label, filename, dataUrl, opts) signature
+// used by the prototype's `addToGallery` (2157). Keeps id/time generation in
+// one place so the hook and any future direct callers stay in sync.
+export function buildGalleryItem(label, filename, dataUrl, opts = {}) {
+  return {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    label,
+    filename,
+    dataUrl,
+    time: new Date(),
+    batchId: opts.batchId || null,
+    batchLabel: opts.batchLabel || null,
+    view: opts.view || null,
+  }
+}
+
 // Group gallery into display entries: standalone items or batches.
 // Returns { type: 'item', item, idx } or { type: 'batch', batchId, label, items: [{item, idx}], time }
 export function buildGalleryEntries(gallery) {

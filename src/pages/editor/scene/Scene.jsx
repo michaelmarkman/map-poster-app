@@ -176,6 +176,58 @@ export default function Scene() {
     return () => window.removeEventListener('fov-change', handler)
   }, [camera])
 
+  // Saved-view producer: hook dispatches 'get-camera' with a resolve callback
+  // in detail; we fill it with the current camera state.
+  useEffect(() => {
+    const handler = (e) => {
+      const resolve = e.detail?.resolve
+      if (typeof resolve !== 'function') return
+      const geo = (() => {
+        try { return new Geodetic().setFromECEF(camera.position) } catch { return null }
+      })()
+      const fovMm = Math.max(14, Math.min(200, Math.round(12 / Math.tan(camera.fov * Math.PI / 360))))
+      resolve({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        quaternion: [camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w],
+        up: [camera.up.x, camera.up.y, camera.up.z],
+        latitude: geo ? geo.latitude * 180 / Math.PI : null,
+        longitude: geo ? geo.longitude * 180 / Math.PI : null,
+        altitude: geo ? Math.max(0, geo.height) : null,
+        fovMm,
+      })
+    }
+    window.addEventListener('get-camera', handler)
+    return () => window.removeEventListener('get-camera', handler)
+  }, [camera])
+
+  // Saved-view consumer: restore-view applies a saved payload directly to the
+  // camera. Accepts either raw {position, quaternion, up} OR a geodetic
+  // triple {latitude, longitude, altitude} + quaternion.
+  useEffect(() => {
+    const handler = (e) => {
+      const v = e.detail
+      if (!v) return
+      if (Array.isArray(v.position) && v.position.length === 3) {
+        camera.position.set(v.position[0], v.position[1], v.position[2])
+      } else if (v.latitude != null && v.longitude != null && v.altitude != null) {
+        const p = new Geodetic(radians(v.longitude), radians(v.latitude), v.altitude).toECEF()
+        camera.position.copy(p)
+      }
+      if (Array.isArray(v.quaternion) && v.quaternion.length === 4) {
+        camera.quaternion.set(v.quaternion[0], v.quaternion[1], v.quaternion[2], v.quaternion[3])
+      }
+      if (Array.isArray(v.up) && v.up.length === 3) {
+        camera.up.set(v.up[0], v.up[1], v.up[2])
+      }
+      if (v.fovMm != null) {
+        camera.fov = 2 * Math.atan(36 / (2 * v.fovMm)) * 180 / Math.PI
+        camera.updateProjectionMatrix()
+      }
+    }
+    window.addEventListener('restore-view', handler)
+    return () => window.removeEventListener('restore-view', handler)
+  }, [camera])
+
   // Re-render when effects are toggled (backward compat — atoms drive the
   // sceneRef sync already, this just lets conditional mounts re-evaluate).
   useEffect(() => {

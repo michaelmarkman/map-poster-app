@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import SidebarSection from './SidebarSection'
 import {
   aiEnhanceAtom,
@@ -10,6 +10,7 @@ import {
   savedViewsAtom,
   queueAtom,
 } from '../atoms/sidebar'
+import { galleryCountAtom } from '../atoms/gallery'
 
 // Export sidebar section — ported from prototypes/poster-v3-ui.html lines
 // 2473-2598. Contains: quick-download, render-styles dropdown (AI settings +
@@ -101,6 +102,7 @@ export default function ExportSection() {
   const [exportRes, setExportRes] = useAtom(exportResolutionAtom)
   const [savedViews] = useAtom(savedViewsAtom)
   const [queue] = useAtom(queueAtom)
+  const galleryCount = useAtomValue(galleryCountAtom)
 
   // Dropdown open-state — each nav-row with `.dropdown-chev` toggles the
   // panel below. Tracked locally (matches the prototype's DOM-classlist
@@ -374,8 +376,7 @@ export default function ExportSection() {
       >
         <span>Gallery</span>
         <span className="right">
-          {/* TODO(Phase 5): wire galleryCountAtom when it exists. */}
-          <span id="gallery-nav-count">0</span>
+          <span id="gallery-nav-count">{galleryCount}</span>
           <span className="chev">&rsaquo;</span>
         </span>
       </button>
