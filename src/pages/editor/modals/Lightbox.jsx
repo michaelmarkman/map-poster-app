@@ -327,7 +327,7 @@ export default function Lightbox() {
       <img
         id="lb-img"
         ref={imgRef}
-        src={entry?.dataUrl || ''}
+        src={entry?.dataUrl || undefined}
         alt={label}
         style={{
           transform: dragDx ? `translateX(${dragDx}px)` : undefined,

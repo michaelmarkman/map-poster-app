@@ -162,7 +162,7 @@ export default function PosterPreviewModal() {
       <div className="pp-scene" id="pp-scene" ref={sceneRef}>
         <div className="pp-frame" id="pp-frame" ref={frameRef}>
           <div className="pp-mat">
-            <img className="pp-image" id="pp-image" src={imageSrc} alt={label} />
+            {imageSrc && <img className="pp-image" id="pp-image" src={imageSrc} alt={label} />}
           </div>
           <div className="pp-label" id="pp-label">{label}</div>
         </div>

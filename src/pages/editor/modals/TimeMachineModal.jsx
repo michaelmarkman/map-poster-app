@@ -158,12 +158,14 @@ export default function TimeMachineModal() {
         {currentLocation}
       </div>
       <div id="tm-image-wrap">
-        <img
-          id="tm-image"
-          src={displayImage || ''}
-          style={{ display: displayImage ? 'block' : 'none' }}
-          alt=""
-        />
+        {displayImage && (
+          <img
+            id="tm-image"
+            src={displayImage}
+            style={{ display: 'block' }}
+            alt=""
+          />
+        )}
         <div
           id="tm-empty"
           style={{ display: displayImage ? 'none' : 'block' }}
