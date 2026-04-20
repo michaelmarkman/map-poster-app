@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { useAtomValue, useAtom, useSetAtom } from 'jotai'
-import { Agentation } from 'agentation'
 import '../editor/styles/index.css'
 import './styles/mock.css'
 import EditorCanvas from '../editor/scene/EditorCanvas'
@@ -224,10 +223,6 @@ export default function MockEditorShell() {
       <PosterPreviewModal />
       <AIRenderModal />
 
-      {/* Agentation — visual-feedback toolbar (bottom-right by default).
-       * Click its icon, then click any element on the page to annotate it;
-       * I can poll those annotations via the MCP to act on them. */}
-      <Agentation />
     </div>
   )
 }
