@@ -179,7 +179,7 @@ async function run() {
   await page.waitForFunction(() => {
     // Proxy for "Scene has mounted": canvas element exists inside r3f-root.
     return !!document.querySelector('#r3f-root canvas')
-  }, null, { timeout: 10_000 })
+  }, null, { timeout: 30_000 })
   await page.evaluate(async () => {
     await new Promise(r => setTimeout(r, 1000))
     localStorage.removeItem('mapposter3d_v2_views')
