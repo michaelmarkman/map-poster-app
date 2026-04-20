@@ -21,23 +21,15 @@ let _skipHistory = false
 
 // ─── Snap guides ────────────────────────────────────────────
 let snapLines = []
-const SNAP_IN = 6   // distance at which a fresh snap engages
-const SNAP_OUT = 18 // distance at which an existing snap releases — hysteresis
-                    // gap stops the "snap → unsnap → snap" jitter loop where the
-                    // cursor lives just inside the original threshold.
-// Tracks which axes the active drag is currently snapped to so we can apply
-// hysteresis. Reset on mouse:up.
-const snapState = { x: null, y: null }
+const SNAP_ENTER = 8    // pull toward the guide when this close
+const SNAP_EXIT = 20    // must drag this far off the guide to break free.
+                         // hysteresis — without it, tiny mouse jitter
+                         // while the object is snapped flips the snap
+                         // on/off every frame and the object shakes.
 
 function clearSnapLines() {
   snapLines.forEach(l => fabricCanvas.remove(l))
   snapLines = []
-}
-
-function resetSnap() {
-  clearSnapLines()
-  snapState.x = null
-  snapState.y = null
   if (fabricCanvas) fabricCanvas.renderAll()
 }
 
@@ -55,18 +47,15 @@ function addSnapLine(x1, y1, x2, y2) {
   snapLines.push(line)
 }
 
-// Pick the snap target for one axis with hysteresis. `current` is the
-// active snap key from snapState; `candidates` is [{ key, delta }] sorted
-// by absolute delta. Returns the chosen key or null. Uses SNAP_IN to engage
-// a new snap and SNAP_OUT to release an existing one.
-function pickSnap(current, candidates) {
-  if (current) {
-    const stillNear = candidates.find((c) => c.key === current)
-    if (stillNear && Math.abs(stillNear.delta) < SNAP_OUT) return current
-  }
-  const fresh = candidates[0]
-  if (fresh && Math.abs(fresh.delta) < SNAP_IN) return fresh.key
-  return null
+// Per-axis sticky snap. If the object was snapped on the previous frame,
+// use the wider SNAP_EXIT threshold so small jitter keeps it stuck
+// instead of letting it oscillate between snapped and free.
+function sticky(target, axisKey, dist, enter = SNAP_ENTER, exit = SNAP_EXIT) {
+  const wasSnapped = target[axisKey] === true
+  const threshold = wasSnapped ? exit : enter
+  const snapped = Math.abs(dist) < threshold
+  target[axisKey] = snapped
+  return snapped
 }
 
 function snapObject(target) {
@@ -80,37 +69,42 @@ function snapObject(target) {
   const objLeft = bound.left, objTop = bound.top
   const objRight = bound.left + bound.width, objBottom = bound.top + bound.height
 
-  const xCandidates = [
-    { key: 'cx',    delta: cx - objCx },
-    { key: 'left',  delta: 0 - objLeft },
-    { key: 'right', delta: cw - objRight },
-  ].sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta))
-
-  const yCandidates = [
-    { key: 'cy',     delta: cy - objCy },
-    { key: 'top',    delta: 0 - objTop },
-    { key: 'bottom', delta: ch - objBottom },
-  ].sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta))
-
-  const xSnap = pickSnap(snapState.x, xCandidates)
-  const ySnap = pickSnap(snapState.y, yCandidates)
-  snapState.x = xSnap
-  snapState.y = ySnap
-
-  if (xSnap) {
-    const c = xCandidates.find((c) => c.key === xSnap)
-    target.set('left', target.left + c.delta)
-    if (xSnap === 'cx') addSnapLine(cx, 0, cx, ch)
-    else if (xSnap === 'left') addSnapLine(0, 0, 0, ch)
-    else if (xSnap === 'right') addSnapLine(cw, 0, cw, ch)
+  // X axis — only one horizontal snap wins per frame (center vs edges).
+  if (sticky(target, '_snapCx', objCx - cx)) {
+    target.set('left', target.left + (cx - objCx))
+    addSnapLine(cx, 0, cx, ch)
+  } else if (sticky(target, '_snapLeft', objLeft)) {
+    target.set('left', target.left - objLeft)
+    addSnapLine(0, 0, 0, ch)
+  } else if (sticky(target, '_snapRight', objRight - cw)) {
+    target.set('left', target.left + (cw - objRight))
+    addSnapLine(cw, 0, cw, ch)
   }
-  if (ySnap) {
-    const c = yCandidates.find((c) => c.key === ySnap)
-    target.set('top', target.top + c.delta)
-    if (ySnap === 'cy') addSnapLine(0, cy, cw, cy)
-    else if (ySnap === 'top') addSnapLine(0, 0, cw, 0)
-    else if (ySnap === 'bottom') addSnapLine(0, ch, cw, ch)
+
+  // Y axis — independent of X, same hysteresis.
+  if (sticky(target, '_snapCy', objCy - cy)) {
+    target.set('top', target.top + (cy - objCy))
+    addSnapLine(0, cy, cw, cy)
+  } else if (sticky(target, '_snapTop', objTop)) {
+    target.set('top', target.top - objTop)
+    addSnapLine(0, 0, cw, 0)
+  } else if (sticky(target, '_snapBottom', objBottom - ch)) {
+    target.set('top', target.top + (ch - objBottom))
+    addSnapLine(0, ch, cw, ch)
   }
+
+  // Keep Fabric's internal coords in sync with the new left/top so the
+  // next pointer delta applies from the snapped position, not the pre-
+  // snap one — otherwise the object "catches up" in a jump on unsnap.
+  target.setCoords?.()
+}
+
+// Reset snap state on mouse-up so the next drag starts fresh.
+function clearSnapState(target) {
+  if (!target) return
+  target._snapCx = target._snapCy = false
+  target._snapLeft = target._snapRight = false
+  target._snapTop = target._snapBottom = false
 }
 
 // ─── Alignment helpers ──────────────────────────────────────
@@ -204,12 +198,14 @@ export function initEditor() {
   fabricCanvas.on('selection:updated', (e) => { selectedObject = e.selected?.[0] || null; updatePropertiesPanel() })
   fabricCanvas.on('selection:cleared', () => { selectedObject = null; updatePropertiesPanel() })
   fabricCanvas.on('object:moving', (e) => snapObject(e.target))
-  fabricCanvas.on('object:moved', () => resetSnap())
+  fabricCanvas.on('object:moved', (e) => {
+    clearSnapLines()
+    clearSnapState(e.target)
+  })
   // mouse:up always fires when the pointer is released, even when no move
   // happened or the release lands outside any object — guarantees the
   // dashed guides clear instead of getting stranded on the canvas.
-  fabricCanvas.on('mouse:up', () => resetSnap())
-  fabricCanvas.on('selection:cleared', () => resetSnap())
+  fabricCanvas.on('mouse:up', () => clearSnapLines())
 
   // ResizeObserver to keep canvas in sync
   const ro = new ResizeObserver(() => resizeCanvas())
@@ -255,24 +251,35 @@ export function setEditorActive(active) {
   const propsPanel = document.getElementById('editor-props')
 
   // Drop the active selection on deactivate — otherwise the selection
-  // handles + bounding box stay painted on the canvas after exit.
+  // state lingers and the next activation can re-show stale handles.
   if (!active && fabricCanvas) {
     try {
       fabricCanvas.discardActiveObject()
-      resetSnap()
+      clearSnapLines()
       fabricCanvas.renderAll()
     } catch {}
   }
 
-  // Fabric creates a wrapper div and upper-canvas — control pointer events on wrapper
+  // Fabric creates a wrapper div and upper-canvas. We toggle pointer-
+  // events so the rest of the app is interactive again when off, AND
+  // `visibility` on the upper-canvas so the selection handles (corner
+  // boxes, rotate arm) disappear. Without the visibility toggle the
+  // previously-selected object's handles keep drawing on top of the
+  // scene even after the editor is dismissed.
   const wrapper = canvasEl?.parentElement?.querySelector('.canvas-container')
-  if (wrapper) {
-    wrapper.style.pointerEvents = active ? 'auto' : 'none'
-  }
-  // Also the upper canvas Fabric generates
+  if (wrapper) wrapper.style.pointerEvents = active ? 'auto' : 'none'
   const upperCanvas = canvasEl?.parentElement?.querySelector('.upper-canvas')
   if (upperCanvas) {
     upperCanvas.style.pointerEvents = active ? 'auto' : 'none'
+    upperCanvas.style.visibility = active ? 'visible' : 'hidden'
+  }
+
+  // When switching off, drop the active selection so Fabric stops
+  // drawing its handles + clear any leftover snap guides.
+  if (!active && fabricCanvas) {
+    fabricCanvas.discardActiveObject()
+    clearSnapLines()
+    fabricCanvas.renderAll()
   }
 
   if (toolbar) toolbar.classList.toggle('active', active)
@@ -906,21 +913,41 @@ function wirePropertiesPanel() {
 }
 
 // ─── Templates ──────────────────────────────────────────────
+// Templates use proportional positioning (fractions of cw/ch) so they
+// land sensibly on every aspect ratio. `originX: 'center'` means the
+// `left` value is the OBJECT'S CENTER, so cw/2 puts the object dead
+// center. Font sizes scale with the smaller canvas dimension so text
+// stays legible on narrow (portrait phone) canvases without overflowing.
 const BUILT_IN_TEMPLATES = [
   {
     name: 'City Name Poster',
     description: 'Big city name, coordinates, frame border',
     create: (cw, ch) => {
       addFrame('simple')
-      addText('NEW YORK', { left: cw / 2 - 140, top: 30, fontSize: 52, fontFamily: "'Cormorant Garamond', Georgia, serif", charSpacing: 400, fill: '#e8e4dc', textAlign: 'center', width: 280 })
-      addText('40.7128\u00b0 N, 74.0060\u00b0 W', { left: cw / 2 - 100, top: ch - 60, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", fill: '#908c84', textAlign: 'center', width: 200, charSpacing: 100 })
+      const s = Math.min(cw, ch)
+      addText('NEW YORK', {
+        left: cw / 2, top: ch * 0.06, originX: 'center', originY: 'top',
+        fontSize: s * 0.085, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        charSpacing: 400, fill: '#e8e4dc', textAlign: 'center', width: cw * 0.82,
+      })
+      addText('40.7128\u00b0 N, 74.0060\u00b0 W', {
+        left: cw / 2, top: ch - ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.022, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#908c84', textAlign: 'center', width: cw * 0.6, charSpacing: 100,
+      })
     }
   },
   {
     name: 'Minimal',
     description: 'Just the map, small location text bottom-right',
     create: (cw, ch) => {
-      addText('Location', { left: cw - 120, top: ch - 40, fontSize: 14, fontFamily: "'Outfit', system-ui, sans-serif", fill: '#908c84', textAlign: 'right', width: 100 })
+      const s = Math.min(cw, ch)
+      addText('Location', {
+        left: cw - cw * 0.04, top: ch - ch * 0.06,
+        originX: 'right', originY: 'top',
+        fontSize: s * 0.025, fontFamily: "'Outfit', system-ui, sans-serif",
+        fill: '#908c84', textAlign: 'right', width: cw * 0.3,
+      })
     }
   },
   {
@@ -928,29 +955,78 @@ const BUILT_IN_TEMPLATES = [
     description: 'Decorative border, retro greeting text',
     create: (cw, ch) => {
       addFrame('ornate')
-      addText('Greetings from', { left: cw / 2 - 110, top: 40, fontSize: 22, fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fill: '#e8e4dc', textAlign: 'center', width: 220 })
-      addText('THE CITY', { left: cw / 2 - 130, top: 70, fontSize: 48, fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 'bold', fill: '#c4956a', textAlign: 'center', width: 260, charSpacing: 300 })
-      addText('EST. 2024', { left: cw / 2 - 60, top: ch - 50, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fill: '#5a5750', textAlign: 'center', width: 120, charSpacing: 200 })
+      const s = Math.min(cw, ch)
+      addText('Greetings from', {
+        left: cw / 2, top: ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.038, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontStyle: 'italic', fill: '#e8e4dc', textAlign: 'center', width: cw * 0.7,
+      })
+      addText('THE CITY', {
+        left: cw / 2, top: ch * 0.14, originX: 'center', originY: 'top',
+        fontSize: s * 0.08, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontWeight: 'bold', fill: '#c4956a', textAlign: 'center',
+        width: cw * 0.82, charSpacing: 300,
+      })
+      addText('EST. 2024', {
+        left: cw / 2, top: ch - ch * 0.08, originX: 'center', originY: 'top',
+        fontSize: s * 0.02, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#5a5750', textAlign: 'center', width: cw * 0.4, charSpacing: 200,
+      })
     }
   },
   {
     name: 'Travel Journal',
     description: 'Date, location, body text area',
     create: (cw, ch) => {
-      addText('April 2024', { left: 30, top: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", fill: '#908c84', textAlign: 'left', width: 120, charSpacing: 100 })
-      addText('City Name', { left: 30, top: 40, fontSize: 36, fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'left', width: 260 })
-      addShape('line', { left: 30, top: ch - 80, stroke: '#c4956a', strokeWidth: 1 })
-      addText('Write your memories here...', { left: 30, top: ch - 70, fontSize: 13, fontFamily: "'Outfit', system-ui, sans-serif", fill: '#908c84', textAlign: 'left', width: cw - 60 })
+      const pad = Math.min(cw, ch) * 0.05
+      const s = Math.min(cw, ch)
+      addText('April 2024', {
+        left: pad, top: pad, originX: 'left', originY: 'top',
+        fontSize: s * 0.02, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#908c84', textAlign: 'left', width: cw * 0.45, charSpacing: 100,
+      })
+      addText('City Name', {
+        left: pad, top: pad * 1.8, originX: 'left', originY: 'top',
+        fontSize: s * 0.06, fontFamily: "'Cormorant Garamond', Georgia, serif",
+        fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'left', width: cw - pad * 2,
+      })
+      addShape('line', {
+        left: pad, top: ch - ch * 0.14, stroke: '#c4956a', strokeWidth: 1,
+      })
+      addText('Write your memories here...', {
+        left: pad, top: ch - ch * 0.12, originX: 'left', originY: 'top',
+        fontSize: s * 0.022, fontFamily: "'Outfit', system-ui, sans-serif",
+        fill: '#908c84', textAlign: 'left', width: cw - pad * 2,
+      })
     }
   },
   {
     name: 'Modern Poster',
     description: 'Large bold text, geometric accent shapes',
     create: (cw, ch) => {
-      addText('EXPLORE', { left: cw / 2 - 150, top: 20, fontSize: 64, fontFamily: "'Outfit', system-ui, sans-serif", fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'center', width: 300, charSpacing: 200 })
-      addShape('circle', { left: cw - 70, top: 20, radius: 20, fill: 'rgba(196,149,106,0.5)', stroke: 'transparent', strokeWidth: 0 })
-      addShape('rect', { left: 20, top: ch - 60, width: 40, height: 4, fill: '#c4956a', stroke: 'transparent', strokeWidth: 0 })
-      addText('DISCOVER YOUR WORLD', { left: 20, top: ch - 48, fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fill: '#5a5750', textAlign: 'left', width: 200, charSpacing: 200 })
+      const pad = Math.min(cw, ch) * 0.04
+      const s = Math.min(cw, ch)
+      addText('EXPLORE', {
+        left: cw / 2, top: pad, originX: 'center', originY: 'top',
+        fontSize: s * 0.11, fontFamily: "'Outfit', system-ui, sans-serif",
+        fontWeight: 'bold', fill: '#e8e4dc', textAlign: 'center',
+        width: cw * 0.9, charSpacing: 200,
+      })
+      addShape('circle', {
+        left: cw - pad - s * 0.06, top: pad,
+        radius: s * 0.035, fill: 'rgba(196,149,106,0.5)',
+        stroke: 'transparent', strokeWidth: 0,
+      })
+      addShape('rect', {
+        left: pad, top: ch - ch * 0.1,
+        width: s * 0.07, height: 4, fill: '#c4956a',
+        stroke: 'transparent', strokeWidth: 0,
+      })
+      addText('DISCOVER YOUR WORLD', {
+        left: pad, top: ch - ch * 0.08, originX: 'left', originY: 'top',
+        fontSize: s * 0.018, fontFamily: "'JetBrains Mono', monospace",
+        fill: '#5a5750', textAlign: 'left', width: cw * 0.6, charSpacing: 200,
+      })
     }
   },
 ]

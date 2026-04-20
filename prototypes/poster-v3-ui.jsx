@@ -1647,9 +1647,32 @@ function restoreSession(camera) {
     if (!raw) return false
     const data = JSON.parse(raw)
     if (data.camera) {
-      camera.position.set(data.camera.px, data.camera.py, data.camera.pz)
-      camera.quaternion.set(data.camera.qx, data.camera.qy, data.camera.qz, data.camera.qw)
-      if (data.camera.fov) { camera.fov = data.camera.fov; camera.updateProjectionMatrix() }
+      const c = data.camera
+      const finite3 = (a) => Array.isArray(a) && a.length === 3 && a.every((n) => Number.isFinite(n))
+      const finite4 = (a) => Array.isArray(a) && a.length === 4 && a.every((n) => Number.isFinite(n))
+      // Modern (React editor) shape: position/quaternion/up as arrays,
+      // fovMm in 35mm-equivalent. Fall back to legacy flat px/py/pz/fov
+      // for sessions written by this prototype itself. Without this
+      // branch the prototype reads `data.camera.px` → undefined →
+      // camera.position.set(undefined, undefined, undefined) → NaN →
+      // black canvas.
+      if (finite3(c.position) && finite4(c.quaternion)) {
+        camera.position.set(c.position[0], c.position[1], c.position[2])
+        camera.quaternion.set(c.quaternion[0], c.quaternion[1], c.quaternion[2], c.quaternion[3])
+        if (finite3(c.up)) camera.up.set(c.up[0], c.up[1], c.up[2])
+        if (Number.isFinite(c.fovMm)) {
+          // Vertical-FOV formula: 2*atan(12/mm). Matches React editor.
+          camera.fov = 2 * Math.atan(12 / c.fovMm) * 180 / Math.PI
+          camera.updateProjectionMatrix()
+        } else if (Number.isFinite(c.fov)) {
+          camera.fov = c.fov; camera.updateProjectionMatrix()
+        }
+      } else if ([c.px, c.py, c.pz, c.qx, c.qy, c.qz, c.qw].every((n) => Number.isFinite(n))) {
+        camera.position.set(c.px, c.py, c.pz)
+        camera.quaternion.set(c.qx, c.qy, c.qz, c.qw)
+        if (Number.isFinite(c.fov)) { camera.fov = c.fov; camera.updateProjectionMatrix() }
+      }
+      // If neither shape validates, leave the camera at its mount default.
     }
     if (data.state) {
       // Heal black-canvas bug: if saved tod is outside safe daylight [8,18] (e.g. 0.85 from a pitch-night save), clamp to noon in-memory only — don't mutate stored session
