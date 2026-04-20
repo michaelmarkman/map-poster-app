@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
@@ -22,11 +22,13 @@ export default function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-          {/* Full-screen editor — no navbar; owns the whole viewport. */}
-          <Route path="/app" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
-
-          {/* Mock editor — floating-pills variant of /app for design A/B. */}
-          <Route path="/mock" element={<ProtectedRoute><MockEditorPage /></ProtectedRoute>} />
+          {/* Full-screen editor — no navbar; owns the whole viewport.
+           * /app  → the floating-pills editor (current default)
+           * /app-classic → the legacy sidebar editor, preserved
+           * /mock → historical alias, redirects to /app */}
+          <Route path="/app" element={<ProtectedRoute><MockEditorPage /></ProtectedRoute>} />
+          <Route path="/app-classic" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+          <Route path="/mock" element={<Navigate to="/app" replace />} />
 
           {/* Pages with navbar */}
           <Route element={<AppLayout />}>

@@ -6,10 +6,12 @@
 //   - Missing/wrong asset paths after rollup bundling
 //   - Event-channel wiring between hooks and Scene
 //
-// Run after `npm run build`. Launches a headless Chromium, loads /app from
-// a local static server, and drives a full canary sequence: change TOD,
-// toggle clouds, set an aspect ratio, reload, verify everything restored,
-// save a view, confirm view list updates. Exits 1 on the first failure.
+// Run after `npm run build`. Launches a headless Chromium, loads the editor
+// from a local static server, and drives two canaries:
+//   - /app (pill editor, the new default) — render + no console errors
+//   - /app-classic (legacy sidebar editor) — change TOD, toggle clouds,
+//     set aspect, reload, verify restored, save a view, confirm list update
+// Exits 1 on the first failure.
 //
 // Usage: node scripts/smoke.js [--headed]
 
@@ -67,6 +69,18 @@ async function run() {
   // Surface console errors so a silent crash doesn't look like success.
   const consoleErrors = []
   page.on('pageerror', (err) => consoleErrors.push(String(err)))
+  // Track failed requests so any 404s show their URL in the diagnostic.
+  page.on('requestfailed', (req) => {
+    const url = req.url()
+    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic/i.test(url)) return
+    consoleErrors.push(`requestfailed: ${url} ${req.failure()?.errorText || ''}`)
+  })
+  page.on('response', (resp) => {
+    if (resp.status() < 400) return
+    const url = resp.url()
+    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic/i.test(url)) return
+    consoleErrors.push(`HTTP ${resp.status()}: ${url}`)
+  })
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
       const text = msg.text()
@@ -83,11 +97,8 @@ async function run() {
     }
   })
 
-  // --- Phase 1: cold load + save ---
-  console.log('cold load')
-  // Navigate direct to /app so React Router matches on first paint (the
-  // http.server serves /src/index.html at any path via the 404 fallback
-  // below — but /app works because it resolves to a dir; we symlink it).
+  // --- Phase 0: pill editor at /app ---
+  console.log('pill editor (/app)')
   await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
   await page.evaluate(() => { localStorage.clear() })
   await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
@@ -95,9 +106,29 @@ async function run() {
     history.pushState({}, '', '/app')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
+  // Wait for any pill cluster to render — confirms MockEditorShell mounted
+  // and at least one of the corner clusters painted.
+  await page.waitForFunction(
+    () => !!document.querySelector('.mock-cluster .mock-pill'),
+    null,
+    { timeout: 10_000 },
+  )
+  const pillCount = await page.evaluate(() => document.querySelectorAll('.mock-cluster .mock-pill').length)
+  check('pill editor renders at /app', pillCount >= 5, `only ${pillCount} pills found`)
+  check('frame overlay present', await page.evaluate(() => !!document.querySelector('.mock-frame-overlay')))
+
+  // --- Phase 1: cold load + save (sidebar editor at /app-classic) ---
+  console.log('sidebar editor (/app-classic) — cold load')
+  await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
+  await page.evaluate(() => { localStorage.clear() })
+  await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
+  await page.evaluate(() => {
+    history.pushState({}, '', '/app-classic')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
   // Sidebar takes a beat for React Router + lazy bits; give it room.
   await page.waitForFunction(() => !!document.getElementById('tod-slider'), null, { timeout: 10_000 })
-  check('sidebar renders at /app', true)
+  check('sidebar renders at /app-classic', true)
 
   await page.evaluate(async () => {
     await new Promise(r => setTimeout(r, 2500)) // let scene mount + initial save settle
@@ -121,7 +152,7 @@ async function run() {
   console.log('reload')
   await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
   await page.evaluate(() => {
-    history.pushState({}, '', '/app')
+    history.pushState({}, '', '/app-classic')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
   await page.waitForSelector('#tod-slider', { timeout: 5000 })

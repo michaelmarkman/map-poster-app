@@ -38,7 +38,7 @@ const spaFallback = {
   name: 'spa-fallback',
   configureServer(server) {
     const SPA_ROUTES = new Set([
-      '/', '/app', '/mock', '/gallery', '/community', '/profile',
+      '/', '/app', '/app-classic', '/mock', '/gallery', '/community', '/profile',
       '/login', '/signup', '/forgot-password',
     ])
     server.middlewares.use(async (req, res, next) => {

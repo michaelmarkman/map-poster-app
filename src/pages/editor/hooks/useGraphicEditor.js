@@ -19,7 +19,7 @@ let inited = false
 
 function loadModule() {
   if (!modulePromise) {
-    modulePromise = import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx').catch((e) => {
+    modulePromise = import('../../../../prototypes/editor-overlay.jsx').catch((e) => {
       console.warn('[graphic-editor] failed to load:', e?.message)
       modulePromise = null
       return null

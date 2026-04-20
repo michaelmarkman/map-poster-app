@@ -26,18 +26,26 @@ with `git push --no-verify` in an emergency.
 
 ## Architecture
 
-The editor is a React SPA at `/app`. It was migrated from the standalone HTML prototype at `prototypes/poster-v3-ui.{html,jsx}` — that prototype still builds and routes (via `vercel.json`), kept as a reference implementation. Changes go into the React tree; the prototype is intentionally frozen.
+Two editor routes share one Scene + one set of atoms/hooks/modals:
+
+- **`/app` (default)** — pill-based UI. Floating glass pills around a full-bleed canvas; an aspect-ratio frame overlay shows the poster crop. Lives in `src/pages/mock/`. (The folder name is historical from when this was a prototype variant — don't read into it.)
+- **`/app-classic`** — the legacy sidebar UI. Lives in `src/pages/editor/`. Preserved for reference + still receives shared changes.
+- **`/mock`** → 301-style React Router redirect to `/app`.
+
+Both editors mount the same scene (`src/pages/editor/scene/`) and share atoms, hooks, modals, and most utilities. Cross-imports go one direction: pill (`pages/mock/`) imports from sidebar (`pages/editor/`); never the reverse.
+
+The editor was migrated from the standalone HTML prototype at `prototypes/poster-v3-ui.{html,jsx}` — that prototype still builds and routes (via `vercel.json`), kept as a reference implementation. Changes go into the React tree; the prototype is intentionally frozen.
 
 ```
 src/
-├── App.jsx                     # Routes; /app is full-screen (no AppLayout)
+├── App.jsx                     # Routes; /app + /app-classic are full-screen (no AppLayout)
 ├── main.jsx                    # React root
 ├── index.html                  # SPA entry — script src is absolute /src/main.jsx
 ├── contexts/AuthContext.jsx    # Supabase auth (falls back gracefully if env missing)
 ├── components/ProtectedRoute   # Bypasses when no Supabase configured
-├── pages/editor/               # The editor — everything below matters
-│   ├── EditorPage.jsx          # Route entry
-│   ├── EditorShell.jsx         # Layout + mounts all hooks (order matters)
+├── pages/editor/               # /app-classic — sidebar editor + the SHARED scene/atoms/hooks
+│   ├── EditorPage.jsx          # /app-classic route entry
+│   ├── EditorShell.jsx         # Sidebar layout + mounts all hooks (order matters)
 │   ├── atoms/                  # Jotai atoms — scene, ui, sidebar, modals, gallery
 │   ├── scene/
 │   │   ├── EditorCanvas.jsx    # <Canvas> wrapper
@@ -45,12 +53,21 @@ src/
 │   │   ├── Globe.jsx, Controls.jsx, PostProcessing.jsx, CustomDofEffect.jsx
 │   │   ├── stateRef.js         # Mutable mirror of scene atoms (60fps reads)
 │   │   └── events.js           # dispatchCameraSet / dispatchFlyTo / etc.
-│   ├── sidebar/                # 6 sections, all atom-driven
+│   ├── sidebar/                # 6 sections, all atom-driven (only mounted at /app-classic)
 │   ├── modals/                 # Always-mount pattern; each self-gates on modalsAtom
 │   ├── overlays/               # CanvasHUD, TextOverlay, PosterPreviewToggle
 │   ├── hooks/                  # useSession, useSavedViews, useGallery, useQueue, …
 │   └── styles/                 # 8 co-located CSS files (don't put CSS elsewhere)
-scripts/smoke.js                # Prod-build canary; run after every change
+├── pages/mock/                 # /app — pill editor (the new default UI)
+│   ├── MockEditorPage.jsx      # /app route entry
+│   ├── MockEditorShell.jsx     # Pill layout + mounts the same hook set as /app-classic
+│   ├── components/             # Pill primitives + 5 corner clusters
+│   ├── modals/AIRenderModal.jsx
+│   ├── hooks/useSavedGraphics.js
+│   ├── styles/mock.css         # All `body.mock-mounted`-scoped overrides
+│   ├── utils/frameRect.js
+│   └── atoms.js                # editingBackdropAtom (render-edit backdrop)
+scripts/smoke.js                # Prod-build canary; tests both /app and /app-classic
 docs/superpowers/               # Migration spec + plan — read before big changes
 prototypes/                     # Reference implementation; don't edit
 ```
@@ -104,7 +121,9 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 
 Vercel auto-deploys on push to `main`. Rewrites in `vercel.json`:
 - `/` → `/prototypes/index.html` (landing is the prototype page, not React)
-- `/app`, `/app/*` → `/src/index.html` (React SPA takes over)
+- `/app`, `/app/*` → `/src/index.html` (pill editor)
+- `/app-classic`, `/app-classic/*` → `/src/index.html` (sidebar editor)
+- `/mock`, `/mock/*` → `/src/index.html` (React redirects to /app)
 - `/*.html` → their matching prototype pages
 
 React routes like `/login`, `/signup`, `/community`, `/profile`, `/gallery` are NOT rewritten in `vercel.json`. They work in dev via the SPA-fallback middleware in `vite.config.js` but deep-linking them in prod will 404. Add them to `vercel.json` if needed.

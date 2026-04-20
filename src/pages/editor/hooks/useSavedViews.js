@@ -280,18 +280,11 @@ export default function useSavedViews() {
         return
       }
       const { dof: curDof, tod: curTod } = stateRef.current
-      // Prefer a reverse-geocoded place name; fall back to coordinate
-      // string if the lookup fails or the user picked their own name.
-      let resolvedName = userName
-      if (!resolvedName) {
-        const [lat, lng] = extractLatLng(cam)
-        if (lat != null && lng != null) {
-          const place = await reverseGeocodeName(lat, lng)
-          if (place) resolvedName = place
-        }
-        if (!resolvedName) resolvedName = coordName(cam)
-      }
-
+      // Save with the coord-based name immediately so the UI updates
+      // synchronously (tests + perceived snappiness depend on this). Then
+      // fire reverse-geocode in the background; if it returns a place
+      // name, patch the view's name in-place.
+      const initialName = userName || coordName(cam)
       const view = buildSavedView(
         {
           camera: cam,
@@ -302,8 +295,21 @@ export default function useSavedViews() {
           dofColorPop: curDof.colorPop,
           graphicsJSON: captureGraphicsJSON(),
         },
-        { name: resolvedName },
+        { name: initialName },
       )
+
+      if (!userName) {
+        const [lat, lng] = extractLatLng(cam)
+        if (lat != null && lng != null) {
+          reverseGeocodeName(lat, lng).then((place) => {
+            if (!place) return
+            const next = stateRef.current.views.map((v) =>
+              v.id === view.id ? { ...v, name: place } : v,
+            )
+            commitViews(next)
+          })
+        }
+      }
 
       const list = [view, ...stateRef.current.views]
       if (list.length > MAX_VIEWS) list.length = MAX_VIEWS

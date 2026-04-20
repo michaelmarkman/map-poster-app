@@ -90,7 +90,7 @@ function useRenderEditing() {
       const backdropSrc = entry.baseImage || entry.dataUrl
       if (backdropSrc) setBackdrop(backdropSrc)
       try {
-        const mod = await import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx')
+        const mod = await import('../../../prototypes/editor-overlay.jsx')
         const fabric = mod?.fabricCanvas
         if (fabric) {
           if (entry.graphicsJSON) {
@@ -131,7 +131,7 @@ function useFabricFrameSync() {
     let canceled = false
     const apply = async () => {
       try {
-        const mod = await import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx')
+        const mod = await import('../../../prototypes/editor-overlay.jsx')
         if (canceled) return
         const fabric = mod.fabricCanvas
         const wrap = document.querySelector('#canvas-container > .canvas-container')
@@ -165,9 +165,18 @@ function useFabricFrameSync() {
   }, [aspectRatio, fillMode])
 }
 
-// Mock editor — floating-pills variant of /app. Reuses the editor's Scene,
-// atoms, hooks, and most modals; swaps the sidebar chrome for ~11 floating
-// pills around the canvas. See docs/superpowers/specs/2026-04-17-mock-editor-design.md
+// Pill editor — the canonical editor mounted at /app.
+//
+// The "Mock" name is historical: this started as a /mock-prefixed prototype
+// alongside the legacy sidebar editor, and was promoted to /app once it
+// stabilized. The legacy sidebar lives at /app-classic. File/folder names,
+// `.mock-*` CSS classes, and `body.mock-mounted` are namespaces — keep them
+// as-is until a dedicated rename PR; renaming touches ~60 CSS classes plus
+// every import in this folder, all for cosmetic gain.
+//
+// Reuses the editor's Scene, atoms, hooks, and most modals; swaps the
+// sidebar chrome for ~11 floating pills around the canvas.
+// See docs/superpowers/specs/2026-04-17-mock-editor-design.md
 export default function MockEditorShell() {
   // Body scoping: reuse editor-mounted (gives us the * reset + base layout
   // from editor.css) and add mock-mounted for our overrides.

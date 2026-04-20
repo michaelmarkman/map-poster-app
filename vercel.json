@@ -13,6 +13,8 @@
     { "source": "/admin.html", "destination": "/prototypes/admin.html" },
     { "source": "/app", "destination": "/src/index.html" },
     { "source": "/app/(.*)", "destination": "/src/index.html" },
+    { "source": "/app-classic", "destination": "/src/index.html" },
+    { "source": "/app-classic/(.*)", "destination": "/src/index.html" },
     { "source": "/mock", "destination": "/src/index.html" },
     { "source": "/mock/(.*)", "destination": "/src/index.html" },
     { "source": "/login", "destination": "/src/index.html" },
