@@ -155,8 +155,10 @@ async function run() {
     history.pushState({}, '', '/app-classic')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
-  await page.waitForSelector('#tod-slider', { timeout: 5000 })
-  await page.waitForFunction(() => document.getElementById('tod-slider')?.value !== '12', null, { timeout: 4000 })
+  // Generous timeouts — CI (small VM, no GPU) takes much longer than local
+  // for the sidebar to mount and session restore to apply.
+  await page.waitForSelector('#tod-slider', { timeout: 15_000 })
+  await page.waitForFunction(() => document.getElementById('tod-slider')?.value !== '12', null, { timeout: 15_000 })
 
   const restored = await page.evaluate(() => ({
     tod: document.getElementById('tod-slider')?.value,
