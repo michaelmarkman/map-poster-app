@@ -26,8 +26,8 @@ export default function App() {
            * /app  → the floating-pills editor (current default)
            * /app-classic → the legacy sidebar editor, preserved
            * /mock → historical alias, redirects to /app */}
-          <Route path="/app" element={<ProtectedRoute><MockEditorPage /></ProtectedRoute>} />
-          <Route path="/app-classic" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+          <Route path="/app" element={<ProtectedRoute guestAllowed><MockEditorPage /></ProtectedRoute>} />
+          <Route path="/app-classic" element={<ProtectedRoute guestAllowed><EditorPage /></ProtectedRoute>} />
           <Route path="/mock" element={<Navigate to="/app" replace />} />
 
           {/* Pages with navbar */}
