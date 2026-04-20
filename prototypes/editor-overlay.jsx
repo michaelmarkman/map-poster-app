@@ -21,11 +21,24 @@ let _skipHistory = false
 
 // ─── Snap guides ────────────────────────────────────────────
 let snapLines = []
-const SNAP_THRESHOLD = 8
+const SNAP_IN = 6   // distance at which a fresh snap engages
+const SNAP_OUT = 18 // distance at which an existing snap releases — hysteresis
+                    // gap stops the "snap → unsnap → snap" jitter loop where the
+                    // cursor lives just inside the original threshold.
+// Tracks which axes the active drag is currently snapped to so we can apply
+// hysteresis. Reset on mouse:up.
+const snapState = { x: null, y: null }
 
 function clearSnapLines() {
   snapLines.forEach(l => fabricCanvas.remove(l))
   snapLines = []
+}
+
+function resetSnap() {
+  clearSnapLines()
+  snapState.x = null
+  snapState.y = null
+  if (fabricCanvas) fabricCanvas.renderAll()
 }
 
 function addSnapLine(x1, y1, x2, y2) {
@@ -42,6 +55,20 @@ function addSnapLine(x1, y1, x2, y2) {
   snapLines.push(line)
 }
 
+// Pick the snap target for one axis with hysteresis. `current` is the
+// active snap key from snapState; `candidates` is [{ key, delta }] sorted
+// by absolute delta. Returns the chosen key or null. Uses SNAP_IN to engage
+// a new snap and SNAP_OUT to release an existing one.
+function pickSnap(current, candidates) {
+  if (current) {
+    const stillNear = candidates.find((c) => c.key === current)
+    if (stillNear && Math.abs(stillNear.delta) < SNAP_OUT) return current
+  }
+  const fresh = candidates[0]
+  if (fresh && Math.abs(fresh.delta) < SNAP_IN) return fresh.key
+  return null
+}
+
 function snapObject(target) {
   clearSnapLines()
   if (!target) return
@@ -53,35 +80,36 @@ function snapObject(target) {
   const objLeft = bound.left, objTop = bound.top
   const objRight = bound.left + bound.width, objBottom = bound.top + bound.height
 
-  // Snap center X
-  if (Math.abs(objCx - cx) < SNAP_THRESHOLD) {
-    target.set('left', target.left + (cx - objCx))
-    addSnapLine(cx, 0, cx, ch)
+  const xCandidates = [
+    { key: 'cx',    delta: cx - objCx },
+    { key: 'left',  delta: 0 - objLeft },
+    { key: 'right', delta: cw - objRight },
+  ].sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta))
+
+  const yCandidates = [
+    { key: 'cy',     delta: cy - objCy },
+    { key: 'top',    delta: 0 - objTop },
+    { key: 'bottom', delta: ch - objBottom },
+  ].sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta))
+
+  const xSnap = pickSnap(snapState.x, xCandidates)
+  const ySnap = pickSnap(snapState.y, yCandidates)
+  snapState.x = xSnap
+  snapState.y = ySnap
+
+  if (xSnap) {
+    const c = xCandidates.find((c) => c.key === xSnap)
+    target.set('left', target.left + c.delta)
+    if (xSnap === 'cx') addSnapLine(cx, 0, cx, ch)
+    else if (xSnap === 'left') addSnapLine(0, 0, 0, ch)
+    else if (xSnap === 'right') addSnapLine(cw, 0, cw, ch)
   }
-  // Snap center Y
-  if (Math.abs(objCy - cy) < SNAP_THRESHOLD) {
-    target.set('top', target.top + (cy - objCy))
-    addSnapLine(0, cy, cw, cy)
-  }
-  // Snap left edge
-  if (Math.abs(objLeft) < SNAP_THRESHOLD) {
-    target.set('left', target.left - objLeft)
-    addSnapLine(0, 0, 0, ch)
-  }
-  // Snap right edge
-  if (Math.abs(objRight - cw) < SNAP_THRESHOLD) {
-    target.set('left', target.left + (cw - objRight))
-    addSnapLine(cw, 0, cw, ch)
-  }
-  // Snap top edge
-  if (Math.abs(objTop) < SNAP_THRESHOLD) {
-    target.set('top', target.top - objTop)
-    addSnapLine(0, 0, cw, 0)
-  }
-  // Snap bottom edge
-  if (Math.abs(objBottom - ch) < SNAP_THRESHOLD) {
-    target.set('top', target.top + (ch - objBottom))
-    addSnapLine(0, ch, cw, ch)
+  if (ySnap) {
+    const c = yCandidates.find((c) => c.key === ySnap)
+    target.set('top', target.top + c.delta)
+    if (ySnap === 'cy') addSnapLine(0, cy, cw, cy)
+    else if (ySnap === 'top') addSnapLine(0, 0, cw, 0)
+    else if (ySnap === 'bottom') addSnapLine(0, ch, cw, ch)
   }
 }
 
@@ -176,7 +204,12 @@ export function initEditor() {
   fabricCanvas.on('selection:updated', (e) => { selectedObject = e.selected?.[0] || null; updatePropertiesPanel() })
   fabricCanvas.on('selection:cleared', () => { selectedObject = null; updatePropertiesPanel() })
   fabricCanvas.on('object:moving', (e) => snapObject(e.target))
-  fabricCanvas.on('object:moved', () => clearSnapLines())
+  fabricCanvas.on('object:moved', () => resetSnap())
+  // mouse:up always fires when the pointer is released, even when no move
+  // happened or the release lands outside any object — guarantees the
+  // dashed guides clear instead of getting stranded on the canvas.
+  fabricCanvas.on('mouse:up', () => resetSnap())
+  fabricCanvas.on('selection:cleared', () => resetSnap())
 
   // ResizeObserver to keep canvas in sync
   const ro = new ResizeObserver(() => resizeCanvas())
@@ -220,6 +253,16 @@ export function setEditorActive(active) {
   const canvasEl = document.getElementById('editor-canvas')
   const toolbar = document.getElementById('editor-toolbar')
   const propsPanel = document.getElementById('editor-props')
+
+  // Drop the active selection on deactivate — otherwise the selection
+  // handles + bounding box stay painted on the canvas after exit.
+  if (!active && fabricCanvas) {
+    try {
+      fabricCanvas.discardActiveObject()
+      resetSnap()
+      fabricCanvas.renderAll()
+    } catch {}
+  }
 
   // Fabric creates a wrapper div and upper-canvas — control pointer events on wrapper
   const wrapper = canvasEl?.parentElement?.querySelector('.canvas-container')
@@ -753,6 +796,11 @@ function buildColorRow(label, prop, value) {
 function appendTextProperties(content, obj) {
   const fonts = [
     { label: 'Cormorant Garamond', value: "'Cormorant Garamond', Georgia, serif" },
+    { label: 'Playfair Display', value: "'Playfair Display', Georgia, serif" },
+    { label: 'Yeseva One', value: "'Yeseva One', Georgia, serif" },
+    { label: 'Crimson Text', value: "'Crimson Text', Georgia, serif" },
+    { label: 'Yesteryear', value: "'Yesteryear', cursive" },
+    { label: 'Oranienbaum', value: "'Oranienbaum', Georgia, serif" },
     { label: 'Outfit', value: "'Outfit', system-ui, sans-serif" },
     { label: 'JetBrains Mono', value: "'JetBrains Mono', monospace" },
     { label: 'Georgia', value: 'Georgia, serif' },

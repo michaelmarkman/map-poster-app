@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import EditorPage from './pages/editor/EditorPage'
+import MockEditorPage from './pages/mock/MockEditorPage'
 import GalleryPage from './pages/GalleryPage'
 import CommunityPage from './pages/CommunityPage'
 import ProfilePage from './pages/ProfilePage'
@@ -23,6 +24,9 @@ export default function App() {
 
           {/* Full-screen editor — no navbar; owns the whole viewport. */}
           <Route path="/app" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+
+          {/* Mock editor — floating-pills variant of /app for design A/B. */}
+          <Route path="/mock" element={<ProtectedRoute><MockEditorPage /></ProtectedRoute>} />
 
           {/* Pages with navbar */}
           <Route element={<AppLayout />}>

@@ -40,6 +40,10 @@ export const sceneRef = {
     sceneColorPop: 0,
     focusColorPop: 60,
   },
+  // Set by useGraphicEditor when the Fabric editor is on. Scene input
+  // handlers (click-to-focus, WASD fly, scroll-wheel dolly) read this and
+  // bail out so the editor owns pointer/keyboard input exclusively.
+  editorActive: false,
 }
 
 // Subscribes to every scene atom via useAtomValue and copies the current
