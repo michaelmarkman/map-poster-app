@@ -202,9 +202,9 @@ function getLocation() {
 
 // Gemini call — mirrors sendToGemini from poster-v3-ui.jsx:2215. The server
 // proxy at /api/gemini expects the raw Gemini REST payload; `apiKey` is sent
-// on the side so the server can use the caller's key instead of the env key
-// when one is provided (not yet supported server-side, but we forward it so
-// the UX looks the same as the prototype).
+// alongside so the server can fall back to the caller's key when no
+// GEMINI_API_KEY env var is configured. Server strips `apiKey` from the body
+// before forwarding to Gemini.
 async function callGemini(snapshotDataUrl, prompt, apiKey) {
   // Scale to <=1024px on the long edge before sending — keeps the request
   // well under Gemini's inline-data limits and matches the prototype.
@@ -231,8 +231,6 @@ async function callGemini(snapshotDataUrl, prompt, apiKey) {
 
   const url = '/api/gemini?model=gemini-3.1-flash-image-preview'
   const headers = { 'Content-Type': 'application/json' }
-  // Server currently ignores `apiKey` in the body but we forward it so the
-  // optional-key UX in the sidebar isn't silently discarded.
   const body = apiKey ? { ...payload, apiKey } : payload
 
   const res = await fetch(url, {
@@ -344,6 +342,8 @@ export default function useQueue() {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
+          baseImage: job.baseImage || snapshotUrl,
+          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
@@ -365,23 +365,35 @@ export default function useQueue() {
       }, 1000)
 
       try {
-        const dataUrl = await callGemini(snapshotUrl, job.prompt, job.apiKey)
+        // Send the raw snapshot to Gemini (no graphics baked in — they get
+        // re-stylized otherwise). Composite the saved graphics layer back
+        // on top of the AI result here so text/shapes stay pixel-crisp.
+        const aiResult = await callGemini(snapshotUrl, job.prompt, job.apiKey)
         clearInterval(pulse)
+        let finalUrl = aiResult
+        if (job.includeGraphicsAfter !== false && job.graphicsJSON) {
+          try {
+            updateJob(job.id, { statusText: 'Compositing...', progress: 90 })
+            finalUrl = (await composite(aiResult, { includeGraphics: true })) || aiResult
+          } catch {}
+        }
         const fname = buildFilename(job.label, {
           resolution: job.resolution,
           location: job.location,
         })
-        if (!job.batchId) downloadDataUrl(dataUrl, fname)
-        dispatchGalleryAdd(job.label, fname, dataUrl, {
+        if (!job.batchId) downloadDataUrl(finalUrl, fname)
+        dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
+          baseImage: aiResult,
+          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
           statusText: 'Done',
           progress: 100,
-          resultUrl: dataUrl,
+          resultUrl: finalUrl,
         })
       } catch (err) {
         clearInterval(pulse)
@@ -467,7 +479,7 @@ export default function useQueue() {
       if (!raw) return
       // Composite is a no-op today (see utils/export.js) but we route through
       // it so wiring the overlay in a later phase only touches that util.
-      const dataUrl = composite(raw)
+      const dataUrl = await composite(raw)
       const fname = buildFilename('raw', {
         resolution: settingsRef.current.resolution,
         location: getLocation(),
@@ -480,44 +492,93 @@ export default function useQueue() {
       dispatchGalleryAdd('Quick', fname, dataUrl, { view })
     }
 
-    async function onAddToQueue() {
-      const snapshot = composite(snapshotCanvas(settingsRef.current.resolution))
-      if (!snapshot) return
+    // /mock dispatches `add-to-queue` with a detail payload to override
+    // settingsRef-derived behavior on a per-job basis:
+    //   { preset: string|null, includeGraphics: boolean, prompt?: string }
+    // - preset === null  → raw export (no AI), regardless of aiPreset state
+    // - preset === string → that preset is used for this single job
+    // - includeGraphics === false → graphics layer is dropped from the result
+    // - prompt → custom prompt override (used by 'custom' preset)
+    // /app's ExportSection still fires `add-to-queue` with no detail; that
+    // path falls through to settingsRef as before.
+    //
+    // IMPORTANT: graphics are *never* sent to Gemini — we always snapshot
+    // raw and composite the Fabric overlay back on top of the AI result
+    // afterwards. This keeps text/shapes pixel-crisp instead of getting
+    // re-stylized by the AI. The graphics layer is also captured as JSON
+    // and stored on the gallery entry so it can be hidden / edited later.
+    async function onAddToQueue(e) {
+      const detail = e?.detail || {}
+      const overridePreset = Object.hasOwn(detail, 'preset') ? detail.preset : undefined
+      const includeGraphics = detail.includeGraphics !== false // default true
+      const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
+
+      // Raw snapshot — no graphics baked in. Used as-is for AI; composited
+      // for raw exports below.
+      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
+      if (!rawSnapshot) return
+
+      // Capture the live Fabric state at queue time so a later edit/replay
+      // can rebuild the graphics layer exactly as it was at this moment.
+      let graphicsJSON = null
+      try {
+        const fabric = window.__editorOverlayFabric
+        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
+          graphicsJSON = JSON.stringify(
+            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
+          )
+        }
+      } catch {}
+
       const s = settingsRef.current
       const location = getLocation()
-      // Capture once up front — the whole batch of jobs share this view.
       const view = await captureCurrentView()
 
-      if (s.aiEnhance && s.aiPreset) {
-        const preset = AI_PRESETS[s.aiPreset]
-        // promptFor(preset) already runs appendEffectPrompts, but the
-        // preset's baseline prompt is what's stored — re-invoke here so
-        // the DoF suffix lands every time, even if promptFor is bypassed
-        // elsewhere in the future.
+      const presetKey = overridePreset !== undefined ? overridePreset : s.aiPreset
+      const baseJob = {
+        resolution: s.resolution,
+        location,
+        apiKey: s.aiKey,
+        view,
+        graphicsJSON,
+        includeGraphicsAfter: includeGraphics,
+      }
+
+      if (presetKey === null) {
+        // Raw — composite graphics now and queue.
+        const final = includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot
         addJob({
-          label: preset?.label || s.aiPreset,
-          prompt: promptFor(s.aiPreset, s.aiPrompt),
+          ...baseJob,
+          label: 'Raw',
+          prompt: '',
+          useAI: false,
+          snapshot: final,
+          baseImage: rawSnapshot,
+        })
+      } else if (s.aiEnhance && presetKey) {
+        const preset = AI_PRESETS[presetKey]
+        addJob({
+          ...baseJob,
+          label: preset?.label || presetKey,
+          prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
           useAI: true,
-          snapshot,
-          resolution: s.resolution,
-          location,
-          apiKey: s.aiKey,
-          preset: s.aiPreset,
-          view,
+          snapshot: rawSnapshot, // sent to Gemini raw
+          preset: presetKey,
         })
       } else {
         const useAI = !!s.aiEnhance
         const label = useAI ? 'Custom' : 'Raw'
-        const prompt = useAI ? appendEffectPrompts(s.aiPrompt) : ''
+        const prompt = useAI ? appendEffectPrompts(overridePrompt ?? s.aiPrompt) : ''
+        const final = !useAI && includeGraphics
+          ? await composite(rawSnapshot, { includeGraphics: true })
+          : rawSnapshot
         addJob({
+          ...baseJob,
           label,
           prompt,
           useAI,
-          snapshot,
-          resolution: s.resolution,
-          location,
-          apiKey: s.aiKey,
-          view,
+          snapshot: final,
+          baseImage: rawSnapshot,
         })
       }
 
@@ -526,7 +587,7 @@ export default function useQueue() {
     }
 
     async function onGenerateAll() {
-      const snapshot = composite(snapshotCanvas(settingsRef.current.resolution))
+      const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
       if (!snapshot) return
       const s = settingsRef.current
       const location = getLocation()
@@ -580,7 +641,8 @@ export default function useQueue() {
         // Settle delay matches the prototype's 1500ms (poster-v3-ui.jsx:2404).
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 1500))
-        const snapshot = composite(snapshotCanvas(settingsRef.current.resolution))
+        // eslint-disable-next-line no-await-in-loop
+        const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
         if (!snapshot) continue
         addJob({
           label: view.name || 'View',

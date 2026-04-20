@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { modalsAtom } from '../atoms/modals'
 import { aspectRatioAtom, fillModeAtom } from '../atoms/ui'
-import { snapshotCanvas } from '../utils/export'
+import { snapshotCanvas, composite } from '../utils/export'
+
+// Snapshot + composite the Fabric overlay onto the result. composite is
+// async only when there's actual overlay content; sync passthrough
+// otherwise. We always treat the return as a promise to keep the call
+// site simple.
+async function snapshotWithGraphics(resolution = 2) {
+  const raw = snapshotCanvas(resolution)
+  if (!raw) return ''
+  return (await composite(raw, { includeGraphics: true })) || raw
+}
 
 // 3D Poster Preview modal. Ported from prototypes/poster-v3-ui.{html,jsx}.
 // Uses refs for rotation state and direct DOM writes so the pointermove path
@@ -53,10 +63,10 @@ export default function PosterPreviewModal() {
   // when nothing is passed, we snapshot the live canvas on open. Explicit
   // imageSrc still wins (that's how the Lightbox previews a gallery entry).
   useEffect(() => {
-    const onOpen = (e) => {
+    const onOpen = async (e) => {
       const detail = e?.detail || {}
       if (detail.imageSrc) setImageSrc(detail.imageSrc)
-      else setImageSrc(snapshotCanvas(2) || '')
+      else setImageSrc(await snapshotWithGraphics(2))
       setLabel(detail.label || '')
       rotRef.current = { x: -5, y: 15 }
       setModals((m) => ({ ...m, posterPreview: true }))
@@ -72,8 +82,9 @@ export default function PosterPreviewModal() {
   useEffect(() => {
     if (!open) return
     if (!imageSrc) {
-      const snap = snapshotCanvas(2) || ''
-      if (snap) setImageSrc(snap)
+      snapshotWithGraphics(2).then((snap) => {
+        if (snap) setImageSrc(snap)
+      })
     }
     rotRef.current = { x: -5, y: 15 }
     // eslint-disable-next-line react-hooks/exhaustive-deps

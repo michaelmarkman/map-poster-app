@@ -12,7 +12,7 @@ npm install
 npm run dev  # dev server → visit http://localhost:5173/app
 ```
 
-The landing page at `/` is the static prototype; the React editor lives at `/app`. First load may look blank if Supabase env vars aren't set — the editor at `/app` runs regardless (auth degrades gracefully).
+The landing page at `/` is the static prototype; the React editor lives at `/app` (pill UI — the default). The legacy sidebar editor is preserved at `/app-classic`. First load may look blank if Supabase env vars aren't set — the editor at `/app` runs regardless (auth degrades gracefully).
 
 ## Scripts
 
@@ -28,13 +28,16 @@ The landing page at `/` is the static prototype; the React editor lives at `/app
 ## Project layout
 
 ```
-src/pages/editor/       — the editor (the thing)
+src/pages/editor/       — sidebar editor (/app-classic) + shared scene/atoms/hooks
   scene/                  @react-three/fiber scene, Scene.jsx is load-bearing
   atoms/                  Jotai state
   sidebar/ modals/ hooks/ styles/
+src/pages/mock/         — pill editor (/app, the new default UI)
+  components/             pill primitives + 5 corner clusters
+  modals/ hooks/ styles/
 prototypes/             — original HTML prototype, frozen as reference
 api/                    — Vercel serverless fns (gemini.js, og.js)
-scripts/smoke.js        — production-build canary
+scripts/smoke.js        — production-build canary (covers both /app + /app-classic)
 docs/superpowers/       — design specs, phase plans, ADRs
 CLAUDE.md               — architecture, state pattern, event channels, gotchas
 ```
@@ -44,7 +47,7 @@ CLAUDE.md               — architecture, state pattern, event channels, gotchas
 ## Deployment
 
 - Vercel auto-deploys on push to `main`.
-- Rewrites live in `vercel.json` (landing → prototype; `/app/*` → React SPA; legacy `*.html` paths preserved).
+- Rewrites live in `vercel.json` (landing → prototype; `/app/*` and `/app-classic/*` → React SPA; legacy `*.html` paths preserved).
 - Required env vars:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`

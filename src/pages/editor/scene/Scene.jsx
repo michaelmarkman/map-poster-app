@@ -67,6 +67,7 @@ function ClickToFocus() {
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
       if (!downPos || !sceneRef.dof.on) return
+      if (sceneRef.editorActive || window.__editorActive) { downPos = null; return }
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
@@ -94,6 +95,11 @@ export default function Scene() {
   const [, forceRender] = useState(0)
   const cloudsRef = useRef(null)
   const aerialRef = useRef(null)
+  // Cache the AerialPerspective's original shadow object so we can restore
+  // it when clouds.shadows toggles back on. Without this, the previous code
+  // set `aerial.shadow = null` permanently and the next "Shadows ON" tried
+  // to read uniforms off a null object → crash.
+  const aerialShadowRef = useRef(null)
 
   // Initial camera — Empire State Building, NY. Target is aimed at the
   // building's mid-height (190m above base) so the shader DoF (which samples
@@ -340,13 +346,15 @@ export default function Scene() {
       const spd = sceneRef.clouds.paused ? 0 : sceneRef.clouds.speed * 0.001
       clouds.localWeatherVelocity.set(spd, 0)
     }
-    // Toggle cloud shadows on aerial perspective
+    // Toggle cloud shadows on aerial perspective. Cache the live shadow
+    // object on first frame so we can restore it when the user flips
+    // shadows back on (otherwise nulling it permanently breaks the toggle).
     const aerial = aerialRef.current
     if (aerial) {
-      if (!sceneRef.clouds.shadows) {
-        aerial.shadow = null
+      if (aerial.shadow && !aerialShadowRef.current) {
+        aerialShadowRef.current = aerial.shadow
       }
-      // When shadows are on, the Clouds change event handler restores it automatically
+      aerial.shadow = sceneRef.clouds.shadows ? (aerialShadowRef.current || aerial.shadow) : null
     }
 
     // Update DoF uniforms

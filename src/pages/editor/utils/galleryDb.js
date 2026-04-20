@@ -39,6 +39,12 @@ export async function loadGalleryEntries() {
         batchId: r.batchId || null,
         batchLabel: r.batchLabel || null,
         view: r.view || null,
+        // "Capture" fields — group of variants sharing one view+graphics.
+        // Reuses batchId as the grouping key; baseImage / graphicsJSON
+        // let the lightbox show the un-composited result and re-edit
+        // the overlay later.
+        baseImage: r.baseImage || null,
+        graphicsJSON: r.graphicsJSON || null,
       }))
       .sort((a, b) => a.time - b.time)
   } catch (e) {
@@ -69,6 +75,8 @@ export async function saveGalleryEntry(item) {
       batchId: item.batchId || null,
       batchLabel: item.batchLabel || null,
       view: item.view || null,
+      baseImage: item.baseImage || null,
+      graphicsJSON: item.graphicsJSON || null,
     })
   } catch (e) {
     console.warn('[gallery] IndexedDB save failed:', e)
@@ -88,6 +96,8 @@ export function buildGalleryItem(label, filename, dataUrl, opts = {}) {
     batchId: opts.batchId || null,
     batchLabel: opts.batchLabel || null,
     view: opts.view || null,
+    baseImage: opts.baseImage || null,
+    graphicsJSON: opts.graphicsJSON || null,
   }
 }
 

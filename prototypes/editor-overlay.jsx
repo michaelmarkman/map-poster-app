@@ -30,6 +30,7 @@ const SNAP_EXIT = 20    // must drag this far off the guide to break free.
 function clearSnapLines() {
   snapLines.forEach(l => fabricCanvas.remove(l))
   snapLines = []
+  if (fabricCanvas) fabricCanvas.renderAll()
 }
 
 function addSnapLine(x1, y1, x2, y2) {
@@ -201,6 +202,10 @@ export function initEditor() {
     clearSnapLines()
     clearSnapState(e.target)
   })
+  // mouse:up always fires when the pointer is released, even when no move
+  // happened or the release lands outside any object — guarantees the
+  // dashed guides clear instead of getting stranded on the canvas.
+  fabricCanvas.on('mouse:up', () => clearSnapLines())
 
   // ResizeObserver to keep canvas in sync
   const ro = new ResizeObserver(() => resizeCanvas())
@@ -244,6 +249,16 @@ export function setEditorActive(active) {
   const canvasEl = document.getElementById('editor-canvas')
   const toolbar = document.getElementById('editor-toolbar')
   const propsPanel = document.getElementById('editor-props')
+
+  // Drop the active selection on deactivate — otherwise the selection
+  // state lingers and the next activation can re-show stale handles.
+  if (!active && fabricCanvas) {
+    try {
+      fabricCanvas.discardActiveObject()
+      clearSnapLines()
+      fabricCanvas.renderAll()
+    } catch {}
+  }
 
   // Fabric creates a wrapper div and upper-canvas. We toggle pointer-
   // events so the rest of the app is interactive again when off, AND
@@ -788,6 +803,11 @@ function buildColorRow(label, prop, value) {
 function appendTextProperties(content, obj) {
   const fonts = [
     { label: 'Cormorant Garamond', value: "'Cormorant Garamond', Georgia, serif" },
+    { label: 'Playfair Display', value: "'Playfair Display', Georgia, serif" },
+    { label: 'Yeseva One', value: "'Yeseva One', Georgia, serif" },
+    { label: 'Crimson Text', value: "'Crimson Text', Georgia, serif" },
+    { label: 'Yesteryear', value: "'Yesteryear', cursive" },
+    { label: 'Oranienbaum', value: "'Oranienbaum', Georgia, serif" },
     { label: 'Outfit', value: "'Outfit', system-ui, sans-serif" },
     { label: 'JetBrains Mono', value: "'JetBrains Mono', monospace" },
     { label: 'Georgia', value: 'Georgia, serif' },

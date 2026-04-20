@@ -1,15 +1,20 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
-import { loadGalleryEntries, buildGalleryEntries } from '../utils/galleryDb'
+import { galleryEntriesAtom } from '../atoms/gallery'
+import { buildGalleryEntries } from '../utils/galleryDb'
 
 // Gallery modal — shows all saved exports from IndexedDB. Ported from
 // prototypes/poster-v3-ui.{html,jsx}. Clicking an entry stacks the lightbox
 // on top; close button / Esc dismisses only the gallery.
+//
+// Reads directly from `galleryEntriesAtom` (kept fresh by useGalleryData)
+// so newly-rendered exports appear live as their queue jobs complete —
+// no close/reopen needed.
 export default function GalleryModal() {
   const [modals, setModals] = useAtom(modalsAtom)
   const setLightboxEntry = useSetAtom(lightboxEntryAtom)
-  const [gallery, setGallery] = useState([])
+  const gallery = useAtomValue(galleryEntriesAtom)
   const [view, setView] = useState('grid') // 'grid' | 'large' | 'list'
 
   const open = modals.gallery
@@ -20,18 +25,6 @@ export default function GalleryModal() {
     window.addEventListener('open-gallery', onOpen)
     return () => window.removeEventListener('open-gallery', onOpen)
   }, [setModals])
-
-  // Load gallery whenever the modal opens so newly-saved exports show up.
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    loadGalleryEntries().then((items) => {
-      if (!cancelled) setGallery(items)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [open])
 
   const close = useCallback(() => {
     setModals((m) => ({ ...m, gallery: false }))

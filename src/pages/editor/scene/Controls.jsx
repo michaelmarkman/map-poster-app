@@ -34,6 +34,7 @@ function WasdFly() {
   }, [])
 
   useFrame((_, delta) => {
+    if (sceneRef.editorActive || window.__editorActive) return
     const k = keysRef.current
     if (!k.w && !k.a && !k.s && !k.d && !k.q && !k.e && !k[' ']) return
 
@@ -122,11 +123,39 @@ function FovListener() {
   return null
 }
 
+// Scroll-wheel dolly — moves the camera along its view direction. Scroll up
+// (deltaY negative) goes forward, scroll down (positive) pulls back. Speed
+// scales with altitude so the gesture feels right at street level and high
+// up. The default wheel-on-canvas behavior is page scroll, which we suppress
+// with passive:false + preventDefault.
+function ScrollDolly() {
+  const { gl, camera } = useThree()
+  useEffect(() => {
+    const canvas = gl.domElement
+    const tmpFwd = new Vector3()
+    const tmpGeo = new Geodetic()
+    const onWheel = (e) => {
+      if (sceneRef.editorActive || window.__editorActive) return
+      e.preventDefault()
+      const alt = Math.max(50, tmpGeo.setFromECEF(camera.position).height)
+      // 0.0006 chosen to feel close to a Maps zoom step on a typical mouse
+      // wheel; trackpads with finer deltas get correspondingly finer steps.
+      const step = -e.deltaY * alt * 0.0006
+      tmpFwd.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
+      camera.position.addScaledVector(tmpFwd, step)
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+  }, [gl, camera])
+  return null
+}
+
 export default function Controls() {
   return (
     <>
       <WasdFly />
       <FovListener />
+      <ScrollDolly />
     </>
   )
 }

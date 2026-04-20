@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { IS_MOBILE } from '../atoms/scene'
+import { sceneRef } from '../scene/stateRef'
 
 // Loads the legacy Fabric.js editor once the React DOM skeleton
 // (GraphicEditorOverlay) is mounted. Wires on next tick so the
@@ -10,29 +11,75 @@ import { IS_MOBILE } from '../atoms/scene'
 // initEditor). The sidebar's "Open Editor" button has id="editor-toggle-btn"
 // which wireToolbar binds to a toggle handler — so the user's click
 // flips .active on the toolbar and the editor turns on.
-export default function useGraphicEditor() {
-  const initedRef = useRef(false)
+// Module-level state — survives React strict-mode double mounts (which
+// otherwise tear down the event listener on the first cleanup and then
+// skip re-attaching because the inited-ref is already true).
+let modulePromise = null
+let inited = false
 
+function loadModule() {
+  if (!modulePromise) {
+    modulePromise = import('../../../../prototypes/editor-overlay.jsx').catch((e) => {
+      console.warn('[graphic-editor] failed to load:', e?.message)
+      modulePromise = null
+      return null
+    })
+  }
+  return modulePromise
+}
+
+export default function useGraphicEditor() {
   useEffect(() => {
     if (IS_MOBILE) return // Fabric's tiny handles are unusable on touch
-    if (initedRef.current) return
-    initedRef.current = true
 
-    // Wait a tick so GraphicEditorOverlay is in the DOM, then load Fabric
-    // and initialize. The dynamic import keeps Fabric.js (~360KB) out of
-    // the critical-path bundle.
+    // Eager-load + initialize on first mount so the toolbar/canvas are
+    // ready before a click. Subsequent mounts (strict-mode remount,
+    // route re-entry) just await the cached promise — initEditor is
+    // guarded against double-init via the module-level `inited` flag.
     const t = setTimeout(async () => {
-      try {
-        const mod = await import(/* @vite-ignore */ '/prototypes/editor-overlay.jsx')
-        // initEditor is idempotent-ish: it creates a Fabric canvas and
-        // attaches listeners. Calling twice would double-bind toolbar
-        // handlers — that's what initedRef guards against.
+      const mod = await loadModule()
+      if (mod && !inited) {
+        inited = true
         mod.initEditor?.()
-      } catch (e) {
-        console.warn('[graphic-editor] failed to load:', e?.message)
-        initedRef.current = false
+        // Expose the Fabric canvas to the export pipeline (composite()
+        // reads window.__editorOverlayFabric synchronously).
+        try { window.__editorOverlayFabric = mod.fabricCanvas } catch {}
       }
     }, 0)
-    return () => clearTimeout(t)
+
+    // Bridge window event → setEditorActive. After flipping, broadcast
+    // the new state via a `graphic-editor-changed` event + body class so
+    // /mock can switch into "edit mode" (hide scene controls, swap pill
+    // label, etc.).
+    const broadcast = (active) => {
+      sceneRef.editorActive = !!active
+      // Also expose on window so the scene-input gates have a path that
+      // can't be defeated by separate module instances (HMR/Vite can hand
+      // out different copies of stateRef in some cases).
+      try { window.__editorActive = !!active } catch {}
+      try { document.body.classList.toggle('mock-editor-active', !!active) } catch {}
+      try {
+        window.dispatchEvent(new CustomEvent('graphic-editor-changed', { detail: { active: !!active } }))
+      } catch {}
+    }
+    const onToggle = async () => {
+      const mod = await loadModule()
+      if (!mod) return
+      if (!inited) {
+        inited = true
+        mod.initEditor?.()
+        try { window.__editorOverlayFabric = mod.fabricCanvas } catch {}
+      }
+      if (mod.setEditorActive && mod.isEditorActive) {
+        const next = !mod.isEditorActive()
+        mod.setEditorActive(next)
+        broadcast(next)
+      }
+    }
+    window.addEventListener('toggle-graphic-editor', onToggle)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('toggle-graphic-editor', onToggle)
+    }
   }, [])
 }

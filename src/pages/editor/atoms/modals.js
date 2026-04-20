@@ -11,6 +11,7 @@ export const modalsAtom = atom({
   posterPreview: false,
   printExport: false,
   help: false,
+  aiRender: false,
 })
 
 // Lightbox payload — which gallery entry is being viewed. ModalManager reads

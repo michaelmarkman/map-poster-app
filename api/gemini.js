@@ -48,13 +48,6 @@ export default async function handler(req, res) {
   hits.push(now)
   rateBuckets.set(ip, hits)
 
-  const key = process.env.GEMINI_API_KEY
-  if (!key) {
-    res.statusCode = 500
-    res.setHeader('Content-Type', 'application/json')
-    return res.end(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }))
-  }
-
   // Model comes via ?model= so the client passes the raw Gemini payload through unchanged.
   const url = new URL(req.url, 'http://localhost')
   const model = url.searchParams.get('model')
@@ -66,14 +59,35 @@ export default async function handler(req, res) {
 
   // Body: Vercel may have already parsed it to an object; otherwise read the stream.
   let body
+  let bodyObj
   if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-    body = JSON.stringify(req.body)
+    bodyObj = req.body
   } else if (typeof req.body === 'string') {
-    body = req.body
+    try { bodyObj = JSON.parse(req.body) } catch {}
   } else if (Buffer.isBuffer(req.body)) {
-    body = req.body.toString('utf8')
+    try { bodyObj = JSON.parse(req.body.toString('utf8')) } catch {}
   } else {
-    body = await readRawBody(req)
+    const raw = await readRawBody(req)
+    try { bodyObj = JSON.parse(raw) } catch {}
+  }
+
+  // Prefer the env key; fall back to the client-supplied key from the body
+  // (the AI Render modal / sidebar form field). Strip `apiKey` from the body
+  // before forwarding so Gemini doesn't see a stray field.
+  const envKey = process.env.GEMINI_API_KEY
+  const bodyKey = bodyObj && typeof bodyObj.apiKey === 'string' ? bodyObj.apiKey : ''
+  const key = envKey || bodyKey
+  if (!key) {
+    res.statusCode = 500
+    res.setHeader('Content-Type', 'application/json')
+    return res.end(JSON.stringify({ error: 'GEMINI_API_KEY not configured (no env key, no body apiKey)' }))
+  }
+  if (bodyObj) {
+    const { apiKey: _omit, ...rest } = bodyObj
+    body = JSON.stringify(rest)
+  } else {
+    // Fallback: body wasn't JSON — forward as-is. No client-key stripping possible.
+    body = typeof req.body === 'string' ? req.body : ''
   }
 
   try {
