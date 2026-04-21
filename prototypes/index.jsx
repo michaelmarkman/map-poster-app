@@ -57,7 +57,7 @@ function Navbar() {
           <a href="./poster-v3-ui.html">Editor</a>
           <a href="./community.html">Community</a>
           {PAYWALL_ENABLED && <a href="./pricing.html">Pricing</a>}
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-sm">Start Creating</a>
+          <a href="/app" className="btn btn-primary btn-sm">Start Creating</a>
         </div>
       </div>
     </nav>
@@ -99,7 +99,7 @@ function Hero() {
           Search, customize the view, apply cinematic effects, and export print-ready art.
         </p>
         <div className="hero-ctas">
-          <a href="./poster-v3-ui.html" className="btn btn-primary btn-lg">Start Creating</a>
+          <a href="/app" className="btn btn-primary btn-lg">Start Creating</a>
           <a href="./community.html" className="btn btn-secondary btn-lg">Explore Gallery</a>
         </div>
 

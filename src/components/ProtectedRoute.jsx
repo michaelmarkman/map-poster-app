@@ -1,9 +1,20 @@
+import { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { enterGuestMode, useGuestMode } from '../lib/guestMode'
 
-export default function ProtectedRoute({ children }) {
+// `guestAllowed`: routes like /app can be used by guests. Routes without it
+// (profile, gallery) still bounce unauth'd visitors to /login.
+export default function ProtectedRoute({ children, guestAllowed = false }) {
   const { user, loading } = useAuth()
+  const guest = useGuestMode()
+
+  // Zero-friction direct visits to /app: flip the guest flag on arrival so
+  // the rest of the UI (Navbar, sign-in chip) knows we're in guest mode.
+  useEffect(() => {
+    if (guestAllowed && !loading && !user && !guest) enterGuestMode()
+  }, [guestAllowed, loading, user, guest])
 
   // No Supabase client = no auth backend configured (dev without env vars,
   // static preview deploys). Treat as public — the editor still works; it
@@ -26,6 +37,7 @@ export default function ProtectedRoute({ children }) {
     )
   }
 
-  if (!user) return <Navigate to="/login" replace />
-  return children
+  if (user) return children
+  if (guestAllowed) return children
+  return <Navigate to="/login" replace />
 }

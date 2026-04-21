@@ -144,7 +144,7 @@ export default function LandingPage() {
             Choose your style, frame it, and share it with the world.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            <a href="/prototypes/poster-v3-ui.html" className="landing-btn" style={s.btn}>
+            <a href="/app" className="landing-btn" style={s.btn}>
               {user ? 'Open editor' : 'Try it free'}
             </a>
             <a href="/prototypes/community.html" className="landing-btn-sec" style={s.secondary}>
