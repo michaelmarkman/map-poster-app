@@ -1067,19 +1067,45 @@ body.mock-mounted #poster-preview .pp-scene {
     transform: none;
     gap: 6px;
   }
+  /* Bottom row: bottom-left (aspect + tools) and bottom-right (Gallery)
+   * share the real bottom of the viewport. bottom-mid (Capture|Render)
+   * gets lifted into a SECOND row above them — on a 390px phone the
+   * three clusters cannot all fit on one line without clipping the
+   * aspect pill (screenshot bug). Two rows cost ~48px of vertical
+   * headroom but keep every pill reachable without scrolling.
+   *
+   * bottom-left is allowed to wrap if the user has editor + saved
+   * graphics + hide + preview pills all mounted — it can become a
+   * 2-row cluster in that case; bottom-mid rises further via the
+   * max-height variant when editor mode is active. */
   .mock-cluster--bottom-left {
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     left: calc(10px + env(safe-area-inset-left, 0px));
     gap: 6px;
     flex-wrap: wrap;
-    max-width: calc(100vw - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    /* Reserve room for bottom-right so bottom-left doesn't flow under it. */
+    max-width: calc(58vw - env(safe-area-inset-left, 0px));
   }
   .mock-cluster--bottom-mid {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    /* Lifted above the real bottom row. bottom-left wraps to 2 rows when
+     * all four pills are mounted (aspect + Edit + hide + preview) so the
+     * offset has to clear 2 × pill-height + gap. Fine pointer pills are
+     * 36px → 36+6+36+12 = 90px. Coarse-pointer override bumps to 112px
+     * to match 44px pill height. */
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   }
   .mock-cluster--bottom-right {
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     right: calc(10px + env(safe-area-inset-right, 0px));
+    /* Cap so a long "Gallery · 14" label doesn't push into bottom-left. */
+    max-width: 40vw;
+  }
+  /* Gallery pill — keep the icon + count, drop the "Gallery" word on
+   * phones. The ImageIcon carries the meaning and the count stays
+   * informative. Styled via :has so the normal pill rule stays intact. */
+  .mock-cluster--bottom-right .mock-pill {
+    padding: 8px 12px;
+    font-size: 11px;
   }
 
   /* Popovers — constrain so they don't spill past the viewport edge. */
@@ -1097,6 +1123,16 @@ body.mock-mounted #poster-preview .pp-scene {
   /* Fabric editor toolbar (top-centered glass pill) — respect safe-area. */
   body.mock-mounted #editor-toolbar {
     top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Coarse-pointer overrides — pills get bumped to 44px height globally in
+ * the earlier @media (pointer: coarse) block, so on phone + touch the
+ * bottom-mid needs to sit higher to clear 2 rows of 44px pills from the
+ * wrapped bottom-left cluster. 44 + 6 + 44 + 18 ≈ 112px. */
+@media (max-width: 768px) and (pointer: coarse) {
+  .mock-cluster--bottom-mid {
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
 }
 

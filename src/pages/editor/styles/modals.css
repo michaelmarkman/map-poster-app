@@ -469,6 +469,13 @@
     color: #14100a;
     border-color: var(--accent);
   }
+  /* Share button sits just left of the download button. Previously an
+     inline style carried right: 38px + smaller font; moved here so the
+     mobile override can actually win without !important. */
+  .gallery-card .gc-dl-share {
+    right: 38px;
+    font-size: 11px;
+  }
   .gallery-card.gallery-batch .gc-mosaic {
     display: grid;
     grid-template-columns: 1fr 1fr;

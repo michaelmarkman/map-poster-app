@@ -172,10 +172,10 @@ function GalleryCard({ item, onOpen }) {
   return (
     <div className="gallery-card" onClick={onOpen}>
       <img src={item.dataUrl} alt={item.label} />
-      <div className="gc-dl" style={{ right: 38, fontSize: 11 }} title="Share to Community" onClick={handleShare}>
+      <div className="gc-dl gc-dl-share" title="Share to Community" onClick={handleShare}>
         {'\u2191'}
       </div>
-      <div className="gc-dl" onClick={handleDownload}>
+      <div className="gc-dl gc-dl-download" onClick={handleDownload}>
         {'\u2193'}
       </div>
       <div className="gc-info">
