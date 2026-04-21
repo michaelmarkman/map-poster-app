@@ -90,13 +90,18 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
 
   if (focalRaw >= 1.0) { outputColor = inputColor; return; }
 
-  // Soften the far-plane short-circuit into a ramp between the generic
-  // CoC path and full-blur. A hard rawDepth>=1.0 branch created
-  // a visible black seam on mobile because mediump depth quantization
-  // caused neighboring pixels to straddle the 1.0 boundary — one pixel
-  // full-blurred, the next barely blurred, repeat. skyMix ramps smoothly
-  // over the last 1% of depth range.
-  float skyMix = smoothstep(0.99, 1.0, rawDepth);
+  // Soften the far-plane short-circuit into a very tight ramp. A hard
+  // rawDepth>=1.0 branch created a black seam on mobile because mediump
+  // depth quantization flipped neighbors across the 1.0 boundary.
+  // The ramp MUST stay extremely narrow: perspective depth with
+  // cameraFar=1e7 saturates close to 1.0 very fast — a pixel only 100m
+  // away already has rawDepth > 0.99 on a globe scene. A wide ramp
+  // (e.g. [0.99, 1.0]) sweeps the entire terrain into the sky-blur
+  // branch, making the whole frame look blurry and defeating
+  // tap-to-focus (sky branch ignores focalPoint). Keep the ramp to the
+  // very last sliver so only true sky (rawDepth=1.0) and its immediate
+  // precision-jitter neighbors trigger it.
+  float skyMix = smoothstep(0.99999, 1.0, rawDepth);
 
   highp float viewZ = getViewZ(rawDepth);
   highp float focalZ = getViewZ(focalRaw);

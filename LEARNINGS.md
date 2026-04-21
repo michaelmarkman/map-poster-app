@@ -289,3 +289,29 @@ file is the raw log — CLAUDE.md is the curated summary.
   pattern needs UV clamping if it's going to ship to mobile. The
   "works on desktop / broken on iPhone" sampling bug is almost always
   this.
+
+## 2026-04-21 — DoF sky-mix ramp was catastrophically wide on a globe scene
+
+- Bug: after PR #41 (mobile DoF black-band fix) shipped, DoF looked
+  broken everywhere — entire scene appeared blurry, tap-to-focus had
+  no effect. Not caught by unit tests or smoke; only visible in the
+  rendered image.
+- Cause: PR #41 softened the far-plane short-circuit into a ramp —
+  `skyMix = smoothstep(0.99, 1.0, rawDepth)` — then blended with
+  `ringBlur(uv, maxBlur)`. That's fine for a flat scene, but with
+  `cameraFar = 1e7` on the globe, perspective depth saturates toward
+  1.0 fast: a point only 100m away already has rawDepth > 0.99.
+  So almost every terrain pixel got swept into the sky-blur branch,
+  which (a) looks blurry everywhere and (b) ignores `focalPoint`, so
+  tap-to-focus can't move the blur.
+- Fix (CustomDofEffect.jsx:99): narrowed the ramp to
+  `smoothstep(0.99999, 1.0, rawDepth)`. Only true sky (rawDepth=1.0)
+  and its immediate precision-jitter neighbors trigger the sky branch;
+  real terrain goes through the focalPoint-aware CoC path.
+- General rule for shader constants on a globe: any threshold on
+  `rawDepth` needs to account for `cameraFar = 1e7`. In perspective
+  depth, most of the visible range (1m to 10km) lives inside the
+  last 1% of [0, 1]. Any threshold wider than ~1e-5 below 1.0 will
+  start catching terrain. Test thresholds by working backward from
+  the z-distances you actually care about, not by picking round
+  numbers that "feel narrow".
