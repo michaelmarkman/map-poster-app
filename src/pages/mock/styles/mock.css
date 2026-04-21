@@ -206,7 +206,11 @@ body.mock-mounted #canvas-container::before {
   border-color: rgba(200, 184, 151, 0.42);
   color: rgba(232, 220, 192, 0.96);
 }
-.mock-pill.is-drag { cursor: ew-resize; }
+/* Drag scrubber pills (focal-length mm, time-of-day). touch-action must
+ * be `none` — without it, mobile browsers interpret a horizontal finger
+ * drag as a page-pan gesture and cancel the pointer events that
+ * DragPill.jsx reads, leaving the slider dead on touch. */
+.mock-pill.is-drag { cursor: ew-resize; touch-action: none; }
 .mock-pill.is-dragging { background: rgba(40, 40, 46, 0.9); }
 
 .mock-pill-icon {
