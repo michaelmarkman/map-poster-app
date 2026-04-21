@@ -77,9 +77,25 @@ function ClickToFocus() {
         1.0 - (e.clientY - rect.top) / rect.height,
       ]
     }
-    canvas.addEventListener('pointerdown', onDown)
-    canvas.addEventListener('pointerup', onUp)
-    return () => { canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp) }
+    // pointercancel fires on iOS Safari mid-gesture when another handler
+    // grabs the pointer capture (e.g. GlobeControls promoting a tap into
+    // an orbit). If we don't clear downPos, a subsequent non-tap move
+    // would still resolve to focalUV update because downPos stayed set.
+    const onCancel = () => { downPos = null }
+    // Capture phase so our handler fires BEFORE 3d-tiles-renderer's
+    // GlobeControls pointerdown callback (which calls preventDefault and
+    // may capture the pointer for orbit). Without capture, the touch
+    // sometimes got re-routed and our bubble-phase listener never ran on
+    // iOS Safari → tap-to-focus was silently broken on phones.
+    const opts = { capture: true }
+    canvas.addEventListener('pointerdown', onDown, opts)
+    canvas.addEventListener('pointerup', onUp, opts)
+    canvas.addEventListener('pointercancel', onCancel, opts)
+    return () => {
+      canvas.removeEventListener('pointerdown', onDown, opts)
+      canvas.removeEventListener('pointerup', onUp, opts)
+      canvas.removeEventListener('pointercancel', onCancel, opts)
+    }
   }, [gl])
   return null
 }
