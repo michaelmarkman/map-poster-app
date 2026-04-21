@@ -17,6 +17,8 @@
     { "source": "/app-classic/(.*)", "destination": "/src/index.html" },
     { "source": "/mock", "destination": "/src/index.html" },
     { "source": "/mock/(.*)", "destination": "/src/index.html" },
+    { "source": "/dof-lab", "destination": "/src/index.html" },
+    { "source": "/dof-lab/(.*)", "destination": "/src/index.html" },
     { "source": "/login", "destination": "/src/index.html" },
     { "source": "/signup", "destination": "/src/index.html" },
     { "source": "/forgot-password", "destination": "/src/index.html" },

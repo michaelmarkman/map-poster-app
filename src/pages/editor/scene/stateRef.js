@@ -39,6 +39,14 @@ export const sceneRef = {
     blur: 25,
     sceneColorPop: 0,
     focusColorPop: 60,
+    // DoF-lab additions — default to "off / legacy" so /app behavior
+    // is untouched. See docs/superpowers/specs/2026-04-21-dof-lab-design.md
+    useApertureCoC: false,
+    aperture: 4,            // f-stop; lab UI range f/1.4 – f/16
+    tiltShift: false,
+    tiltCenter: [0.5, 0.5], // UV
+    tiltBandHalf: 0.1,      // UV Y-units
+    tiltRotation: 0,        // radians; 0 = horizontal
   },
   // Set by useGraphicEditor when the Fabric editor is on. Scene input
   // handlers (click-to-focus, WASD fly, scroll-wheel dolly) read this and

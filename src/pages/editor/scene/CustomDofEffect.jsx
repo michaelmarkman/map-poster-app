@@ -2,6 +2,11 @@ import React, { useMemo, forwardRef } from 'react'
 import { Effect, EffectAttribute, BlendFunction } from 'postprocessing'
 import { Uniform, Vector2 } from 'three'
 
+// DoF-lab additions (see docs/superpowers/specs/2026-04-21-dof-lab-design.md).
+// All new uniforms default to "off / legacy" — when useApertureCoC and
+// tiltShiftMode are both false, the shader runs exactly as it did before
+// these knobs were introduced, and /app renders identically.
+
 // Mobile detection — matches atoms/scene.js. Used to pick a simpler/cheaper
 // DoF variant. iPhone GPUs (and Android tier-1) have mediump-by-default
 // precision on fragment shaders; running the full 81-sample ring blur
@@ -39,6 +44,17 @@ uniform float depthRange;
 uniform float maxBlur;
 uniform float sceneColorPop;
 uniform float focusColorPop;
+
+// DoF-lab uniforms. Defaults produce legacy behavior.
+uniform bool  useApertureCoC;    // false → smoothstep(relDiff) path
+uniform float apertureFactor;    // = 1/N² (N = f-stop); bigger = more blur
+uniform float focalLengthMm;     // derived from camera fov in Scene
+uniform bool  tiltShiftMode;     // true overrides aperture and depth paths
+uniform vec2  tiltCenter;        // UV center of sharp band
+uniform float tiltBandHalf;      // half-height of sharp band, Y-UV units
+uniform float tiltSoftness;      // falloff width outside the band
+uniform float tiltRotation;      // radians; 0 = horizontal
+uniform float canvasAspect;      // width / height; keeps band proportional
 
 // Multi-ring disk sampler — concentric rings of samples for smooth bokeh.
 // Desktop: 1 + 8 + 16 + 24 + 32 = 81 samples in 4 rings.
@@ -88,15 +104,23 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   highp float rawDepth = readDepth(uv);
   highp float focalRaw = readDepth(focalPoint);
 
-  if (focalRaw >= 1.0) { outputColor = inputColor; return; }
+  // Short-circuit: if the user's focal point is on the sky (no geometry),
+  // depth-based DoF has no meaningful focal distance so pass through.
+  // Tilt-shift mode ignores the focal sample entirely, so skip this guard.
+  if (!tiltShiftMode && focalRaw >= 1.0) { outputColor = inputColor; return; }
 
-  // Soften the far-plane short-circuit into a ramp between the generic
-  // CoC path and full-blur. A hard rawDepth>=1.0 branch created
-  // a visible black seam on mobile because mediump depth quantization
-  // caused neighboring pixels to straddle the 1.0 boundary — one pixel
-  // full-blurred, the next barely blurred, repeat. skyMix ramps smoothly
-  // over the last 1% of depth range.
-  float skyMix = smoothstep(0.99, 1.0, rawDepth);
+  // Soften the far-plane short-circuit into a very tight ramp. A hard
+  // rawDepth>=1.0 branch created a black seam on mobile because mediump
+  // depth quantization flipped neighbors across the 1.0 boundary.
+  // The ramp MUST stay extremely narrow: perspective depth with
+  // cameraFar=1e7 saturates close to 1.0 very fast — a pixel only 100m
+  // away already has rawDepth > 0.99 on a globe scene. A wide ramp
+  // (e.g. [0.99, 1.0]) sweeps the entire terrain into the sky-blur
+  // branch, making the whole frame look blurry and defeating
+  // tap-to-focus (sky branch ignores focalPoint). Keep the ramp to the
+  // very last sliver so only true sky (rawDepth=1.0) and its immediate
+  // precision-jitter neighbors trigger it.
+  float skyMix = smoothstep(0.99999, 1.0, rawDepth);
 
   highp float viewZ = getViewZ(rawDepth);
   highp float focalZ = getViewZ(focalRaw);
@@ -104,11 +128,44 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   // low-precision buffers doesn't produce Inf/NaN (which on some mobile
   // GPUs samples as black).
   highp float relDiff = abs(viewZ - focalZ) / max(abs(focalZ), 0.001);
-  float coc = smoothstep(0.0, depthRange, relDiff) * maxBlur;
-  // Keep the blur radius bounded — runaway CoC from depth precision
-  // spikes would sample wildly across the frame, amplifying the OOB
-  // darkening before the UV clamp catches it.
-  coc = clamp(coc, 0.0, maxBlur);
+
+  // CoC + focusAmount. Mode priority:
+  //   tiltShiftMode  → depth-independent band (ignores focalPoint)
+  //   useApertureCoC → thin-lens approximation (real camera feel)
+  //   else           → legacy smoothstep(relDiff) path  [today's /app]
+  float coc;
+  float focusAmount;
+  if (tiltShiftMode) {
+    // Distance from the axis of the sharp band. Aspect-correct the UV
+    // so the band's thickness is expressed in Y-units regardless of
+    // canvas width.
+    vec2 p = (uv - tiltCenter) * vec2(canvasAspect, 1.0);
+    float cs = cos(tiltRotation);
+    float sn = sin(tiltRotation);
+    float perp = abs(-sn * p.x + cs * p.y);
+    float t = smoothstep(tiltBandHalf, tiltBandHalf + tiltSoftness, perp);
+    coc = t * maxBlur;
+    focusAmount = 1.0 - t;
+  } else if (useApertureCoC) {
+    // Thin-lens CoC: ∝ (f²/N²) · |1/focalZ − 1/viewZ|.
+    // The calibration constant 0.0008 was tuned so f/4 at 50mm produces
+    // blur close to today's legacy feel at blur=25% — feel free to
+    // adjust. Falloff width is still governed by maxBlur (the ceiling)
+    // and the soft mix below.
+    highp float vz = max(abs(viewZ), 1.0);
+    highp float fz = max(abs(focalZ), 1.0);
+    coc = 0.0008 * apertureFactor * focalLengthMm * focalLengthMm
+        * abs(1.0 / fz - 1.0 / vz);
+    coc = clamp(coc, 0.0, maxBlur);
+    focusAmount = 1.0 - smoothstep(0.0, 1.5, coc);
+  } else {
+    coc = smoothstep(0.0, depthRange, relDiff) * maxBlur;
+    // Keep the blur radius bounded — runaway CoC from depth precision
+    // spikes would sample wildly across the frame, amplifying the OOB
+    // darkening before the UV clamp catches it.
+    coc = clamp(coc, 0.0, maxBlur);
+    focusAmount = 1.0 - smoothstep(0.0, depthRange, relDiff);
+  }
 
   vec4 color = inputColor;
   // Soft blend into the blurred result instead of a hard coc>=0.5
@@ -121,16 +178,18 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
     color = mix(inputColor, blurred, mixAmt);
   }
 
-  // Blend toward full sky-blur at the far plane ramp.
-  if (skyMix > 0.0) {
+  // Blend toward full sky-blur at the far plane ramp. Tilt-shift ignores
+  // depth entirely, so don't double-dip here — the band already decides
+  // what's sharp vs blurred.
+  if (!tiltShiftMode && skyMix > 0.0) {
     vec4 skyBlur = ringBlur(uv, maxBlur);
     color = mix(color, skyBlur, skyMix);
   }
 
   // Color pop — scene baseline everywhere + focus boost on top of the
-  // focal area. Clamped so two maxed sliders can't exceed the shader's
-  // natural "fully popped" range.
-  float focusAmount = 1.0 - smoothstep(0.0, depthRange, relDiff);
+  // focal area. focusAmount was set above alongside coc so color pop
+  // tracks the same focal region the blur uses (depth-based,
+  // aperture-based, or tilt-shift band — whichever mode is active).
   float pop = min(1.0, sceneColorPop + focusAmount * focusColorPop);
   float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 
@@ -164,6 +223,16 @@ export class CustomDofEffect extends Effect {
         ['maxBlur', new Uniform(20)],
         ['sceneColorPop', new Uniform(0.0)],
         ['focusColorPop', new Uniform(0.6)],
+        // DoF-lab — all default off/legacy so /app is unaffected.
+        ['useApertureCoC', new Uniform(false)],
+        ['apertureFactor', new Uniform(1 / 16)],   // f/4 default
+        ['focalLengthMm', new Uniform(35)],
+        ['tiltShiftMode', new Uniform(false)],
+        ['tiltCenter', new Uniform(new Vector2(0.5, 0.5))],
+        ['tiltBandHalf', new Uniform(0.1)],
+        ['tiltSoftness', new Uniform(0.05)],
+        ['tiltRotation', new Uniform(0)],
+        ['canvasAspect', new Uniform(1)],
       ]),
     })
   }

@@ -145,6 +145,7 @@ export default function Scene() {
   useInvalidateOnSceneChange()
 
   const camera = useThree(({ camera }) => camera)
+  const size = useThree((s) => s.size)
   const composerRef = useRef(null)
   const atmosphereRef = useRef(null)
   const dofRef = useRef(null)
@@ -432,6 +433,23 @@ export default function Scene() {
         fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
         fx.uniforms.get('maxBlur').value = 2 + (sceneRef.dof.blur / 100) * 48
       }
+
+      // DoF-lab uniforms. When /app is the current route, every `?? <default>`
+      // branch falls through to the legacy path so rendering is unchanged.
+      // mm from vertical fov (see CLAUDE.md gotcha #3 — `camera.fov` is vertical).
+      const mm = 12 / Math.tan((camera.fov * Math.PI) / 360)
+      const fStop = sceneRef.dof.aperture ?? 4
+      fx.uniforms.get('focalLengthMm').value = mm
+      fx.uniforms.get('apertureFactor').value = 1 / (fStop * fStop)
+      fx.uniforms.get('useApertureCoC').value = !!sceneRef.dof.useApertureCoC
+      fx.uniforms.get('tiltShiftMode').value = !!sceneRef.dof.tiltShift
+      const [tcx, tcy] = sceneRef.dof.tiltCenter ?? [0.5, 0.5]
+      fx.uniforms.get('tiltCenter').value.set(tcx, tcy)
+      const bandHalf = sceneRef.dof.tiltBandHalf ?? 0.1
+      fx.uniforms.get('tiltBandHalf').value = bandHalf
+      fx.uniforms.get('tiltSoftness').value = bandHalf * 0.5
+      fx.uniforms.get('tiltRotation').value = sceneRef.dof.tiltRotation ?? 0
+      fx.uniforms.get('canvasAspect').value = size.width / Math.max(1, size.height)
     }
 
     // Sync camera near/far into effects

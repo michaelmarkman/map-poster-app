@@ -1,0 +1,1182 @@
+/* ═══════ MOCK EDITOR — full-bleed canvas + aspect frame overlay ═══════
+ * Scoped to body.mock-mounted. The canvas always renders at full viewport;
+ * the aspect ratio shows up as a white-bordered frame overlay (FrameOverlay)
+ * sitting on top of the canvas, with four blur strips around the frame so
+ * the off-frame area reads as a soft, blurred extension of the scene.
+ */
+
+/* Canvas always full-bleed — regardless of fillMode. The original sized-down
+ * + white-border treatment is gone; that's now FrameOverlay's job. */
+body.mock-mounted #main {
+  padding: 0;
+  background: #000;
+}
+body.mock-mounted #main::before,
+body.mock-mounted #main::after {
+  display: none;
+}
+body.mock-mounted #canvas-container {
+  --main-h-padding: 0px;
+  --main-v-padding: 0px;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.mock-mounted #canvas-container::before {
+  display: none;
+}
+
+/* ═══════ Frame overlay — only renders when fillMode is OFF ═══════ */
+.mock-frame-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  /* viewport breathing room — the frame sits inside this padding so the
+   * blur strips have visible mass around the edges. No extra max-w/max-h
+   * cap on the computed frame; capping one axis but not the other breaks
+   * the aspect ratio and the strips drift away from the frame edge.    */
+  --frame-h-padding: clamp(80px, 14vw, 280px);
+  --frame-v-padding: clamp(120px, 16vh, 200px);
+  --frame-w: min(
+    calc((100vh - var(--frame-v-padding)) * var(--frame-ratio, 1.333)),
+    calc(100vw - var(--frame-h-padding))
+  );
+  --frame-h: min(
+    calc(100vh - var(--frame-v-padding)),
+    calc((100vw - var(--frame-h-padding)) / var(--frame-ratio, 1.333))
+  );
+  --frame-x: calc((100vw - var(--frame-w)) / 2);
+  --frame-y: calc((100vh - var(--frame-h)) / 2);
+}
+
+/* Single full-viewport blur layer with a frame-shaped cutout. backdrop-filter
+ * is back — pills lose their own blur effect when aspect is on (the blur
+ * layer paints what would have been their dynamic backdrop), but the
+ * off-frame area now reads as blurred instead of just darkened. In fill
+ * mode the FrameOverlay isn't rendered, so pills get their blur back. */
+.mock-frame-blur {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+  -webkit-mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+          mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+  -webkit-mask-position: 0 0, var(--frame-x) var(--frame-y);
+          mask-position: 0 0, var(--frame-x) var(--frame-y);
+  -webkit-mask-size: 100% 100%, var(--frame-w) var(--frame-h);
+          mask-size: 100% 100%, var(--frame-w) var(--frame-h);
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  transition: -webkit-mask-position 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              mask-position 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              -webkit-mask-size 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              mask-size 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mock-frame-border {
+  position: absolute;
+  top: var(--frame-y);
+  left: var(--frame-x);
+  width: var(--frame-w);
+  height: var(--frame-h);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ═══════ Pill clusters — all horizontal rows now ═══════ */
+.mock-cluster {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  z-index: 60;
+  pointer-events: none;
+}
+.mock-cluster > * { pointer-events: auto; }
+.mock-cluster--top-left   { top: 18px; left: 18px; }
+.mock-cluster--top-mid    { top: 18px; left: 50%; transform: translateX(-50%); gap: 6px; }
+.mock-cluster--top-right  { top: 18px; right: 18px; gap: 6px; }
+.mock-cluster--bottom-left  { bottom: 18px; left: 18px; }
+.mock-cluster--bottom-mid   { bottom: 18px; left: 50%; transform: translateX(-50%); }
+.mock-cluster--bottom-right { bottom: 18px; right: 18px; }
+
+/* Split pill — two pill-like halves sharing one glass background, divided
+ * by a hairline. Used for Capture | AI Render in the bottom-mid cluster. */
+.mock-split-pill {
+  display: inline-flex;
+  align-items: stretch;
+  background: rgba(20, 20, 22, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  height: 36px;
+  overflow: hidden;
+}
+.mock-split-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 100%;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font: 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.mock-split-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.mock-split-pill-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  align-self: stretch;
+  flex: none;
+}
+
+/* Tight pair grouping inside the top-right cluster (camera + time) and
+ * (DoF + Clouds) — visually two pairs separated by a wider gap. */
+.mock-cluster-pair {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+.mock-cluster-pair > * { pointer-events: auto; }
+
+/* Wrappers for popover positioning. */
+.mock-hover-pill-wrap,
+.mock-popover-pill-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ═══════ Pill ═══════ */
+.mock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.86);
+  font: 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.mock-pill:hover {
+  background: rgba(28, 28, 32, 0.82);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.mock-pill.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+/* Drag scrubber pills (focal-length mm, time-of-day). touch-action must
+ * be `none` — without it, mobile browsers interpret a horizontal finger
+ * drag as a page-pan gesture and cancel the pointer events that
+ * DragPill.jsx reads, leaving the slider dead on touch. */
+.mock-pill.is-drag { cursor: ew-resize; touch-action: none; }
+.mock-pill.is-dragging { background: rgba(40, 40, 46, 0.9); }
+
+.mock-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+.mock-pill.is-active .mock-pill-icon { opacity: 1; }
+.mock-pill-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════ Popovers ═══════ */
+.mock-popover {
+  position: absolute;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 12px;
+  background: rgba(18, 18, 20, 0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+          backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.88);
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  z-index: 80;
+}
+.mock-popover--left  { left: 0; }
+.mock-popover--right { right: 0; }
+.mock-popover--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.mock-popover--drop-down { top: calc(100% + 8px); bottom: auto; }
+.mock-popover--drop-up   { bottom: calc(100% + 8px); top: auto; }
+
+.mock-popover--search { min-width: 280px; }
+.mock-popover--saved  { min-width: 240px; max-width: 320px; }
+.mock-popover--aspect { min-width: 240px; }
+
+/* Hover-popover entry animation — subtle fade + scale from anchor.
+ * Default = drop-down + align-right (top-right cluster pills) so origin
+ * is top-right and the popover descends. Variants below cover the
+ * other corners so the popover always appears to grow OUT FROM the pill,
+ * not toward it. */
+.mock-popover--hover {
+  transform-origin: top right;
+  animation: mock-pop-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+.mock-popover--hover.mock-popover--center {
+  transform-origin: bottom center;
+  animation: mock-pop-in-center 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Drops-up + side-anchored (e.g. bottom-left aspect pill on /mock).
+ * Originates from the bottom edge, so the popover should slide DOWN
+ * into place from above the pill — i.e. start with translateY(6px)
+ * and end at 0, rather than starting above and dropping. */
+.mock-popover--hover.mock-popover--drop-up.mock-popover--left {
+  transform-origin: bottom left;
+  animation: mock-pop-in-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-popover--hover.mock-popover--drop-up.mock-popover--right {
+  transform-origin: bottom right;
+  animation: mock-pop-in-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mock-pop-in-up {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes mock-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.mock-popover--click {
+  will-change: transform, opacity;
+}
+.mock-popover--click.mock-popover--left {
+  transform-origin: top left;
+  animation: mock-pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-popover--click.mock-popover--right {
+  transform-origin: top right;
+  animation: mock-pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-popover--click.mock-popover--center {
+  transform-origin: bottom center;
+  animation: mock-pop-in-center 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mock-pop-in-center {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mock-popover--hover,
+  .mock-popover--click,
+  .mock-airender-sheet,
+  .mock-frame-blur,
+  .mock-frame-border {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ═══════ Form bits ═══════ */
+.mock-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+}
+.mock-input:focus { border-color: rgba(200, 184, 151, 0.5); }
+.mock-input--block { display: block; margin-bottom: 8px; }
+
+.mock-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 8px 0;
+  text-align: center;
+}
+
+.mock-btn-primary,
+.mock-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font: 12px/1 inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  font-family: inherit;
+}
+.mock-btn-primary {
+  width: 100%;
+  margin-top: 8px;
+  background: rgba(200, 184, 151, 0.14);
+  border: 1px solid rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+.mock-btn-primary:hover {
+  background: rgba(200, 184, 151, 0.22);
+}
+.mock-btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.78);
+}
+.mock-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ═══════ Style picker popover ═══════ */
+.mock-style-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.mock-style-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font: 11px/1 inherit;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.mock-style-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-style-btn.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+.mock-style-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ═══════ Saved-views popover ═══════ */
+.mock-saved-views { display: flex; flex-direction: column; gap: 4px; }
+.mock-saved-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.mock-saved-list li {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.mock-saved-row {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+.mock-saved-row:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-saved-del {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 16px;
+  width: 24px;
+  cursor: pointer;
+}
+.mock-saved-del:hover { color: rgba(255, 200, 200, 0.85); }
+
+/* ═══════ Aspect popover ═══════ */
+.mock-aspect-grid { display: flex; flex-direction: column; gap: 6px; }
+.mock-aspect-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.5);
+}
+.mock-aspect-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.mock-aspect-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font: 11px/1 inherit;
+  padding: 6px 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mock-aspect-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-aspect-btn.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+.mock-aspect-fill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font: 11px/1 inherit;
+  padding: 8px 0;
+  cursor: pointer;
+  margin-top: 4px;
+  font-family: inherit;
+}
+.mock-aspect-fill:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-aspect-fill.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+
+/* ═══════ Slider rows used in hover popovers ═══════ */
+.mock-slider-row { margin-bottom: 10px; }
+.mock-slider-row:last-child { margin-bottom: 0; }
+.mock-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.mock-slider-val {
+  color: rgba(255, 255, 255, 0.92);
+  font-variant-numeric: tabular-nums;
+}
+.mock-slider-row input[type='range'] {
+  width: 100%;
+  -webkit-appearance: none;
+     -moz-appearance: none;
+          appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.mock-slider-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: rgba(232, 220, 192, 0.95);
+  cursor: pointer;
+  border: 0;
+}
+.mock-slider-row input[type='range']::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: rgba(232, 220, 192, 0.95);
+  border: 0;
+  cursor: pointer;
+}
+
+.mock-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 8px;
+}
+.mock-toggle-row:last-child { margin-bottom: 0; }
+.mock-toggle {
+  width: 28px; height: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  border: 0;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  padding: 0;
+}
+.mock-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.12s ease;
+}
+.mock-toggle.is-on { background: rgba(200, 184, 151, 0.6); }
+.mock-toggle.is-on::after { transform: translateX(12px); }
+
+/* Grey-out a group of controls when its parent toggle is off (e.g. cloud
+ * sub-controls when clouds are disabled). Half opacity + click-disabled. */
+.mock-controls-group.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: saturate(0.5);
+}
+/* Visual separation between sub-control groups inside the same popover
+ * (e.g. Color Pop sitting below the cloud-specific controls). */
+.mock-controls-group--separated {
+  padding-top: 12px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ═══════ Editor mode ═══════
+ * When the Fabric editor is active, hide scene-control clusters (top
+ * three + the aspect picker) and the frame overlay so the canvas reads
+ * as a clean composition surface for text + graphics. Bottom-row pills
+ * stay so the user can exit, preview, and export. */
+.mock-cluster--top-left,
+.mock-cluster--top-mid,
+.mock-cluster--top-right {
+  transition: opacity 0.22s ease-out;
+}
+body.mock-editor-active .mock-cluster--top-left,
+body.mock-editor-active .mock-cluster--top-mid,
+body.mock-editor-active .mock-cluster--top-right {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 0.18s;
+}
+/* Editor mode keeps the frame overlay AND the aspect pill visible so the
+ * user can see + change poster bounds. The Fabric canvas is repositioned
+ * to match those bounds via the useFabricFrameSync hook in MockEditorShell. */
+
+/* Fill mode — no poster, so hide any Fabric graphics drawn earlier so they
+ * don't float over the unframed canvas. Switching back to an aspect ratio
+ * unhides them in their original positions. */
+body.mock-fill-mode #canvas-container > .canvas-container {
+  display: none;
+}
+
+/* Render backdrop — covers the WebGL canvas with a saved render so the user
+ * can edit graphics on top of that fixed image. Sized + positioned to match
+ * the frame; sits above WebGL (z:5) and below the Fabric canvas wrapper
+ * (which graphics.css gives z:15). */
+.mock-render-backdrop {
+  position: absolute;
+  z-index: 5;
+  top: var(--mock-backdrop-top, 0);
+  left: var(--mock-backdrop-left, 0);
+  width: var(--mock-backdrop-w, 100%);
+  height: var(--mock-backdrop-h, 100%);
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* User-triggered graphics hide (via the eye-icon pill in bottom-left).
+ * Same mechanism as fill-mode hide — opacity instead of display:none so
+ * a future "click-through to canvas" doesn't change. */
+body.mock-graphics-hidden #canvas-container > .canvas-container {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ═══════ Fabric editor toolbar — top placement in /mock ═══════
+ * Default in graphics.css is bottom-center. /mock moves it to the top of
+ * the viewport so it doesn't compete with the bottom split-pill cluster,
+ * and restyles the buttons to feel consistent with the rest of /mock's
+ * glass pills. */
+body.mock-mounted #editor-toolbar {
+  top: 18px;
+  bottom: auto;
+  background: rgba(20, 20, 22, 0.72);
+  border-color: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 10px;
+  gap: 2px;
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.55);
+}
+body.mock-mounted .ed-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+}
+body.mock-mounted .ed-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+body.mock-mounted .ed-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.6;
+  display: block;
+}
+body.mock-mounted .ed-sep {
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 6px;
+}
+
+/* ═══════ Poster Preview takeover ═══════ */
+body.mock-mounted #poster-preview {
+  left: 0;
+}
+body.mock-mounted.preview-open .mock-cluster {
+  z-index: 500;
+}
+body.mock-mounted.preview-open .mock-frame-overlay {
+  display: none;
+}
+body.mock-mounted #poster-preview .pp-scene {
+  transform: scale(1.2);
+  transform-origin: center;
+}
+
+/* ═══════ AI Render modal ═══════ */
+.mock-airender-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+}
+.mock-airender-sheet {
+  width: 420px;
+  max-width: 100vw;
+  height: 100%;
+  background: rgba(14, 14, 16, 0.96);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+          backdrop-filter: blur(28px) saturate(150%);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  animation: mock-sheet-in 0.18s ease-out;
+}
+@keyframes mock-sheet-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+.mock-airender-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.mock-airender-head h2 {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+.mock-airender-close {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 22px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.mock-airender-close:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.mock-airender-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  font-size: 12px;
+}
+.mock-airender-footer {
+  flex: none;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(14, 14, 16, 0.96);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+          backdrop-filter: blur(28px) saturate(150%);
+}
+.mock-airender-footer-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.mock-airender-footer-row .mock-btn-ghost,
+.mock-airender-footer-row .mock-btn-primary {
+  flex: 1;
+  margin-top: 0;
+  width: auto;
+}
+.mock-airender-footer-row .mock-btn-ghost {
+  flex: 0 0 auto;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.mock-preset-cat { margin-top: 10px; margin-bottom: 6px; }
+.mock-preset-cat:first-child { margin-top: 4px; }
+.mock-preset-cat-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+}
+.mock-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.mock-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font: 11px/1 inherit;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.mock-preset:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-preset.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+.mock-preset-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.mock-airender-section {
+  margin-top: 14px;
+}
+.mock-airender-section-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+.mock-resgroup {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.mock-res-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.78);
+  font: 12px/1 inherit;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mock-res-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-res-btn.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+  color: rgba(232, 220, 192, 0.96);
+}
+.mock-airender-raw {
+  width: 100%;
+}
+.mock-btn-primary[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mock-airender-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  align-items: center;
+}
+.mock-select {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: 12px/1 inherit;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mock-airender-actions .mock-btn-ghost,
+.mock-airender-actions .mock-btn-primary {
+  flex: 1;
+  margin-top: 0;
+  width: auto;
+}
+
+.mock-airender-queue {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.mock-airender-queue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+.mock-airender-queue-list {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.mock-airender-queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+.mock-airender-queue-item.is-clickable { cursor: pointer; }
+.mock-airender-queue-item.is-clickable:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-airender-queue-status {
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+.mock-airender-status {
+  margin-top: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+.mock-airender-queue-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mock-airender-queue-actions .mock-btn-ghost { flex: 1; }
+
+/* ═══════ MOBILE / TOUCH ═══════════════════════════════════════════════
+ * Three layers, each scoped to a specific capability or viewport:
+ *   1. (pointer: coarse) — 44pt tap targets for anyone on a touch device
+ *      (iPad with Pencil, phone, Surface in touch mode). Doesn't depend
+ *      on viewport width, so desktop mouse users keep the tighter sizing.
+ *   2. (hover: none) — neutralise :hover styles so iOS / Android don't
+ *      leave pills stuck in the hovered state after a tap.
+ *   3. (max-width: 768px) and (max-width: 640px) — viewport layout fixes
+ *      for phones. Clusters tighten, top-mid drops below top-left so 3
+ *      pill rows don't compete for ~390px of horizontal space, and the
+ *      AI Render right-sheet becomes fullscreen on very narrow screens.
+ * Canvas touch gestures stay intact — no `touch-action` declarations.
+ * ───────────────────────────────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+  /* Pills + split-pill — bump to 44pt minimum tap target. */
+  .mock-pill,
+  .mock-split-pill {
+    min-height: 44px;
+    height: 44px;
+  }
+  .mock-pill { padding: 10px 16px; }
+  .mock-split-pill-btn {
+    padding: 0 18px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  /* More breathing room between clusters + between pills in a cluster. */
+  .mock-cluster { gap: 12px; }
+  .mock-cluster--top-mid,
+  .mock-cluster--top-right { gap: 8px; }
+  .mock-cluster-pair { gap: 8px; }
+
+  /* Slider thumbs — tiny thumbs are impossible to drag with a finger. */
+  .mock-slider-row input[type='range'] { height: 6px; }
+  .mock-slider-row input[type='range']::-webkit-slider-thumb {
+    width: 22px; height: 22px;
+  }
+  .mock-slider-row input[type='range']::-moz-range-thumb {
+    width: 22px; height: 22px;
+  }
+  /* Toggle pills — bump to iOS-style 44×26. */
+  .mock-toggle { width: 44px; height: 26px; }
+  .mock-toggle::after { width: 20px; height: 20px; top: 3px; left: 3px; }
+  .mock-toggle.is-on::after { transform: translateX(18px); }
+
+  /* In-popover buttons (aspect / preset / res / style) — 36pt is the
+   * minimum comfortable size for a button you tap repeatedly. */
+  .mock-aspect-btn,
+  .mock-res-btn,
+  .mock-style-btn,
+  .mock-preset { min-height: 36px; }
+  .mock-aspect-fill { min-height: 40px; }
+  .mock-saved-row { padding: 10px 10px; }
+
+  /* Modal close + saved-list delete — tiny X buttons are a pain. */
+  .mock-airender-close {
+    width: 36px; height: 36px;
+    font-size: 24px;
+  }
+  .mock-saved-del { width: 36px; font-size: 18px; }
+}
+
+@media (hover: none) {
+  /* Neutralise :hover so tapped-but-not-released state doesn't stick.
+   * iOS leaves the last-tapped element in :hover until another element
+   * is tapped — looks like a permanently-highlighted pill. */
+  .mock-pill:hover,
+  .mock-split-pill-btn:hover,
+  .mock-btn-primary:hover,
+  .mock-btn-ghost:hover,
+  .mock-style-btn:hover,
+  .mock-saved-row:hover,
+  .mock-saved-del:hover,
+  .mock-aspect-btn:hover,
+  .mock-aspect-fill:hover,
+  .mock-preset:hover,
+  .mock-res-btn:hover,
+  .mock-airender-close:hover,
+  .mock-airender-queue-item.is-clickable:hover,
+  body.mock-mounted .ed-btn:hover {
+    background: inherit;
+    border-color: inherit;
+    color: inherit;
+  }
+  /* Give the same visual weight on :active so taps still feel responsive. */
+  .mock-pill:active {
+    background: rgba(28, 28, 32, 0.82);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+  .mock-split-pill-btn:active {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+  }
+  .mock-btn-primary:active { background: rgba(200, 184, 151, 0.22); }
+  .mock-btn-ghost:active {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .mock-style-btn:active,
+  .mock-saved-row:active,
+  .mock-aspect-btn:active,
+  .mock-aspect-fill:active,
+  .mock-preset:active,
+  .mock-res-btn:active { background: rgba(255, 255, 255, 0.06); }
+  .mock-saved-del:active { color: rgba(255, 200, 200, 0.85); }
+  .mock-airender-close:active { background: rgba(255, 255, 255, 0.06); color: #fff; }
+  .mock-airender-queue-item.is-clickable:active { background: rgba(255, 255, 255, 0.06); }
+  body.mock-mounted .ed-btn:active { background: rgba(255, 255, 255, 0.08); color: #fff; }
+}
+
+@media (max-width: 768px) {
+  /* Shrink the frame padding so the blur strips don't eat the viewport
+   * on a short phone screen. */
+  .mock-frame-overlay {
+    --frame-h-padding: clamp(12px, 4vw, 40px);
+    --frame-v-padding: clamp(60px, 12vh, 120px);
+  }
+
+  /* Safe-area insets on every corner cluster so the pills don't collide
+   * with the notch, Dynamic Island, or home indicator. */
+  .mock-cluster--top-left {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    gap: 6px;
+  }
+  .mock-cluster--top-right {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    /* Stack vertically — three pills in a row won't fit next to the
+     * top-mid drag pills on a 390px iPhone. */
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  /* Move the top-mid drag pills into the upper-LEFT below the search +
+   * saved row. This keeps the right column (DoF / Clouds / Sign-in)
+   * free of horizontal competition. */
+  .mock-cluster--top-mid {
+    top: calc(64px + env(safe-area-inset-top, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    right: auto;
+    transform: none;
+    gap: 6px;
+  }
+  /* Bottom row: bottom-left (aspect + tools) and bottom-right (Gallery)
+   * share the real bottom of the viewport. bottom-mid (Capture|Render)
+   * gets lifted into a SECOND row above them — on a 390px phone the
+   * three clusters cannot all fit on one line without clipping the
+   * aspect pill (screenshot bug). Two rows cost ~48px of vertical
+   * headroom but keep every pill reachable without scrolling.
+   *
+   * bottom-left is allowed to wrap if the user has editor + saved
+   * graphics + hide + preview pills all mounted — it can become a
+   * 2-row cluster in that case; bottom-mid rises further via the
+   * max-height variant when editor mode is active. */
+  .mock-cluster--bottom-left {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    gap: 6px;
+    flex-wrap: wrap;
+    /* Reserve room for bottom-right so bottom-left doesn't flow under it. */
+    max-width: calc(58vw - env(safe-area-inset-left, 0px));
+  }
+  .mock-cluster--bottom-mid {
+    /* Lifted above the real bottom row. bottom-left wraps to 2 rows when
+     * all four pills are mounted (aspect + Edit + hide + preview) so the
+     * offset has to clear 2 × pill-height + gap. Fine pointer pills are
+     * 36px → 36+6+36+12 = 90px. Coarse-pointer override bumps to 112px
+     * to match 44px pill height. */
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  }
+  .mock-cluster--bottom-right {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    /* Cap so a long "Gallery · 14" label doesn't push into bottom-left. */
+    max-width: 40vw;
+  }
+  /* Gallery pill — keep the icon + count, drop the "Gallery" word on
+   * phones. The ImageIcon carries the meaning and the count stays
+   * informative. Styled via :has so the normal pill rule stays intact. */
+  .mock-cluster--bottom-right .mock-pill {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  /* Popovers — constrain so they don't spill past the viewport edge. */
+  .mock-popover {
+    min-width: 200px;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 140px);
+    max-height: calc(100dvh - 140px);
+    overflow-y: auto;
+  }
+  /* Top-right popovers are right-aligned and live under a vertical
+   * column — their auto width can crowd the left edge. Cap at 280. */
+  .mock-cluster--top-right .mock-popover { max-width: min(280px, calc(100vw - 20px)); }
+
+  /* Fabric editor toolbar (top-centered glass pill) — respect safe-area. */
+  body.mock-mounted #editor-toolbar {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Coarse-pointer overrides — pills get bumped to 44px height globally in
+ * the earlier @media (pointer: coarse) block, so on phone + touch the
+ * bottom-mid needs to sit higher to clear 2 rows of 44px pills from the
+ * wrapped bottom-left cluster. 44 + 6 + 44 + 18 ≈ 112px. */
+@media (max-width: 768px) and (pointer: coarse) {
+  .mock-cluster--bottom-mid {
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 640px) {
+  /* AI Render sheet — becomes fullscreen bottom-sheet style on phone.
+   * The 420px right-side sheet was always too narrow here (max-width:
+   * 100vw meant it took the full width anyway, but animated in from
+   * the right which felt odd). A bottom-slide reads better on phone. */
+  .mock-airender-backdrop { justify-content: stretch; }
+  .mock-airender-sheet {
+    width: 100%;
+    max-width: none;
+    border-left: 0;
+    animation: mock-sheet-in-phone 0.22s ease-out;
+  }
+  @keyframes mock-sheet-in-phone {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .mock-airender-head {
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .mock-airender-footer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Preset grid — keep 2 columns, give labels room to wrap. */
+  .mock-preset {
+    padding: 10px 10px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+  /* Guest sign-in chip is a .mock-pill; shrink the label + padding so
+   * the top-right column doesn't push extra-wide on phones. */
+  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] .mock-pill-label {
+    font-size: 11px;
+  }
+  /* DragPill labels (FOV / time) — abbreviate to keep the pill compact. */
+  .mock-cluster--top-mid .mock-pill { padding: 10px 12px; }
+}

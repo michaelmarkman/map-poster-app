@@ -44,6 +44,20 @@ export const dofAtom = atom({
   blur: 25,
   sceneColorPop: 0,
   focusColorPop: 60,
+  // DoF-lab additions — only /dof-lab writes to these. All default to
+  // "off / legacy" so /app and /app-classic render identically.
+  //   useApertureCoC  — switches the shader to the thin-lens CoC formula
+  //   aperture        — f-stop (1.4 – 16); smaller = more blur
+  //   tiltShift       — highest-priority mode; depth-independent band
+  //   tiltCenter      — UV center of the sharp band
+  //   tiltBandHalf    — half the sharp-band height, Y-UV units (0–0.5)
+  //   tiltRotation    — band rotation in radians; 0 = horizontal
+  useApertureCoC: false,
+  aperture: 4,
+  tiltShift: false,
+  tiltCenter: [0.5, 0.5],
+  tiltBandHalf: 0.1,
+  tiltRotation: 0,
 })
 
 // Map style — one of default | satellite | warm | cool | desaturated | noir |
