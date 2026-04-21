@@ -252,3 +252,40 @@ file is the raw log — CLAUDE.md is the curated summary.
 - If the editor is rewired again, keep this in mind: the responsive
   layer is now split between responsive.css (/app-classic) and the
   bottom of mock.css (/app). Eventually worth unifying.
+
+## 2026-04-20 — Mobile DoF "black band" had three compounding causes
+
+- Bug: on iPhone, the custom DoF effect produced a hard dark stripe
+  across the scene at the focal plane boundary. With clouds ON it
+  was very prominent; with clouds OFF still visible as mid-ground
+  banding. Desktop looked fine.
+- Cause 1 — OOB samples return black on mobile. The 81-sample ring
+  blur read `uv + offset` without clamping. Desktop GPUs clamp-to-edge
+  implicitly; many mobile GPUs return black for texel fetches outside
+  [0,1], darkening any pixel whose blur ring extended off-screen.
+- Cause 2 — mediump depth quantization flipped pixels into the
+  `rawDepth >= 1.0` short-circuit. That branch applied full `maxBlur`
+  while the CoC path next door applied ~0. Adjacent pixels straddling
+  the 1.0 boundary produced a step discontinuity that reads as a
+  dark seam.
+- Cause 3 — mediump precision on `perspectiveDepthToViewZ` with
+  `cameraFar ~1e7` (globe) jitters viewZ, which jittered the
+  `abs(viewZ-focalZ) / abs(focalZ)` CoC, which made the
+  `if (coc >= 0.5)` hard threshold flip between blurred/unblurred
+  between neighbors → banding at the focal boundary.
+- Fix (CustomDofEffect.jsx):
+  1. `clamp(uv + offset, 0, 1)` on every ring sample.
+  2. `highp` qualifiers on `rawDepth / focalRaw / viewZ / focalZ /
+     relDiff`, plus `max(abs(focalZ), 0.001)` for div-by-zero.
+  3. Replaced hard `rawDepth >= 1.0` branch with a smoothstep(0.99,1)
+     ramp that mixes CoC-blurred and full-blur.
+  4. Replaced `if (coc >= 0.5)` with a smoothstep(0,1.5,coc) mix
+     between inputColor and ringBlur.
+  5. Mobile-only shader variant with 37 samples in 3 rings (vs 81 in
+     4) via a `#define MOBILE_DOF` the JS side splices in at
+     construction time. Saves ~55% fragment cost at the same visual
+     quality for moderate radii.
+- General rule: any fragment shader reading a neighborhood sample
+  pattern needs UV clamping if it's going to ship to mobile. The
+  "works on desktop / broken on iPhone" sampling bug is almost always
+  this.

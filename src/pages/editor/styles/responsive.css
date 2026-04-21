@@ -195,16 +195,21 @@
      Pro Max landscape). Tablet range keeps the 1024px Phase 1 rules. */
 
   /* Gallery grid: 220px tiles are too wide on a 390px phone — each row
-     squeezes one card with a lot of whitespace. 140px gives ~2 columns
-     on a narrow phone and 3 on a 414px one. */
+     squeezes one card with a lot of whitespace. A single-column grid
+     (full-width cards) reads best on a phone; the cards already size
+     themselves to the image's natural aspect ratio, so no padding waste. */
   @media (max-width: 640px) {
     .gallery-grid {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      grid-template-columns: 1fr;
+      gap: 12px;
     }
-    /* "Large" and "list" views follow the same intent but one column
-       deep so the label text has room to breathe. */
-    .gallery-grid.view-large {
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    /* "Large" and "list" views keep the same shape — everything is one
+       column on a phone anyway, so collapse all three view modes into
+       the same layout there. The view toggles still work as a no-op
+       visual switch without jarring layout jumps. */
+    .gallery-grid.view-large,
+    .gallery-grid.view-list {
+      grid-template-columns: 1fr;
     }
     /* Gallery modal becomes fullscreen on phones — consume the status bar
        area with safe-area-inset-top so the title isn't hidden under the
@@ -219,8 +224,116 @@
       border-radius: 0;
     }
     #gallery-overlay .modal-header.gallery-header {
-      padding-top: calc(22px + env(safe-area-inset-top, 0));
+      padding: calc(16px + env(safe-area-inset-top, 0)) 14px 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
     }
+    #gallery-overlay .gallery-actions {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    /* Drop the three-mode view toggle on phones — all three render the
+       same single-column layout here, so the switcher is visual noise. */
+    #gallery-overlay .view-toggles { display: none; }
+    #gallery-overlay .gallery-body {
+      padding: 14px 12px calc(20px + env(safe-area-inset-bottom, 0));
+    }
+    /* Larger cards + safe bottom padding so IndexedDB-heavy galleries
+       don't get their last row hidden under the home indicator. */
+    .gallery-card img { max-height: none; }
+    /* Touch devices: the download / share icons live at opacity:0 with
+       :hover reveal on desktop. On touch there's no hover — always show
+       them, and bump to a 40px tap target. */
+    .gallery-card .gc-dl {
+      opacity: 1;
+      width: 40px;
+      height: 40px;
+      font-size: 16px;
+      top: 8px; right: 8px;
+    }
+    /* The share button sits at right: 38 on desktop (just past the 26px
+       download). On mobile we widened both to 40px, so offset by 54 to
+       keep the pair visible without overlapping. */
+    .gallery-card .gc-dl-share {
+      right: 54px;
+      font-size: 16px;
+    }
+    .gallery-card .gc-info { padding: 12px 14px; }
+    .gallery-card .gc-label { font-size: 12px; }
+    .gallery-card .gc-time { font-size: 10px; }
+    .gallery-card.gallery-batch .gc-mosaic { aspect-ratio: 4/3; }
+
+    /* ── Lightbox on phones ─────────────────────────────────────────── */
+    /* Prev/Next nav buttons — 44pt tap targets, nudged into the safe
+       thumb-reach zones at the sides. Also raise contrast because
+       the phone photo fills most of the screen. */
+    #lightbox .lb-nav {
+      width: 48px;
+      height: 48px;
+      font-size: 22px;
+      background: rgba(20,19,23,0.85);
+    }
+    #lightbox .lb-nav.prev { left: 10px; }
+    #lightbox .lb-nav.next { right: 10px; }
+    /* Close button — bigger tap target, respect safe-area-inset-top so
+       it doesn't duck under the Dynamic Island. */
+    #lightbox .lb-close {
+      top: calc(10px + env(safe-area-inset-top, 0));
+      right: 10px;
+      width: 40px; height: 40px;
+      font-size: 22px;
+      background: rgba(20,19,23,0.85);
+      border: 0.5px solid var(--panel-border);
+      border-radius: 8px;
+    }
+    /* Action row — on phones the 6 buttons can't all fit inline. Move
+       them to the bottom as a horizontally-scrollable strip so the user
+       always sees Share / Jump / Save / Preview / Edit / Download even
+       when the thumbnail strip is visible above. */
+    #lightbox .lb-actions {
+      position: fixed;
+      top: auto;
+      right: auto;
+      left: 0;
+      bottom: calc(70px + env(safe-area-inset-bottom, 0));
+      width: 100%;
+      max-width: none;
+      padding: 0 12px;
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      justify-content: flex-start;
+    }
+    #lightbox .lb-actions::-webkit-scrollbar { display: none; }
+    #lightbox .lb-actions .gallery-btn,
+    #lightbox .lb-actions .lb-download {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      font-size: 12px;
+      min-height: 40px;
+      white-space: nowrap;
+    }
+    /* Image has to leave room for the close button on top and the
+       actions + thumb strip on the bottom. */
+    #lightbox #lb-img {
+      max-width: 96vw;
+      max-height: calc(100dvh - 220px);
+    }
+    #lightbox .lb-label {
+      position: absolute;
+      bottom: calc(124px + env(safe-area-inset-bottom, 0));
+      left: 0; right: 0;
+      margin: 0;
+      text-align: center;
+    }
+    #lightbox .lb-strip {
+      bottom: calc(14px + env(safe-area-inset-bottom, 0));
+      padding: 0 12px;
+    }
+    #lightbox .lb-thumb { width: 52px; height: 40px; }
   }
 
   /* Phone-range bottom-sheet sidebar. The @media (max-width: 1024px) rule
