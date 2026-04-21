@@ -233,3 +233,22 @@ file is the raw log — CLAUDE.md is the curated summary.
   Chromium through a full canary (save/restore, saved views, CSS vendor
   prefixes present, no page errors). Run with `npm run smoke` before
   claiming anything is done. CI runs it on every PR.
+
+## 2026-04-20 — responsive.css targets /app-classic, not /app
+
+- After the pill editor was promoted to /app (commit f6fd870), the 299-line
+  responsive.css still targets `#sidebar`, `#main`, `#canvas-container`,
+  `.section-head`, `.gallery-grid` — IDs/classes that only exist in the
+  legacy sidebar editor (now at /app-classic). The new pill editor uses
+  `.mock-*` classes, so **none** of the phone/tablet breakpoints applied
+  on /app. No bottom sheet, no 44pt tap targets, no safe-area insets.
+- Fix: add touch/responsive rules directly to mock.css. Three scoped
+  layers — `(pointer: coarse)` for tap targets, `(hover: none)` for
+  iOS hover-stick, `(max-width: 768px|640px)` for phone layout.
+- HoverPopoverPill was pointerEnter/pointerLeave-only → popover never
+  opened on touch. Added a `useCoarsePointer()` hook; on touch the
+  pill's onClick toggles `open` AND fires onToggle; tap-outside +
+  Esc close. Desktop hover path preserved.
+- If the editor is rewired again, keep this in mind: the responsive
+  layer is now split between responsive.css (/app-classic) and the
+  bottom of mock.css (/app). Eventually worth unifying.
