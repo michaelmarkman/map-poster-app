@@ -289,3 +289,30 @@ file is the raw log — CLAUDE.md is the curated summary.
   pattern needs UV clamping if it's going to ship to mobile. The
   "works on desktop / broken on iPhone" sampling bug is almost always
   this.
+
+## 2026-04-20 — iOS Safari throttles rAF on an idle WebGL canvas; invalidate() on state change
+
+- Bug: on iPhone, dragging the time-of-day pill moved the slider but
+  the sky/sun didn't change until the user panned the camera. Same for
+  tap-to-focus — the focal UV was written but DoF didn't shift until
+  something else woke the loop.
+- Mechanism: R3F's `frameloop='always'` is only "always" as long as the
+  browser keeps running the requestAnimationFrame chain. iOS Safari
+  (more so than Chrome/desktop) throttles rAF aggressively on a
+  foreground tab whose canvas appears idle — especially with
+  `preserveDrawingBuffer:true`, which disables some power optimizations.
+  The React atoms updated, the sceneRef sync fired, but useFrame hadn't
+  ticked yet so the shader uniforms still held the old values.
+- Fix (editor/scene/Scene.jsx + EditorCanvas.jsx):
+  1. Explicit `frameloop="always"` on the Canvas — matches the default
+     but states the intent.
+  2. `useInvalidateOnSceneChange()` in Scene: subscribes to
+     timeOfDay/sunRotation/dof/clouds/bloom/ssao/vignette atoms and
+     calls `invalidate()` on every change. Wakes the rAF loop
+     immediately so the first post-change frame lands on screen.
+  3. ClickToFocus now calls `invalidate()` right after writing
+     `sceneRef.dof.focalUV` on tap/click — tap-to-focus doesn't go
+     through atoms so the hook above can't see it.
+- General rule: anywhere the app writes to sceneRef directly (bypassing
+  atoms) or changes visible render state in response to a single user
+  gesture, call invalidate(). Cheap on desktop, load-bearing on mobile.
