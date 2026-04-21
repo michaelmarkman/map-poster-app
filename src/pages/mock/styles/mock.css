@@ -920,3 +920,223 @@ body.mock-mounted #poster-preview .pp-scene {
   margin-top: 8px;
 }
 .mock-airender-queue-actions .mock-btn-ghost { flex: 1; }
+
+/* ═══════ MOBILE / TOUCH ═══════════════════════════════════════════════
+ * Three layers, each scoped to a specific capability or viewport:
+ *   1. (pointer: coarse) — 44pt tap targets for anyone on a touch device
+ *      (iPad with Pencil, phone, Surface in touch mode). Doesn't depend
+ *      on viewport width, so desktop mouse users keep the tighter sizing.
+ *   2. (hover: none) — neutralise :hover styles so iOS / Android don't
+ *      leave pills stuck in the hovered state after a tap.
+ *   3. (max-width: 768px) and (max-width: 640px) — viewport layout fixes
+ *      for phones. Clusters tighten, top-mid drops below top-left so 3
+ *      pill rows don't compete for ~390px of horizontal space, and the
+ *      AI Render right-sheet becomes fullscreen on very narrow screens.
+ * Canvas touch gestures stay intact — no `touch-action` declarations.
+ * ───────────────────────────────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+  /* Pills + split-pill — bump to 44pt minimum tap target. */
+  .mock-pill,
+  .mock-split-pill {
+    min-height: 44px;
+    height: 44px;
+  }
+  .mock-pill { padding: 10px 16px; }
+  .mock-split-pill-btn {
+    padding: 0 18px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  /* More breathing room between clusters + between pills in a cluster. */
+  .mock-cluster { gap: 12px; }
+  .mock-cluster--top-mid,
+  .mock-cluster--top-right { gap: 8px; }
+  .mock-cluster-pair { gap: 8px; }
+
+  /* Slider thumbs — tiny thumbs are impossible to drag with a finger. */
+  .mock-slider-row input[type='range'] { height: 6px; }
+  .mock-slider-row input[type='range']::-webkit-slider-thumb {
+    width: 22px; height: 22px;
+  }
+  .mock-slider-row input[type='range']::-moz-range-thumb {
+    width: 22px; height: 22px;
+  }
+  /* Toggle pills — bump to iOS-style 44×26. */
+  .mock-toggle { width: 44px; height: 26px; }
+  .mock-toggle::after { width: 20px; height: 20px; top: 3px; left: 3px; }
+  .mock-toggle.is-on::after { transform: translateX(18px); }
+
+  /* In-popover buttons (aspect / preset / res / style) — 36pt is the
+   * minimum comfortable size for a button you tap repeatedly. */
+  .mock-aspect-btn,
+  .mock-res-btn,
+  .mock-style-btn,
+  .mock-preset { min-height: 36px; }
+  .mock-aspect-fill { min-height: 40px; }
+  .mock-saved-row { padding: 10px 10px; }
+
+  /* Modal close + saved-list delete — tiny X buttons are a pain. */
+  .mock-airender-close {
+    width: 36px; height: 36px;
+    font-size: 24px;
+  }
+  .mock-saved-del { width: 36px; font-size: 18px; }
+}
+
+@media (hover: none) {
+  /* Neutralise :hover so tapped-but-not-released state doesn't stick.
+   * iOS leaves the last-tapped element in :hover until another element
+   * is tapped — looks like a permanently-highlighted pill. */
+  .mock-pill:hover,
+  .mock-split-pill-btn:hover,
+  .mock-btn-primary:hover,
+  .mock-btn-ghost:hover,
+  .mock-style-btn:hover,
+  .mock-saved-row:hover,
+  .mock-saved-del:hover,
+  .mock-aspect-btn:hover,
+  .mock-aspect-fill:hover,
+  .mock-preset:hover,
+  .mock-res-btn:hover,
+  .mock-airender-close:hover,
+  .mock-airender-queue-item.is-clickable:hover,
+  body.mock-mounted .ed-btn:hover {
+    background: inherit;
+    border-color: inherit;
+    color: inherit;
+  }
+  /* Give the same visual weight on :active so taps still feel responsive. */
+  .mock-pill:active {
+    background: rgba(28, 28, 32, 0.82);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+  .mock-split-pill-btn:active {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+  }
+  .mock-btn-primary:active { background: rgba(200, 184, 151, 0.22); }
+  .mock-btn-ghost:active {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .mock-style-btn:active,
+  .mock-saved-row:active,
+  .mock-aspect-btn:active,
+  .mock-aspect-fill:active,
+  .mock-preset:active,
+  .mock-res-btn:active { background: rgba(255, 255, 255, 0.06); }
+  .mock-saved-del:active { color: rgba(255, 200, 200, 0.85); }
+  .mock-airender-close:active { background: rgba(255, 255, 255, 0.06); color: #fff; }
+  .mock-airender-queue-item.is-clickable:active { background: rgba(255, 255, 255, 0.06); }
+  body.mock-mounted .ed-btn:active { background: rgba(255, 255, 255, 0.08); color: #fff; }
+}
+
+@media (max-width: 768px) {
+  /* Shrink the frame padding so the blur strips don't eat the viewport
+   * on a short phone screen. */
+  .mock-frame-overlay {
+    --frame-h-padding: clamp(12px, 4vw, 40px);
+    --frame-v-padding: clamp(60px, 12vh, 120px);
+  }
+
+  /* Safe-area insets on every corner cluster so the pills don't collide
+   * with the notch, Dynamic Island, or home indicator. */
+  .mock-cluster--top-left {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    gap: 6px;
+  }
+  .mock-cluster--top-right {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    /* Stack vertically — three pills in a row won't fit next to the
+     * top-mid drag pills on a 390px iPhone. */
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  /* Move the top-mid drag pills into the upper-LEFT below the search +
+   * saved row. This keeps the right column (DoF / Clouds / Sign-in)
+   * free of horizontal competition. */
+  .mock-cluster--top-mid {
+    top: calc(64px + env(safe-area-inset-top, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    right: auto;
+    transform: none;
+    gap: 6px;
+  }
+  .mock-cluster--bottom-left {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  }
+  .mock-cluster--bottom-mid {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .mock-cluster--bottom-right {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+  }
+
+  /* Popovers — constrain so they don't spill past the viewport edge. */
+  .mock-popover {
+    min-width: 200px;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 140px);
+    max-height: calc(100dvh - 140px);
+    overflow-y: auto;
+  }
+  /* Top-right popovers are right-aligned and live under a vertical
+   * column — their auto width can crowd the left edge. Cap at 280. */
+  .mock-cluster--top-right .mock-popover { max-width: min(280px, calc(100vw - 20px)); }
+
+  /* Fabric editor toolbar (top-centered glass pill) — respect safe-area. */
+  body.mock-mounted #editor-toolbar {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (max-width: 640px) {
+  /* AI Render sheet — becomes fullscreen bottom-sheet style on phone.
+   * The 420px right-side sheet was always too narrow here (max-width:
+   * 100vw meant it took the full width anyway, but animated in from
+   * the right which felt odd). A bottom-slide reads better on phone. */
+  .mock-airender-backdrop { justify-content: stretch; }
+  .mock-airender-sheet {
+    width: 100%;
+    max-width: none;
+    border-left: 0;
+    animation: mock-sheet-in-phone 0.22s ease-out;
+  }
+  @keyframes mock-sheet-in-phone {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .mock-airender-head {
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .mock-airender-footer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Preset grid — keep 2 columns, give labels room to wrap. */
+  .mock-preset {
+    padding: 10px 10px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+  /* Guest sign-in chip is a .mock-pill; shrink the label + padding so
+   * the top-right column doesn't push extra-wide on phones. */
+  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] .mock-pill-label {
+    font-size: 11px;
+  }
+  /* DragPill labels (FOV / time) — abbreviate to keep the pill compact. */
+  .mock-cluster--top-mid .mock-pill { padding: 10px 12px; }
+}
