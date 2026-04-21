@@ -7,14 +7,23 @@ import { Atmosphere, AerialPerspective } from '@takram/three-atmosphere/r3f'
 import { Clouds } from '@takram/three-clouds/r3f'
 import { Geodetic, PointOfView, radians, Ellipsoid } from '@takram/three-geospatial'
 import { Dithering, LensFlare } from '@takram/three-geospatial-effects/r3f'
-import { useSetAtom } from 'jotai'
+import { useSetAtom, useAtomValue } from 'jotai'
 import { cameraReadoutAtom } from '../atoms/ui'
 import { registerCamera } from '../hooks/useSessionPersistence'
+import {
+  timeOfDayAtom,
+  sunRotationAtom,
+  dofAtom,
+  cloudsAtom,
+  bloomAtom,
+  ssaoAtom,
+  vignetteAtom,
+  IS_MOBILE,
+} from '../atoms/scene'
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
 import { sceneRef, useSceneRefSync } from './stateRef'
-import { IS_MOBILE } from '../atoms/scene'
 import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
 import { getDateFromHour } from '../utils/sun'
@@ -54,7 +63,8 @@ function SubjectListener() {
 // Click-to-focus — tap anywhere on the canvas to update the DoF focal point.
 // Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
 function ClickToFocus() {
-  const { gl } = useThree()
+  const gl = useThree((s) => s.gl)
+  const invalidate = useThree((s) => s.invalidate)
   useEffect(() => {
     const canvas = gl.domElement
     let downPos = null
@@ -76,6 +86,10 @@ function ClickToFocus() {
         (e.clientX - rect.left) / rect.width,
         1.0 - (e.clientY - rect.top) / rect.height,
       ]
+      // iOS Safari throttles the rAF loop on an idle WebGL canvas; without
+      // a kick, a tap updates sceneRef but the shader uniforms don't land
+      // until something else (camera move, slider) wakes the loop.
+      invalidate()
     }
     // pointercancel fires on iOS Safari mid-gesture when another handler
     // grabs the pointer capture (e.g. GlobeControls promoting a tap into
@@ -96,13 +110,39 @@ function ClickToFocus() {
       canvas.removeEventListener('pointerup', onUp, opts)
       canvas.removeEventListener('pointercancel', onCancel, opts)
     }
-  }, [gl])
+  }, [gl, invalidate])
   return null
+}
+
+// Any change to a scene atom that affects the render should wake the R3F
+// loop. frameloop="always" nominally runs every frame, but mobile browsers
+// (iOS Safari most aggressively) throttle rAF on an idle WebGL canvas:
+// drag a time-of-day slider on a phone and the state updates, the sceneRef
+// sync runs, but the next frame can be hundreds of ms away — the UI feels
+// dead. Subscribing to the relevant atoms here and calling invalidate() on
+// each change forces a frame immediately, so the effect is visible the
+// moment the atom changes. The per-frame reads inside useFrame still come
+// from sceneRef; this hook only nudges the loop.
+function useInvalidateOnSceneChange() {
+  const invalidate = useThree((s) => s.invalidate)
+  const timeOfDay = useAtomValue(timeOfDayAtom)
+  const sunRotation = useAtomValue(sunRotationAtom)
+  const dof = useAtomValue(dofAtom)
+  const clouds = useAtomValue(cloudsAtom)
+  const bloom = useAtomValue(bloomAtom)
+  const ssao = useAtomValue(ssaoAtom)
+  const vignette = useAtomValue(vignetteAtom)
+  useEffect(() => {
+    invalidate()
+  }, [invalidate, timeOfDay, sunRotation, dof, clouds, bloom, ssao, vignette])
 }
 
 export default function Scene() {
   // Mirror atom values into sceneRef so per-frame reads don't pay React cost.
   useSceneRefSync()
+  // Defensive: kick the render loop on every scene-atom change so mobile
+  // Safari's rAF throttling can't strand a slider/time/DoF update off-screen.
+  useInvalidateOnSceneChange()
 
   const camera = useThree(({ camera }) => camera)
   const composerRef = useRef(null)
