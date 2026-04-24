@@ -1,6 +1,16 @@
 import { useRef, useLayoutEffect, useEffect, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Vector2, Vector3, Quaternion, Raycaster as RaycasterClass } from 'three'
+import {
+  Vector2,
+  Vector3,
+  Quaternion,
+  Raycaster as RaycasterClass,
+  DataArrayTexture,
+  RGBAFormat,
+  UnsignedByteType,
+  NearestFilter,
+  ClampToEdgeWrapping,
+} from 'three'
 import { EffectMaterial } from 'postprocessing'
 import { GlobeControls } from '3d-tiles-renderer/r3f'
 import { Atmosphere, AerialPerspective } from '@takram/three-atmosphere/r3f'
@@ -27,6 +37,42 @@ import { sceneRef, useSceneRefSync } from './stateRef'
 import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
 import { getDateFromHour } from '../utils/sun'
+
+// Builds a "no-op" stand-in for the cloud-shadow cascade that AerialPerspect-
+// ive reads during lit-pixel evaluation. Returns a Proxy that transparently
+// forwards every field (cascadeCount, mapSize, intervals, matrices,
+// inverseMatrices, far, topHeight — several of which are defined as getters
+// on the class prototype, so a plain Object.assign won't copy them) but
+// swaps `.map` for a 1×1×cascadeCount zero-filled sampler2DArray. The
+// atmosphere shader's readShadowOpticalDepth() samples (0,0,0,0) → returns
+// 0 → ground receives no shadow. takram's updateShadow() sees
+// `shadow != null` and unchanged cascadeCount → no define flip → no
+// recompile. Toggling shadows becomes instant instead of triggering a
+// 10-second compile stall that crashed the WebGL context.
+function buildDummyShadow(slot) {
+  // Infer cascadeCount from the current real at dummy-build time. Won't
+  // change at runtime (it's pinned to cloud config), so sizing the dummy
+  // texture once is safe.
+  const cascadeCount = slot.real.cascadeCount || 1
+  const data = new Uint8Array(cascadeCount * 4) // 1×1 per cascade, all zero
+  const tex = new DataArrayTexture(data, 1, 1, cascadeCount)
+  tex.format = RGBAFormat
+  tex.type = UnsignedByteType
+  tex.minFilter = NearestFilter
+  tex.magFilter = NearestFilter
+  tex.wrapS = ClampToEdgeWrapping
+  tex.wrapT = ClampToEdgeWrapping
+  tex.generateMipmaps = false
+  tex.needsUpdate = true
+  // Forward every field to the CURRENT slot.real (in case takram swaps the
+  // underlying shadow instance later); override `.map` only.
+  return new Proxy({}, {
+    get(_t, prop) {
+      if (prop === 'map') return tex
+      return Reflect.get(slot.real, prop, slot.real)
+    },
+  })
+}
 
 // Raycasts from the center of the screen to find what the camera is actually
 // looking at (the subject), then converts the hit point to lat/lng. Used by
@@ -145,7 +191,6 @@ export default function Scene() {
   useInvalidateOnSceneChange()
 
   const camera = useThree(({ camera }) => camera)
-  const size = useThree((s) => s.size)
   const composerRef = useRef(null)
   const atmosphereRef = useRef(null)
   const dofRef = useRef(null)
@@ -403,15 +448,51 @@ export default function Scene() {
       const spd = sceneRef.clouds.paused ? 0 : sceneRef.clouds.speed * 0.001
       clouds.localWeatherVelocity.set(spd, 0)
     }
-    // Toggle cloud shadows on aerial perspective. Cache the live shadow
-    // object on first frame so we can restore it when the user flips
-    // shadows back on (otherwise nulling it permanently breaks the toggle).
+    // Toggle cloud shadows on aerial perspective. The @takram r3f wrapper
+    // reassigns `aerial.shadow = transientStates.shadow` every frame (from
+    // the atmosphere context). Ealier we naively nulled aerial.shadow — every
+    // frame flipped null↔non-null, aerial.update() called setChanged() each
+    // time, triggering a shader recompile EVERY frame → the whole app froze.
+    //
+    // A follow-up getter/setter fix returned null when disabled. That stopped
+    // the per-frame recompile but still caused ONE full shader recompile per
+    // user toggle — takram's updateShadow() flips the HAS_SHADOW define
+    // whenever `shadow` switches between null and non-null. Recompiling the
+    // atmosphere+aerial+shadow mega-shader takes ~10s, long enough to trigger
+    // the GPU watchdog and crash the WebGL context.
+    //
+    // Current fix: the getter NEVER returns null. When shadows are disabled
+    // we return a dummy shadow that matches the real object's shape (same
+    // cascadeCount and field layout) but points at a 1x1 zero-filled cascade
+    // texture. takram sees `shadow != null && cascadeCount unchanged` → no
+    // define change → no recompile. The shader samples zeros → readShadowOp-
+    // ticalDepth returns 0 → ground stays lit. Toggle is instant.
     const aerial = aerialRef.current
-    if (aerial) {
-      if (aerial.shadow && !aerialShadowRef.current) {
-        aerialShadowRef.current = aerial.shadow
+    if (aerial && !aerialShadowRef.current) {
+      const initial = aerial.shadow
+      aerialShadowRef.current = {
+        real: initial,
+        dummy: null, // built lazily once we know cascadeCount
+        disabled: !sceneRef.clouds.shadows,
       }
-      aerial.shadow = sceneRef.clouds.shadows ? (aerialShadowRef.current || aerial.shadow) : null
+      Object.defineProperty(aerial, 'shadow', {
+        get() {
+          const slot = aerialShadowRef.current
+          // Before clouds have produced any shadow, there's nothing to stand
+          // in for — let takram see null once, HAS_SHADOW starts FALSE.
+          if (!slot.real) return null
+          if (!slot.disabled) return slot.real
+          if (!slot.dummy) slot.dummy = buildDummyShadow(slot)
+          return slot.dummy
+        },
+        set(v) {
+          aerialShadowRef.current.real = v
+        },
+        configurable: true,
+      })
+    }
+    if (aerialShadowRef.current) {
+      aerialShadowRef.current.disabled = !sceneRef.clouds.shadows
     }
 
     // Update DoF uniforms
@@ -429,27 +510,68 @@ export default function Scene() {
       } else {
         fx.uniforms.get('focusColorPop').value = (sceneRef.dof.focusColorPop ?? 0) / 100
         fx.uniforms.get('focalPoint').value.set(sceneRef.dof.focalUV[0], sceneRef.dof.focalUV[1])
-        const t = sceneRef.dof.tightness / 100
-        fx.uniforms.get('depthRange').value = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
-        fx.uniforms.get('maxBlur').value = 2 + (sceneRef.dof.blur / 100) * 48
+        // DoF-lab: the toggle is a UX A/B between two philosophies.
+        //   Tightness mode (legacy /app): two orthogonal knobs —
+        //     Tightness drives depthRange (quadratic), Blur drives maxBlur.
+        //   Aperture mode (new, camera-like): ONE knob drives both at once —
+        //     opening up makes DoF narrower AND blur stronger together, as
+        //     a real lens does. Blur slider is hidden in the lab UI.
+        // Outside /dof-lab useApertureCoC defaults to false, so /app and
+        // /app-classic render identically to before.
+        let depthRange
+        let maxBlur
+        let bokehShape  // 0 = crisp/legacy, 1 = creamy/wide-open
+        if (sceneRef.dof.useApertureCoC) {
+          const fStop = sceneRef.dof.aperture ?? 4
+          const L16 = Math.log(16)
+          const L14 = Math.log(1.4)
+          const s = (L16 - Math.log(fStop)) / (L16 - L14)   // 0 at f/16, 1 at f/1.4
+          // Log interp from 3.0 (f/16, huge focal slice) to 0.03 (f/1.4,
+          // narrow but still has a usable focal region). Earlier floor
+          // of 0.005 was photographically "correct" for a thin-focal
+          // f/1.4 on a 50mm, but on a globe scene where the user may
+          // not have tapped-to-focus on a specific subject, it read as
+          // "everything blurred." 0.03 keeps the shallow feel without
+          // making the focal plane sub-perceptible.
+          depthRange = Math.exp(Math.log(3.0) + s * (Math.log(0.03) - Math.log(3.0)))
+          // maxBlur coupled with aperture. f/16 → 2 (near-zero blur floor),
+          // f/1.4 → 12. Earlier ceilings (30, then 15) still showed visible
+          // ring-sample bumps on the blurred terrain — the 81-sample kernel
+          // undersamples a disk of radius 15+. 12 keeps the aperture feel
+          // without crossing the sample-density cliff.
+          maxBlur = 2 + s * 10
+          // Phase 2: open aperture → creamy bokeh (outer-heavy rings, soft
+          // sharp→blur mix curve). Cap at 0.5 so even at f/1.4 the ring
+          // weights don't go fully hollow-disc — pure outer-heavy is what
+          // makes individual kernel samples visible as bumps on low-
+          // frequency regions (pavement, snow, haze). 0.5 preserves the
+          // creamy feel without popping the sample pattern.
+          bokehShape = s * 0.5
+        } else {
+          const t = sceneRef.dof.tightness / 100
+          depthRange = 3.0 * (1.0 - t) * (1.0 - t) + 0.005
+          maxBlur = 2 + (sceneRef.dof.blur / 100) * 48
+          bokehShape = 0  // legacy feel
+        }
+        // FOV coupling — real lenses have dramatically more DoF at wide
+        // angles than at telephoto (DoF ∝ 1/focalLength²). Baseline at
+        // ~50mm (26° vertical FOV on a 24mm full-frame sensor height).
+        // Sub-linear (sqrt) curve — gives continuous telephoto character
+        // across the whole focal-length slider without running past our
+        // 81-sample kernel's budget. Linear clamp flat-lined the slider
+        // past 60mm; uncapped linear produced ~3.8× at 200mm which
+        // overran the sample kernel and looked like noise. sqrt peaks
+        // at ~1.95× at 200mm — noticeable telephoto feel, still safe.
+        const fovRef = 26
+        const fovScale = Math.sqrt(fovRef / Math.max(camera.fov, 1))
+        maxBlur *= fovScale
+        depthRange /= fovScale
+        fx.uniforms.get('depthRange').value = depthRange
+        fx.uniforms.get('maxBlur').value = maxBlur
+        fx.uniforms.get('bokehShape').value = bokehShape
+        // Highlight bokeh — 4 matches the hardcoded original; 0 = off.
+        fx.uniforms.get('highlightStrength').value = sceneRef.dof.highlightBokeh ? 4.0 : 0.0
       }
-
-      // DoF-lab uniforms. When /app is the current route, every `?? <default>`
-      // branch falls through to the legacy path so rendering is unchanged.
-      // mm from vertical fov (see CLAUDE.md gotcha #3 — `camera.fov` is vertical).
-      const mm = 12 / Math.tan((camera.fov * Math.PI) / 360)
-      const fStop = sceneRef.dof.aperture ?? 4
-      fx.uniforms.get('focalLengthMm').value = mm
-      fx.uniforms.get('apertureFactor').value = 1 / (fStop * fStop)
-      fx.uniforms.get('useApertureCoC').value = !!sceneRef.dof.useApertureCoC
-      fx.uniforms.get('tiltShiftMode').value = !!sceneRef.dof.tiltShift
-      const [tcx, tcy] = sceneRef.dof.tiltCenter ?? [0.5, 0.5]
-      fx.uniforms.get('tiltCenter').value.set(tcx, tcy)
-      const bandHalf = sceneRef.dof.tiltBandHalf ?? 0.1
-      fx.uniforms.get('tiltBandHalf').value = bandHalf
-      fx.uniforms.get('tiltSoftness').value = bandHalf * 0.5
-      fx.uniforms.get('tiltRotation').value = sceneRef.dof.tiltRotation ?? 0
-      fx.uniforms.get('canvasAspect').value = size.width / Math.max(1, size.height)
     }
 
     // Sync camera near/far into effects
