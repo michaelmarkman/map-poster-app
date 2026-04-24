@@ -7,6 +7,7 @@ import {
   SSAO,
   SMAA,
   ToneMapping,
+  DepthOfField,
 } from '@react-three/postprocessing'
 import { NormalPass, ToneMappingMode } from 'postprocessing'
 import { HalfFloatType } from 'three'
@@ -44,9 +45,24 @@ function EffectComposer({ children, composerRef, ...props }) {
 // triggers a re-render, which is cheap because it doesn't happen at frame
 // rate.
 //
+// DoF engine choice (see atoms/scene.js `dofEngineAtom`):
+//   'custom' — only <CustomDof> is mounted; does blur + color-pop in one pass.
+//   'lib'    — <DepthOfField> (postprocessing's multi-pass scatter-as-gather)
+//              runs first for the actual blur, then <CustomDof> runs with
+//              maxBlur forced to 0 (see Scene useFrame) as a color-pop-only
+//              grade over the blurred output. Eliminates the hard-silhouette
+//              edge artifact that single-pass depth-weighted gather produces
+//              when the kernel straddles sharp/blurred boundaries.
+//
 // `children` is where Scene mounts the takram passes (Clouds, AerialPerspective,
 // Dithering, LensFlare) that need to live inside the composer.
-export default function PostProcessing({ composerRef, dofRef, children }) {
+export default function PostProcessing({
+  composerRef,
+  dofRef,
+  libDofRef,
+  dofEngine = 'custom',
+  children,
+}) {
   const bloom = useAtomValue(bloomAtom)
   const ssao = useAtomValue(ssaoAtom)
   const vignette = useAtomValue(vignetteAtom)
@@ -63,6 +79,21 @@ export default function PostProcessing({ composerRef, dofRef, children }) {
           output). CustomDoF is the core of the poster look, so it
           stays everywhere. */}
       <ToneMapping mode={ToneMappingMode.AGX} />
+      {/* Lib DoF: MUST run before CustomDof so CustomDof's color-pop
+          grade operates on the already-blurred frame. Scene.useFrame
+          drives focusDistance / focusRange / bokehScale every tick. */}
+      {dofEngine === 'lib' && (
+        <DepthOfField
+          ref={libDofRef}
+          focusDistance={0.02}
+          focusRange={0.02}
+          bokehScale={1}
+          /* resolutionScale 0.5 is the default — half-res CoC + bokeh
+             is the standard trick to keep the 4 RT + 4 passes cheap.
+             Quality is fine; upsample happens in the composite step. */
+          resolutionScale={0.5}
+        />
+      )}
       <CustomDof ref={dofRef} />
       {!IS_MOBILE && <SMAA />}
     </EffectComposer>

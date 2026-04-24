@@ -24,6 +24,7 @@ import {
   timeOfDayAtom,
   sunRotationAtom,
   dofAtom,
+  dofEngineAtom,
   cloudsAtom,
   bloomAtom,
   ssaoAtom,
@@ -108,9 +109,24 @@ function SubjectListener() {
 
 // Click-to-focus — tap anywhere on the canvas to update the DoF focal point.
 // Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
+//
+// Two pieces of state move per tap:
+//   focalUV    — [0..1, 0..1] screen-space, consumed by CustomDofEffect
+//                which samples the depth texture at that UV each frame.
+//   focalWorld — world-space Vector3 from the raycast hit, consumed by the
+//                postprocessing lib's DepthOfFieldEffect which needs a
+//                meters-scale focusDistance uniform. Each frame we derive
+//                the distance as camera.position.distanceTo(focalWorld)
+//                so the focal plane tracks the same world object as the
+//                camera pans/zooms (matches the UV-reads-depth behavior
+//                of the custom effect).
 function ClickToFocus() {
   const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
   const invalidate = useThree((s) => s.invalidate)
+  const raycaster = useRef(new RaycasterClass())
+  const ndc = useRef(new Vector2())
   useEffect(() => {
     const canvas = gl.domElement
     let downPos = null
@@ -128,10 +144,21 @@ function ClickToFocus() {
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
       const rect = canvas.getBoundingClientRect()
-      sceneRef.dof.focalUV = [
-        (e.clientX - rect.left) / rect.width,
-        1.0 - (e.clientY - rect.top) / rect.height,
-      ]
+      const u = (e.clientX - rect.left) / rect.width
+      const v = 1.0 - (e.clientY - rect.top) / rect.height
+      sceneRef.dof.focalUV = [u, v]
+      // Raycast from the tapped screen point against the whole scene graph
+      // (tileset meshes + anything else mounted). NDC: x in [-1,1],
+      // y in [-1,1] with +Y up, so pull straight from u/v we already
+      // computed (v is already +Y up after the flip above).
+      ndc.current.set(u * 2 - 1, v * 2 - 1)
+      raycaster.current.setFromCamera(ndc.current, camera)
+      const hits = raycaster.current.intersectObjects(scene.children, true)
+      if (hits.length) {
+        // Clone — Raycaster.point may be mutated by the next raycast if
+        // we share the Vector3, and we need this to survive across frames.
+        sceneRef.dof.focalWorld = hits[0].point.clone()
+      }
       // iOS Safari throttles the rAF loop on an idle WebGL canvas; without
       // a kick, a tap updates sceneRef but the shader uniforms don't land
       // until something else (camera move, slider) wakes the loop.
@@ -156,8 +183,40 @@ function ClickToFocus() {
       canvas.removeEventListener('pointerup', onUp, opts)
       canvas.removeEventListener('pointercancel', onCancel, opts)
     }
-  }, [gl, invalidate])
+  }, [gl, camera, scene, invalidate])
   return null
+}
+
+// Live toggle for the DoF engine. Three entry points, all writing the atom:
+//   1. URL param ?dof=lib|custom (wired at the atom's default-value site)
+//   2. Alt+D keypress — flips lib ↔ custom for quick side-by-side compare
+//   3. window.__setDofEngine('lib'|'custom') — console helper
+// Third-party inputs dispatch a 'set-dof-engine' CustomEvent rather than
+// touching the atom directly, so we have a single writer inside React.
+function useDofEngineControls() {
+  const setDofEngine = useSetAtom(dofEngineAtom)
+  useEffect(() => {
+    const onEvent = (e) => {
+      const v = e?.detail
+      if (v === 'lib' || v === 'custom') setDofEngine(v)
+    }
+    const onKey = (e) => {
+      if (!e.altKey || e.key.toLowerCase() !== 'd') return
+      const a = document.activeElement
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return
+      setDofEngine((prev) => (prev === 'lib' ? 'custom' : 'lib'))
+    }
+    window.addEventListener('set-dof-engine', onEvent)
+    window.addEventListener('keydown', onKey)
+    // Console helper: __setDofEngine('lib') or __setDofEngine('custom').
+    // Non-enumerable so it doesn't clutter dev tools' Object view.
+    window.__setDofEngine = (v) => window.dispatchEvent(new CustomEvent('set-dof-engine', { detail: v }))
+    return () => {
+      window.removeEventListener('set-dof-engine', onEvent)
+      window.removeEventListener('keydown', onKey)
+      delete window.__setDofEngine
+    }
+  }, [setDofEngine])
 }
 
 // Any change to a scene atom that affects the render should wake the R3F
@@ -189,11 +248,27 @@ export default function Scene() {
   // Defensive: kick the render loop on every scene-atom change so mobile
   // Safari's rAF throttling can't strand a slider/time/DoF update off-screen.
   useInvalidateOnSceneChange()
+  // Alt+D keybind + window.__setDofEngine + 'set-dof-engine' event → atom.
+  useDofEngineControls()
+  // Subscribe to the engine atom so PostProcessing re-mounts the correct
+  // effect component when the user flips lib ↔ custom. Scene itself also
+  // reads this each frame via sceneRef.dofEngine; this value is for render.
+  const dofEngine = useAtomValue(dofEngineAtom)
 
   const camera = useThree(({ camera }) => camera)
+  const scene = useThree(({ scene }) => scene)
   const composerRef = useRef(null)
   const atmosphereRef = useRef(null)
+  // dofRef  — the CustomDofEffect instance (always mounted; in lib mode it
+  //           runs with maxBlur=0 and serves as the color-pop grade pass).
+  // libDofRef — the postprocessing DepthOfFieldEffect instance when engine='lib'.
   const dofRef = useRef(null)
+  const libDofRef = useRef(null)
+  // Raycaster + scratch NDC for the lib-engine's focal-world initialization
+  // (see the useFrame block). Lives at the component level so we don't
+  // re-allocate per frame.
+  const focalRaycaster = useRef(new RaycasterClass())
+  const focalNDC = useRef(new Vector2())
   const [, forceRender] = useState(0)
   const cloudsRef = useRef(null)
   const aerialRef = useRef(null)
@@ -497,6 +572,8 @@ export default function Scene() {
 
     // Update DoF uniforms
     const fx = dofRef.current
+    const libFx = libDofRef.current
+    const engine = sceneRef.dofEngine
     if (fx && fx.uniforms) {
       // Color pop — two independent amounts:
       //   sceneColorPop applies everywhere, regardless of DoF.
@@ -507,6 +584,9 @@ export default function Scene() {
       if (!sceneRef.dof.on) {
         fx.uniforms.get('focusColorPop').value = 0
         fx.uniforms.get('maxBlur').value = 0
+        // Kill lib bokeh when DoF is off — effect still runs on the pipeline
+        // but bokehScale=0 means zero-radius blur ≈ passthrough.
+        if (libFx) libFx.bokehScale = 0
       } else {
         fx.uniforms.get('focusColorPop').value = (sceneRef.dof.focusColorPop ?? 0) / 100
         fx.uniforms.get('focalPoint').value.set(sceneRef.dof.focalUV[0], sceneRef.dof.focalUV[1])
@@ -567,10 +647,59 @@ export default function Scene() {
         maxBlur *= fovScale
         depthRange /= fovScale
         fx.uniforms.get('depthRange').value = depthRange
-        fx.uniforms.get('maxBlur').value = maxBlur
+        // In lib engine, CustomDof's blur is suppressed (maxBlur=0) so it
+        // runs as a color-pop-only pass over the lib's blurred output.
+        // Without this, both engines' blurs stack and the image turns to
+        // mush.
+        fx.uniforms.get('maxBlur').value = engine === 'lib' ? 0 : maxBlur
         fx.uniforms.get('bokehShape').value = bokehShape
         // Highlight bokeh — 4 matches the hardcoded original; 0 = off.
         fx.uniforms.get('highlightStrength').value = sceneRef.dof.highlightBokeh ? 4.0 : 0.0
+
+        // Drive the postprocessing lib's DepthOfFieldEffect when active.
+        // Its CoC material is world-units-based, so we convert our relative
+        // depthRange (a unitless ratio around the focal distance) into
+        // meters by multiplying by focusDistance.
+        if (engine === 'lib' && libFx && libFx.cocMaterial) {
+          // Lazy initialization of focalWorld on first load: until the user
+          // taps, raycast from the focalUV (defaults to screen center) every
+          // frame until we get a hit on the tileset. Stops raycasting as
+          // soon as focalWorld is populated — avoids the "everything blurred"
+          // default that we'd get from an altitude-based fallback when the
+          // camera is tilted away from nadir (Empire State view looks OUT at
+          // buildings 1-2 km away, not straight down at ground 700m below).
+          if (!sceneRef.dof.focalWorld) {
+            focalNDC.current.set(
+              sceneRef.dof.focalUV[0] * 2 - 1,
+              sceneRef.dof.focalUV[1] * 2 - 1,
+            )
+            focalRaycaster.current.setFromCamera(focalNDC.current, camera)
+            const hits = focalRaycaster.current.intersectObjects(scene.children, true)
+            if (hits.length) sceneRef.dof.focalWorld = hits[0].point.clone()
+          }
+          const fw = sceneRef.dof.focalWorld
+          // Fallback: still no hit (tileset not yet loaded OR user aimed at
+          // sky). Altitude above WGS84 ellipsoid is a coarse approximation
+          // good enough to avoid NaNs; once the tileset populates, the
+          // auto-init above takes over on the next frame.
+          const focusDist = fw
+            ? camera.position.distanceTo(fw)
+            : Math.max(camera.position.length() - 6378137, 100)
+          libFx.cocMaterial.focusDistance = focusDist
+          // Translate our unitless depthRange → world-space focus range
+          // (the half-width of the in-focus slab in meters). Clamped so
+          // precision glitches at very short focal distances don't send
+          // the uniform to zero and collapse the CoC calc.
+          libFx.cocMaterial.focusRange = Math.max(depthRange * focusDist, 0.5)
+          // bokehScale maps from our pixel-space maxBlur to the lib's
+          // internal scale. Lib's bokeh reads very strong — its
+          // scatter-as-gather kernel at MEDIUM kernel size visibly blurs
+          // past scale ~1 and saturates around 4. Our maxBlur ranges
+          // 2..60 across UI modes; ×0.08 lands the visible bokeh in a
+          // comfortable range (maxBlur 12 → bokehScale ~1, matches the
+          // old look). Tune live: `__setDofEngine('lib')` + aperture.
+          libFx.bokehScale = maxBlur * 0.08
+        }
       }
     }
 
@@ -603,7 +732,12 @@ export default function Scene() {
       <ClickToFocus />
       <SubjectListener />
 
-      <PostProcessing composerRef={composerRef} dofRef={dofRef}>
+      <PostProcessing
+        composerRef={composerRef}
+        dofRef={dofRef}
+        libDofRef={libDofRef}
+        dofEngine={dofEngine}
+      >
         <Clouds
           ref={cloudsRef}
           coverage={sceneRef.clouds.coverage}

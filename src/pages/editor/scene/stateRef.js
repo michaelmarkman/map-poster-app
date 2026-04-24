@@ -10,6 +10,7 @@ import {
   vignetteAtom,
   cloudsAtom,
   dofAtom,
+  dofEngineAtom,
   IS_MOBILE,
 } from '../atoms/scene'
 
@@ -43,11 +44,17 @@ export const sceneRef = {
     // is untouched. See docs/superpowers/specs/2026-04-21-dof-lab-design.md
     useApertureCoC: false,
     aperture: 4,            // f-stop; lab UI range f/1.4 – f/16
-    tiltShift: false,
-    tiltCenter: [0.5, 0.5], // UV
-    tiltBandHalf: 0.1,      // UV Y-units
-    tiltRotation: 0,        // radians; 0 = horizontal
+    highlightBokeh: true,   // weight bright samples in blur kernel as bokeh balls
+    // World-space focal point cached on tap via Raycaster. Lib DoF engine
+    // needs a world-distance focusDistance (meters), not a UV; we derive
+    // that each frame as camera.position.distanceTo(focalWorld). Null
+    // before first tap → lib engine falls back to a sensible default.
+    focalWorld: null,       // THREE.Vector3 | null
   },
+  // 'lib' = postprocessing's DepthOfFieldEffect, 'custom' = CustomDofEffect.
+  // See atoms/scene.js comment. Mirrored here so useFrame can branch on it
+  // without touching atoms on the hot path.
+  dofEngine: 'lib',
   // Set by useGraphicEditor when the Fabric editor is on. Scene input
   // handlers (click-to-focus, WASD fly, scroll-wheel dolly) read this and
   // bail out so the editor owns pointer/keyboard input exclusively.
@@ -66,6 +73,7 @@ export function useSceneRefSync() {
   const vignette = useAtomValue(vignetteAtom)
   const clouds = useAtomValue(cloudsAtom)
   const dof = useAtomValue(dofAtom)
+  const dofEngine = useAtomValue(dofEngineAtom)
 
   useEffect(() => { sceneRef.timeOfDay = timeOfDay }, [timeOfDay])
   useEffect(() => { sceneRef.latitude = latitude }, [latitude])
@@ -75,5 +83,12 @@ export function useSceneRefSync() {
   useEffect(() => { sceneRef.ssao = ssao }, [ssao])
   useEffect(() => { sceneRef.vignette = vignette }, [vignette])
   useEffect(() => { sceneRef.clouds = clouds }, [clouds])
-  useEffect(() => { sceneRef.dof = dof }, [dof])
+  useEffect(() => {
+    // Merge instead of overwrite — focalWorld isn't in the atom, it's
+    // pointer-driven CPU state that lives only here. A plain
+    // `sceneRef.dof = dof` would blow it away on every dof atom update
+    // (aperture slider, color-pop slider, etc.).
+    sceneRef.dof = { ...dof, focalWorld: sceneRef.dof?.focalWorld ?? null }
+  }, [dof])
+  useEffect(() => { sceneRef.dofEngine = dofEngine }, [dofEngine])
 }
