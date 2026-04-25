@@ -201,6 +201,15 @@
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;
+  /* GPU-promote so the scroll surface is composited on its own layer.
+   * Without this, scrolling content inside the parent sheet's
+   * backdrop-filter container forces Chrome/Safari to recompute the
+   * 28px blur on every scroll frame — visible as a strobe/flash on
+   * the sheet chrome as you scroll the cards. translateZ(0) puts the
+   * scroll layer on the compositor; isolation: isolate makes sure
+   * the backdrop-filter has nothing dynamic to invalidate. */
+  transform: translateZ(0);
+  isolation: isolate;
 }
 .mock-render-sheet .rs-body.rs-body--flush {
   padding: 0;

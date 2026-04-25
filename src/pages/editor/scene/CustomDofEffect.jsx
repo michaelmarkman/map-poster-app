@@ -126,12 +126,13 @@ vec4 ringBlur(vec2 uv, float radius, highp float focalZ, float centerSigned) {
       // deterministic rotation that helps when dithering is disabled, and
       // does no harm when layered under the hash jitter.
       float angle = angleJitter + 6.2831853 * float(i) / float(count) + float(r) * 0.5;
-      // Hex bokeh (#3): squish the sample radius by the hexagon apothem
-      // factor at this angle. Effect: the OOF disc reads as a hexagon
-      // (the shape of a 6-bladed iris), giving real-lens bokeh balls
-      // instead of perfect circles. Apothem ratio is 0.866, so the
-      // hexagon inscribes the circle — same max radius, six flat sides.
-      float effRadius = ringRadius * hexShape(angle);
+      // Hex bokeh (#3): blend a hexagon-apothem squish into the kernel
+      // shape. Pure hex shape squishes radius by ~0.866 at the apothem
+      // angles, which combined with per-pixel angle jitter creates a
+      // visible "scratchy" pattern in low-frequency OOF regions. 50%
+      // blend (mix circle ↔ hex) keeps a hint of hex at bright bokeh
+      // balls without amplifying jitter noise on diffuse blur.
+      float effRadius = ringRadius * mix(1.0, hexShape(angle), 0.5);
       vec2 offset = vec2(cos(angle), sin(angle)) * effRadius * texelSize;
       // Clamp UV to [0,1]. Without this, samples off the frame edge return
       // black on many mobile GPUs regardless of the texture wrap mode,
@@ -281,14 +282,16 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   // local view direction (here just diagonal). Effect scales with
   // blur strength and disappears in-focus, so it reads as "lens
   // character" rather than "broken effect."
-  if (coc > 0.5) {
+  // Earlier 0.15 offset + 0.3 mix produced visible R/B doubling on
+  // building edges at moderate blur (~3px channel split at coc=20).
+  // Subtler: 0.04 offset (sub-pixel until very high coc), 0.10 mix,
+  // ramp pushed out to coc=12 so most of the frame stays pristine.
+  if (coc > 1.0) {
     vec2 caTexel = 1.0 / vec2(textureSize(inputBuffer, 0));
-    vec2 caOffset = vec2(1.0, 0.0) * coc * 0.15 * caTexel;
+    vec2 caOffset = vec2(1.0, 0.0) * coc * 0.04 * caTexel;
     float caR = texture(inputBuffer, clamp(uv + caOffset, vec2(0.0), vec2(1.0))).r;
     float caB = texture(inputBuffer, clamp(uv - caOffset, vec2(0.0), vec2(1.0))).b;
-    // Blend the aberrated channels in proportional to coc — full at
-    // the bokeh edge, none at the sharp center. Subtle: 30% mix max.
-    float caAmt = smoothstep(0.5, 8.0, coc) * 0.3;
+    float caAmt = smoothstep(1.0, 12.0, coc) * 0.10;
     color.r = mix(color.r, caR, caAmt);
     color.b = mix(color.b, caB, caAmt);
   }
