@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Render queue — design exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --sheet-width: 560px;
+    --bg-scene: #191713;
+    --sheet-bg: rgba(14, 14, 16, 0.96);
+    --sheet-border: rgba(255, 255, 255, 0.08);
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.55);
+    --text-dim: rgba(255, 255, 255, 0.38);
+    --accent: #c8b897;
+    --accent-bright: #e8dcc0;
+    --accent-glow: rgba(200, 184, 151, 0.25);
+    --surface-1: rgba(255, 255, 255, 0.03);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --danger: #d88a7e;
+    --danger-soft: rgba(216, 138, 126, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 90% 65% at 30% 0%, rgba(80, 65, 40, 0.28), transparent 60%),
+      radial-gradient(ellipse 80% 55% at 80% 110%, rgba(40, 55, 85, 0.26), transparent 60%),
+      var(--bg-scene);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ═══ Page chrome (dev only) ═══ */
+  .page-head {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(10,10,12,0.85), rgba(10,10,12,0.25));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .page-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+  }
+  .page-title em {
+    color: var(--accent-bright);
+    font-style: normal;
+  }
+  .head-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .scenario-bar {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+  }
+  .scenario-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 6px 12px;
+    font: 11px/1 inherit;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .scenario-btn:hover { color: var(--text-primary); }
+  .scenario-btn.is-active {
+    background: rgba(200, 184, 151, 0.14);
+    color: var(--accent-bright);
+    box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.3);
+  }
+
+  /* ═══ Scene mock ═══ */
+  .scene-mock {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    right: var(--sheet-width);
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 50% 50% at 25% 35%, rgba(180, 140, 85, 0.32), transparent 60%),
+      radial-gradient(ellipse 55% 60% at 75% 70%, rgba(50, 80, 110, 0.35), transparent 60%),
+      linear-gradient(135deg, #1d1a16 0%, #14120f 40%, #0f1014 70%, #0a0d12 100%);
+    overflow: hidden;
+  }
+  .scene-mock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 6px);
+    opacity: 0.5;
+  }
+  .scene-pill-row {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+  }
+  .scene-pill-row.tl { top: 24px; left: 24px; }
+  .scene-pill-row.br { bottom: 24px; right: 24px; flex-direction: row-reverse; }
+  .scene-pill {
+    height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 22, 0.7);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.02em;
+  }
+
+  /* ═══ Sheet ═══ */
+  .sheet {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: var(--sheet-width);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border-left: 1px solid var(--sheet-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+
+  /* Sheet head */
+  .sheet-head {
+    padding: 16px 20px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sheet-head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sheet-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .sheet-close {
+    background: transparent;
+    border: 0;
+    width: 28px;
+    height: 28px;
+    font-size: 22px;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .sheet-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+  /* Segmented tab bar */
+  .segbar {
+    display: flex;
+    gap: 2px;
+    padding: 0;
+    margin: 0 -20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .seg-btn {
+    background: transparent;
+    border: 0;
+    padding: 12px 22px 14px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    color: var(--text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.15s ease;
+  }
+  .seg-btn:hover { color: var(--text-primary); }
+  .seg-btn.is-active {
+    color: var(--accent-bright);
+  }
+  .seg-btn.is-active::after {
+    content: '';
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: -1px;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--accent) 20%,
+      var(--accent-bright) 50%,
+      var(--accent) 80%,
+      transparent
+    );
+  }
+  .seg-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(200,184,151,0.18);
+    color: var(--accent-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0;
+    box-shadow: inset 0 0 0 1px rgba(200,184,151,0.3);
+  }
+  .seg-btn:not(.is-active) .seg-count {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  }
+  .seg-count.is-pulsing {
+    animation: countPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes countPulse {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(200,184,151,0.3), 0 0 0 0 rgba(200,184,151,0.35); }
+    50%     { box-shadow: inset 0 0 0 1px rgba(200,184,151,0.45), 0 0 0 4px rgba(200,184,151,0); }
+  }
+
+  /* ═══ Session meter (top of body) ═══ */
+  .session-meter {
+    position: relative;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    background: linear-gradient(to bottom, rgba(200,184,151,0.04), transparent);
+    transition: opacity 0.3s ease, height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+  }
+  .session-meter.is-idle { opacity: 0; height: 0; border-bottom: 0; }
+  .session-meter-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-bright);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .session-meter-counts {
+    display: flex;
+    gap: 14px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .session-meter-counts span b {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+  .session-meter-bar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 1.5px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+  .session-meter-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: var(--session-progress, 0%);
+    background: linear-gradient(to right, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 10px rgba(200,184,151,0.45);
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ═══ Sheet body ═══ */
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 14px 20px;
+  }
+  .sheet-body::-webkit-scrollbar { width: 6px; }
+  .sheet-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+  }
+
+  /* ═══ Queue list ═══ */
+  .queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ═══ Queue card ═══ */
+  .q-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px 128px 1fr;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-1);
+    border-radius: 12px;
+    overflow: hidden;
+    transition:
+      transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.2s ease,
+      border-color 0.15s ease,
+      opacity 0.25s ease,
+      background 0.15s ease;
+  }
+  .q-card:hover {
+    background: var(--surface-2);
+    border-color: rgba(255,255,255,0.14);
+  }
+  .q-card.is-dragging {
+    opacity: 0.55;
+    transform: scale(0.99);
+  }
+  .q-card.is-drop-target {
+    border-color: rgba(200, 184, 151, 0.45);
+    box-shadow: 0 0 0 1px rgba(200,184,151,0.25), 0 0 18px rgba(200,184,151,0.2);
+  }
+
+  /* Drag gutter (pending-only) */
+  .q-gutter {
+    position: relative;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+  .q-gutter:active { cursor: grabbing; }
+  .q-gutter:hover { background: rgba(255,255,255,0.03); }
+  .q-gutter-dots {
+    width: 4px;
+    height: 18px;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px),
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px),
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px);
+    background-repeat: no-repeat;
+    background-size: 4px 4px;
+    background-position: 0 0, 0 7px, 0 14px;
+  }
+  .q-card:not([data-status="pending"]) .q-gutter {
+    cursor: default;
+    pointer-events: none;
+  }
+  .q-card:not([data-status="pending"]) .q-gutter-dots {
+    opacity: 0.18;
+  }
+
+  /* Thumbnail */
+  .q-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    background: #0d0d10;
+  }
+  .q-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition:
+      filter 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ---- Pending thumbnail state (raw snapshot, dimmed, grayscale) ---- */
+  .q-card[data-status="pending"] .q-photo img {
+    filter: grayscale(0.4) brightness(0.72) saturate(0.85);
+  }
+  .q-card[data-status="pending"] .q-photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 45%, rgba(0,0,0,0.3));
+    pointer-events: none;
+  }
+
+  /* ---- Active (developing) — the signature moment ---- */
+  .q-card[data-status="active"] .q-photo img {
+    filter: grayscale(0.55) brightness(0.68) saturate(0.7);
+  }
+  .q-card[data-status="active"] .q-photo::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 0%,
+      transparent 35%,
+      rgba(200, 184, 151, 0.0) 42%,
+      rgba(232, 220, 192, 0.32) 50%,
+      rgba(200, 184, 151, 0.0) 58%,
+      transparent 65%,
+      transparent 100%
+    );
+    background-size: 260% 100%;
+    animation: developerWash 2.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    pointer-events: none;
+    z-index: 2;
+    mix-blend-mode: screen;
+  }
+  .q-card[data-status="active"] .q-photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.28 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.22;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes developerWash {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -160% 0; }
+  }
+
+  /* ---- Done (fixed) — full color, subtle check ---- */
+  .q-card[data-status="done"] .q-photo img {
+    filter: none;
+    animation: fixerPop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes fixerPop {
+    0%   { filter: grayscale(0.6) brightness(0.7); transform: scale(1.02); }
+    100% { filter: none;                            transform: scale(1);    }
+  }
+
+  /* ---- Error (spoiled) — cross-hatch + red tint ---- */
+  .q-card[data-status="error"] .q-photo img {
+    filter: grayscale(0.55) brightness(0.5);
+  }
+  .q-card[data-status="error"] .q-photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        rgba(216, 138, 126, 0.0) 0 10px,
+        rgba(216, 138, 126, 0.22) 10px 11px
+      ),
+      linear-gradient(rgba(80, 25, 20, 0.35), rgba(60, 15, 12, 0.45));
+    mix-blend-mode: normal;
+    pointer-events: none;
+  }
+
+  /* Status ribbon on thumbnail */
+  .q-ribbon {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    background: rgba(14,14,16,0.72);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.72);
+    z-index: 3;
+  }
+  .q-card[data-status="active"] .q-ribbon {
+    background: rgba(200,184,151,0.22);
+    color: var(--accent-bright);
+    border-color: rgba(200,184,151,0.5);
+  }
+  .q-card[data-status="done"] .q-ribbon {
+    background: rgba(14,14,16,0.8);
+    color: var(--accent-bright);
+    border-color: rgba(200,184,151,0.3);
+  }
+  .q-card[data-status="error"] .q-ribbon {
+    background: rgba(80, 25, 20, 0.78);
+    color: #f5c8c0;
+    border-color: rgba(216,138,126,0.45);
+  }
+
+  /* Check / cross badge (done / error) */
+  .q-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 3;
+  }
+  .q-card[data-status="done"] .q-badge {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border: 1px solid rgba(200,184,151,0.7);
+  }
+  .q-card[data-status="done"] .q-badge::after {
+    content: '';
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #1a1812;
+    border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .q-card[data-status="error"] .q-badge {
+    opacity: 1;
+    transform: scale(1);
+    background: rgba(80, 25, 20, 0.85);
+    border: 1px solid rgba(216,138,126,0.6);
+    font-size: 13px;
+    color: #f5c8c0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Card body */
+  .q-body {
+    padding: 12px 14px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .q-body-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .q-body-top .sep { opacity: 0.35; }
+  .q-timer { color: var(--text-secondary); }
+  .q-card[data-status="active"] .q-timer { color: var(--accent-bright); }
+
+  .q-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 19px;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+  .q-card[data-status="done"] .q-label { color: var(--text-primary); }
+  .q-card[data-status="error"] .q-label { color: rgba(245, 200, 192, 0.92); }
+
+  .q-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .q-meta .dot { margin: 0 6px; opacity: 0.5; }
+
+  .q-error-msg {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #f5c8c0;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+    font-style: italic;
+  }
+
+  /* Actions — editorial text links, not chunky button pills.
+     Row uses mid-dot separators so it reads as a caption line. */
+  .q-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    opacity: 0;
+    transform: translateY(1px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .q-card:hover .q-actions,
+  .q-card[data-status="error"] .q-actions,
+  .q-card[data-status="done"] .q-actions { opacity: 1; transform: translateY(0); }
+  .q-actions .q-sep { opacity: 0.35; user-select: none; }
+
+  .q-act {
+    background: transparent;
+    border: 0;
+    color: var(--text-secondary);
+    font: 11px/1 inherit;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    padding: 2px 0;
+    cursor: pointer;
+    transition: color 0.15s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .q-act:hover {
+    color: var(--text-primary);
+    border-bottom-color: rgba(255,255,255,0.28);
+  }
+  .q-act.is-primary { color: var(--accent-bright); }
+  .q-act.is-primary:hover { color: var(--accent-bright); border-bottom-color: rgba(200,184,151,0.55); }
+  .q-act.is-danger { color: rgba(216, 138, 126, 0.75); }
+  .q-act.is-danger:hover { color: #f5c8c0; border-bottom-color: rgba(216,138,126,0.45); }
+
+  /* Progress hairline — sits along the bottom edge of the card */
+  .q-progress {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.03);
+    overflow: hidden;
+  }
+  .q-progress::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: var(--progress, 0%);
+    background: linear-gradient(to right, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 8px rgba(200,184,151,0.4);
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .q-card[data-status="done"]    .q-progress { opacity: 0; }
+  .q-card[data-status="error"]   .q-progress::before { background: linear-gradient(to right, var(--danger), rgba(216,138,126,0.5)); box-shadow: 0 0 8px rgba(216,138,126,0.35); }
+  .q-card[data-status="pending"] .q-progress::before { background: rgba(255,255,255,0.1); box-shadow: none; }
+
+  /* Entry animation — only fires when a card is freshly inserted
+     (JS toggles data-fresh for one frame). Without the gate the whole
+     list re-animates on every sim tick, which reads as a flash. */
+  .q-card[data-fresh] {
+    animation: cardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ═══ Batch header ═══ */
+  .q-batch-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 14px 4px 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255,255,255,0.06);
+  }
+  .q-batch-head:first-child { margin-top: 2px; }
+  .q-batch-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .q-batch-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ═══ Empty state ═══ */
+  .q-empty {
+    padding: 44px 16px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+  .q-empty-art {
+    position: relative;
+    width: 120px;
+    height: 72px;
+    border: 1px dashed rgba(200, 184, 151, 0.28);
+    border-radius: 6px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        transparent 0 6px,
+        rgba(200, 184, 151, 0.04) 6px 7px
+      );
+  }
+  .q-empty-art::before, .q-empty-art::after {
+    content: '';
+    position: absolute;
+    background: rgba(200, 184, 151, 0.3);
+  }
+  .q-empty-art::before {
+    left: 50%; top: 50%;
+    width: 16px; height: 1px;
+    transform: translate(-50%, -50%);
+  }
+  .q-empty-art::after {
+    left: 50%; top: 50%;
+    width: 1px; height: 16px;
+    transform: translate(-50%, -50%);
+  }
+  .q-empty-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .q-empty-body {
+    font-size: 12px;
+    color: var(--text-dim);
+    max-width: 280px;
+    line-height: 1.5;
+  }
+  .q-empty-body em { color: var(--accent-bright); font-style: normal; }
+
+  /* ═══ Footer ═══ */
+  .sheet-footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: var(--sheet-bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .footer-status {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .footer-status b { color: var(--text-secondary); font-weight: 500; margin-right: 5px; }
+  .btn-ghost {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    color: rgba(255,255,255,0.8);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font: 11px/1 inherit;
+    font-family: inherit;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn-ghost:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.18); }
+  .btn-ghost.is-danger { color: rgba(216, 138, 126, 0.82); }
+  .btn-ghost.is-danger:hover { color: #f5c8c0; background: var(--danger-soft); border-color: rgba(216,138,126,0.3); }
+  .btn-ghost[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+  /* ═══ Styles-tab placeholder ═══ */
+  .styles-placeholder {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    letter-spacing: 0.01em;
+  }
+  .styles-placeholder em { color: var(--accent-bright); font-style: normal; }
+
+  /* Tab pane visibility — the active pane becomes the flex column so
+     session-meter + sheet-body + sheet-footer can share the remaining
+     height and the body scrolls inside its own bounds. */
+  .pane { display: none; }
+  .pane.is-active {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="scene-mock">
+  <div class="scene-pill-row tl">
+    <span class="scene-pill">4:3</span>
+    <span class="scene-pill">Edit</span>
+  </div>
+  <div class="scene-pill-row br">
+    <span class="scene-pill">DoF: ON</span>
+    <span class="scene-pill">Clouds: ON</span>
+  </div>
+</div>
+
+<header class="page-head">
+  <div class="page-title">Render queue — <em>darkroom</em></div>
+  <div class="head-controls">
+    <div class="scenario-bar" role="tablist" aria-label="Scenario">
+      <button class="scenario-btn is-active" data-scenario="mix">Mixed</button>
+      <button class="scenario-btn" data-scenario="busy">Rendering</button>
+      <button class="scenario-btn" data-scenario="done">All done</button>
+      <button class="scenario-btn" data-scenario="error">With errors</button>
+      <button class="scenario-btn" data-scenario="empty">Empty</button>
+    </div>
+  </div>
+</header>
+
+<aside class="sheet">
+  <header class="sheet-head">
+    <div class="sheet-head-top">
+      <h2 class="sheet-title">Render</h2>
+      <button class="sheet-close" aria-label="Close">×</button>
+    </div>
+    <div class="segbar" role="tablist" aria-label="Section">
+      <button class="seg-btn" data-pane="styles">Styles</button>
+      <button class="seg-btn is-active" data-pane="queue">
+        Queue
+        <span class="seg-count" id="seg-queue-count">0</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="pane" id="pane-styles">
+    <div class="styles-placeholder">
+      <div>Styles grid lives here —</div>
+      <div>the <em>Grid @ 560</em> direction.</div>
+    </div>
+  </div>
+
+  <div class="pane is-active" id="pane-queue">
+    <div class="session-meter is-idle" id="session-meter">
+      <div class="session-meter-label" id="session-meter-label">Developing · 0%</div>
+      <div class="session-meter-counts" id="session-meter-counts"></div>
+      <div class="session-meter-bar"></div>
+    </div>
+
+    <div class="sheet-body">
+      <div class="queue-list" id="queue-list"></div>
+    </div>
+
+    <footer class="sheet-footer" id="queue-footer">
+      <div class="footer-status" id="footer-status"></div>
+      <button class="btn-ghost" id="clear-done">Clear done</button>
+      <button class="btn-ghost is-danger" id="clear-all">Clear all</button>
+    </footer>
+  </div>
+</aside>
+
+<script>
+  // ─────────────────────────────────────────────────────────────
+  // Preset catalog (mirrors CATS in render-menu-prototype).
+  // Each preset maps to a file in /style-photos/.
+  // ─────────────────────────────────────────────────────────────
+  const FILES = {
+    raw:           'mapposter-raw-2x-20260422-1714.png',
+    realistic:     'mapposter-realistic-2x-20260422-1705.png',
+    golden:        'mapposter-golden-hour-2x-20260422-1706.png',
+    retro70s:      'mapposter-70s-film-2x-20260422-1706.png',
+    polaroid:      'mapposter-polaroid-2x-20260422-1706.png',
+    postcard:      'mapposter-vintage-postcard-2x-20260422-1706.png',
+    night:         'mapposter-night-2x-20260422-1707.png',
+    snowfall:      'mapposter-snowfall-2x-20260422-1707.png',
+    autumn:        'mapposter-autumn-2x-20260422-1707.png',
+    cherry:        'mapposter-cherry-blossom-2x-20260422-1708.png',
+    rainy:         'mapposter-rainy-2x-20260422-1708.png',
+    foggy:         'mapposter-foggy-dawn-2x-20260422-1708.png',
+    watercolor:    'mapposter-watercolor-2x-20260422-1708.png',
+    oilpaint:      'mapposter-oil-painting-2x-20260422-1709.png',
+    pastel:        'mapposter-pastel-dream-2x-20260422-1709.png',
+    gouache:       'mapposter-gouache-2x-20260422-1709.png',
+    cyberpunk:     'mapposter-cyberpunk-2x-20260422-1710.png',
+    pixel:         'mapposter-pixel-art-2x-20260422-1710.png',
+    stainedglass:  'mapposter-stained-glass-2x-20260422-1710.png',
+    ghibli:        'mapposter-studio-ghibli-2x-20260422-1711.png',
+    travelposter:  'mapposter-travel-poster-2x-20260422-1711.png',
+    pencilsketch:  'mapposter-pencil-sketch-2x-20260422-1711.png',
+    crosshatch:    'mapposter-ink-crosshatch-2x-20260422-1711.png',
+    charcoal:      'mapposter-charcoal-2x-20260422-1712.png',
+    lineart:       'mapposter-line-drawing-2x-20260422-1712.png',
+    architect:     'mapposter-architect-marker-2x-20260422-1712.png',
+    traveljournal: 'mapposter-travel-journal-2x-20260422-1713.png',
+    woodblock:     'mapposter-ukiyo-e-print-2x-20260422-1713.png',
+    blueprint:     'mapposter-blueprint-2x-20260422-1713.png',
+  };
+  const LABELS = {
+    raw:           'Raw export',
+    realistic:     'Realistic',
+    golden:        'Golden Hour',
+    retro70s:      '70s Film',
+    polaroid:      'Polaroid',
+    postcard:      'Vintage Postcard',
+    night:         'Night',
+    snowfall:      'Snowfall',
+    autumn:        'Autumn',
+    cherry:        'Cherry Blossom',
+    rainy:         'Rainy',
+    foggy:         'Foggy Dawn',
+    watercolor:    'Watercolor',
+    oilpaint:      'Oil Painting',
+    pastel:        'Pastel Dream',
+    gouache:       'Gouache',
+    cyberpunk:     'Cyberpunk',
+    pixel:         'Pixel Art',
+    stainedglass:  'Stained Glass',
+    ghibli:        'Studio Ghibli',
+    travelposter:  'Travel Poster',
+    pencilsketch:  'Pencil Sketch',
+    crosshatch:    'Ink Crosshatch',
+    charcoal:      'Charcoal',
+    lineart:       'Line Drawing',
+    architect:     'Architect Marker',
+    traveljournal: 'Travel Journal',
+    woodblock:     'Ukiyo-e Print',
+    blueprint:     'Blueprint',
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Status copy — real, evocative (matches the darkroom metaphor
+  // without actually leaving the render-queue vocabulary).
+  // ─────────────────────────────────────────────────────────────
+  const RIBBONS = {
+    pending: 'Queued',
+    active:  'Developing',
+    done:    'Fixed',
+    error:   'Spoiled',
+  };
+
+  // Scenarios --------------------------------------------------
+  // Seed data for each demo scenario the scenario-bar can toggle between.
+  // Shape mirrors what useQueue.js actually stores.
+  const SCENARIOS = {
+    mix: [
+      { id: 101, preset: 'golden',      status: 'done',    progress: 100, statusText: 'Just finished',         resolution: 2, startedAt: Date.now() - 45_000 },
+      { id: 102, preset: 'retro70s',    status: 'active',  progress: 62,  statusText: 'Developing…',           resolution: 2, startedAt: Date.now() - 22_000 },
+      { id: 103, preset: 'night',       status: 'pending', progress: 0,   statusText: 'Queued',                resolution: 2, startedAt: Date.now() },
+      { id: 104, preset: 'polaroid',    status: 'pending', progress: 0,   statusText: 'Queued',                resolution: 2, startedAt: Date.now() },
+      { id: 105, preset: 'watercolor',  status: 'pending', progress: 0,   statusText: 'Queued',                resolution: 2, startedAt: Date.now() },
+    ],
+    busy: [
+      { id: 201, preset: 'realistic',    status: 'active',  progress: 28, statusText: 'Developing…',     resolution: 3, startedAt: Date.now() - 8_000,  batchId: 'b1', batchLabel: 'All styles' },
+      { id: 202, preset: 'golden',       status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+      { id: 203, preset: 'retro70s',     status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+      { id: 204, preset: 'polaroid',     status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+      { id: 205, preset: 'postcard',     status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+      { id: 206, preset: 'watercolor',   status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+      { id: 207, preset: 'cyberpunk',    status: 'pending', progress: 0,                                 resolution: 3, startedAt: Date.now(),            batchId: 'b1', batchLabel: 'All styles' },
+    ],
+    done: [
+      { id: 301, preset: 'realistic',    status: 'done', progress: 100, statusText: 'Fixed', resolution: 2, startedAt: Date.now() - 180_000 },
+      { id: 302, preset: 'golden',       status: 'done', progress: 100, statusText: 'Fixed', resolution: 2, startedAt: Date.now() - 150_000 },
+      { id: 303, preset: 'retro70s',     status: 'done', progress: 100, statusText: 'Fixed', resolution: 2, startedAt: Date.now() - 120_000 },
+      { id: 304, preset: 'night',        status: 'done', progress: 100, statusText: 'Fixed', resolution: 2, startedAt: Date.now() -  95_000 },
+      { id: 305, preset: 'cherry',       status: 'done', progress: 100, statusText: 'Fixed', resolution: 2, startedAt: Date.now() -  60_000 },
+    ],
+    error: [
+      { id: 401, preset: 'realistic',   status: 'done',    progress: 100, statusText: 'Fixed',                      resolution: 2, startedAt: Date.now() - 90_000 },
+      { id: 402, preset: 'cyberpunk',   status: 'error',   progress: 40,  statusText: 'API error 429 · rate limit', resolution: 2, startedAt: Date.now() - 70_000 },
+      { id: 403, preset: 'ghibli',      status: 'active',  progress: 45,  statusText: 'Developing…',                resolution: 2, startedAt: Date.now() - 14_000 },
+      { id: 404, preset: 'stainedglass',status: 'pending', progress: 0,                                             resolution: 2, startedAt: Date.now() },
+      { id: 405, preset: 'blueprint',   status: 'error',   progress: 25,  statusText: 'No image returned',          resolution: 2, startedAt: Date.now() - 200_000 },
+    ],
+    empty: [],
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Element helpers
+  // ─────────────────────────────────────────────────────────────
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmtElapsed(ms) {
+    if (ms < 1000) return '0:00';
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+  }
+  function fmtAgo(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    return `${Math.floor(m / 60)}h ago`;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────────────────────
+  let queue = [];
+  let activeScenario = 'mix';
+  let simTimer = null;
+
+  // ─────────────────────────────────────────────────────────────
+  // Card builder
+  // ─────────────────────────────────────────────────────────────
+  function buildCard(job) {
+    const card = el('article', 'q-card');
+    card.dataset.status = job.status;
+    card.dataset.id = job.id;
+    card.style.setProperty('--progress', `${job.progress}%`);
+
+    // Gutter (drag handle — only meaningful for pending)
+    const gutter = el('div', 'q-gutter');
+    gutter.setAttribute('aria-label', 'Drag to reorder');
+    const dots = el('div', 'q-gutter-dots');
+    gutter.appendChild(dots);
+    card.appendChild(gutter);
+
+    // Thumbnail
+    const photo = el('div', 'q-photo');
+    const img = document.createElement('img');
+    img.alt = LABELS[job.preset] || job.preset;
+    img.src = `/style-photos/${FILES[job.preset] || FILES.raw}`;
+    img.loading = 'lazy';
+    photo.appendChild(img);
+
+    const ribbon = el('span', 'q-ribbon', RIBBONS[job.status]);
+    photo.appendChild(ribbon);
+
+    if (job.status === 'done' || job.status === 'error') {
+      const badge = el('div', 'q-badge');
+      if (job.status === 'error') badge.textContent = '×';
+      photo.appendChild(badge);
+    }
+    card.appendChild(photo);
+
+    // Body
+    const body = el('div', 'q-body');
+
+    const top = el('div', 'q-body-top');
+    const timer = el('span', 'q-timer');
+    if (job.status === 'done') {
+      timer.textContent = fmtAgo(Date.now() - job.startedAt);
+    } else if (job.status === 'error') {
+      timer.textContent = fmtAgo(Date.now() - job.startedAt);
+    } else if (job.status === 'active') {
+      timer.textContent = fmtElapsed(Date.now() - job.startedAt);
+    } else {
+      timer.textContent = 'waiting';
+    }
+    top.appendChild(timer);
+    top.appendChild(el('span', 'sep', '·'));
+    const res = el('span', '', `${job.resolution}× · ${job.resolution === 1 ? '1080' : job.resolution === 2 ? '2160' : job.resolution === 3 ? '3240' : '4320'}px`);
+    top.appendChild(res);
+    if (job.batchLabel) {
+      top.appendChild(el('span', 'sep', '·'));
+      top.appendChild(el('span', '', job.batchLabel));
+    }
+    body.appendChild(top);
+
+    const label = el('div', 'q-label', LABELS[job.preset] || job.preset);
+    body.appendChild(label);
+
+    if (job.status === 'error') {
+      body.appendChild(el('div', 'q-error-msg', job.statusText));
+    } else if (job.status === 'active') {
+      body.appendChild(el('div', 'q-meta', job.statusText || 'Developing…'));
+    } else if (job.status === 'pending') {
+      body.appendChild(el('div', 'q-meta', 'Waiting its turn'));
+    } else if (job.status === 'done') {
+      body.appendChild(el('div', 'q-meta', 'Ready in gallery'));
+    }
+
+    // Actions
+    const acts = el('div', 'q-actions');
+    const pushActs = (arr) => {
+      arr.forEach((a, i) => {
+        if (i > 0) acts.appendChild(el('span', 'q-sep', '·'));
+        acts.appendChild(a);
+      });
+    };
+    if (job.status === 'pending') {
+      pushActs([ mkAct('Remove', 'is-danger', () => removeJob(job.id)) ]);
+    } else if (job.status === 'active') {
+      pushActs([ mkAct('Stop', 'is-danger', () => removeJob(job.id)) ]);
+    } else if (job.status === 'done') {
+      pushActs([
+        mkAct('Open',     'is-primary', () => {}),
+        mkAct('Download', '',           () => {}),
+        mkAct('Remove',   'is-danger',  () => removeJob(job.id)),
+      ]);
+    } else if (job.status === 'error') {
+      pushActs([
+        mkAct('Retry',  'is-primary', () => retryJob(job.id)),
+        mkAct('Remove', 'is-danger',  () => removeJob(job.id)),
+      ]);
+    }
+    body.appendChild(acts);
+
+    // Progress hairline
+    const progress = el('div', 'q-progress');
+    body.appendChild(progress);
+
+    card.appendChild(body);
+
+    // Drag (pending only)
+    if (job.status === 'pending') {
+      card.draggable = true;
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragover', onDragOver);
+      card.addEventListener('dragleave', onDragLeave);
+      card.addEventListener('drop', onDrop);
+      card.addEventListener('dragend', onDragEnd);
+    }
+
+    return card;
+  }
+  function mkAct(text, mod, onClick) {
+    const b = el('button', `q-act${mod ? ' ' + mod : ''}`, text);
+    b.type = 'button';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Drag-reorder (pending only; locks across groups)
+  // ─────────────────────────────────────────────────────────────
+  let dragId = null;
+  function onDragStart(e) {
+    dragId = +this.dataset.id;
+    this.classList.add('is-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(dragId)); } catch {}
+  }
+  function onDragOver(e) {
+    if (dragId == null) return;
+    const target = +this.dataset.id;
+    const tgt = queue.find(j => j.id === target);
+    if (tgt?.status !== 'pending') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('is-drop-target');
+  }
+  function onDragLeave() { this.classList.remove('is-drop-target'); }
+  function onDrop(e) {
+    e.preventDefault();
+    this.classList.remove('is-drop-target');
+    const target = +this.dataset.id;
+    if (dragId == null || target === dragId) return;
+    const from = queue.findIndex(j => j.id === dragId);
+    const to   = queue.findIndex(j => j.id === target);
+    if (from < 0 || to < 0) return;
+    const [moved] = queue.splice(from, 1);
+    queue.splice(to, 0, moved);
+    renderQueue();
+  }
+  function onDragEnd() {
+    dragId = null;
+    document.querySelectorAll('.is-dragging').forEach(n => n.classList.remove('is-dragging'));
+    document.querySelectorAll('.is-drop-target').forEach(n => n.classList.remove('is-drop-target'));
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Actions
+  // ─────────────────────────────────────────────────────────────
+  function removeJob(id) {
+    queue = queue.filter(j => j.id !== id);
+    renderQueue();
+  }
+  function retryJob(id) {
+    const job = queue.find(j => j.id === id);
+    if (!job) return;
+    job.status = 'pending';
+    job.progress = 0;
+    job.statusText = 'Queued';
+    job.startedAt = Date.now();
+    renderQueue();
+  }
+  function clearDone() {
+    queue = queue.filter(j => j.status !== 'done');
+    renderQueue();
+  }
+  function clearAll() {
+    queue = [];
+    renderQueue();
+  }
+
+  document.getElementById('clear-done').addEventListener('click', clearDone);
+  document.getElementById('clear-all').addEventListener('click', clearAll);
+
+  // ─────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────
+  function renderQueue() {
+    const list = document.getElementById('queue-list');
+    while (list.firstChild) list.removeChild(list.firstChild);
+
+    if (queue.length === 0) {
+      renderEmpty(list);
+    } else {
+      // Group by batchId where set, otherwise treat every job as its own row
+      // (no batch chrome for solo jobs).
+      const batches = new Map();
+      for (const job of queue) {
+        const key = job.batchId || `solo-${job.id}`;
+        if (!batches.has(key)) batches.set(key, { label: job.batchLabel, jobs: [] });
+        batches.get(key).jobs.push(job);
+      }
+
+      const push = (job) => {
+        const c = buildCard(job);
+        // Fresh-flag so the cardIn entry animation fires exactly once
+        // per card — sim ticks call renderQueue() too, but only when a
+        // status transition requires a full rebuild. Cleared on the next
+        // animation frame so the rule only binds for the initial paint.
+        c.setAttribute('data-fresh', '');
+        requestAnimationFrame(() => c.removeAttribute('data-fresh'));
+        list.appendChild(c);
+      };
+      batches.forEach((b, key) => {
+        if (key.startsWith('solo-')) {
+          for (const job of b.jobs) push(job);
+          return;
+        }
+        const head = el('div', 'q-batch-head');
+        const label = el('div', 'q-batch-label', b.label || 'Batch');
+        const doneN = b.jobs.filter(j => j.status === 'done').length;
+        const sub = el('div', 'q-batch-sub', `${doneN} / ${b.jobs.length} · ${b.jobs.length === 1 ? 'job' : 'jobs'}`);
+        head.appendChild(label);
+        head.appendChild(sub);
+        list.appendChild(head);
+        for (const job of b.jobs) push(job);
+      });
+    }
+
+    renderSessionMeter();
+    renderFooter();
+    renderSegCount();
+  }
+
+  function renderEmpty(list) {
+    const wrap = el('div', 'q-empty');
+    const art = el('div', 'q-empty-art');
+    wrap.appendChild(art);
+    wrap.appendChild(el('div', 'q-empty-title', 'Nothing brewing'));
+    const body = el('div', 'q-empty-body');
+    body.appendChild(document.createTextNode('Pick a style over on '));
+    const em = el('em', null, 'Styles');
+    body.appendChild(em);
+    body.appendChild(document.createTextNode(' and hit Render. Jobs stack up here and develop one at a time.'));
+    wrap.appendChild(body);
+    list.appendChild(wrap);
+  }
+
+  function renderSessionMeter() {
+    const meter = document.getElementById('session-meter');
+    const label = document.getElementById('session-meter-label');
+    const counts = document.getElementById('session-meter-counts');
+    const total = queue.length;
+    const doneN = queue.filter(j => j.status === 'done').length;
+    const actN  = queue.filter(j => j.status === 'active').length;
+    const pendN = queue.filter(j => j.status === 'pending').length;
+    const errN  = queue.filter(j => j.status === 'error').length;
+    const inflight = actN + pendN;
+
+    if (total === 0 || inflight === 0) {
+      meter.classList.add('is-idle');
+      meter.style.setProperty('--session-progress', '0%');
+      return;
+    }
+    meter.classList.remove('is-idle');
+    const pct = Math.round(((doneN + errN) / total) * 100);
+    meter.style.setProperty('--session-progress', `${pct}%`);
+    label.textContent = `Developing · ${pct}%`;
+
+    while (counts.firstChild) counts.removeChild(counts.firstChild);
+    if (actN) { const s = el('span'); s.appendChild(el('b', null, String(actN))); s.appendChild(document.createTextNode('rendering')); counts.appendChild(s); }
+    if (pendN){ const s = el('span'); s.appendChild(el('b', null, String(pendN))); s.appendChild(document.createTextNode('queued'));    counts.appendChild(s); }
+    if (doneN){ const s = el('span'); s.appendChild(el('b', null, String(doneN))); s.appendChild(document.createTextNode('done'));      counts.appendChild(s); }
+    if (errN) { const s = el('span'); s.appendChild(el('b', null, String(errN)));  s.appendChild(document.createTextNode('errored'));   counts.appendChild(s); }
+  }
+
+  function renderFooter() {
+    const footer = document.getElementById('queue-footer');
+    const status = document.getElementById('footer-status');
+    const cd = document.getElementById('clear-done');
+    const ca = document.getElementById('clear-all');
+    const total = queue.length;
+    const doneN = queue.filter(j => j.status === 'done').length;
+    const actN  = queue.filter(j => j.status === 'active').length;
+    const pendN = queue.filter(j => j.status === 'pending').length;
+
+    if (total === 0) {
+      footer.style.display = 'none';
+      return;
+    }
+    footer.style.display = 'flex';
+
+    while (status.firstChild) status.removeChild(status.firstChild);
+    if (actN > 0 || pendN > 0) {
+      const b = el('b', null, '●');
+      status.appendChild(b);
+      status.appendChild(document.createTextNode(`${actN ? 'Rendering' : 'Queued'} · ${doneN}/${total}`));
+    } else {
+      status.appendChild(el('b', null, '✓'));
+      status.appendChild(document.createTextNode(`All ${total} done`));
+    }
+
+    cd.disabled = doneN === 0;
+    ca.disabled = total === 0;
+  }
+
+  function renderSegCount() {
+    const el = document.getElementById('seg-queue-count');
+    el.textContent = String(queue.length);
+    const hasActive = queue.some(j => j.status === 'active' || j.status === 'pending');
+    el.classList.toggle('is-pulsing', hasActive);
+  }
+
+  // Surgical in-place update — only touches attributes that can move
+  // without a structural rebuild. Called on progress-only ticks so the
+  // developer-wash animation + scroll position stay continuous.
+  function tickDom() {
+    for (const job of queue) {
+      const card = document.querySelector(`.q-card[data-id="${job.id}"]`);
+      if (!card) continue;
+      if (job.status === 'active') {
+        card.style.setProperty('--progress', `${job.progress}%`);
+        const t = card.querySelector('.q-timer');
+        if (t) t.textContent = fmtElapsed(Date.now() - job.startedAt);
+      } else if (job.status === 'done') {
+        const t = card.querySelector('.q-timer');
+        if (t) t.textContent = fmtAgo(Date.now() - job.startedAt);
+      }
+    }
+    renderSessionMeter();
+  }
+
+  // Simulation — makes 'mix' / 'busy' / 'error' feel alive. Ticks every
+  // 600ms: active job ticks up, hits 100 → done, next pending becomes
+  // active. Status-change ticks do a full rebuild (rare); progress-only
+  // ticks patch in place so nothing flashes.
+  function startSim() {
+    stopSim();
+    simTimer = setInterval(() => {
+      let statusChange = false;
+      const active = queue.find(j => j.status === 'active');
+      if (active) {
+        active.progress = Math.min(100, active.progress + 6 + Math.random() * 5);
+        if (active.progress >= 100) {
+          active.status = 'done';
+          active.progress = 100;
+          active.statusText = 'Fixed';
+          active.startedAt = Date.now();
+          statusChange = true;
+        }
+      }
+      if (!queue.some(j => j.status === 'active')) {
+        const next = queue.find(j => j.status === 'pending');
+        if (next) {
+          next.status = 'active';
+          next.startedAt = Date.now();
+          next.statusText = 'Developing…';
+          statusChange = true;
+        }
+      }
+      if (statusChange) renderQueue();
+      else tickDom();
+    }, 600);
+  }
+  function stopSim() {
+    if (simTimer) clearInterval(simTimer);
+    simTimer = null;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Scenario swap
+  // ─────────────────────────────────────────────────────────────
+  function setScenario(name) {
+    activeScenario = name;
+    queue = JSON.parse(JSON.stringify(SCENARIOS[name] || []));
+    document.querySelectorAll('.scenario-btn').forEach(b => {
+      b.classList.toggle('is-active', b.dataset.scenario === name);
+    });
+    renderQueue();
+    if (name === 'mix' || name === 'busy' || name === 'error') startSim();
+    else stopSim();
+  }
+  document.querySelectorAll('.scenario-btn').forEach(b => {
+    b.addEventListener('click', () => setScenario(b.dataset.scenario));
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Pane (Styles / Queue) swap
+  // ─────────────────────────────────────────────────────────────
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.pane;
+      document.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      document.querySelectorAll('.pane').forEach(p => p.classList.toggle('is-active', p.id === `pane-${name}`));
+    });
+  });
+
+  // Kick off
+  setScenario('mix');
+</script>
+</body>
+</html>

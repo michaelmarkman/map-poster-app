@@ -1,0 +1,1041 @@
+/* ═══ Render sheet — unified Styles + Queue ═══════════════════════════
+ *
+ * Ported from public/render-merged-prototype.html (Grid @ 560 direction +
+ * The Darkroom queue). Everything in here is scoped to `.mock-render-sheet`
+ * so the old `.mock-airender-*` styles in mock.css are untouched — those
+ * still live on the right edge / are used elsewhere (dof-lab).
+ *
+ * The sheet is pinned to the right, 560px wide by default, with a segmented
+ * Styles | Queue tab bar. Each pane owns its own flex column with its own
+ * scroll body + footer so neither pane steals the other's scroll context.
+ * ───────────────────────────────────────────────────────────────────── */
+
+.mock-render-sheet {
+  /* Tokens — saturated darkroom palette. Primary is rich amber (safelight),
+   * secondary is oxidized copper (fixer stain), accents include ice-blue
+   * (cool state) + magenta (contrast filter / chromogenic highlight). The
+   * body gets a warm undertone instead of flat black so the chrome doesn't
+   * read as washed-out grey. */
+  --rs-sheet-width: 560px;
+  --rs-sheet-bg: rgba(20, 15, 12, 0.97);
+  --rs-sheet-border: rgba(230, 162, 74, 0.16);
+  --rs-text-primary: rgba(255, 248, 236, 0.95);
+  --rs-text-secondary: rgba(255, 235, 200, 0.62);
+  --rs-text-dim: rgba(255, 220, 180, 0.42);
+
+  /* Primary amber — vivid darkroom safelight */
+  --rs-accent: #e6a24a;
+  --rs-accent-bright: #ffc873;
+  --rs-accent-deep: #b8771d;
+
+  /* Secondary copper — fixer oxidation, used for the "developing" band */
+  --rs-copper: #c36a3a;
+  --rs-copper-bright: #e68a52;
+
+  /* Cool + hot contrasts for state variety */
+  --rs-cool: #7ab3d4;          /* ice-blue — queued / idle */
+  --rs-cool-soft: rgba(122, 179, 212, 0.14);
+  --rs-magenta: #d96aa8;       /* chromogenic contrast filter */
+  --rs-magenta-soft: rgba(217, 106, 168, 0.16);
+
+  /* Surfaces — warm-tinted so the whole sheet has a sepia undertone */
+  --rs-surface-1: rgba(230, 162, 74, 0.05);
+  --rs-surface-2: rgba(230, 162, 74, 0.10);
+  --rs-surface-border: rgba(230, 162, 74, 0.14);
+
+  --rs-danger: #e86e5d;
+  --rs-danger-soft: rgba(232, 110, 93, 0.18);
+}
+
+/* Font stack — Instrument Serif for display, Inter for body, JetBrains Mono
+ * for timers/ribbons. Loaded once by the modal component. */
+.mock-render-sheet,
+.mock-render-sheet * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ═══ Backdrop ═══════════════════════════════════════════════════════ */
+/* Sits above the Gallery modal (z:200) and below the Lightbox (z:300) so
+ * opening Render over an already-open gallery works cleanly. Not named
+ * `.mock-render-backdrop` because that class is taken by the poster-edit
+ * backdrop-image in mock.css (z:5, pointer-events:none). */
+.mock-rs-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 250;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ═══ Sheet shell ════════════════════════════════════════════════════ */
+.mock-render-sheet {
+  width: var(--rs-sheet-width);
+  max-width: 100vw;
+  height: 100%;
+  /* Warm-tinted darkroom — flat #0e0e10 became a sepia-undertoned espresso.
+   * Plus two soft radial glows: amber safelight top-right, deep copper
+   * bloom bottom-left. Gives the whole sheet a sunlit-through-curtain
+   * atmosphere instead of dead-flat black. */
+  background:
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(255, 180, 80, 0.08), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 0% 100%, rgba(195, 106, 58, 0.07), transparent 65%),
+    var(--rs-sheet-bg);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+          backdrop-filter: blur(28px) saturate(170%);
+  border-left: 1px solid var(--rs-sheet-border);
+  display: flex;
+  flex-direction: column;
+  color: var(--rs-text-primary);
+  font-size: 13px;
+  animation: mock-render-sheet-in 0.18s ease-out;
+}
+@keyframes mock-render-sheet-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+/* ═══ Head (title + segmented tabs) ═══════════════════════════════════ */
+.mock-render-sheet .rs-head {
+  padding: 16px 20px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+.mock-render-sheet .rs-head-top { display: flex; align-items: center; justify-content: space-between; }
+.mock-render-sheet .rs-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  color: var(--rs-text-primary);
+  margin: 0;
+}
+.mock-render-sheet .rs-close {
+  background: transparent;
+  border: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 22px;
+  color: var(--rs-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+.mock-render-sheet .rs-close:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+
+.mock-render-sheet .rs-segbar {
+  display: flex;
+  gap: 2px;
+  padding: 0;
+  margin: 0 -20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.mock-render-sheet .rs-seg {
+  background: transparent;
+  border: 0;
+  padding: 12px 22px 14px;
+  font: 12px/1 inherit;
+  font-family: inherit;
+  color: var(--rs-text-secondary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s ease;
+}
+.mock-render-sheet .rs-seg:hover { color: var(--rs-text-primary); }
+.mock-render-sheet .rs-seg.is-active { color: var(--rs-accent-bright); }
+.mock-render-sheet .rs-seg.is-active::after {
+  content: '';
+  position: absolute;
+  left: 20px; right: 20px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    to right, transparent, var(--rs-accent) 20%, var(--rs-accent-bright) 50%, var(--rs-accent) 80%, transparent
+  );
+}
+.mock-render-sheet .rs-seg-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 200, 115, 0.25), rgba(230, 162, 74, 0.15));
+  color: var(--rs-accent-bright);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 115, 0.4);
+}
+.mock-render-sheet .rs-seg:not(.is-active) .rs-seg-count {
+  background: rgba(230, 162, 74, 0.08);
+  color: var(--rs-text-secondary);
+  box-shadow: inset 0 0 0 1px rgba(230, 162, 74, 0.18);
+}
+.mock-render-sheet .rs-seg-count.is-pulsing { animation: mock-render-countPulse 1.8s ease-in-out infinite; }
+@keyframes mock-render-countPulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 200, 115, 0.45), 0 0 0 0 rgba(255, 200, 115, 0.5); }
+  50%      { box-shadow: inset 0 0 0 1px rgba(255, 200, 115, 0.6),  0 0 0 5px rgba(255, 200, 115, 0); }
+}
+
+/* ═══ Pane layout ════════════════════════════════════════════════════ */
+.mock-render-sheet .rs-pane { display: none; }
+.mock-render-sheet .rs-pane.is-active {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.mock-render-sheet .rs-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+.mock-render-sheet .rs-body.rs-body--flush {
+  padding: 0;
+  /* Darkroom "developing tray" — a faint inset surface that makes the queue
+   * area read as a contained tray rather than empty sheet. Extends the full
+   * height of the body so when the list is shorter than the viewport, the
+   * empty region below the cards still reads as intentional workspace. */
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(200, 184, 151, 0.03), transparent 70%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.32) 100%);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+}
+.mock-render-sheet .rs-body::-webkit-scrollbar { width: 6px; }
+.mock-render-sheet .rs-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
+
+/* ═══ Footer ═════════════════════════════════════════════════════════ */
+.mock-render-sheet .rs-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--rs-sheet-bg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.mock-render-sheet .rs-footer-row { display: flex; gap: 6px; flex: 1; }
+.mock-render-sheet .rs-footer-row .rs-btn-ghost { flex: 0 0 25%; padding-left: 0; padding-right: 0; text-align: center; }
+.mock-render-sheet .rs-footer-row .rs-btn-primary { flex: 1; }
+.mock-render-sheet .rs-footer-status {
+  flex: 1;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rs-text-dim);
+}
+.mock-render-sheet .rs-footer-status b { color: var(--rs-text-secondary); font-weight: 500; margin-right: 5px; }
+
+/* ═══ Buttons ════════════════════════════════════════════════════════ */
+.mock-render-sheet .rs-btn-primary {
+  background: linear-gradient(180deg, #ffc873 0%, #e6a24a 55%, #c3801f 100%);
+  color: #1a0f04;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font: 13px/1 inherit;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 22px rgba(255, 180, 80, 0.35),
+    inset 0 1px 0 rgba(255, 240, 210, 0.5),
+    inset 0 -1px 0 rgba(120, 70, 10, 0.35);
+  transition: box-shadow 0.25s ease, transform 0.12s ease;
+}
+.mock-render-sheet .rs-btn-primary:hover:not([disabled]) {
+  box-shadow:
+    0 0 32px rgba(255, 200, 115, 0.5),
+    inset 0 1px 0 rgba(255, 248, 225, 0.6),
+    inset 0 -1px 0 rgba(120, 70, 10, 0.35);
+  transform: translateY(-0.5px);
+}
+.mock-render-sheet .rs-btn-primary[disabled] {
+  background: linear-gradient(180deg, rgba(230, 162, 74, 0.35), rgba(184, 119, 29, 0.32));
+  color: rgba(255, 240, 210, 0.55);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.mock-render-sheet .rs-btn-ghost {
+  background: var(--rs-surface-1);
+  border: 1px solid var(--rs-surface-border);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font: 12px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mock-render-sheet .rs-btn-ghost:hover { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-btn-ghost.is-quiet { padding: 9px 14px; font-size: 11px; letter-spacing: 0.05em; }
+.mock-render-sheet .rs-btn-ghost.is-danger {
+  color: rgba(216, 138, 126, 0.82);
+  padding: 9px 14px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+.mock-render-sheet .rs-btn-ghost.is-danger:hover {
+  color: #f5c8c0;
+  background: var(--rs-danger-soft);
+  border-color: rgba(216, 138, 126, 0.3);
+}
+.mock-render-sheet .rs-btn-ghost[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+/* ═══ Styles pane ════════════════════════════════════════════════════ */
+.mock-render-sheet .rs-section { margin-bottom: 20px; }
+.mock-render-sheet .rs-section-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--rs-accent);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.mock-render-sheet .rs-section-head-count { font-size: 10px; color: var(--rs-text-dim); letter-spacing: 0.1em; }
+
+.mock-render-sheet .rs-resgroup {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.mock-render-sheet .rs-res-btn {
+  background: var(--rs-surface-1);
+  border: 1px solid var(--rs-surface-border);
+  border-radius: 6px;
+  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.78);
+  font: 12px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mock-render-sheet .rs-res-btn:hover { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-res-btn.is-active {
+  background: linear-gradient(180deg, rgba(255, 200, 115, 0.14), rgba(230, 162, 74, 0.08));
+  border-color: rgba(255, 200, 115, 0.55);
+  color: var(--rs-accent-bright);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 200, 115, 0.25),
+    0 0 14px rgba(255, 180, 80, 0.28);
+}
+
+.mock-render-sheet .rs-chip-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(230, 162, 74, 0.05);
+  border: 1px dashed rgba(230, 162, 74, 0.22);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 11px;
+  color: var(--rs-text-secondary);
+  transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.mock-render-sheet .rs-chip-strip.is-empty { border-style: dashed; opacity: 0.7; }
+.mock-render-sheet .rs-chip-strip:not(.is-empty) {
+  border-style: solid;
+  border-color: rgba(255, 200, 115, 0.35);
+  background: rgba(230, 162, 74, 0.08);
+  box-shadow: inset 0 0 20px rgba(255, 180, 80, 0.05);
+}
+.mock-render-sheet .rs-chip-strip-label {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  color: var(--rs-accent-bright);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.mock-render-sheet .rs-chip-placeholder { font-size: 11px; color: var(--rs-text-dim); letter-spacing: 0.01em; }
+.mock-render-sheet .rs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  background: rgba(200, 184, 151, 0.1);
+  border: 1px solid rgba(200, 184, 151, 0.3);
+  border-radius: 999px;
+  color: var(--rs-accent-bright);
+  font: 11px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.mock-render-sheet .rs-chip:hover { background: rgba(200, 184, 151, 0.18); }
+.mock-render-sheet .rs-chip-x { font-size: 13px; line-height: 1; opacity: 0.7; padding: 0 1px 2px; }
+.mock-render-sheet .rs-chip:hover .rs-chip-x { opacity: 1; }
+
+.mock-render-sheet .rs-raw {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 14px;
+  padding: 0;
+  width: 100%;
+  background: var(--rs-surface-1);
+  border: 1px solid var(--rs-surface-border);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.mock-render-sheet .rs-raw:hover { background: var(--rs-surface-2); border-color: rgba(255, 255, 255, 0.16); }
+.mock-render-sheet .rs-raw-photo { position: relative; aspect-ratio: 3 / 2; background: #0d0d10; overflow: hidden; }
+.mock-render-sheet .rs-raw-photo img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-render-sheet .rs-raw:hover .rs-raw-photo img { transform: scale(1.04); }
+.mock-render-sheet .rs-raw-body { display: flex; flex-direction: column; justify-content: center; padding: 10px 14px 10px 0; gap: 4px; }
+.mock-render-sheet .rs-raw-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px;
+  color: var(--rs-text-primary);
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+.mock-render-sheet .rs-raw-desc { font-size: 11px; color: var(--rs-text-dim); letter-spacing: 0.01em; line-height: 1.4; }
+.mock-render-sheet .rs-raw.is-active {
+  background: rgba(20, 20, 22, 0.82);
+  border-color: rgba(200, 184, 151, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.14), 0 0 14px rgba(200, 184, 151, 0.18);
+}
+.mock-render-sheet .rs-raw.is-active .rs-raw-title { color: var(--rs-accent-bright); }
+.mock-render-sheet .rs-raw.is-active .rs-raw-desc { color: rgba(232, 220, 192, 0.7); }
+.mock-render-sheet .rs-raw-check {
+  position: absolute; top: 8px; right: 8px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: rgba(14, 14, 16, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.8);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.mock-render-sheet .rs-raw.is-active .rs-raw-check {
+  opacity: 1; transform: scale(1);
+  background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
+  border-color: rgba(200, 184, 151, 0.7);
+}
+.mock-render-sheet .rs-raw.is-active .rs-raw-check::after {
+  content: ''; width: 9px; height: 5px;
+  border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.mock-render-sheet .rs-cat-head {
+  font-family: 'Instrument Serif', serif;
+  font-size: 26px;
+  color: var(--rs-text-primary);
+  letter-spacing: 0.01em;
+  margin: 28px 0 14px;
+  padding-left: 14px;
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.mock-render-sheet .rs-cat-head::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 10px; bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--rs-cat-accent, var(--rs-accent));
+  box-shadow: 0 0 12px var(--rs-cat-accent, var(--rs-accent));
+  opacity: 0.9;
+}
+.mock-render-sheet .rs-cat-head:first-child { margin-top: 8px; }
+
+/* Per-category color rails — each gets its own darkroom-adjacent hue. The
+ * nth-of-type targets the <div class="rs-cat-head"> siblings within the
+ * rs-body; order matches CATS in the JSX (Photography, Seasons, Art, Media). */
+.mock-render-sheet .rs-cat-head:nth-of-type(1) { --rs-cat-accent: #ffc873; } /* amber */
+.mock-render-sheet .rs-cat-head:nth-of-type(2) { --rs-cat-accent: #7ab3d4; } /* ice-blue */
+.mock-render-sheet .rs-cat-head:nth-of-type(3) { --rs-cat-accent: #d96aa8; } /* magenta */
+.mock-render-sheet .rs-cat-head:nth-of-type(4) { --rs-cat-accent: #c36a3a; } /* copper */
+.mock-render-sheet .rs-cat-sub {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--rs-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.mock-render-sheet .rs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 10px; }
+.mock-render-sheet .rs-card {
+  position: relative;
+  background: transparent;
+  border: 0; padding: 0;
+  color: inherit; font-family: inherit;
+  text-align: left; cursor: pointer;
+  display: flex; flex-direction: column;
+}
+.mock-render-sheet .rs-card-photo {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: 10px; overflow: hidden;
+  background: #0d0d10;
+  border: 1px solid var(--rs-surface-border);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+}
+.mock-render-sheet .rs-card:hover .rs-card-photo {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
+}
+.mock-render-sheet .rs-card-photo img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-render-sheet .rs-card:hover .rs-card-photo img { transform: scale(1.04); }
+.mock-render-sheet .rs-card-body { padding: 10px 4px 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mock-render-sheet .rs-card-label {
+  font-family: 'Instrument Serif', serif;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+.mock-render-sheet .rs-card-sub {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--rs-text-dim);
+  flex: 0 0 auto;
+  padding-top: 4px;
+}
+.mock-render-sheet .rs-card.is-active .rs-card-photo {
+  border-color: rgba(200, 184, 151, 0.9);
+  box-shadow: 0 0 0 1px rgba(200, 184, 151, 0.4), 0 0 22px rgba(200, 184, 151, 0.3), 0 8px 22px rgba(0, 0, 0, 0.48);
+}
+.mock-render-sheet .rs-card.is-active .rs-card-label { color: var(--rs-accent-bright); }
+.mock-render-sheet .rs-card-check {
+  position: absolute; top: 10px; right: 10px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(14, 14, 16, 0.75);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.8);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.mock-render-sheet .rs-card.is-active .rs-card-check {
+  opacity: 1; transform: scale(1);
+  background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
+  border-color: rgba(200, 184, 151, 0.7);
+}
+.mock-render-sheet .rs-card.is-active .rs-card-check::after {
+  content: ''; width: 10px; height: 5px;
+  border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+/* Custom-prompt card — same look as Raw, but expands a prompt input below. */
+.mock-render-sheet .rs-custom { margin-top: 14px; }
+.mock-render-sheet .rs-input {
+  width: 100%;
+  background: var(--rs-surface-1);
+  border: 1px solid var(--rs-surface-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--rs-text-primary);
+  font: 12px/1.4 inherit;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.mock-render-sheet .rs-input::placeholder { color: var(--rs-text-dim); }
+.mock-render-sheet .rs-input:focus { border-color: rgba(200, 184, 151, 0.5); background: var(--rs-surface-2); }
+
+/* Provider toggle + API key — collapsed under the Styles pane footer area */
+.mock-render-sheet .rs-provider {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 8px;
+}
+.mock-render-sheet .rs-provider .rs-res-btn { font-size: 11px; }
+
+/* Include-graphics toggle row (shown in Styles pane footer area) */
+.mock-render-sheet .rs-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 11px;
+  color: var(--rs-text-secondary);
+}
+.mock-render-sheet .rs-toggle {
+  width: 32px; height: 18px;
+  border-radius: 999px;
+  background: var(--rs-surface-2);
+  border: 1px solid var(--rs-surface-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mock-render-sheet .rs-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.mock-render-sheet .rs-toggle.is-on {
+  background: rgba(200, 184, 151, 0.3);
+  border-color: rgba(200, 184, 151, 0.55);
+}
+.mock-render-sheet .rs-toggle.is-on::after { transform: translateX(13px); background: var(--rs-accent-bright); }
+.mock-render-sheet .rs-toggle[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* ═══ Queue pane ═════════════════════════════════════════════════════ */
+.mock-render-sheet .rs-meter {
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: linear-gradient(to bottom, rgba(200, 184, 151, 0.04), transparent);
+  transition: opacity 0.3s ease, height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.mock-render-sheet .rs-meter.is-idle { opacity: 0; height: 0; border-bottom: 0; }
+.mock-render-sheet .rs-meter-label {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--rs-accent-bright);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mock-render-sheet .rs-meter-counts {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--rs-text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mock-render-sheet .rs-meter-counts span b {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  color: var(--rs-text-primary);
+  margin-right: 4px;
+}
+.mock-render-sheet .rs-meter-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1.5px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+.mock-render-sheet .rs-meter-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: var(--rs-session-progress, 0%);
+  background: linear-gradient(to right, var(--rs-accent), var(--rs-accent-bright));
+  box-shadow: 0 0 10px rgba(200, 184, 151, 0.45);
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Queue list: min-height:100% so the tray surface paints behind both the
+ * cards AND any dead space below when the list is shorter than the body.
+ * Cards anchor to the top naturally (flex-direction: column). The trailing
+ * ::after draws an "end of roll" sigil that sits just beneath the last card
+ * when the list doesn't fill — and scrolls out of view otherwise. */
+.mock-render-sheet .rs-qlist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 24px;
+  min-height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+.mock-render-sheet .rs-qlist::after {
+  content: '— end of roll —';
+  margin-top: 14px;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.18);
+  padding: 12px 0 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.mock-render-sheet .rs-qlist:empty::after { display: none; }
+
+.mock-render-sheet .rs-qcard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 128px 1fr;
+  border: 1px solid var(--rs-surface-border);
+  background: var(--rs-surface-1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.15s ease, opacity 0.25s ease, background 0.15s ease;
+}
+.mock-render-sheet .rs-qcard:hover { background: var(--rs-surface-2); border-color: rgba(255, 255, 255, 0.14); }
+.mock-render-sheet .rs-qcard.is-dragging { opacity: 0.55; transform: scale(0.99); }
+.mock-render-sheet .rs-qcard.is-drop-target {
+  border-color: rgba(200, 184, 151, 0.45);
+  box-shadow: 0 0 0 1px rgba(200, 184, 151, 0.25), 0 0 18px rgba(200, 184, 151, 0.2);
+}
+
+.mock-render-sheet .rs-qgutter {
+  position: relative;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.mock-render-sheet .rs-qgutter:active { cursor: grabbing; }
+.mock-render-sheet .rs-qgutter:hover { background: rgba(255, 255, 255, 0.03); }
+.mock-render-sheet .rs-qgutter-dots {
+  width: 4px; height: 18px;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1.2px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1.2px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1.2px);
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  background-position: 0 0, 0 7px, 0 14px;
+}
+.mock-render-sheet .rs-qcard:not([data-status="pending"]) .rs-qgutter { cursor: default; pointer-events: none; }
+.mock-render-sheet .rs-qcard:not([data-status="pending"]) .rs-qgutter-dots { opacity: 0.18; }
+
+.mock-render-sheet .rs-qphoto { position: relative; aspect-ratio: 3 / 2; overflow: hidden; background: #0d0d10; }
+.mock-render-sheet .rs-qphoto img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  transition: filter 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mock-render-sheet .rs-qcard[data-status="pending"] .rs-qphoto img { filter: grayscale(0.4) brightness(0.72) saturate(0.85); }
+.mock-render-sheet .rs-qcard[data-status="pending"] .rs-qphoto::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, transparent 45%, rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+}
+
+.mock-render-sheet .rs-qcard[data-status="active"] .rs-qphoto img { filter: grayscale(0.55) brightness(0.68) saturate(0.7); }
+.mock-render-sheet .rs-qcard[data-status="active"] .rs-qphoto::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%, transparent 35%,
+    rgba(200, 184, 151, 0) 42%,
+    rgba(232, 220, 192, 0.32) 50%,
+    rgba(200, 184, 151, 0) 58%,
+    transparent 65%, transparent 100%
+  );
+  background-size: 260% 100%;
+  animation: mock-render-developerWash 2.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+.mock-render-sheet .rs-qcard[data-status="active"] .rs-qphoto::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.28 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes mock-render-developerWash {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -160% 0; }
+}
+
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qphoto img {
+  filter: none;
+  animation: mock-render-fixerPop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mock-render-fixerPop {
+  0%   { filter: grayscale(0.6) brightness(0.7); transform: scale(1.02); }
+  100% { filter: none;                            transform: scale(1); }
+}
+
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qphoto img { filter: grayscale(0.55) brightness(0.5); }
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qphoto::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(216, 138, 126, 0) 0 10px, rgba(216, 138, 126, 0.22) 10px 11px),
+    linear-gradient(rgba(80, 25, 20, 0.35), rgba(60, 15, 12, 0.45));
+  pointer-events: none;
+}
+
+.mock-render-sheet .rs-qribbon {
+  position: absolute;
+  top: 8px; left: 8px;
+  padding: 3px 8px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
+  background: rgba(14, 14, 16, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+  z-index: 3;
+}
+.mock-render-sheet .rs-qcard[data-status="active"] .rs-qribbon {
+  background: rgba(200, 184, 151, 0.22);
+  color: var(--rs-accent-bright);
+  border-color: rgba(200, 184, 151, 0.5);
+}
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qribbon {
+  background: rgba(14, 14, 16, 0.8);
+  color: var(--rs-accent-bright);
+  border-color: rgba(200, 184, 151, 0.3);
+}
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qribbon {
+  background: rgba(80, 25, 20, 0.78);
+  color: #f5c8c0;
+  border-color: rgba(216, 138, 126, 0.45);
+}
+
+.mock-render-sheet .rs-qbadge {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; transform: scale(0.8);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 3;
+}
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qbadge {
+  opacity: 1; transform: scale(1);
+  background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
+  border: 1px solid rgba(200, 184, 151, 0.7);
+}
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qbadge::after {
+  content: ''; width: 9px; height: 5px;
+  border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qbadge {
+  opacity: 1; transform: scale(1);
+  background: rgba(80, 25, 20, 0.85);
+  border: 1px solid rgba(216, 138, 126, 0.6);
+  font-size: 13px;
+  color: #f5c8c0;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.mock-render-sheet .rs-qbody {
+  padding: 12px 14px 12px 14px;
+  display: flex; flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  justify-content: center;
+  position: relative;
+}
+.mock-render-sheet .rs-qbody-top {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--rs-text-dim);
+  text-transform: uppercase;
+}
+.mock-render-sheet .rs-qbody-top .rs-sep { opacity: 0.35; }
+.mock-render-sheet .rs-qtimer { color: var(--rs-text-secondary); }
+.mock-render-sheet .rs-qcard[data-status="active"] .rs-qtimer { color: var(--rs-accent-bright); }
+
+.mock-render-sheet .rs-qlabel {
+  font-family: 'Instrument Serif', serif;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--rs-text-primary);
+  margin-top: 2px;
+}
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qlabel { color: rgba(245, 200, 192, 0.92); }
+
+.mock-render-sheet .rs-qmeta {
+  font-size: 11px;
+  color: var(--rs-text-dim);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mock-render-sheet .rs-qerror {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #f5c8c0;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  font-style: italic;
+}
+
+.mock-render-sheet .rs-qactions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--rs-text-dim);
+  letter-spacing: 0.01em;
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.mock-render-sheet .rs-qcard:hover .rs-qactions,
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qactions,
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qactions { opacity: 1; transform: translateY(0); }
+.mock-render-sheet .rs-qactions .rs-qsep { opacity: 0.35; user-select: none; }
+.mock-render-sheet .rs-qact {
+  background: transparent;
+  border: 0;
+  color: var(--rs-text-secondary);
+  font: 11px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  padding: 2px 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  border-bottom: 1px solid transparent;
+}
+.mock-render-sheet .rs-qact:hover { color: var(--rs-text-primary); border-bottom-color: rgba(255, 255, 255, 0.28); }
+.mock-render-sheet .rs-qact.is-primary { color: var(--rs-accent-bright); }
+.mock-render-sheet .rs-qact.is-primary:hover { color: var(--rs-accent-bright); border-bottom-color: rgba(200, 184, 151, 0.55); }
+.mock-render-sheet .rs-qact.is-danger { color: rgba(216, 138, 126, 0.75); }
+.mock-render-sheet .rs-qact.is-danger:hover { color: #f5c8c0; border-bottom-color: rgba(216, 138, 126, 0.45); }
+
+.mock-render-sheet .rs-qprogress {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.mock-render-sheet .rs-qprogress::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: var(--rs-progress, 0%);
+  background: linear-gradient(to right, var(--rs-accent), var(--rs-accent-bright));
+  box-shadow: 0 0 8px rgba(200, 184, 151, 0.4);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mock-render-sheet .rs-qcard[data-status="done"] .rs-qprogress { opacity: 0; }
+.mock-render-sheet .rs-qcard[data-status="error"] .rs-qprogress::before {
+  background: linear-gradient(to right, var(--rs-danger), rgba(216, 138, 126, 0.5));
+  box-shadow: 0 0 8px rgba(216, 138, 126, 0.35);
+}
+.mock-render-sheet .rs-qcard[data-status="pending"] .rs-qprogress::before {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.mock-render-sheet .rs-qcard[data-fresh] { animation: mock-render-cardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes mock-render-cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mock-render-sheet .rs-qbatch-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 14px 4px 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.mock-render-sheet .rs-qbatch-head:first-child { margin-top: 2px; }
+.mock-render-sheet .rs-qbatch-label {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px;
+  color: var(--rs-text-primary);
+  letter-spacing: 0.01em;
+}
+.mock-render-sheet .rs-qbatch-sub {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--rs-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mock-render-sheet .rs-qempty {
+  padding: 44px 16px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+.mock-render-sheet .rs-qempty-art {
+  position: relative;
+  width: 120px; height: 72px;
+  border: 1px dashed rgba(200, 184, 151, 0.28);
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(200, 184, 151, 0.04) 6px 7px);
+}
+.mock-render-sheet .rs-qempty-art::before,
+.mock-render-sheet .rs-qempty-art::after {
+  content: '';
+  position: absolute;
+  background: rgba(200, 184, 151, 0.3);
+}
+.mock-render-sheet .rs-qempty-art::before { left: 50%; top: 50%; width: 16px; height: 1px; transform: translate(-50%, -50%); }
+.mock-render-sheet .rs-qempty-art::after  { left: 50%; top: 50%; width: 1px; height: 16px; transform: translate(-50%, -50%); }
+.mock-render-sheet .rs-qempty-title { font-family: 'Instrument Serif', serif; font-size: 24px; color: var(--rs-text-primary); letter-spacing: 0.01em; }
+.mock-render-sheet .rs-qempty-body { font-size: 12px; color: var(--rs-text-dim); max-width: 280px; line-height: 1.5; }
+.mock-render-sheet .rs-qempty-body em { color: var(--rs-accent-bright); font-style: normal; }
+
+/* ═══ Mobile ═════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .mock-render-sheet { width: 100vw; --rs-sheet-width: 100vw; }
+  .mock-render-sheet .rs-grid { grid-template-columns: 1fr; }
+  .mock-render-sheet .rs-qcard { grid-template-columns: 18px 96px 1fr; }
+  .mock-render-sheet .rs-raw { grid-template-columns: 120px 1fr; }
+}

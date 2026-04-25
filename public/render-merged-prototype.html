@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Render — merged prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --sheet-width: 560px;
+    --bg-scene: #191713;
+    --sheet-bg: rgba(14, 14, 16, 0.96);
+    --sheet-border: rgba(255, 255, 255, 0.08);
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.55);
+    --text-dim: rgba(255, 255, 255, 0.38);
+    --accent: #c8b897;
+    --accent-bright: #e8dcc0;
+    --accent-glow: rgba(200, 184, 151, 0.25);
+    --surface-1: rgba(255, 255, 255, 0.03);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --danger: #d88a7e;
+    --danger-soft: rgba(216, 138, 126, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 90% 65% at 30% 0%, rgba(80, 65, 40, 0.28), transparent 60%),
+      radial-gradient(ellipse 80% 55% at 80% 110%, rgba(40, 55, 85, 0.26), transparent 60%),
+      var(--bg-scene);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ═══ Page chrome (dev only) ═══ */
+  .page-head {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(10,10,12,0.85), rgba(10,10,12,0.25));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .page-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+  }
+  .page-title em { color: var(--accent-bright); font-style: normal; }
+
+  /* ═══ Scene mock ═══ */
+  .scene-mock {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    right: var(--sheet-width);
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 50% 50% at 25% 35%, rgba(180, 140, 85, 0.32), transparent 60%),
+      radial-gradient(ellipse 55% 60% at 75% 70%, rgba(50, 80, 110, 0.35), transparent 60%),
+      linear-gradient(135deg, #1d1a16 0%, #14120f 40%, #0f1014 70%, #0a0d12 100%);
+    overflow: hidden;
+  }
+  .scene-mock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 6px);
+    opacity: 0.5;
+  }
+  .scene-pill-row { position: absolute; display: flex; gap: 8px; }
+  .scene-pill-row.tl { top: 24px; left: 24px; }
+  .scene-pill-row.br { bottom: 24px; right: 24px; flex-direction: row-reverse; }
+  .scene-pill {
+    height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 22, 0.7);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.02em;
+  }
+
+  /* ═══ Sheet ═══ */
+  .sheet {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: var(--sheet-width);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border-left: 1px solid var(--sheet-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+
+  .sheet-head {
+    padding: 16px 20px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 0 0 auto;
+  }
+  .sheet-head-top { display: flex; align-items: center; justify-content: space-between; }
+  .sheet-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .sheet-close {
+    background: transparent;
+    border: 0;
+    width: 28px;
+    height: 28px;
+    font-size: 22px;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .sheet-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+  /* Segmented tab bar */
+  .segbar {
+    display: flex;
+    gap: 2px;
+    padding: 0;
+    margin: 0 -20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .seg-btn {
+    background: transparent;
+    border: 0;
+    padding: 12px 22px 14px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    color: var(--text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.15s ease;
+  }
+  .seg-btn:hover { color: var(--text-primary); }
+  .seg-btn.is-active { color: var(--accent-bright); }
+  .seg-btn.is-active::after {
+    content: '';
+    position: absolute;
+    left: 20px; right: 20px;
+    bottom: -1px;
+    height: 1px;
+    background: linear-gradient(
+      to right, transparent, var(--accent) 20%, var(--accent-bright) 50%, var(--accent) 80%, transparent
+    );
+  }
+  .seg-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(200,184,151,0.18);
+    color: var(--accent-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0;
+    box-shadow: inset 0 0 0 1px rgba(200,184,151,0.3);
+  }
+  .seg-btn:not(.is-active) .seg-count {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  }
+  .seg-count.is-pulsing { animation: countPulse 1.8s ease-in-out infinite; }
+  @keyframes countPulse {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(200,184,151,0.3), 0 0 0 0 rgba(200,184,151,0.35); }
+    50%     { box-shadow: inset 0 0 0 1px rgba(200,184,151,0.45), 0 0 0 4px rgba(200,184,151,0); }
+  }
+
+  /* Pane layout */
+  .pane { display: none; }
+  .pane.is-active {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+  .sheet-body::-webkit-scrollbar { width: 6px; }
+  .sheet-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+  /* Footers */
+  .sheet-footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: var(--sheet-bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .footer-row { display: flex; gap: 6px; flex: 1; }
+  .footer-row .btn-ghost { flex: 0 0 25%; padding-left: 0; padding-right: 0; text-align: center; }
+  .footer-row .btn-primary { flex: 1; }
+  .footer-status {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .footer-status b { color: var(--text-secondary); font-weight: 500; margin-right: 5px; }
+
+  /* Buttons */
+  .btn-primary {
+    background: linear-gradient(180deg, rgba(220, 204, 171, 0.96), rgba(200, 184, 151, 0.92));
+    color: #1a1812;
+    border: 0;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font: 13px/1 inherit;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    box-shadow: 0 0 16px rgba(200,184,151,0.22);
+  }
+  .btn-primary[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    color: rgba(255,255,255,0.8);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .btn-ghost.is-danger { color: rgba(216, 138, 126, 0.82); padding: 9px 14px; font-size: 11px; letter-spacing: 0.05em; }
+  .btn-ghost.is-danger:hover { color: #f5c8c0; background: var(--danger-soft); border-color: rgba(216,138,126,0.3); }
+  .btn-ghost.is-quiet { padding: 9px 14px; font-size: 11px; letter-spacing: 0.05em; }
+
+  /* ═══ Styles pane ═══ */
+  .section { margin-bottom: 20px; }
+  .section-head {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .section-head-count { font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; }
+
+  .resgroup {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .res-btn {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    padding: 8px 0;
+    color: rgba(255,255,255,0.78);
+    font: 12px/1 inherit;
+    cursor: pointer;
+  }
+  .res-btn:hover { background: var(--surface-2); }
+  .res-btn.is-active {
+    background: rgba(20,20,22,0.82);
+    border-color: rgba(200,184,151,0.7);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(200,184,151,0.18), 0 0 12px rgba(200,184,151,0.2);
+  }
+
+  /* Chip strip — currently-selected presets */
+  .chip-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(200,184,151,0.04);
+    border: 1px dashed rgba(200,184,151,0.18);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .chip-strip.is-empty { border-style: dashed; opacity: 0.7; }
+  .chip-strip:not(.is-empty) {
+    border-style: solid;
+    border-color: rgba(200,184,151,0.25);
+    background: rgba(200,184,151,0.05);
+  }
+  .chip-strip-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--accent-bright);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-right: 2px;
+  }
+  .chip-placeholder { font-size: 11px; color: var(--text-dim); letter-spacing: 0.01em; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 10px;
+    background: rgba(200,184,151,0.1);
+    border: 1px solid rgba(200,184,151,0.3);
+    border-radius: 999px;
+    color: var(--accent-bright);
+    font-size: 11px;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .chip:hover { background: rgba(200,184,151,0.18); }
+  .chip-x { font-size: 13px; line-height: 1; opacity: 0.7; padding: 0 1px 2px; }
+  .chip:hover .chip-x { opacity: 1; }
+
+  /* Raw card */
+  .raw-card {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 14px;
+    padding: 0;
+    width: 100%;
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .raw-card:hover {
+    background: var(--surface-2);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .raw-card-photo { position: relative; aspect-ratio: 3 / 2; background: #0d0d10; overflow: hidden; }
+  .raw-card-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    transition: transform 0.4s cubic-bezier(0.22,1,0.36,1);
+  }
+  .raw-card:hover .raw-card-photo img { transform: scale(1.04); }
+  .raw-card-body { display: flex; flex-direction: column; justify-content: center; padding: 10px 14px 10px 0; gap: 4px; }
+  .raw-card-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .raw-card-desc { font-size: 11px; color: var(--text-dim); letter-spacing: 0.01em; line-height: 1.4; }
+  .raw-card.is-active {
+    background: rgba(20, 20, 22, 0.82);
+    border-color: rgba(200, 184, 151, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.14), 0 0 14px rgba(200, 184, 151, 0.18);
+  }
+  .raw-card.is-active .raw-card-title { color: var(--accent-bright); }
+  .raw-card.is-active .raw-card-desc { color: rgba(232, 220, 192, 0.7); }
+  .raw-card-check {
+    position: absolute; top: 8px; right: 8px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(14,14,16,0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .raw-card.is-active .raw-card-check {
+    opacity: 1; transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .raw-card.is-active .raw-card-check::after {
+    content: ''; width: 9px; height: 5px;
+    border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* Style grid */
+  .a-cat-head {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    margin: 28px 0 14px;
+  }
+  .a-cat-head:first-child { margin-top: 8px; }
+  .a-cat-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .a-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 10px; }
+  .a-card {
+    position: relative;
+    background: transparent;
+    border: 0; padding: 0;
+    color: inherit; font-family: inherit;
+    text-align: left; cursor: pointer;
+    display: flex; flex-direction: column;
+  }
+  .a-card-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    border-radius: 10px; overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+  }
+  .a-card:hover .a-card-photo {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.18);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.42);
+  }
+  .a-card-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .a-card:hover .a-card-photo img { transform: scale(1.04); }
+  .a-card-body { padding: 10px 4px 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .a-card-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    color: rgba(255,255,255,0.88);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .a-card-sub {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+    padding-top: 4px;
+  }
+  .a-card.is-active .a-card-photo {
+    border-color: rgba(200,184,151,0.9);
+    box-shadow: 0 0 0 1px rgba(200,184,151,0.4), 0 0 22px rgba(200,184,151,0.3), 0 8px 22px rgba(0,0,0,0.48);
+  }
+  .a-card.is-active .a-card-label { color: var(--accent-bright); }
+  .a-card-check {
+    position: absolute; top: 10px; right: 10px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: rgba(14,14,16,0.75);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.22);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .a-card.is-active .a-card-check {
+    opacity: 1; transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .a-card.is-active .a-card-check::after {
+    content: ''; width: 10px; height: 5px;
+    border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ═══ Queue pane ═══ */
+  .session-meter {
+    position: relative;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    background: linear-gradient(to bottom, rgba(200,184,151,0.04), transparent);
+    transition: opacity 0.3s ease, height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .session-meter.is-idle { opacity: 0; height: 0; border-bottom: 0; }
+  .session-meter-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-bright);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .session-meter-counts {
+    display: flex;
+    gap: 14px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .session-meter-counts span b {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+  .session-meter-bar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 1.5px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+  .session-meter-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: var(--session-progress, 0%);
+    background: linear-gradient(to right, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 10px rgba(200,184,151,0.45);
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .queue-list { display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 20px; }
+
+  .q-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px 128px 1fr;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-1);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.15s ease, opacity 0.25s ease, background 0.15s ease;
+  }
+  .q-card:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.14); }
+  .q-card.is-dragging { opacity: 0.55; transform: scale(0.99); }
+  .q-card.is-drop-target {
+    border-color: rgba(200, 184, 151, 0.45);
+    box-shadow: 0 0 0 1px rgba(200,184,151,0.25), 0 0 18px rgba(200,184,151,0.2);
+  }
+
+  .q-gutter {
+    position: relative;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+  .q-gutter:active { cursor: grabbing; }
+  .q-gutter:hover { background: rgba(255,255,255,0.03); }
+  .q-gutter-dots {
+    width: 4px; height: 18px;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px),
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px),
+      radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.2px);
+    background-repeat: no-repeat;
+    background-size: 4px 4px;
+    background-position: 0 0, 0 7px, 0 14px;
+  }
+  .q-card:not([data-status="pending"]) .q-gutter { cursor: default; pointer-events: none; }
+  .q-card:not([data-status="pending"]) .q-gutter-dots { opacity: 0.18; }
+
+  .q-photo { position: relative; aspect-ratio: 3 / 2; overflow: hidden; background: #0d0d10; }
+  .q-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    transition: filter 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .q-card[data-status="pending"] .q-photo img { filter: grayscale(0.4) brightness(0.72) saturate(0.85); }
+  .q-card[data-status="pending"] .q-photo::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 45%, rgba(0,0,0,0.3));
+    pointer-events: none;
+  }
+
+  .q-card[data-status="active"] .q-photo img { filter: grayscale(0.55) brightness(0.68) saturate(0.7); }
+  .q-card[data-status="active"] .q-photo::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 0%, transparent 35%,
+      rgba(200, 184, 151, 0.0) 42%,
+      rgba(232, 220, 192, 0.32) 50%,
+      rgba(200, 184, 151, 0.0) 58%,
+      transparent 65%, transparent 100%
+    );
+    background-size: 260% 100%;
+    animation: developerWash 2.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    pointer-events: none;
+    z-index: 2;
+    mix-blend-mode: screen;
+  }
+  .q-card[data-status="active"] .q-photo::after {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.28 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.22;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes developerWash {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -160% 0; }
+  }
+
+  .q-card[data-status="done"] .q-photo img {
+    filter: none;
+    animation: fixerPop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes fixerPop {
+    0%   { filter: grayscale(0.6) brightness(0.7); transform: scale(1.02); }
+    100% { filter: none;                            transform: scale(1);    }
+  }
+
+  .q-card[data-status="error"] .q-photo img { filter: grayscale(0.55) brightness(0.5); }
+  .q-card[data-status="error"] .q-photo::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(45deg, rgba(216, 138, 126, 0.0) 0 10px, rgba(216, 138, 126, 0.22) 10px 11px),
+      linear-gradient(rgba(80, 25, 20, 0.35), rgba(60, 15, 12, 0.45));
+    pointer-events: none;
+  }
+
+  .q-ribbon {
+    position: absolute;
+    top: 8px; left: 8px;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    background: rgba(14,14,16,0.72);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.72);
+    z-index: 3;
+  }
+  .q-card[data-status="active"] .q-ribbon {
+    background: rgba(200,184,151,0.22);
+    color: var(--accent-bright);
+    border-color: rgba(200,184,151,0.5);
+  }
+  .q-card[data-status="done"] .q-ribbon {
+    background: rgba(14,14,16,0.8);
+    color: var(--accent-bright);
+    border-color: rgba(200,184,151,0.3);
+  }
+  .q-card[data-status="error"] .q-ribbon {
+    background: rgba(80, 25, 20, 0.78);
+    color: #f5c8c0;
+    border-color: rgba(216,138,126,0.45);
+  }
+
+  .q-badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; transform: scale(0.8);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 3;
+  }
+  .q-card[data-status="done"] .q-badge {
+    opacity: 1; transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border: 1px solid rgba(200,184,151,0.7);
+  }
+  .q-card[data-status="done"] .q-badge::after {
+    content: ''; width: 9px; height: 5px;
+    border-left: 2px solid #1a1812; border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .q-card[data-status="error"] .q-badge {
+    opacity: 1; transform: scale(1);
+    background: rgba(80, 25, 20, 0.85);
+    border: 1px solid rgba(216,138,126,0.6);
+    font-size: 13px;
+    color: #f5c8c0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .q-body {
+    padding: 12px 14px 12px 14px;
+    display: flex; flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .q-body-top {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .q-body-top .sep { opacity: 0.35; }
+  .q-timer { color: var(--text-secondary); }
+  .q-card[data-status="active"] .q-timer { color: var(--accent-bright); }
+
+  .q-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 19px;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+  .q-card[data-status="error"] .q-label { color: rgba(245, 200, 192, 0.92); }
+
+  .q-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .q-error-msg {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #f5c8c0;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+    font-style: italic;
+  }
+
+  .q-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    opacity: 0;
+    transform: translateY(1px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .q-card:hover .q-actions,
+  .q-card[data-status="error"] .q-actions,
+  .q-card[data-status="done"] .q-actions { opacity: 1; transform: translateY(0); }
+  .q-actions .q-sep { opacity: 0.35; user-select: none; }
+  .q-act {
+    background: transparent;
+    border: 0;
+    color: var(--text-secondary);
+    font: 11px/1 inherit;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    padding: 2px 0;
+    cursor: pointer;
+    transition: color 0.15s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .q-act:hover { color: var(--text-primary); border-bottom-color: rgba(255,255,255,0.28); }
+  .q-act.is-primary { color: var(--accent-bright); }
+  .q-act.is-primary:hover { color: var(--accent-bright); border-bottom-color: rgba(200,184,151,0.55); }
+  .q-act.is-danger { color: rgba(216, 138, 126, 0.75); }
+  .q-act.is-danger:hover { color: #f5c8c0; border-bottom-color: rgba(216,138,126,0.45); }
+
+  .q-progress {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.03);
+    overflow: hidden;
+  }
+  .q-progress::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: var(--progress, 0%);
+    background: linear-gradient(to right, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 8px rgba(200,184,151,0.4);
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .q-card[data-status="done"]    .q-progress { opacity: 0; }
+  .q-card[data-status="error"]   .q-progress::before { background: linear-gradient(to right, var(--danger), rgba(216,138,126,0.5)); box-shadow: 0 0 8px rgba(216,138,126,0.35); }
+  .q-card[data-status="pending"] .q-progress::before { background: rgba(255,255,255,0.1); box-shadow: none; }
+
+  .q-card[data-fresh] { animation: cardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .q-batch-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 14px 4px 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255,255,255,0.06);
+  }
+  .q-batch-head:first-child { margin-top: 2px; }
+  .q-batch-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .q-batch-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .q-empty {
+    padding: 44px 16px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+  .q-empty-art {
+    position: relative;
+    width: 120px; height: 72px;
+    border: 1px dashed rgba(200, 184, 151, 0.28);
+    border-radius: 6px;
+    background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(200, 184, 151, 0.04) 6px 7px);
+  }
+  .q-empty-art::before, .q-empty-art::after {
+    content: '';
+    position: absolute;
+    background: rgba(200, 184, 151, 0.3);
+  }
+  .q-empty-art::before { left: 50%; top: 50%; width: 16px; height: 1px; transform: translate(-50%, -50%); }
+  .q-empty-art::after  { left: 50%; top: 50%; width: 1px; height: 16px; transform: translate(-50%, -50%); }
+  .q-empty-title { font-family: 'Instrument Serif', serif; font-size: 24px; color: var(--text-primary); letter-spacing: 0.01em; }
+  .q-empty-body { font-size: 12px; color: var(--text-dim); max-width: 280px; line-height: 1.5; }
+  .q-empty-body em { color: var(--accent-bright); font-style: normal; }
+</style>
+</head>
+<body>
+
+<div class="scene-mock">
+  <div class="scene-pill-row tl"><span class="scene-pill">4:3</span><span class="scene-pill">Edit</span></div>
+  <div class="scene-pill-row br"><span class="scene-pill">DoF: ON</span><span class="scene-pill">Clouds: ON</span></div>
+</div>
+
+<header class="page-head">
+  <div class="page-title">Render — <em>merged prototype</em></div>
+</header>
+
+<aside class="sheet">
+  <header class="sheet-head">
+    <div class="sheet-head-top">
+      <h2 class="sheet-title">Render</h2>
+      <button class="sheet-close" aria-label="Close">×</button>
+    </div>
+    <div class="segbar" role="tablist" aria-label="Section">
+      <button class="seg-btn is-active" data-pane="styles">Styles</button>
+      <button class="seg-btn" data-pane="queue">
+        Queue
+        <span class="seg-count" id="seg-queue-count">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Styles pane -->
+  <div class="pane is-active" id="pane-styles">
+    <div class="sheet-body">
+      <div class="section">
+        <div class="section-head">Resolution</div>
+        <div class="resgroup">
+          <button class="res-btn" data-res="1">1×</button>
+          <button class="res-btn is-active" data-res="2">2×</button>
+          <button class="res-btn" data-res="3">3×</button>
+          <button class="res-btn" data-res="4">4×</button>
+        </div>
+      </div>
+
+      <div class="chip-strip is-empty" id="chip-strip"></div>
+
+      <div class="section">
+        <div class="section-head">
+          <span>Original</span>
+          <span class="section-head-count">Your scene, as-is</span>
+        </div>
+        <button class="raw-card" data-key="raw" id="raw-card">
+          <div class="raw-card-photo">
+            <img id="raw-card-img" alt="Raw / original scene" loading="lazy" />
+            <div class="raw-card-check"></div>
+          </div>
+          <div class="raw-card-body">
+            <div class="raw-card-title">Raw export</div>
+            <div class="raw-card-desc">No AI stylization — ships exactly what's on your canvas.</div>
+          </div>
+        </button>
+      </div>
+
+      <div id="styles-content"></div>
+    </div>
+
+    <footer class="sheet-footer">
+      <div class="footer-row">
+        <button class="btn-ghost" id="footer-selectall">Select all</button>
+        <button class="btn-primary" id="footer-render" disabled>Pick a style</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Queue pane -->
+  <div class="pane" id="pane-queue">
+    <div class="session-meter is-idle" id="session-meter">
+      <div class="session-meter-label" id="session-meter-label">Developing · 0%</div>
+      <div class="session-meter-counts" id="session-meter-counts"></div>
+      <div class="session-meter-bar"></div>
+    </div>
+
+    <div class="sheet-body" style="padding: 0;">
+      <div class="queue-list" id="queue-list"></div>
+    </div>
+
+    <footer class="sheet-footer" id="queue-footer">
+      <div class="footer-status" id="footer-status"></div>
+      <button class="btn-ghost is-quiet" id="clear-done">Clear done</button>
+      <button class="btn-ghost is-danger" id="clear-all">Clear all</button>
+    </footer>
+  </div>
+</aside>
+
+<script>
+  // ═════════════════════════════════════════════════════════════
+  // Data (shared between styles + queue)
+  // ═════════════════════════════════════════════════════════════
+  const RAW_PRESET = { key: 'raw', label: 'Raw export', file: 'raw', desc: 'No stylization' };
+  const CATS = [
+    {
+      title: 'Photography',
+      presets: [
+        { key: 'realistic', label: 'Realistic',         file: 'realistic',        sub: 'photoreal' },
+        { key: 'golden',    label: 'Golden Hour',       file: 'golden-hour',      sub: 'warm' },
+        { key: 'retro70s',  label: '70s Film',          file: '70s-film',         sub: 'faded' },
+        { key: 'polaroid',  label: 'Polaroid',          file: 'polaroid',         sub: 'instant' },
+        { key: 'postcard',  label: 'Vintage Postcard',  file: 'vintage-postcard', sub: 'halftone' },
+      ],
+    },
+    {
+      title: 'Seasons & Weather',
+      presets: [
+        { key: 'night',    label: 'Night',         file: 'night',         sub: 'lit' },
+        { key: 'snowfall', label: 'Snowfall',      file: 'snowfall',      sub: 'winter' },
+        { key: 'autumn',   label: 'Autumn',        file: 'autumn',        sub: 'copper' },
+        { key: 'cherry',   label: 'Cherry Blossom',file: 'cherry-blossom',sub: 'spring' },
+        { key: 'rainy',    label: 'Rainy',         file: 'rainy',         sub: 'wet' },
+        { key: 'foggy',    label: 'Foggy Dawn',    file: 'foggy-dawn',    sub: 'misty' },
+      ],
+    },
+    {
+      title: 'Art Styles',
+      presets: [
+        { key: 'watercolor',   label: 'Watercolor',      file: 'watercolor',      sub: 'wash' },
+        { key: 'oilpaint',     label: 'Oil Painting',    file: 'oil-painting',    sub: 'impasto' },
+        { key: 'pastel',       label: 'Pastel Dream',    file: 'pastel-dream',    sub: 'soft' },
+        { key: 'gouache',      label: 'Gouache',         file: 'gouache',         sub: 'matte' },
+        { key: 'stainedglass', label: 'Stained Glass',   file: 'stained-glass',   sub: 'jewel' },
+        { key: 'ghibli',       label: 'Studio Ghibli',   file: 'studio-ghibli',   sub: 'anime' },
+        { key: 'travelposter', label: 'Travel Poster',   file: 'travel-poster',   sub: 'deco' },
+        { key: 'traveljournal',label: 'Travel Journal',  file: 'travel-journal',  sub: 'journal' },
+        { key: 'woodblock',    label: 'Ukiyo-e Print',   file: 'ukiyo-e-print',   sub: 'block' },
+      ],
+    },
+    {
+      title: 'Media & Materials',
+      presets: [
+        { key: 'pencilsketch',label: 'Pencil Sketch',   file: 'pencil-sketch',   sub: 'graphite' },
+        { key: 'charcoal',    label: 'Charcoal',        file: 'charcoal',        sub: 'smudge' },
+        { key: 'crosshatch',  label: 'Ink Crosshatch',  file: 'ink-crosshatch',  sub: 'engraving' },
+        { key: 'lineart',     label: 'Line Drawing',    file: 'line-drawing',    sub: 'ink' },
+        { key: 'architect',   label: 'Architect Marker',file: 'architect-marker',sub: 'marker' },
+        { key: 'cyberpunk',   label: 'Cyberpunk',       file: 'cyberpunk',       sub: 'neon' },
+        { key: 'pixel',       label: 'Pixel Art',       file: 'pixel-art',       sub: '16-bit' },
+        { key: 'blueprint',   label: 'Blueprint',       file: 'blueprint',       sub: 'technical' },
+      ],
+    },
+  ];
+
+  function fileFor(key) {
+    if (key === 'raw') return '/style-photos/mapposter-raw-2x-20260422-1714.png';
+    for (const c of CATS) {
+      const p = c.presets.find(p => p.key === key);
+      if (p) return `/style-photos/mapposter-${p.file}-2x-${timestampFor(p.file)}.png`;
+    }
+    return '';
+  }
+  // Timestamps in the filenames are sequential — just match what's on disk.
+  function timestampFor(file) {
+    const map = {
+      'realistic': '20260422-1705', 'raw': '20260422-1714',
+      'golden-hour': '20260422-1706', '70s-film': '20260422-1706',
+      'polaroid': '20260422-1706', 'vintage-postcard': '20260422-1706',
+      'night': '20260422-1707', 'snowfall': '20260422-1707', 'autumn': '20260422-1707',
+      'cherry-blossom': '20260422-1708', 'rainy': '20260422-1708',
+      'foggy-dawn': '20260422-1708', 'watercolor': '20260422-1708',
+      'oil-painting': '20260422-1709', 'pastel-dream': '20260422-1709', 'gouache': '20260422-1709',
+      'cyberpunk': '20260422-1710', 'pixel-art': '20260422-1710', 'stained-glass': '20260422-1710',
+      'studio-ghibli': '20260422-1711', 'travel-poster': '20260422-1711',
+      'pencil-sketch': '20260422-1711', 'ink-crosshatch': '20260422-1711',
+      'charcoal': '20260422-1712', 'line-drawing': '20260422-1712', 'architect-marker': '20260422-1712',
+      'travel-journal': '20260422-1713', 'ukiyo-e-print': '20260422-1713', 'blueprint': '20260422-1713',
+    };
+    return map[file] || '20260422-1705';
+  }
+  function labelFor(key) {
+    if (key === 'raw') return 'Raw export';
+    for (const c of CATS) {
+      const p = c.presets.find(p => p.key === key);
+      if (p) return p.label;
+    }
+    return key;
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // State
+  // ═════════════════════════════════════════════════════════════
+  const selected = new Set();   // preset keys currently staged for render
+  let queue = [];                // queue jobs
+  let nextId = 1;
+  let simTimer = null;
+  let resolution = 2;
+
+  // ═════════════════════════════════════════════════════════════
+  // Helpers
+  // ═════════════════════════════════════════════════════════════
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmtElapsed(ms) {
+    if (ms < 1000) return '0:00';
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+  }
+  function fmtAgo(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    return `${Math.floor(m / 60)}h ago`;
+  }
+  function setPane(name) {
+    document.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.pane === name));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('is-active', p.id === `pane-${name}`));
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // Styles pane — render grid
+  // ═════════════════════════════════════════════════════════════
+  function renderStyles() {
+    document.getElementById('raw-card-img').src = fileFor('raw');
+    const root = document.getElementById('styles-content');
+    while (root.firstChild) root.removeChild(root.firstChild);
+    CATS.forEach(cat => {
+      const head = el('div', 'a-cat-head');
+      head.textContent = cat.title;
+      const sub = el('span', 'a-cat-sub', `${cat.presets.length}`);
+      head.appendChild(sub);
+      root.appendChild(head);
+
+      const grid = el('div', 'a-grid');
+      cat.presets.forEach(p => {
+        const card = el('button', 'a-card');
+        card.dataset.key = p.key;
+        card.type = 'button';
+
+        const photo = el('div', 'a-card-photo');
+        const img = document.createElement('img');
+        img.src = fileFor(p.key);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        photo.appendChild(img);
+        const check = el('div', 'a-card-check');
+        photo.appendChild(check);
+        card.appendChild(photo);
+
+        const body = el('div', 'a-card-body');
+        body.appendChild(el('div', 'a-card-label', p.label));
+        body.appendChild(el('div', 'a-card-sub', p.sub.toUpperCase()));
+        card.appendChild(body);
+
+        card.addEventListener('click', () => togglePreset(p.key));
+        grid.appendChild(card);
+      });
+      root.appendChild(grid);
+    });
+  }
+
+  function togglePreset(key) {
+    if (selected.has(key)) selected.delete(key);
+    else selected.add(key);
+    refreshSelection();
+  }
+  function refreshSelection() {
+    document.querySelectorAll('[data-key]').forEach(n => {
+      n.classList.toggle('is-active', selected.has(n.dataset.key));
+    });
+    const strip = document.getElementById('chip-strip');
+    while (strip.firstChild) strip.removeChild(strip.firstChild);
+    const label = el('span', 'chip-strip-label', 'Staged');
+    strip.appendChild(label);
+    if (selected.size === 0) {
+      strip.classList.add('is-empty');
+      strip.appendChild(el('span', 'chip-placeholder', 'Tap a style below to stage it'));
+    } else {
+      strip.classList.remove('is-empty');
+      selected.forEach(key => {
+        const chip = el('span', 'chip');
+        chip.appendChild(document.createTextNode(labelFor(key)));
+        const x = el('span', 'chip-x', '×');
+        chip.appendChild(x);
+        chip.addEventListener('click', () => togglePreset(key));
+        strip.appendChild(chip);
+      });
+    }
+    const render = document.getElementById('footer-render');
+    render.disabled = selected.size === 0;
+    render.textContent = selected.size === 0
+      ? 'Pick a style'
+      : `Render ${selected.size} ${selected.size === 1 ? 'style' : 'styles'}`;
+    const sel = document.getElementById('footer-selectall');
+    const allKeys = CATS.flatMap(c => c.presets).map(p => p.key);
+    const allSelected = allKeys.every(k => selected.has(k));
+    sel.textContent = allSelected ? 'Clear' : 'Select all';
+  }
+
+  document.getElementById('footer-selectall').addEventListener('click', () => {
+    const allKeys = CATS.flatMap(c => c.presets).map(p => p.key);
+    const allSelected = allKeys.every(k => selected.has(k));
+    if (allSelected) allKeys.forEach(k => selected.delete(k));
+    else allKeys.forEach(k => selected.add(k));
+    refreshSelection();
+  });
+  document.getElementById('raw-card').addEventListener('click', () => togglePreset('raw'));
+  document.querySelectorAll('.res-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.res-btn').forEach(x => x.classList.toggle('is-active', x === b));
+      resolution = +b.dataset.res;
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // The merge moment — Render button → queue jobs → flip pane
+  // ═════════════════════════════════════════════════════════════
+  document.getElementById('footer-render').addEventListener('click', () => {
+    if (selected.size === 0) return;
+    const keys = Array.from(selected);
+    const batchId = keys.length > 1 ? `batch-${Date.now()}` : null;
+    const batchLabel = batchId ? `${keys.length} styles` : null;
+
+    keys.forEach(key => {
+      queue.push({
+        id: nextId++,
+        preset: key,
+        status: 'pending',
+        progress: 0,
+        statusText: 'Queued',
+        resolution,
+        startedAt: Date.now(),
+        batchId,
+        batchLabel,
+      });
+    });
+
+    // Kick off the first one immediately so the user sees motion.
+    const first = queue.find(j => j.status === 'pending');
+    if (first && !queue.some(j => j.status === 'active')) {
+      first.status = 'active';
+      first.startedAt = Date.now();
+      first.statusText = 'Developing…';
+    }
+
+    selected.clear();
+    refreshSelection();
+    renderQueue();
+    setPane('queue');
+    startSim();
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // Queue pane — build / update
+  // ═════════════════════════════════════════════════════════════
+  const RIBBONS = { pending: 'Queued', active: 'Developing', done: 'Fixed', error: 'Spoiled' };
+
+  function buildCard(job) {
+    const card = el('article', 'q-card');
+    card.dataset.status = job.status;
+    card.dataset.id = job.id;
+    card.style.setProperty('--progress', `${job.progress}%`);
+
+    const gutter = el('div', 'q-gutter');
+    gutter.appendChild(el('div', 'q-gutter-dots'));
+    card.appendChild(gutter);
+
+    const photo = el('div', 'q-photo');
+    const img = document.createElement('img');
+    img.alt = labelFor(job.preset);
+    img.src = fileFor(job.preset);
+    img.loading = 'lazy';
+    photo.appendChild(img);
+    photo.appendChild(el('span', 'q-ribbon', RIBBONS[job.status]));
+    if (job.status === 'done' || job.status === 'error') {
+      const badge = el('div', 'q-badge');
+      if (job.status === 'error') badge.textContent = '×';
+      photo.appendChild(badge);
+    }
+    card.appendChild(photo);
+
+    const body = el('div', 'q-body');
+    const top = el('div', 'q-body-top');
+    const timer = el('span', 'q-timer');
+    if (job.status === 'done' || job.status === 'error') {
+      timer.textContent = fmtAgo(Date.now() - job.startedAt);
+    } else if (job.status === 'active') {
+      timer.textContent = fmtElapsed(Date.now() - job.startedAt);
+    } else {
+      timer.textContent = 'waiting';
+    }
+    top.appendChild(timer);
+    top.appendChild(el('span', 'sep', '·'));
+    const hRes = { 1: '1080', 2: '2160', 3: '3240', 4: '4320' };
+    top.appendChild(el('span', '', `${job.resolution}× · ${hRes[job.resolution]}px`));
+    if (job.batchLabel) {
+      top.appendChild(el('span', 'sep', '·'));
+      top.appendChild(el('span', '', job.batchLabel));
+    }
+    body.appendChild(top);
+    body.appendChild(el('div', 'q-label', labelFor(job.preset)));
+    if (job.status === 'error') body.appendChild(el('div', 'q-error-msg', job.statusText));
+    else if (job.status === 'active') body.appendChild(el('div', 'q-meta', job.statusText || 'Developing…'));
+    else if (job.status === 'pending') body.appendChild(el('div', 'q-meta', 'Waiting its turn'));
+    else if (job.status === 'done') body.appendChild(el('div', 'q-meta', 'Ready in gallery'));
+
+    const acts = el('div', 'q-actions');
+    const pushActs = (arr) => {
+      arr.forEach((a, i) => {
+        if (i > 0) acts.appendChild(el('span', 'q-sep', '·'));
+        acts.appendChild(a);
+      });
+    };
+    const mkAct = (text, mod, onClick) => {
+      const b = el('button', `q-act${mod ? ' ' + mod : ''}`, text);
+      b.type = 'button';
+      b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+      return b;
+    };
+    if (job.status === 'pending') pushActs([mkAct('Remove', 'is-danger', () => removeJob(job.id))]);
+    else if (job.status === 'active') pushActs([mkAct('Stop', 'is-danger', () => removeJob(job.id))]);
+    else if (job.status === 'done') pushActs([
+      mkAct('Open',     'is-primary', () => {}),
+      mkAct('Download', '',           () => {}),
+      mkAct('Remove',   'is-danger',  () => removeJob(job.id)),
+    ]);
+    else if (job.status === 'error') pushActs([
+      mkAct('Retry',  'is-primary', () => retryJob(job.id)),
+      mkAct('Remove', 'is-danger',  () => removeJob(job.id)),
+    ]);
+    body.appendChild(acts);
+
+    body.appendChild(el('div', 'q-progress'));
+    card.appendChild(body);
+
+    if (job.status === 'pending') {
+      card.draggable = true;
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragover', onDragOver);
+      card.addEventListener('dragleave', onDragLeave);
+      card.addEventListener('drop', onDrop);
+      card.addEventListener('dragend', onDragEnd);
+    }
+
+    return card;
+  }
+
+  let dragId = null;
+  function onDragStart(e) {
+    dragId = +this.dataset.id;
+    this.classList.add('is-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(dragId)); } catch {}
+  }
+  function onDragOver(e) {
+    if (dragId == null) return;
+    const tgt = queue.find(j => j.id === +this.dataset.id);
+    if (tgt?.status !== 'pending') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('is-drop-target');
+  }
+  function onDragLeave() { this.classList.remove('is-drop-target'); }
+  function onDrop(e) {
+    e.preventDefault();
+    this.classList.remove('is-drop-target');
+    const target = +this.dataset.id;
+    if (dragId == null || target === dragId) return;
+    const from = queue.findIndex(j => j.id === dragId);
+    const to   = queue.findIndex(j => j.id === target);
+    if (from < 0 || to < 0) return;
+    const [moved] = queue.splice(from, 1);
+    queue.splice(to, 0, moved);
+    renderQueue();
+  }
+  function onDragEnd() {
+    dragId = null;
+    document.querySelectorAll('.is-dragging').forEach(n => n.classList.remove('is-dragging'));
+    document.querySelectorAll('.is-drop-target').forEach(n => n.classList.remove('is-drop-target'));
+  }
+
+  function removeJob(id) { queue = queue.filter(j => j.id !== id); renderQueue(); }
+  function retryJob(id) {
+    const j = queue.find(j => j.id === id);
+    if (!j) return;
+    j.status = 'pending'; j.progress = 0; j.statusText = 'Queued'; j.startedAt = Date.now();
+    renderQueue();
+  }
+  document.getElementById('clear-done').addEventListener('click', () => {
+    queue = queue.filter(j => j.status !== 'done'); renderQueue();
+  });
+  document.getElementById('clear-all').addEventListener('click', () => {
+    queue = []; renderQueue(); stopSim();
+  });
+
+  function renderQueue() {
+    const list = document.getElementById('queue-list');
+    while (list.firstChild) list.removeChild(list.firstChild);
+
+    if (queue.length === 0) {
+      const wrap = el('div', 'q-empty');
+      wrap.appendChild(el('div', 'q-empty-art'));
+      wrap.appendChild(el('div', 'q-empty-title', 'Nothing brewing'));
+      const body = el('div', 'q-empty-body');
+      body.appendChild(document.createTextNode('Pick a style on '));
+      body.appendChild(el('em', null, 'Styles'));
+      body.appendChild(document.createTextNode(' and hit Render. Jobs stack up here and develop one at a time.'));
+      wrap.appendChild(body);
+      list.appendChild(wrap);
+    } else {
+      const batches = new Map();
+      for (const job of queue) {
+        const key = job.batchId || `solo-${job.id}`;
+        if (!batches.has(key)) batches.set(key, { label: job.batchLabel, jobs: [] });
+        batches.get(key).jobs.push(job);
+      }
+
+      const push = (job) => {
+        const c = buildCard(job);
+        c.setAttribute('data-fresh', '');
+        requestAnimationFrame(() => c.removeAttribute('data-fresh'));
+        list.appendChild(c);
+      };
+      batches.forEach((b, key) => {
+        if (key.startsWith('solo-')) {
+          for (const job of b.jobs) push(job);
+          return;
+        }
+        const head = el('div', 'q-batch-head');
+        head.appendChild(el('div', 'q-batch-label', b.label || 'Batch'));
+        const doneN = b.jobs.filter(j => j.status === 'done').length;
+        head.appendChild(el('div', 'q-batch-sub', `${doneN} / ${b.jobs.length} · ${b.jobs.length === 1 ? 'job' : 'jobs'}`));
+        list.appendChild(head);
+        for (const job of b.jobs) push(job);
+      });
+    }
+
+    renderSessionMeter();
+    renderQueueFooter();
+    renderSegCount();
+  }
+
+  function renderSessionMeter() {
+    const meter = document.getElementById('session-meter');
+    const label = document.getElementById('session-meter-label');
+    const counts = document.getElementById('session-meter-counts');
+    const total = queue.length;
+    const doneN = queue.filter(j => j.status === 'done').length;
+    const actN  = queue.filter(j => j.status === 'active').length;
+    const pendN = queue.filter(j => j.status === 'pending').length;
+    const errN  = queue.filter(j => j.status === 'error').length;
+    const inflight = actN + pendN;
+
+    if (total === 0 || inflight === 0) {
+      meter.classList.add('is-idle');
+      meter.style.setProperty('--session-progress', '0%');
+      return;
+    }
+    meter.classList.remove('is-idle');
+    const pct = Math.round(((doneN + errN) / total) * 100);
+    meter.style.setProperty('--session-progress', `${pct}%`);
+    label.textContent = `Developing · ${pct}%`;
+
+    while (counts.firstChild) counts.removeChild(counts.firstChild);
+    const push = (n, txt) => {
+      if (!n) return;
+      const s = el('span');
+      s.appendChild(el('b', null, String(n)));
+      s.appendChild(document.createTextNode(txt));
+      counts.appendChild(s);
+    };
+    push(actN, 'rendering'); push(pendN, 'queued'); push(doneN, 'done'); push(errN, 'errored');
+  }
+
+  function renderQueueFooter() {
+    const footer = document.getElementById('queue-footer');
+    const status = document.getElementById('footer-status');
+    const cd = document.getElementById('clear-done');
+    const ca = document.getElementById('clear-all');
+    const total = queue.length;
+    const doneN = queue.filter(j => j.status === 'done').length;
+    const actN  = queue.filter(j => j.status === 'active').length;
+    const pendN = queue.filter(j => j.status === 'pending').length;
+
+    if (total === 0) { footer.style.display = 'none'; return; }
+    footer.style.display = 'flex';
+
+    while (status.firstChild) status.removeChild(status.firstChild);
+    if (actN > 0 || pendN > 0) {
+      status.appendChild(el('b', null, '●'));
+      status.appendChild(document.createTextNode(`${actN ? 'Rendering' : 'Queued'} · ${doneN}/${total}`));
+    } else {
+      status.appendChild(el('b', null, '✓'));
+      status.appendChild(document.createTextNode(`All ${total} done`));
+    }
+    cd.disabled = doneN === 0;
+    ca.disabled = total === 0;
+  }
+
+  function renderSegCount() {
+    const el = document.getElementById('seg-queue-count');
+    el.textContent = String(queue.length);
+    const hasActive = queue.some(j => j.status === 'active' || j.status === 'pending');
+    el.classList.toggle('is-pulsing', hasActive);
+  }
+
+  // Surgical tick — patches progress + timer without rebuilding the DOM
+  function tickDom() {
+    for (const job of queue) {
+      const card = document.querySelector(`.q-card[data-id="${job.id}"]`);
+      if (!card) continue;
+      if (job.status === 'active') {
+        card.style.setProperty('--progress', `${job.progress}%`);
+        const t = card.querySelector('.q-timer');
+        if (t) t.textContent = fmtElapsed(Date.now() - job.startedAt);
+      } else if (job.status === 'done') {
+        const t = card.querySelector('.q-timer');
+        if (t) t.textContent = fmtAgo(Date.now() - job.startedAt);
+      }
+    }
+    renderSessionMeter();
+  }
+
+  function startSim() {
+    stopSim();
+    simTimer = setInterval(() => {
+      let statusChange = false;
+      const active = queue.find(j => j.status === 'active');
+      if (active) {
+        // Raw exports finish fast; AI presets are slower.
+        const bump = active.preset === 'raw' ? 20 + Math.random() * 10 : 6 + Math.random() * 5;
+        active.progress = Math.min(100, active.progress + bump);
+        if (active.progress >= 100) {
+          active.status = 'done';
+          active.progress = 100;
+          active.statusText = 'Fixed';
+          active.startedAt = Date.now();
+          statusChange = true;
+        }
+      }
+      if (!queue.some(j => j.status === 'active')) {
+        const next = queue.find(j => j.status === 'pending');
+        if (next) {
+          next.status = 'active';
+          next.startedAt = Date.now();
+          next.statusText = 'Developing…';
+          statusChange = true;
+        } else {
+          stopSim();
+        }
+      }
+      if (statusChange) renderQueue();
+      else tickDom();
+    }, 600);
+  }
+  function stopSim() { if (simTimer) clearInterval(simTimer); simTimer = null; }
+
+  // ═════════════════════════════════════════════════════════════
+  // Tab switching
+  // ═════════════════════════════════════════════════════════════
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => setPane(btn.dataset.pane));
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // Boot
+  // ═════════════════════════════════════════════════════════════
+  renderStyles();
+  refreshSelection();
+  renderQueue();
+</script>
+</body>
+</html>
