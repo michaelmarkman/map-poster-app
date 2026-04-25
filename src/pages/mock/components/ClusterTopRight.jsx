@@ -4,12 +4,26 @@ import GuestSignInChip from './GuestSignInChip'
 import { CloudIcon, ApertureIcon } from './icons'
 import { cloudsAtom, dofAtom } from '../../editor/atoms/scene'
 
-function MockSlider({ label, value, min, max, step = 1, onChange, suffix = '' }) {
+// Aperture mode mapping: 0–100 slider → f-stop on a log scale.
+// 0% = f/16 (deep focus, almost no blur), 100% = f/1.4 (shallow + creamy).
+// Each f-stop halves the aperture area, so log-interp keeps the slider feel
+// linear in stops. Mirrors /dof-lab variant C.
+const sliderToFStop = (s) => {
+  const t = Math.max(0, Math.min(100, s)) / 100
+  return Math.exp(Math.log(16) + t * (Math.log(1.4) - Math.log(16)))
+}
+const fStopToSlider = (f) => {
+  const t = (Math.log(16) - Math.log(f)) / (Math.log(16) - Math.log(1.4))
+  return Math.round(Math.max(0, Math.min(1, t)) * 100)
+}
+const fmtFStop = (f) => `f/${f < 10 ? f.toFixed(1) : Math.round(f)}`
+
+function MockSlider({ label, value, min, max, step = 1, onChange, suffix = '', format }) {
   return (
     <div className="mock-slider-row">
       <div className="mock-slider-head">
         <span>{label}</span>
-        <span className="mock-slider-val">{value}{suffix}</span>
+        <span className="mock-slider-val">{format ? format(value) : `${value}${suffix}`}</span>
       </div>
       <input
         type="range"
@@ -50,28 +64,50 @@ export default function ClusterTopRight() {
         active={dof.on}
         onToggle={() => setDof({ ...dof, on: !dof.on })}
       >
-        <MockSlider
-          label="Tightness"
-          value={dof.tightness}
-          min={0}
-          max={100}
-          onChange={(v) => setDof({ ...dof, tightness: v })}
-          suffix="%"
+        {/* Mode toggle — Aperture mode replaces Tightness+Blur with one
+            f-stop slider that drives both depthRange and maxBlur via the
+            shader's `useApertureCoC` branch. Manual mode keeps the legacy
+            two-knob workflow. Both modes share Pop. */}
+        <MockToggleRow
+          label="Aperture mode"
+          on={!!dof.useApertureCoC}
+          onToggle={() => setDof({ ...dof, useApertureCoC: !dof.useApertureCoC })}
         />
+        {dof.useApertureCoC ? (
+          <MockSlider
+            label="Aperture"
+            value={fStopToSlider(dof.aperture ?? 4)}
+            min={0}
+            max={100}
+            onChange={(v) => setDof({ ...dof, aperture: sliderToFStop(v) })}
+            format={() => fmtFStop(dof.aperture ?? 4)}
+          />
+        ) : (
+          <>
+            <MockSlider
+              label="Tightness"
+              value={dof.tightness}
+              min={0}
+              max={100}
+              onChange={(v) => setDof({ ...dof, tightness: v })}
+              suffix="%"
+            />
+            <MockSlider
+              label="Blur"
+              value={dof.blur}
+              min={0}
+              max={100}
+              onChange={(v) => setDof({ ...dof, blur: v })}
+              suffix="%"
+            />
+          </>
+        )}
         <MockSlider
           label="Pop"
           value={dof.focusColorPop ?? 0}
           min={0}
           max={100}
           onChange={(v) => setDof({ ...dof, focusColorPop: v })}
-          suffix="%"
-        />
-        <MockSlider
-          label="Blur"
-          value={dof.blur}
-          min={0}
-          max={100}
-          onChange={(v) => setDof({ ...dof, blur: v })}
           suffix="%"
         />
       </HoverPopoverPill>

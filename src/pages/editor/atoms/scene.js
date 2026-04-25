@@ -58,28 +58,6 @@ export const dofAtom = atom({
   highlightBokeh: true,
 })
 
-// Which DoF engine to use. A/B knob so we can compare approaches live.
-//   'lib'    — postprocessing's DepthOfFieldEffect. Proper multi-pass:
-//              half-res CoC, near/far separation, tile-dilation of the
-//              near layer, scatter-as-gather bokeh. Fixes the hard-silhouette
-//              edge artifact our single-pass gather produces when the blur
-//              kernel straddles sharp/blurred boundaries (gather rejects
-//              samples whose own CoC is smaller → visible polygon edges).
-//   'custom' — our original CustomDofEffect (single-pass depth-weighted
-//              ring blur). Kept mounted in lib mode too with maxBlur=0 so
-//              its color-pop grade still runs on the blurred result.
-//
-// Flip at runtime: `__setDofEngine('lib'|'custom')` in console, or Alt+D.
-// URL param `?dof=lib|custom` seeds the initial value on page load.
-const urlDofEngine = (() => {
-  try {
-    const v = new URLSearchParams(window.location.search).get('dof')
-    if (v === 'lib' || v === 'custom') return v
-  } catch { /* SSR / no window */ }
-  return null
-})()
-export const dofEngineAtom = atom(urlDofEngine || 'lib')
-
 // Map style — one of default | satellite | warm | cool | desaturated | noir |
 // sepia | blueprint | neon. See `#map-style-grid` in the sidebar HTML.
 export const mapStyleAtom = atom('default')
