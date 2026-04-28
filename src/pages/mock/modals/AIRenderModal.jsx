@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { modalsAtom, lightboxEntryAtom } from '../../editor/atoms/modals'
 import {
@@ -9,62 +9,141 @@ import {
   queueAtom,
 } from '../../editor/atoms/sidebar'
 import { galleryEntriesAtom } from '../../editor/atoms/gallery'
+import '../styles/mock-render-sheet.css'
 
+// ─── Style catalogue ──────────────────────────────────────────────────
+// Keys match what useQueue / aiPresetAtom expect (don't change them).
+// `file` is the slug used for `/style-photos/mapposter-${file}-2x-…png`
+// preview images that ship in `public/style-photos/`. `sub` is the small
+// ALL-CAPS subtitle on each card.
 const PRESET_CATS = [
   {
     title: 'Photography',
     presets: [
-      { key: 'realistic', label: 'Realistic', dot: '#8b9a7b' },
-      { key: 'golden', label: 'Golden Hour', dot: '#d4a24e' },
-      { key: 'retro70s', label: '70s Film', dot: '#c48a4a' },
-      { key: 'polaroid', label: 'Polaroid', dot: '#e8d4a0' },
-      { key: 'postcard', label: 'Vintage Postcard', dot: '#7a9abc' },
+      { key: 'realistic', label: 'Realistic',         file: 'realistic',        sub: 'PHOTOREAL' },
+      { key: 'golden',    label: 'Golden Hour',       file: 'golden-hour',      sub: 'WARM' },
+      { key: 'retro70s',  label: '70s Film',          file: '70s-film',         sub: 'FADED' },
+      { key: 'polaroid',  label: 'Polaroid',          file: 'polaroid',         sub: 'INSTANT' },
+      { key: 'postcard',  label: 'Vintage Postcard',  file: 'vintage-postcard', sub: 'HALFTONE' },
     ],
   },
   {
     title: 'Seasons & Weather',
     presets: [
-      { key: 'night', label: 'Night', dot: '#2a2a5a' },
-      { key: 'snowfall', label: 'Snowfall', dot: '#c8d4e0' },
-      { key: 'autumn', label: 'Autumn', dot: '#c45a2a' },
-      { key: 'cherry', label: 'Cherry Blossom', dot: '#e8a0b8' },
-      { key: 'rainy', label: 'Rainy', dot: '#5a6a7a' },
-      { key: 'foggy', label: 'Foggy Dawn', dot: '#8a8a7a' },
+      { key: 'night',    label: 'Night',          file: 'night',          sub: 'LIT' },
+      { key: 'snowfall', label: 'Snowfall',       file: 'snowfall',       sub: 'WINTER' },
+      { key: 'autumn',   label: 'Autumn',         file: 'autumn',         sub: 'COPPER' },
+      { key: 'cherry',   label: 'Cherry Blossom', file: 'cherry-blossom', sub: 'SPRING' },
+      { key: 'rainy',    label: 'Rainy',          file: 'rainy',          sub: 'WET' },
+      { key: 'foggy',    label: 'Foggy Dawn',     file: 'foggy-dawn',     sub: 'MISTY' },
     ],
   },
   {
     title: 'Art Styles',
     presets: [
-      { key: 'watercolor', label: 'Watercolor', dot: '#6a9ab8' },
-      { key: 'oilpaint', label: 'Oil Painting', dot: '#8a6a3a' },
-      { key: 'gouache', label: 'Gouache', dot: '#c8b08a' },
-      { key: 'pastel', label: 'Pastel Dream', dot: '#b8a0c8' },
-      { key: 'stainedglass', label: 'Stained Glass', dot: '#c43a6a' },
-      { key: 'pixel', label: 'Pixel Art', dot: '#4aaa4a' },
-      { key: 'cyberpunk', label: 'Cyberpunk', dot: '#aa2aaa' },
-      { key: 'ghibli', label: 'Studio Ghibli', dot: '#5aaa8a' },
-      { key: 'travelposter', label: 'Travel Poster', dot: '#d46a5a' },
+      { key: 'watercolor',   label: 'Watercolor',     file: 'watercolor',     sub: 'WASH' },
+      { key: 'oilpaint',     label: 'Oil Painting',   file: 'oil-painting',   sub: 'IMPASTO' },
+      { key: 'pastel',       label: 'Pastel Dream',   file: 'pastel-dream',   sub: 'SOFT' },
+      { key: 'gouache',      label: 'Gouache',        file: 'gouache',        sub: 'MATTE' },
+      { key: 'stainedglass', label: 'Stained Glass',  file: 'stained-glass',  sub: 'JEWEL' },
+      { key: 'ghibli',       label: 'Studio Ghibli',  file: 'studio-ghibli',  sub: 'ANIME' },
+      { key: 'travelposter', label: 'Travel Poster',  file: 'travel-poster',  sub: 'DECO' },
+      { key: 'traveljournal',label: 'Travel Journal', file: 'travel-journal', sub: 'JOURNAL' },
+      { key: 'woodblock',    label: 'Ukiyo-e Print',  file: 'ukiyo-e-print',  sub: 'BLOCK' },
     ],
   },
   {
-    title: 'Sketch & Drawing',
+    title: 'Media & Materials',
     presets: [
-      { key: 'pencilsketch', label: 'Pencil', dot: '#7a7468' },
-      { key: 'crosshatch', label: 'Crosshatch', dot: '#1c1a16', border: '1px solid rgba(255,255,255,0.18)' },
-      { key: 'charcoal', label: 'Charcoal', dot: '#4a4642' },
-      { key: 'lineart', label: 'Line Art', dot: '#2a2a2a', border: '1px solid rgba(255,255,255,0.18)' },
-      { key: 'architect', label: 'Architect', dot: '#a8a090' },
-      { key: 'traveljournal', label: 'Travel Journal', dot: '#b88558' },
-      { key: 'blueprint', label: 'Blueprint', dot: '#2a4a8a' },
-      { key: 'woodblock', label: 'Ukiyo-e', dot: '#2a4f7a' },
+      { key: 'pencilsketch', label: 'Pencil Sketch',    file: 'pencil-sketch',    sub: 'GRAPHITE' },
+      { key: 'charcoal',     label: 'Charcoal',         file: 'charcoal',         sub: 'SMUDGE' },
+      { key: 'crosshatch',   label: 'Ink Crosshatch',   file: 'ink-crosshatch',   sub: 'ENGRAVING' },
+      { key: 'lineart',      label: 'Line Drawing',     file: 'line-drawing',     sub: 'INK' },
+      { key: 'architect',    label: 'Architect Marker', file: 'architect-marker', sub: 'MARKER' },
+      { key: 'cyberpunk',    label: 'Cyberpunk',        file: 'cyberpunk',        sub: 'NEON' },
+      { key: 'pixel',        label: 'Pixel Art',        file: 'pixel-art',        sub: '16-BIT' },
+      { key: 'blueprint',    label: 'Blueprint',        file: 'blueprint',        sub: 'TECHNICAL' },
     ],
   },
 ]
+
+const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
 const LS_GEMINI_KEY = 'mapposter3d_gemini_key'
 
+// Filename timestamps copied from the prototype's manifest. They're sequential
+// from a single export run; if you re-render the previews you'll need to
+// update both the disk + this map.
+const FILE_TS = {
+  'raw':              '20260422-1714',
+  'realistic':        '20260422-1705',
+  'golden-hour':      '20260422-1706',
+  '70s-film':         '20260422-1706',
+  'polaroid':         '20260422-1706',
+  'vintage-postcard': '20260422-1706',
+  'night':            '20260422-1707',
+  'snowfall':         '20260422-1707',
+  'autumn':           '20260422-1707',
+  'cherry-blossom':   '20260422-1708',
+  'rainy':            '20260422-1708',
+  'foggy-dawn':       '20260422-1708',
+  'watercolor':       '20260422-1708',
+  'oil-painting':     '20260422-1709',
+  'pastel-dream':     '20260422-1709',
+  'gouache':          '20260422-1709',
+  'cyberpunk':        '20260422-1710',
+  'pixel-art':        '20260422-1710',
+  'stained-glass':    '20260422-1710',
+  'studio-ghibli':    '20260422-1711',
+  'travel-poster':    '20260422-1711',
+  'pencil-sketch':    '20260422-1711',
+  'ink-crosshatch':   '20260422-1711',
+  'charcoal':         '20260422-1712',
+  'line-drawing':     '20260422-1712',
+  'architect-marker': '20260422-1712',
+  'travel-journal':   '20260422-1713',
+  'ukiyo-e-print':    '20260422-1713',
+  'blueprint':        '20260422-1713',
+}
+const photoFor = (file) => `/style-photos/mapposter-${file}-2x-${FILE_TS[file] || '20260422-1705'}.png`
+const labelByKey = (key) => {
+  if (key === RAW_KEY) return 'Raw export'
+  if (key === CUSTOM_KEY) return 'Custom prompt'
+  for (const c of PRESET_CATS) {
+    const p = c.presets.find((x) => x.key === key)
+    if (p) return p.label
+  }
+  return key
+}
+const fileByKey = (key) => {
+  if (key === RAW_KEY) return 'raw'
+  for (const c of PRESET_CATS) {
+    const p = c.presets.find((x) => x.key === key)
+    if (p) return p.file
+  }
+  return null
+}
+
+const RIBBON = { pending: 'Queued', active: 'Developing', done: 'Fixed', error: 'Spoiled' }
+const RES_PX_HEIGHT = { 1: 1080, 2: 2160, 3: 3240, 4: 4320 }
+
 function fire(name, detail) {
   window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))
+}
+
+function fmtElapsed(ms) {
+  if (ms < 1000) return '0:00'
+  const s = Math.floor(ms / 1000)
+  const m = Math.floor(s / 60)
+  return `${m}:${String(s % 60).padStart(2, '0')}`
+}
+function fmtAgo(ms) {
+  const s = Math.floor(ms / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  return `${Math.floor(m / 60)}h ago`
 }
 
 export default function AIRenderModal() {
@@ -78,27 +157,79 @@ export default function AIRenderModal() {
   const galleryEntries = useAtomValue(galleryEntriesAtom)
   const setLightboxEntry = useSetAtom(lightboxEntryAtom)
 
-  // Local state — multi-select presets, graphics-include toggle, status.
+  // ALL hooks must run unconditionally to satisfy React's rules-of-hooks —
+  // the early `if (!open) return null` below comes AFTER every useState /
+  // useEffect / useMemo. That's the bug that bit us last time around.
+  const [pane, setPane] = useState('styles') // 'styles' | 'queue'
   const [selected, setSelected] = useState(() => new Set())
   const [includeGraphics, setIncludeGraphics] = useState(true)
   const [exportStatus, setExportStatus] = useState('')
+  // Tick once a second so the Developing/Just-now timers update without
+  // requiring a queue mutation to re-render.
+  const [, setTick] = useState(0)
 
+  // Restore Gemini key from localStorage when the sheet opens.
   useEffect(() => {
     if (!open) return
     try {
       const stored = localStorage.getItem(LS_GEMINI_KEY) || ''
       if (stored && !aiKey) setAiKey(stored)
-    } catch {}
+    } catch { /* localStorage blocked */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // Surface export-status events (queued, downloading, error...) at the
+  // bottom of the sheet body.
   useEffect(() => {
     const onStatus = (e) => setExportStatus(e?.detail ?? '')
     window.addEventListener('export-status', onStatus)
     return () => window.removeEventListener('export-status', onStatus)
   }, [])
 
+  // Live timer for active jobs. 1Hz is enough for "0:42 elapsed" display.
+  useEffect(() => {
+    if (!open) return
+    const hasLive = queue.some((j) => j.status === 'active' || j.status === 'pending')
+    if (!hasLive) return
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [open, queue])
+
+  const allPresetKeys = useMemo(
+    () => PRESET_CATS.flatMap((c) => c.presets.map((p) => p.key)),
+    [],
+  )
+
+  // Group queue jobs by batchId so multi-style submissions render as a
+  // titled group ("3 styles · 1 / 3"). Solo jobs use synthetic keys.
+  const groupedQueue = useMemo(() => {
+    const groups = []
+    const byKey = new Map()
+    for (const job of queue) {
+      const key = job.batchId || `solo-${job.id}`
+      if (!byKey.has(key)) {
+        const g = { key, batchId: job.batchId, label: job.batchLabel, jobs: [] }
+        byKey.set(key, g)
+        groups.push(g)
+      }
+      byKey.get(key).jobs.push(job)
+    }
+    return groups
+  }, [queue])
+
+  const sessionStats = useMemo(() => {
+    const total = queue.length
+    const done = queue.filter((j) => j.status === 'done').length
+    const active = queue.filter((j) => j.status === 'active').length
+    const pending = queue.filter((j) => j.status === 'pending').length
+    const errored = queue.filter((j) => j.status === 'error').length
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100)
+    return { total, done, active, pending, errored, pct }
+  }, [queue])
+
   if (!open) return null
+
+  const close = () => setModals((m) => ({ ...m, aiRender: false }))
 
   const handleKeyChange = (e) => {
     const v = e.target.value
@@ -106,7 +237,7 @@ export default function AIRenderModal() {
     try {
       if (v) localStorage.setItem(LS_GEMINI_KEY, v)
       else localStorage.removeItem(LS_GEMINI_KEY)
-    } catch {}
+    } catch { /* localStorage blocked */ }
   }
 
   const togglePreset = (key) => {
@@ -119,34 +250,59 @@ export default function AIRenderModal() {
   }
 
   const isCustomSelected = selected.has(CUSTOM_KEY)
-  const queueCount = selected.size
+  const isRawSelected = selected.has(RAW_KEY)
+  const stagedCount = selected.size
 
-  const exportRaw = () => {
-    fire('add-to-queue', { preset: null, includeGraphics })
-  }
+  // The merge moment: clicking Render dispatches the queue events, clears
+  // the selection, and flips the pane over to Queue so the user sees the
+  // jobs land. Multi-select submissions get a shared batchId/label so
+  // they group in the queue list.
+  const submitSelected = () => {
+    if (stagedCount === 0) return
+    const keys = Array.from(selected)
+    const realPresetKeys = keys.filter((k) => k !== RAW_KEY && k !== CUSTOM_KEY)
+    const batchId = keys.length > 1 ? `batch-${Date.now()}` : null
+    const batchLabel = batchId ? `${keys.length} styles` : null
 
-  const queueSelected = () => {
-    if (selected.size === 0) return
-    Array.from(selected).forEach((preset) => {
-      // Update the atom too so /app sidebar (which reads aiPresetAtom) shows
-      // the latest selection if the user hops over.
-      setAiPreset(preset)
-      fire('add-to-queue', { preset, includeGraphics, prompt: aiPrompt })
+    keys.forEach((key) => {
+      if (key === RAW_KEY) {
+        fire('add-to-queue', { preset: null, includeGraphics, batchId, batchLabel })
+      } else if (key === CUSTOM_KEY) {
+        // Custom slot fires with the user's free-form prompt; the queue
+        // hook treats `prompt` as override text instead of looking up a
+        // canned preset.
+        fire('add-to-queue', { preset: 'custom', includeGraphics, prompt: aiPrompt, batchId, batchLabel })
+      } else {
+        setAiPreset(key)
+        fire('add-to-queue', { preset: key, includeGraphics, prompt: aiPrompt, batchId, batchLabel })
+      }
     })
+    void realPresetKeys // keep var available for future analytics hooks
     setSelected(new Set())
+    setPane('queue')
   }
 
-  // Skip the Custom slot — its prompt depends on user input. "Add all"
-  // means the curated catalogue, not free-form prompts.
-  const allPresetKeys = PRESET_CATS.flatMap((c) => c.presets.map((p) => p.key))
-
-  const queueAll = () => {
-    allPresetKeys.forEach((preset) => {
-      setAiPreset(preset)
-      fire('add-to-queue', { preset, includeGraphics, prompt: aiPrompt })
+  const selectAll = () => {
+    setSelected((prev) => {
+      const all = new Set(allPresetKeys)
+      const allOn = allPresetKeys.every((k) => prev.has(k))
+      // If everything's already staged, clicking "Select all" toggles to
+      // clearing — matches the prototype's behavior. Custom + Raw aren't
+      // part of the catalogue, leave them alone.
+      if (allOn) {
+        const next = new Set(prev)
+        for (const k of allPresetKeys) next.delete(k)
+        return next
+      }
+      const next = new Set(prev)
+      for (const k of all) next.add(k)
+      return next
     })
-    setSelected(new Set())
   }
+  const allSelected = allPresetKeys.every((k) => selected.has(k))
+
+  const removeJob = (id) => fire('queue-remove', { id })
+  const retryJob = (id) => fire('queue-retry', { id })
 
   const openQueueJob = (job) => {
     if (job.status !== 'done') return
@@ -172,185 +328,374 @@ export default function AIRenderModal() {
   }
 
   return (
-    <div className="mock-airender-backdrop" onClick={() => setModals((m) => ({ ...m, aiRender: false }))}>
+    <div className="mock-rs-overlay" onClick={close}>
       <aside
-        className="mock-airender-sheet"
+        className="mock-render-sheet"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Render"
       >
-        <header className="mock-airender-head">
-          <h2>Render</h2>
-          <button
-            type="button"
-            className="mock-airender-close"
-            aria-label="Close"
-            onClick={() => setModals((m) => ({ ...m, aiRender: false }))}
-          >
-            ×
-          </button>
-        </header>
-
-        <div className="mock-airender-body">
-          {/* ─── Common settings ─── */}
-          <div className="mock-airender-section">
-            <div className="mock-airender-section-head">Resolution</div>
-            <div className="mock-resgroup">
-              {[1, 2, 3, 4].map((mult) => (
-                <button
-                  key={mult}
-                  type="button"
-                  className={`mock-res-btn${exportRes === mult ? ' is-active' : ''}`}
-                  onClick={() => setExportRes(mult)}
-                >
-                  {mult}×
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ─── No stylization ─── */}
-          <div className="mock-airender-section">
-            <div className="mock-airender-section-head">No stylization</div>
-            <button type="button" className="mock-btn-ghost mock-airender-raw" onClick={exportRaw}>
-              Add raw export to queue
+        {/* ─── Head: title + Styles/Queue tabs ───────────────────────── */}
+        <header className="rs-head">
+          <div className="rs-head-top">
+            <h2 className="rs-title">Render</h2>
+            <button
+              type="button"
+              className="rs-close"
+              aria-label="Close"
+              onClick={close}
+            >
+              ×
             </button>
           </div>
+          <div className="rs-segbar" role="tablist" aria-label="Section">
+            <button
+              type="button"
+              className={`rs-seg${pane === 'styles' ? ' is-active' : ''}`}
+              role="tab"
+              aria-selected={pane === 'styles'}
+              onClick={() => setPane('styles')}
+            >
+              Styles
+            </button>
+            <button
+              type="button"
+              className={`rs-seg${pane === 'queue' ? ' is-active' : ''}`}
+              role="tab"
+              aria-selected={pane === 'queue'}
+              onClick={() => setPane('queue')}
+            >
+              Queue
+              <span className={`rs-seg-count${sessionStats.active > 0 ? ' is-pulsing' : ''}`}>
+                {queue.length}
+              </span>
+            </button>
+          </div>
+        </header>
 
-          {/* ─── AI styles ─── */}
-          <div className="mock-airender-section">
-            <div className="mock-airender-section-head">
-              AI styles{queueCount ? ` · ${queueCount} selected` : ''}
-            </div>
-            <input
-              className="mock-input mock-input--block"
-              type="password"
-              placeholder="Gemini API key (optional)"
-              value={aiKey}
-              autoComplete="off"
-              onChange={handleKeyChange}
-            />
-
-            {PRESET_CATS.map((cat) => (
-              <div key={cat.title} className="mock-preset-cat">
-                <div className="mock-preset-cat-title">{cat.title}</div>
-                <div className="mock-preset-grid">
-                  {cat.presets.map((p) => (
+        {/* ─── Styles pane ─────────────────────────────────────────── */}
+        {pane === 'styles' && (
+          <div className="rs-pane is-active">
+            <div className="rs-body">
+              {/* Resolution selector */}
+              <div className="rs-section">
+                <div className="rs-section-head">Resolution</div>
+                <div className="rs-resgroup">
+                  {[1, 2, 3, 4].map((mult) => (
                     <button
-                      key={p.key}
+                      key={mult}
                       type="button"
-                      className={`mock-preset${selected.has(p.key) ? ' is-active' : ''}`}
-                      onClick={() => togglePreset(p.key)}
+                      className={`rs-res-btn${exportRes === mult ? ' is-active' : ''}`}
+                      onClick={() => setExportRes(mult)}
                     >
-                      <span
-                        className="mock-preset-dot"
-                        style={{ background: p.dot, ...(p.border ? { border: p.border } : null) }}
-                      />
-                      {p.label}
+                      {mult}×
                     </button>
                   ))}
                 </div>
               </div>
-            ))}
 
-            {/* Custom preset — always available, but the prompt textbox only
-             * appears when this preset is selected. */}
-            <div className="mock-preset-cat">
-              <div className="mock-preset-cat-title">Custom</div>
-              <div className="mock-preset-grid">
+              {/* Staged-styles chip strip */}
+              <div className={`rs-chip-strip${stagedCount === 0 ? ' is-empty' : ''}`}>
+                <span className="rs-chip-strip-label">Staged</span>
+                {stagedCount === 0 ? (
+                  <span className="rs-chip-placeholder">Tap a style below to stage it</span>
+                ) : (
+                  Array.from(selected).map((key) => (
+                    <span key={key} className="rs-chip" onClick={() => togglePreset(key)}>
+                      {labelByKey(key)}
+                      <span className="rs-chip-x">×</span>
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {/* Original (raw) card */}
+              <div className="rs-section">
+                <div className="rs-section-head">
+                  <span>Original</span>
+                  <span className="rs-section-head-count">Your scene, as-is</span>
+                </div>
                 <button
                   type="button"
-                  className={`mock-preset${isCustomSelected ? ' is-active' : ''}`}
-                  style={{ gridColumn: 'span 2' }}
-                  onClick={() => togglePreset(CUSTOM_KEY)}
+                  className={`rs-raw${isRawSelected ? ' is-active' : ''}`}
+                  onClick={() => togglePreset(RAW_KEY)}
                 >
-                  <span className="mock-preset-dot" style={{ background: '#888' }} />
-                  Custom prompt
+                  <div className="rs-raw-photo">
+                    <img src={photoFor('raw')} alt="Raw / original scene" loading="lazy" />
+                    <div className="rs-raw-check" />
+                  </div>
+                  <div className="rs-raw-body">
+                    <div className="rs-raw-title">Raw export</div>
+                    <div className="rs-raw-desc">No AI stylization — ships exactly what's on your canvas.</div>
+                  </div>
                 </button>
               </div>
-              {isCustomSelected ? (
-                <input
-                  className="mock-input mock-input--block"
-                  type="text"
-                  placeholder="Describe the style…"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  style={{ marginTop: 6 }}
-                />
-              ) : null}
-            </div>
-          </div>
 
-          {/* ─── Queue ─── */}
-          <div className="mock-airender-queue">
-            <div className="mock-airender-queue-head">
-              <span>Queue</span>
-              <span className="mock-pill-label">{queue.length}</span>
+              {/* Custom prompt */}
+              <div className="rs-section">
+                <div className="rs-section-head">
+                  <span>Custom</span>
+                  <span className="rs-section-head-count">Free-form prompt</span>
+                </div>
+                <button
+                  type="button"
+                  className={`rs-raw${isCustomSelected ? ' is-active' : ''}`}
+                  onClick={() => togglePreset(CUSTOM_KEY)}
+                >
+                  <div className="rs-raw-photo" style={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)' }}>
+                    <div className="rs-raw-check" />
+                  </div>
+                  <div className="rs-raw-body">
+                    <div className="rs-raw-title">Custom prompt</div>
+                    <div className="rs-raw-desc">{isCustomSelected ? 'Edit the prompt below.' : 'Describe a style — applied along with any selected presets.'}</div>
+                  </div>
+                </button>
+                {isCustomSelected && (
+                  <input
+                    className="rs-input rs-custom"
+                    type="text"
+                    placeholder="A neon-soaked rainy night in Tokyo…"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Provider key */}
+              <div className="rs-section">
+                <div className="rs-section-head">
+                  <span>Gemini key</span>
+                  <span className="rs-section-head-count">Stored locally</span>
+                </div>
+                <input
+                  className="rs-input rs-provider"
+                  type="password"
+                  placeholder="API key (optional)"
+                  value={aiKey}
+                  autoComplete="off"
+                  onChange={handleKeyChange}
+                />
+              </div>
+
+              {/* Style catalogue — categorised grids */}
+              {PRESET_CATS.map((cat) => (
+                <div key={cat.title} className="rs-section">
+                  <div className="rs-cat-head">
+                    {cat.title}
+                    <span className="rs-cat-sub">{cat.presets.length}</span>
+                  </div>
+                  <div className="rs-grid">
+                    {cat.presets.map((p) => {
+                      const on = selected.has(p.key)
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          className={`rs-card${on ? ' is-active' : ''}`}
+                          onClick={() => togglePreset(p.key)}
+                        >
+                          <div className="rs-card-photo">
+                            <img src={photoFor(p.file)} alt={p.label} loading="lazy" />
+                            <div className="rs-card-check" />
+                          </div>
+                          <div className="rs-card-body">
+                            <div className="rs-card-label">{p.label}</div>
+                            <div className="rs-card-sub">{p.sub}</div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Include-graphics toggle */}
+              <div className="rs-section">
+                <div className="rs-toggle-row">
+                  <span>Include graphics in export</span>
+                  <button
+                    type="button"
+                    className={`rs-toggle${includeGraphics ? ' is-on' : ''}`}
+                    onClick={() => setIncludeGraphics((v) => !v)}
+                    aria-pressed={includeGraphics}
+                  />
+                </div>
+              </div>
+
+              {exportStatus && <div className="rs-footer-status">{exportStatus}</div>}
             </div>
-            {queue.length === 0 ? (
-              <div className="mock-empty">Queue is empty.</div>
-            ) : (
-              <ul className="mock-airender-queue-list">
-                {queue.map((job) => {
-                  const clickable = job.status === 'done'
-                  return (
-                    <li
-                      key={job.id}
-                      className={`mock-airender-queue-item${clickable ? ' is-clickable' : ''}`}
-                      data-status={job.status}
-                      onClick={clickable ? () => openQueueJob(job) : undefined}
-                      role={clickable ? 'button' : undefined}
-                      tabIndex={clickable ? 0 : undefined}
-                    >
-                      <span>{job.label ?? job.id}</span>
-                      <span className="mock-airender-queue-status">{job.statusText ?? job.status}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            {exportStatus ? <div className="mock-airender-status">{exportStatus}</div> : null}
-            <div className="mock-airender-queue-actions">
-              <button type="button" className="mock-btn-ghost" onClick={() => fire('queue-clear-done')}>
+
+            <footer className="rs-footer">
+              <div className="rs-footer-row">
+                <button type="button" className="rs-btn-ghost" onClick={selectAll}>
+                  {allSelected ? 'Clear' : 'Select all'}
+                </button>
+                <button
+                  type="button"
+                  className="rs-btn-primary"
+                  onClick={submitSelected}
+                  disabled={stagedCount === 0}
+                >
+                  {stagedCount === 0
+                    ? 'Pick a style'
+                    : `Render ${stagedCount} ${stagedCount === 1 ? 'style' : 'styles'}`}
+                </button>
+              </div>
+            </footer>
+          </div>
+        )}
+
+        {/* ─── Queue pane ──────────────────────────────────────────── */}
+        {pane === 'queue' && (
+          <div className="rs-pane is-active">
+            <div className={`rs-meter${sessionStats.active === 0 && sessionStats.pending === 0 ? ' is-idle' : ''}`}>
+              <div className="rs-meter-label">
+                {sessionStats.total === 0
+                  ? 'Tray clear'
+                  : sessionStats.active > 0
+                    ? `Developing · ${sessionStats.pct}%`
+                    : sessionStats.pending > 0
+                      ? `Waiting · ${sessionStats.pct}% complete`
+                      : `All fixed · ${sessionStats.done} / ${sessionStats.total}`}
+              </div>
+              <div className="rs-meter-counts">
+                {sessionStats.done} done · {sessionStats.pending} queued
+                {sessionStats.errored ? ` · ${sessionStats.errored} spoiled` : ''}
+              </div>
+              <div className="rs-meter-bar" style={{ '--rs-meter-pct': `${sessionStats.pct}%` }} />
+            </div>
+
+            <div className="rs-body rs-body--flush">
+              <div className="rs-qlist">
+                {queue.length === 0 ? (
+                  <div className="rs-qempty">
+                    <div className="rs-qempty-art" />
+                    <div className="rs-qempty-title">Nothing brewing</div>
+                    <div className="rs-qempty-body">
+                      Pick a style on <em>Styles</em> and hit Render. Jobs stack up here and develop one at a time.
+                    </div>
+                  </div>
+                ) : (
+                  groupedQueue.map((group) => (
+                    <div key={group.key}>
+                      {group.batchId && (
+                        <div className="rs-qbatch-head">
+                          <div className="rs-qbatch-label">{group.label || 'Batch'}</div>
+                          <div className="rs-qbatch-sub">
+                            {group.jobs.filter((j) => j.status === 'done').length} / {group.jobs.length} ·{' '}
+                            {group.jobs.length === 1 ? 'job' : 'jobs'}
+                          </div>
+                        </div>
+                      )}
+                      {group.jobs.map((job) => {
+                        const fileSlug = fileByKey(job.preset) ?? 'raw'
+                        const startedAt = job.startedAt || job.createdAt || Date.now()
+                        let timer
+                        if (job.status === 'active') timer = fmtElapsed(Date.now() - startedAt)
+                        else if (job.status === 'done' || job.status === 'error') timer = fmtAgo(Date.now() - startedAt)
+                        else timer = 'waiting'
+                        const clickable = job.status === 'done'
+                        const meta =
+                          job.status === 'error'
+                            ? null
+                            : job.status === 'active'
+                              ? job.statusText || 'Developing…'
+                              : job.status === 'pending'
+                                ? 'Waiting its turn'
+                                : 'Ready in gallery'
+                        return (
+                          <article
+                            key={job.id}
+                            className={`rs-qcard${clickable ? ' is-clickable' : ''}`}
+                            data-status={job.status}
+                            onClick={clickable ? () => openQueueJob(job) : undefined}
+                            role={clickable ? 'button' : undefined}
+                            tabIndex={clickable ? 0 : undefined}
+                          >
+                            <div className="rs-qgutter">
+                              <div className="rs-qgutter-dots" />
+                            </div>
+                            <div className="rs-qphoto">
+                              <img src={photoFor(fileSlug)} alt={labelByKey(job.preset || RAW_KEY)} loading="lazy" />
+                              <span className="rs-qribbon">{RIBBON[job.status] || job.status}</span>
+                              {(job.status === 'done' || job.status === 'error') && (
+                                <div className="rs-qbadge">{job.status === 'error' ? '×' : null}</div>
+                              )}
+                            </div>
+                            <div className="rs-qbody">
+                              <div className="rs-qbody-top">
+                                <span className="rs-qtimer">{timer}</span>
+                                <span> · </span>
+                                <span>
+                                  {job.resolution || exportRes}× · {RES_PX_HEIGHT[job.resolution || exportRes]}px
+                                </span>
+                              </div>
+                              <div className="rs-qlabel">{labelByKey(job.preset || RAW_KEY)}</div>
+                              {job.status === 'error' ? (
+                                <div className="rs-qerror">{job.statusText || 'Render failed'}</div>
+                              ) : meta ? (
+                                <div className="rs-qmeta">{meta}</div>
+                              ) : null}
+                              <div className="rs-qactions">
+                                {job.status === 'pending' && (
+                                  <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                )}
+                                {job.status === 'active' && (
+                                  <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Stop</button>
+                                )}
+                                {job.status === 'done' && (
+                                  <>
+                                    <button type="button" className="rs-qact is-primary" onClick={(e) => { e.stopPropagation(); openQueueJob(job) }}>Open</button>
+                                    <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  </>
+                                )}
+                                {job.status === 'error' && (
+                                  <>
+                                    <button type="button" className="rs-qact is-primary" onClick={(e) => { e.stopPropagation(); retryJob(job.id) }}>Retry</button>
+                                    <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  </>
+                                )}
+                              </div>
+                              {(job.status === 'active' || job.status === 'pending') && (
+                                <div className="rs-qprogress" style={{ '--progress': `${job.progress || 0}%` }} />
+                              )}
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <footer className="rs-footer">
+              <div className="rs-footer-status">
+                {sessionStats.total === 0 ? null : (
+                  <>
+                    <b>{sessionStats.done}</b>fixed · <b>{sessionStats.active}</b>developing · <b>{sessionStats.pending}</b>queued
+                  </>
+                )}
+              </div>
+              <button
+                type="button"
+                className="rs-btn-ghost is-quiet"
+                onClick={() => fire('queue-clear-done')}
+                disabled={sessionStats.done === 0}
+              >
                 Clear done
               </button>
-              <button type="button" className="mock-btn-ghost" onClick={() => fire('clear-queue')}>
+              <button
+                type="button"
+                className="rs-btn-ghost is-danger"
+                onClick={() => fire('clear-queue')}
+                disabled={sessionStats.total === 0}
+              >
                 Clear all
               </button>
-            </div>
+            </footer>
           </div>
-        </div>
-
-        <footer className="mock-airender-footer">
-          <div className="mock-toggle-row" style={{ marginBottom: 10 }}>
-            <span>Include graphics in export</span>
-            <button
-              type="button"
-              className={`mock-toggle${includeGraphics ? ' is-on' : ''}`}
-              onClick={() => setIncludeGraphics((v) => !v)}
-              aria-pressed={includeGraphics}
-            />
-          </div>
-          <div className="mock-airender-footer-row">
-            <button
-              type="button"
-              className="mock-btn-ghost"
-              onClick={queueAll}
-              title={`Render every style in the catalogue (${allPresetKeys.length} jobs)`}
-            >
-              Add all {allPresetKeys.length}
-            </button>
-            <button
-              type="button"
-              className="mock-btn-primary"
-              onClick={queueSelected}
-              disabled={queueCount === 0}
-              style={{ marginTop: 0 }}
-            >
-              {queueCount > 0 ? `Add ${queueCount} to queue` : 'Pick a style'}
-            </button>
-          </div>
-        </footer>
+        )}
       </aside>
     </div>
   )

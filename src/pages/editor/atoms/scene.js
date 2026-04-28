@@ -44,6 +44,18 @@ export const dofAtom = atom({
   blur: 25,
   sceneColorPop: 0,
   focusColorPop: 60,
+  // DoF-lab additions — only /dof-lab writes to these. All default to
+  // "off / legacy" so /app and /app-classic render identically.
+  //   useApertureCoC  — when true, shader replaces the Tightness-driven
+  //                     depthRange with an aperture-scaled version
+  //   aperture        — f-stop (1.4 – 16); smaller = wider DoF is blurred
+  useApertureCoC: false,
+  aperture: 4,
+  // Lens-character: when on, bright samples in the blur kernel get
+  // weighted heavily so they form visible bokeh "balls" instead of
+  // washing out uniformly. Default on in /dof-lab; UI toggle lets
+  // you A/B it against the uniform-blur look.
+  highlightBokeh: true,
 })
 
 // Map style — one of default | satellite | warm | cool | desaturated | noir |

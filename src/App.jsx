@@ -8,6 +8,7 @@ import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import EditorPage from './pages/editor/EditorPage'
 import MockEditorPage from './pages/mock/MockEditorPage'
+import DofLabPage from './pages/dof-lab/DofLabPage'
 import GalleryPage from './pages/GalleryPage'
 import CommunityPage from './pages/CommunityPage'
 import ProfilePage from './pages/ProfilePage'
@@ -28,6 +29,7 @@ export default function App() {
            * /mock → historical alias, redirects to /app */}
           <Route path="/app" element={<ProtectedRoute guestAllowed><MockEditorPage /></ProtectedRoute>} />
           <Route path="/app-classic" element={<ProtectedRoute guestAllowed><EditorPage /></ProtectedRoute>} />
+          <Route path="/dof-lab" element={<ProtectedRoute guestAllowed><DofLabPage /></ProtectedRoute>} />
           <Route path="/mock" element={<Navigate to="/app" replace />} />
 
           {/* Pages with navbar */}

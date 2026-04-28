@@ -1,4 +1,5 @@
 import { Canvas } from '@react-three/fiber'
+import { NoToneMapping } from 'three'
 import Scene from './Scene'
 import Controls from './Controls'
 import { IS_MOBILE } from '../atoms/scene'
@@ -11,9 +12,24 @@ const CANVAS_DPR = IS_MOBILE ? Math.min(1.5, window.devicePixelRatio || 1) : 2
 export default function EditorCanvas() {
   return (
     <Canvas
+      // Explicit "always" — matches R3F's default, but iOS Safari is
+      // aggressive about throttling rAF on idle WebGL canvases
+      // (especially with preserveDrawingBuffer:true, which disables some
+      // power optimizations). Scene.jsx ALSO calls invalidate() on every
+      // scene-atom change so a throttled loop still picks up time-of-day
+      // and tap-to-focus updates within one tick.
+      frameloop="always"
       dpr={CANVAS_DPR}
       camera={{ fov: 37.8 }}
-      gl={{ depth: false, preserveDrawingBuffer: true }}
+      // R3F defaults `renderer.toneMapping` to ACESFilmicToneMapping — which
+      // means every material's fragment shader tone-maps (ACES, scaled by
+      // `toneMappingExposure = 10`) BEFORE the composer's AGX ToneMapping
+      // effect runs again on the result. Two tone-maps stacked with a 10×
+      // exposure boost on the first one crushes midtones into grey — the
+      // "washed-out" look. Disable renderer tone mapping so AGX in the
+      // composer is the sole operator. Exposure (EXPOSURE=10) still feeds
+      // AGX via `renderer.toneMappingExposure`.
+      gl={{ depth: false, preserveDrawingBuffer: true, toneMapping: NoToneMapping }}
       style={{ width: '100%', height: '100%' }}
     >
       <Scene />

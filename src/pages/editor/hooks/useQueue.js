@@ -542,6 +542,11 @@ export default function useQueue() {
         view,
         graphicsJSON,
         includeGraphicsAfter: includeGraphics,
+        // Propagate batch info from the dispatcher (Render sheet sends
+        // these when the user picks multiple styles at once so they
+        // group as a single batch in the queue list).
+        batchId: detail.batchId ?? null,
+        batchLabel: detail.batchLabel ?? null,
       }
 
       if (presetKey === null) {
@@ -628,6 +633,38 @@ export default function useQueue() {
       emitStatus('')
     }
 
+    // Per-job removal — Render sheet's "Remove" / "Stop" buttons.
+    // For a pending job we just drop it. For an active job the running
+    // promise is hard to interrupt mid-flight (Gemini fetch + decode),
+    // so we mark its id rejected; processQueue's next tick will skip
+    // promoting it to done and the UI reflects the gone-ness.
+    function onRemove(e) {
+      const id = e?.detail?.id
+      if (id == null) return
+      setQueue((cur) => cur.filter((j) => j.id !== id))
+      queueRef.current = queueRef.current.filter((j) => j.id !== id)
+    }
+
+    // Retry — reset a failed job back to pending and kick the queue.
+    // Only `error` jobs are eligible; pending/active/done are no-ops.
+    function onRetry(e) {
+      const id = e?.detail?.id
+      if (id == null) return
+      setQueue((cur) =>
+        cur.map((j) =>
+          j.id === id && j.status === 'error'
+            ? { ...j, status: 'pending', statusText: 'Queued', startedAt: Date.now(), progress: 0 }
+            : j,
+        ),
+      )
+      queueRef.current = queueRef.current.map((j) =>
+        j.id === id && j.status === 'error'
+          ? { ...j, status: 'pending', statusText: 'Queued', startedAt: Date.now(), progress: 0 }
+          : j,
+      )
+      processQueue()
+    }
+
     async function onBatchExport() {
       // TODO(Phase 6+): drive the full batch-export loop (restore view ->
       // wait for scene settle -> snapshot -> queue entry -> next). Needs the
@@ -665,6 +702,8 @@ export default function useQueue() {
     // Legacy alias — ExportSection.jsx dispatches 'clear-queue'. Keep both
     // wired so Phase-5 UI changes don't have to happen in lockstep.
     window.addEventListener('clear-queue', onClearAll)
+    window.addEventListener('queue-remove', onRemove)
+    window.addEventListener('queue-retry', onRetry)
     window.addEventListener('batch-export', onBatchExport)
 
     return () => {
@@ -674,6 +713,8 @@ export default function useQueue() {
       window.removeEventListener('queue-clear-done', onClearDone)
       window.removeEventListener('queue-clear-all', onClearAll)
       window.removeEventListener('clear-queue', onClearAll)
+      window.removeEventListener('queue-remove', onRemove)
+      window.removeEventListener('queue-retry', onRetry)
       window.removeEventListener('batch-export', onBatchExport)
     }
   }, [setQueue])

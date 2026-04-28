@@ -290,6 +290,32 @@ file is the raw log — CLAUDE.md is the curated summary.
   "works on desktop / broken on iPhone" sampling bug is almost always
   this.
 
+## 2026-04-20 — iOS Safari throttles rAF on an idle WebGL canvas; invalidate() on state change
+
+- Bug: on iPhone, dragging the time-of-day pill moved the slider but
+  the sky/sun didn't change until the user panned the camera. Same for
+  tap-to-focus — the focal UV was written but DoF didn't shift until
+  something else woke the loop.
+- Mechanism: R3F's `frameloop='always'` is only "always" as long as the
+  browser keeps running the requestAnimationFrame chain. iOS Safari
+  (more so than Chrome/desktop) throttles rAF aggressively on a
+  foreground tab whose canvas appears idle — especially with
+  `preserveDrawingBuffer:true`, which disables some power optimizations.
+  The React atoms updated, the sceneRef sync fired, but useFrame hadn't
+  ticked yet so the shader uniforms still held the old values.
+- Fix (editor/scene/Scene.jsx + EditorCanvas.jsx):
+  1. Explicit `frameloop="always"` on the Canvas — matches the default
+     but states the intent.
+  2. `useInvalidateOnSceneChange()` in Scene: subscribes to
+     timeOfDay/sunRotation/dof/clouds/bloom/ssao/vignette atoms and
+     calls `invalidate()` on every change. Wakes the rAF loop
+     immediately so the first post-change frame lands on screen.
+  3. ClickToFocus now calls `invalidate()` right after writing
+     `sceneRef.dof.focalUV` on tap/click — tap-to-focus doesn't go
+     through atoms so the hook above can't see it.
+- General rule: anywhere the app writes to sceneRef directly (bypassing
+  atoms) or changes visible render state in response to a single user
+  gesture, call invalidate(). Cheap on desktop, load-bearing on mobile.
 ## 2026-04-21 — DoF sky-mix ramp was catastrophically wide on a globe scene
 
 - Bug: after PR #41 (mobile DoF black-band fix) shipped, DoF looked
@@ -315,3 +341,111 @@ file is the raw log — CLAUDE.md is the curated summary.
   start catching terrain. Test thresholds by working backward from
   the z-distances you actually care about, not by picking round
   numbers that "feel narrow".
+
+## 2026-04-22 — Toggling cloud shadows froze the app (recompile per frame)
+
+- Bug: flipping the "Shadows" toggle off in the Clouds popover froze the
+  whole app. Not a hang in a hook — the render loop was still running,
+  but every frame triggered a shader recompile.
+- Mechanism: `@takram/three-atmosphere`'s r3f wrapper around
+  `AerialPerspective` runs its own `useFrame` that reassigns
+  `aerial.shadow = transientStates.shadow` every tick (the atmosphere
+  context propagates the Clouds-produced shadow into Aerial). Our
+  useFrame's `aerial.shadow = null` and the wrapper's reassignment were
+  in a loop: frame N we null it, frame N+1 the wrapper restores it.
+  The aerial's internal `update()` detects the shadow slot went from
+  null → non-null (or back), calls `setChanged()`, and the shader
+  recompiles. Once per frame. That's the freeze.
+- Fix (Scene.jsx around line 405): install a getter/setter on
+  `aerial.shadow` the first time we see the primitive. The wrapper's
+  writes land in a private `{ value }` slot; reads are filtered by
+  `{ disabled }` driven by the user's toggle. One recompile per toggle
+  (when `updateShadow` sees HAS_SHADOW flip), stable otherwise.
+- General rule: if a third-party r3f wrapper reassigns a property on
+  its primitive every frame and that property participates in a
+  define/uniform cache-check, you can't fight it with another
+  useFrame — either intercept with Object.defineProperty or kill the
+  source at the producer (Clouds in this case). Accessor is lower-risk
+  because it doesn't touch the producer's internals.
+
+## 2026-04-22 — Class-name collision with existing `.mock-render-backdrop`
+
+- Bug: new Render sheet at `/app` had no scroll, the editor's corner
+  pills rendered ON TOP of the backdrop, and clicks went through to
+  the canvas. Looked like the modal was being ignored entirely.
+- Mechanism: the new `AIRenderModal.jsx` used
+  `<div className="mock-render-backdrop">` as its fixed full-viewport
+  overlay. That class was already defined in `src/pages/mock/styles/mock.css`
+  for a completely different thing — the poster-edit-mode backdrop IMAGE
+  that sits inside the frame under the Fabric canvas, with
+  `position: absolute; z-index: 5; pointer-events: none`. Because
+  `mock.css` is loaded after `mock-render-sheet.css` (alphabetical), its
+  rules won the cascade — z-index collapsed to 5, absolute positioning
+  killed full-viewport fill, and `pointer-events: none` made the overlay
+  transparent to clicks/scroll.
+- Fix (src/pages/mock/modals/AIRenderModal.jsx +
+  src/pages/mock/styles/mock-render-sheet.css): rename the overlay class
+  to `.mock-rs-overlay` so it can't collide, and bump z-index to 250
+  (above the Gallery modal at 200, below the Lightbox at 300) so Render
+  can stack over Gallery.
+- General rule: before coining a new `.mock-*` or `.editor-*` class
+  name, `grep -n <name>` across `src/pages/{mock,editor}/styles/`. The
+  two namespaces share a history and old prototype names are squatting
+  on the obvious choices.
+
+## 2026-04-22 — Map looked washed-out grey: double tone mapping (ACES on renderer + AGX in composer)
+
+- Bug: editor canvas rendered with low saturation and crushed, grey
+  midtones — sky was pastel, photogrammetry looked bleached, colors
+  had no pop. Not a lighting issue; the scene output itself was being
+  double-processed.
+- Mechanism: R3F's `<Canvas>` defaults `renderer.toneMapping` to
+  `ACESFilmicToneMapping` (R3F sets it via `flat={false}`). Every
+  three.js material shader ends with
+  `gl_FragColor = acesFilmic(gl_FragColor * toneMappingExposure)`.
+  Then the postprocessing composer's `<ToneMapping mode=AGX />` runs
+  AGX on the result. Two tone-mappers stacked, with our
+  `EXPOSURE = 10` multiplied in at the first stage, crushes highlights
+  and lifts shadows enough to flatten the whole image to grey.
+- Fix (src/pages/editor/scene/EditorCanvas.jsx): pass
+  `gl={{ ..., toneMapping: NoToneMapping }}` on the Canvas so material
+  shaders skip tone mapping entirely. The composer's AGX is now the
+  sole operator; `renderer.toneMappingExposure = 10` still feeds AGX
+  via the standard uniform.
+- General rule: if you're using `postprocessing`'s `ToneMappingEffect`
+  (directly or via `@react-three/postprocessing`), the renderer's own
+  tone mapping must be `NoToneMapping`. Otherwise every `toneMapped`
+  material tone-maps once in its own shader before the composer pass
+  tone-maps again. The symptom is always "everything looks flat /
+  grey / washed out" — the math compounds, it doesn't cancel.
+
+## 2026-04-24 — Shadow toggle still froze 10s + crashed WebGL context after getter/setter fix
+
+- Bug: flipping the Clouds → Shadows toggle caused a ~10s main-thread
+  freeze followed by a context-lost crash. Previous fix (getter/setter
+  on aerial.shadow that returns null when disabled) stopped the
+  per-frame recompile but still caused ONE full shader recompile per
+  toggle. The atmosphere+aerial+shadow mega-shader takes long enough
+  to compile that the OS GPU watchdog (macOS ~10s, Windows ~2s) kills
+  the WebGL context. Whole canvas goes black, scene dies.
+- Mechanism: takram's `AerialPerspective.updateShadow()` compares
+  `shadow != null` to whether the `HAS_SHADOW` define is set. Any time
+  `shadow` crosses the null boundary it flips the define and calls
+  `setChanged()` → full shader rebuild. Returning null when the user
+  disables shadows IS that boundary crossing.
+- Fix (src/pages/editor/scene/Scene.jsx): never return null from the
+  getter after shadows were ever on. When disabled, return a Proxy
+  that forwards every field to the current `slot.real` (so cascadeCount
+  and matrices stay identical — those are class-prototype getters,
+  plain `Object.assign` silently drops them) but swaps `.map` to a 1×1
+  zero-filled DataArrayTexture. The shader's
+  `readShadowOpticalDepth()` samples (0,0,0,0) and returns 0 → no
+  shadow visible. takram sees `shadow != null` + unchanged cascadeCount
+  → no define flip → no recompile. Verified: 0 `gl.compileShader` and
+  0 `gl.linkProgram` calls during a toggle.
+- General rule: whenever a third-party material exposes a property that
+  doubles as a define gate, don't toggle it via null/non-null. Provide
+  a structural stand-in with identical defining characteristics and
+  neutralize its effect via uniform/texture data instead. `Object.assign`
+  won't copy accessor properties from a prototype — use a Proxy when
+  the forwarded object uses classes.

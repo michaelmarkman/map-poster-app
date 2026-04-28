@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Render menu — design explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --sheet-width: 560px;
+    --bg-scene: #191713;
+    --sheet-bg: rgba(14, 14, 16, 0.96);
+    --sheet-border: rgba(255, 255, 255, 0.08);
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.55);
+    --text-dim: rgba(255, 255, 255, 0.38);
+    --accent: #c8b897;
+    --accent-bright: #e8dcc0;
+    --accent-glow: rgba(200, 184, 151, 0.25);
+    --surface-1: rgba(255, 255, 255, 0.03);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --surface-border: rgba(255, 255, 255, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 90% 65% at 30% 0%, rgba(80, 65, 40, 0.28), transparent 60%),
+      radial-gradient(ellipse 80% 55% at 80% 110%, rgba(40, 55, 85, 0.26), transparent 60%),
+      var(--bg-scene);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .page-head {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(10,10,12,0.85), rgba(10,10,12,0.25));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .page-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+  }
+  .page-title em {
+    color: var(--accent-bright);
+    font-style: normal;
+  }
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+  }
+  .tab-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 6px 14px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.is-active {
+    background: rgba(200, 184, 151, 0.14);
+    color: var(--accent-bright);
+    box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.3);
+  }
+  .head-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .width-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 6px 10px;
+    font: 11px/1 inherit;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .width-btn:hover { color: var(--text-primary); }
+  .width-btn.is-active {
+    background: rgba(200, 184, 151, 0.14);
+    color: var(--accent-bright);
+    box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.3);
+  }
+
+  .scene-mock {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: var(--sheet-width);
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 50% 50% at 25% 35%, rgba(180, 140, 85, 0.32), transparent 60%),
+      radial-gradient(ellipse 55% 60% at 75% 70%, rgba(50, 80, 110, 0.35), transparent 60%),
+      linear-gradient(135deg, #1d1a16 0%, #14120f 40%, #0f1014 70%, #0a0d12 100%);
+    overflow: hidden;
+  }
+  .scene-mock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 6px);
+    opacity: 0.5;
+  }
+  .scene-pill-row {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+  }
+  .scene-pill-row.tl { top: 24px; left: 24px; }
+  .scene-pill-row.br { bottom: 24px; right: 24px; flex-direction: row-reverse; }
+  .scene-pill {
+    height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 22, 0.7);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.02em;
+  }
+
+  .sheet {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--sheet-width);
+    transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border-left: 1px solid var(--sheet-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sheet-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 20px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .sheet-close {
+    background: transparent;
+    border: 0;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .sheet-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+  .sheet-body::-webkit-scrollbar { width: 6px; }
+  .sheet-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+  }
+  .sheet-footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+  }
+
+  .section { margin-bottom: 20px; }
+  .section-head {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .section-head-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+  .resgroup {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .res-btn {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    padding: 8px 0;
+    color: rgba(255,255,255,0.78);
+    font: 12px/1 inherit;
+    cursor: pointer;
+  }
+  .res-btn:hover { background: var(--surface-2); }
+  .res-btn.is-active {
+    background: rgba(20,20,22,0.82);
+    border-color: rgba(200,184,151,0.7);
+    color: #fff;
+    box-shadow:
+      inset 0 0 0 1px rgba(200,184,151,0.18),
+      0 0 12px rgba(200,184,151,0.2);
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, rgba(220, 204, 171, 0.96), rgba(200, 184, 151, 0.92));
+    color: #1a1812;
+    border: 0;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font: 13px/1 inherit;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    box-shadow: 0 0 16px rgba(200,184,151,0.22);
+  }
+  .btn-primary[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    color: rgba(255,255,255,0.8);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .footer-row { display: flex; gap: 6px; }
+  .footer-row .btn-ghost { flex: 0 0 25%; padding-left: 0; padding-right: 0; text-align: center; }
+  .footer-row .btn-primary { flex: 1; }
+
+  /* ═══ Raw / Original card (shared across all directions) ═══ */
+  .raw-card {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 14px;
+    padding: 0;
+    width: 100%;
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .raw-card:hover {
+    background: var(--surface-2);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .raw-card-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    background: #0d0d10;
+    overflow: hidden;
+  }
+  .raw-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .raw-card:hover .raw-card-photo img { transform: scale(1.04); }
+  .raw-card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 14px 10px 0;
+    gap: 4px;
+  }
+  .raw-card-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .raw-card-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+  }
+  .raw-card.is-active {
+    background: rgba(20, 20, 22, 0.82);
+    border-color: rgba(200, 184, 151, 0.6);
+    box-shadow:
+      inset 0 0 0 1px rgba(200, 184, 151, 0.14),
+      0 0 14px rgba(200, 184, 151, 0.18);
+  }
+  .raw-card.is-active .raw-card-title { color: var(--accent-bright); }
+  .raw-card.is-active .raw-card-desc { color: rgba(232, 220, 192, 0.7); }
+  .raw-card-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(14,14,16,0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .raw-card.is-active .raw-card-check {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .raw-card.is-active .raw-card-check::after {
+    content: '';
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #1a1812;
+    border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ═══ DIRECTION A ═══ */
+  .a-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--a-cols, 2), 1fr);
+    gap: 18px 10px;
+  }
+  .a-card {
+    position: relative;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+  }
+  .a-card-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+  }
+  .a-card:hover .a-card-photo {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.18);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.42);
+  }
+  .a-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .a-card:hover .a-card-photo img { transform: scale(1.04); }
+  .a-card-body {
+    padding: 10px 4px 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .a-card-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    color: rgba(255,255,255,0.88);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .a-card-sub {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+    padding-top: 4px;
+  }
+  .a-card.is-active .a-card-photo {
+    border-color: rgba(200,184,151,0.9);
+    box-shadow:
+      0 0 0 1px rgba(200,184,151,0.4),
+      0 0 22px rgba(200,184,151,0.3),
+      0 8px 22px rgba(0,0,0,0.48);
+  }
+  .a-card.is-active .a-card-label { color: var(--accent-bright); }
+  .a-card-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(14,14,16,0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .a-card.is-active .a-card-check {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .a-card.is-active .a-card-check::after {
+    content: '';
+    width: 10px;
+    height: 5px;
+    border-left: 2px solid #1a1812;
+    border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ═══ DIRECTION B ═══ */
+  .b-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .b-card {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    padding: 0;
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    min-height: 80px;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+  }
+  .b-card:hover {
+    background: var(--surface-2);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .b-card-photo {
+    position: relative;
+    overflow: hidden;
+    background: #0d0d10;
+  }
+  .b-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), filter 0.3s ease;
+  }
+  .b-card:hover .b-card-photo img { transform: scale(1.05); }
+  .b-card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 14px 10px 0;
+    gap: 3px;
+  }
+  .b-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+  }
+  .b-card-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+  }
+  .b-card.is-active {
+    background: rgba(20, 20, 22, 0.82);
+    border-color: rgba(200, 184, 151, 0.6);
+    box-shadow:
+      inset 0 0 0 1px rgba(200,184,151,0.14),
+      0 0 14px rgba(200,184,151,0.18);
+  }
+  .b-card.is-active .b-card-title { color: #fff; }
+  .b-card.is-active .b-card-desc { color: rgba(232, 220, 192, 0.7); }
+  .b-card-check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .b-card.is-active .b-card-check {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .b-card.is-active .b-card-check::after {
+    content: '';
+    width: 8px;
+    height: 4px;
+    border-left: 2px solid #1a1812;
+    border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ═══ DIRECTION C ═══ */
+  .c-rail { margin-bottom: 22px; }
+  .c-rail-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-right: 4px;
+  }
+  .c-rail-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
+    line-height: 1.1;
+  }
+  .c-rail-count {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+  .c-rail-track {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+    margin: 0 -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+    scrollbar-width: none;
+  }
+  .c-rail-track::-webkit-scrollbar { display: none; }
+  .c-tile {
+    position: relative;
+    flex: 0 0 auto;
+    width: 148px;
+    cursor: pointer;
+    scroll-snap-align: start;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+  }
+  .c-tile-photo {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease;
+  }
+  .c-tile:hover .c-tile-photo {
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .c-tile-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.45s cubic-bezier(0.22,1,0.36,1);
+  }
+  .c-tile:hover .c-tile-photo img { transform: scale(1.06); }
+  .c-tile-label {
+    padding: 8px 4px 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.82);
+    letter-spacing: 0.01em;
+  }
+  .c-tile-sub {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    padding: 2px 4px 0;
+  }
+  .c-tile.is-active .c-tile-photo {
+    border-color: rgba(200,184,151,0.9);
+    box-shadow:
+      0 0 0 1px rgba(200,184,151,0.4),
+      0 0 18px rgba(200,184,151,0.28);
+  }
+  .c-tile.is-active .c-tile-label { color: var(--accent-bright); }
+  .c-tile-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    background: rgba(14,14,16,0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(200,184,151,0.5);
+    border-radius: 999px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent-bright);
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .c-tile.is-active .c-tile-badge {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ═══ DIRECTION E — Wide filmstrip (landscape 3:2 tiles) ═══ */
+  .e-rail { margin-bottom: 24px; }
+  .e-rail-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-right: 4px;
+  }
+  .e-rail-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
+    line-height: 1.1;
+  }
+  .e-rail-count {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+  .e-rail-track {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 10px;
+    margin: 0 -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+    scrollbar-width: none;
+  }
+  .e-rail-track::-webkit-scrollbar { display: none; }
+  .e-tile {
+    position: relative;
+    flex: 0 0 auto;
+    width: 260px;
+    cursor: pointer;
+    scroll-snap-align: start;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+  }
+  .e-tile-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .e-tile:hover .e-tile-photo {
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,0.18);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+  }
+  .e-tile-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.45s cubic-bezier(0.22,1,0.36,1);
+  }
+  .e-tile:hover .e-tile-photo img { transform: scale(1.05); }
+  .e-tile-body {
+    padding: 10px 4px 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .e-tile-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    color: rgba(255,255,255,0.88);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .e-tile-sub {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+    padding-top: 4px;
+  }
+  .e-tile.is-active .e-tile-photo {
+    border-color: rgba(200,184,151,0.9);
+    box-shadow:
+      0 0 0 1px rgba(200,184,151,0.4),
+      0 0 22px rgba(200,184,151,0.3),
+      0 8px 22px rgba(0,0,0,0.5);
+  }
+  .e-tile.is-active .e-tile-label { color: var(--accent-bright); }
+  .e-tile-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(14,14,16,0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .e-tile.is-active .e-tile-check {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200,184,151,0.7);
+  }
+  .e-tile.is-active .e-tile-check::after {
+    content: '';
+    width: 10px;
+    height: 5px;
+    border-left: 2px solid #1a1812;
+    border-bottom: 2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ═══ DIRECTION D — Large single-column previews ═══ */
+  .d-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .d-card {
+    position: relative;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .d-card-photo {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.35),
+      0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+  .d-card:hover .d-card-photo {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.5),
+      0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  .d-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .d-card:hover .d-card-photo img { transform: scale(1.03); }
+  .d-card-body {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 2px;
+  }
+  .d-card-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .d-card-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    line-height: 1.1;
+    margin-bottom: 3px;
+  }
+  .d-card-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+  }
+  .d-card-cat {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+    padding-top: 6px;
+  }
+  .d-card.is-active .d-card-photo {
+    border-color: rgba(200, 184, 151, 0.85);
+    box-shadow:
+      0 0 0 1px rgba(200, 184, 151, 0.45),
+      0 0 24px rgba(200, 184, 151, 0.3),
+      0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+  .d-card.is-active .d-card-title { color: var(--accent-bright); }
+  .d-card-check {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(14, 14, 16, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .d-card.is-active .d-card-check {
+    opacity: 1;
+    transform: scale(1);
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border-color: rgba(200, 184, 151, 0.7);
+    box-shadow: 0 4px 14px rgba(200, 184, 151, 0.3);
+  }
+  .d-card.is-active .d-card-check::after {
+    content: '';
+    width: 11px;
+    height: 6px;
+    border-left: 2.2px solid #1a1812;
+    border-bottom: 2.2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .d-cat-head {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
+    line-height: 1.1;
+    margin: 8px 2px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .d-cat-head:first-child { margin-top: 0; }
+  .d-cat-head .count {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  .direction { display: none; }
+  .direction.is-active { display: block; }
+
+  .chip-strip {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    margin-bottom: 14px;
+    background: linear-gradient(180deg, rgba(200,184,151,0.08), rgba(200,184,151,0.03));
+    border: 1px solid rgba(200,184,151,0.22);
+    border-radius: 10px;
+    min-height: 38px;
+    align-items: center;
+    transition: opacity 0.2s ease;
+  }
+  .chip-strip.is-empty { opacity: 0.5; }
+  .chip-strip-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent-bright);
+    margin-right: 4px;
+    flex: 0 0 auto;
+  }
+  .chip-placeholder {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 10px;
+    background: rgba(20,20,22,0.82);
+    border: 1px solid rgba(200,184,151,0.5);
+    border-radius: 999px;
+    font-size: 11px;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .chip-x {
+    font-size: 13px;
+    color: rgba(255,255,255,0.55);
+    line-height: 1;
+  }
+  .chip:hover .chip-x { color: #fff; }
+
+  .design-note {
+    position: fixed;
+    bottom: 20px;
+    left: 28px;
+    right: calc(var(--sheet-width) + 28px);
+    padding: 14px 18px;
+    background: rgba(14,14,16,0.8);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.78);
+    z-index: 20;
+    max-height: 140px;
+    overflow-y: auto;
+  }
+  .design-note h3 {
+    margin: 0 0 4px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--accent-bright);
+    letter-spacing: 0.01em;
+  }
+  .design-note p { margin: 0 0 6px; }
+  .design-note .note-row {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+  }
+  .design-note .note-row b { color: rgba(255,255,255,0.7); font-weight: 500; }
+
+  @media (max-width: 1100px) {
+    .design-note { display: none; }
+  }
+
+  .a-cat-head {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
+    margin: 28px 0 14px;
+    line-height: 1.1;
+  }
+  .a-cat-head:first-child { margin-top: 8px; }
+  .a-cat-head .count {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<div class="scene-mock">
+  <div class="scene-pill-row tl">
+    <span class="scene-pill">4:3</span>
+    <span class="scene-pill">Edit</span>
+  </div>
+  <div class="scene-pill-row br">
+    <span class="scene-pill">DoF: ON</span>
+    <span class="scene-pill">Clouds: ON</span>
+  </div>
+</div>
+
+<header class="page-head">
+  <div class="page-title">Render menu — <em>design explorations</em></div>
+  <div class="head-controls">
+    <div class="tab-bar" role="tablist" aria-label="Direction">
+      <button class="tab-btn is-active" data-tab="a">A — Grid</button>
+      <button class="tab-btn" data-tab="b">B — Editorial</button>
+      <button class="tab-btn" data-tab="c">C — Filmstrip</button>
+      <button class="tab-btn" data-tab="d">D — Large</button>
+      <button class="tab-btn" data-tab="e">E — Wide strip</button>
+    </div>
+    <div class="tab-bar" role="tablist" aria-label="Panel width">
+      <button class="width-btn" data-width="420">420</button>
+      <button class="width-btn is-active" data-width="560">560</button>
+      <button class="width-btn" data-width="720">720</button>
+      <button class="width-btn" data-width="880">880</button>
+    </div>
+  </div>
+</header>
+
+<aside class="design-note" id="note-a">
+  <h3>A — Grid</h3>
+  <p>Two-column thumbnail grid. Each style is a 3:2 mini-poster with a serif name and uppercase one-word descriptor below the photo (same type language as E). Selected state is a cream ring plus a checkmark in the top-right. Categories persist as section headers.</p>
+  <div class="note-row">
+    <div><b>Best for</b> scanning a lot at once</div>
+    <div><b>Cost</b> taller scroll than E</div>
+  </div>
+</aside>
+<aside class="design-note" id="note-b" style="display:none;">
+  <h3>B — Editorial list</h3>
+  <p>Single-column horizontal cards — big photo on the left, name plus a one-line description of what the style actually does. Reads like a magazine index. Selected state turns the whole card into a backlit cream chassis.</p>
+  <div class="note-row">
+    <div><b>Best for</b> explaining the style</div>
+    <div><b>Cost</b> lots of scroll</div>
+  </div>
+</aside>
+<aside class="design-note" id="note-c" style="display:none;">
+  <h3>C — Filmstrip rails</h3>
+  <p>Each category is a horizontal scroll rail of 3:4 poster-tiles. You scroll sideways inside each section — Apple TV / Spotify shelf feel. Selected tiles get a cream glow plus "Selected" badge.</p>
+  <div class="note-row">
+    <div><b>Best for</b> browsing / category discovery</div>
+    <div><b>Cost</b> more interaction per style</div>
+  </div>
+</aside>
+<aside class="design-note" id="note-e" style="display:none;">
+  <h3>E — Wide filmstrip</h3>
+  <p>Like C, but tiles are 3:2 landscape (matching the photos' native ratio) at ~260px wide. Two-and-a-half tiles peek on a 560-wide sheet, three-and-a-half at 720 — strongly implies "scroll me". Reads more cinematic than C, less dense than A.</p>
+  <div class="note-row">
+    <div><b>Best for</b> big, confident preview at a glance</div>
+    <div><b>Cost</b> fewer tiles visible per row</div>
+  </div>
+</aside>
+<aside class="design-note" id="note-d" style="display:none;">
+  <h3>D — Large previews</h3>
+  <p>One column, each card is nearly the full sheet width. The thumbnail is big enough to read texture, grain, and palette at a glance. Label plus one-line description below the photo in clean type. More scroll, but every style gets room to make its pitch.</p>
+  <div class="note-row">
+    <div><b>Best for</b> committing to a style</div>
+    <div><b>Cost</b> most scrolling of the four</div>
+  </div>
+</aside>
+
+<aside class="sheet">
+  <header class="sheet-head">
+    <h2 class="sheet-title">Render</h2>
+    <button class="sheet-close" aria-label="Close">×</button>
+  </header>
+
+  <div class="sheet-body">
+    <div class="section">
+      <div class="section-head">Resolution</div>
+      <div class="resgroup">
+        <button class="res-btn">1×</button>
+        <button class="res-btn is-active">2×</button>
+        <button class="res-btn">3×</button>
+        <button class="res-btn">4×</button>
+      </div>
+    </div>
+
+    <div class="chip-strip is-empty" id="chip-strip"></div>
+
+    <!-- Raw / Original option — shown above the AI styles in every direction -->
+    <div class="section">
+      <div class="section-head">
+        <span>Original</span>
+        <span class="section-head-count">Your scene, as-is</span>
+      </div>
+      <button class="raw-card" data-key="raw" id="raw-card">
+        <div class="raw-card-photo">
+          <img id="raw-card-img" alt="Raw / original scene" loading="lazy" />
+          <div class="raw-card-check"></div>
+        </div>
+        <div class="raw-card-body">
+          <div class="raw-card-title">Raw export</div>
+          <div class="raw-card-desc">No AI stylization — ships exactly what's on your canvas.</div>
+        </div>
+      </button>
+    </div>
+
+    <div class="direction is-active" id="dir-a">
+      <div id="a-content"></div>
+    </div>
+
+    <div class="direction" id="dir-b">
+      <div id="b-content" class="b-list"></div>
+    </div>
+
+    <div class="direction" id="dir-c">
+      <div id="c-content"></div>
+    </div>
+
+    <div class="direction" id="dir-e">
+      <div id="e-content"></div>
+    </div>
+
+    <div class="direction" id="dir-d">
+      <div id="d-content"></div>
+    </div>
+  </div>
+
+  <footer class="sheet-footer">
+    <div class="footer-row">
+      <button class="btn-ghost" id="footer-selectall">Select all</button>
+      <button class="btn-primary" id="footer-primary" disabled>Pick a style</button>
+    </div>
+  </footer>
+</aside>
+
+<script>
+  const RAW_PRESET = {
+    key: 'raw',
+    label: 'Raw',
+    file: 'raw',
+    desc: 'No stylization — your scene as-rendered',
+  };
+  const CATS = [
+    {
+      title: 'Photography',
+      presets: [
+        { key: 'realistic',    label: 'Realistic',        file: 'realistic',        desc: 'Photoreal, natural light' },
+        { key: 'golden',       label: 'Golden Hour',      file: 'golden-hour',      desc: 'Warm sunset glow, long shadows' },
+        { key: 'retro70s',     label: '70s Film',         file: '70s-film',         desc: 'Kodachrome grain, faded warmth' },
+        { key: 'polaroid',     label: 'Polaroid',         file: 'polaroid',         desc: 'Square frame, milky highlights' },
+        { key: 'postcard',     label: 'Vintage Postcard', file: 'vintage-postcard', desc: 'Mid-century halftone saturation' },
+      ],
+    },
+    {
+      title: 'Seasons & Weather',
+      presets: [
+        { key: 'night',        label: 'Night',            file: 'night',            desc: 'Deep indigo sky, lit windows' },
+        { key: 'snowfall',     label: 'Snowfall',         file: 'snowfall',         desc: 'White drift, muted palette' },
+        { key: 'autumn',       label: 'Autumn',           file: 'autumn',           desc: 'Copper + amber foliage' },
+        { key: 'cherry',       label: 'Cherry Blossom',   file: 'cherry-blossom',   desc: 'Pink drift, soft spring light' },
+        { key: 'rainy',        label: 'Rainy',            file: 'rainy',            desc: 'Wet streets, slate reflection' },
+        { key: 'foggy',        label: 'Foggy Dawn',       file: 'foggy-dawn',       desc: 'Low cloud, silvered atmosphere' },
+      ],
+    },
+    {
+      title: 'Art Styles',
+      presets: [
+        { key: 'watercolor',   label: 'Watercolor',       file: 'watercolor',       desc: 'Wet edges, paper texture' },
+        { key: 'oilpaint',     label: 'Oil Painting',     file: 'oil-painting',     desc: 'Heavy impasto, visible brush' },
+        { key: 'gouache',      label: 'Gouache',          file: 'gouache',          desc: 'Matte opacity, flat blocks' },
+        { key: 'pastel',       label: 'Pastel Dream',     file: 'pastel-dream',     desc: 'Soft chalk, powder palette' },
+        { key: 'stainedglass', label: 'Stained Glass',    file: 'stained-glass',    desc: 'Leaded panes, jewel tones' },
+        { key: 'pixel',        label: 'Pixel Art',        file: 'pixel-art',        desc: '16-bit, dithered palette' },
+        { key: 'cyberpunk',    label: 'Cyberpunk',        file: 'cyberpunk',        desc: 'Neon signage, rain, violet' },
+        { key: 'ghibli',       label: 'Studio Ghibli',    file: 'studio-ghibli',    desc: 'Anime cels, soft pastorals' },
+        { key: 'travelposter', label: 'Travel Poster',    file: 'travel-poster',    desc: 'WPA-era flat illustration' },
+      ],
+    },
+    {
+      title: 'Sketch & Drawing',
+      presets: [
+        { key: 'pencilsketch', label: 'Pencil',           file: 'pencil-sketch',    desc: 'Graphite, loose hand' },
+        { key: 'crosshatch',   label: 'Crosshatch',       file: 'ink-crosshatch',   desc: 'Dense ink lines, etched' },
+        { key: 'charcoal',     label: 'Charcoal',         file: 'charcoal',         desc: 'Smoky black, smudged' },
+        { key: 'lineart',      label: 'Line Art',         file: 'line-drawing',     desc: 'Clean single-weight contours' },
+        { key: 'architect',    label: 'Architect',        file: 'architect-marker', desc: 'Marker + wash, studio look' },
+        { key: 'traveljournal',label: 'Travel Journal',   file: 'travel-journal',   desc: 'Ink + watercolor, handwritten' },
+        { key: 'blueprint',    label: 'Blueprint',        file: 'blueprint',        desc: 'White lines on cyan' },
+        { key: 'woodblock',    label: 'Ukiyo-e',          file: 'ukiyo-e-print',    desc: 'Japanese woodblock print' },
+      ],
+    },
+  ];
+  const FILES = {
+    'realistic':        'mapposter-realistic-2x-20260422-1705.png',
+    'golden-hour':      'mapposter-golden-hour-2x-20260422-1706.png',
+    '70s-film':         'mapposter-70s-film-2x-20260422-1706.png',
+    'polaroid':         'mapposter-polaroid-2x-20260422-1706.png',
+    'vintage-postcard': 'mapposter-vintage-postcard-2x-20260422-1706.png',
+    'night':            'mapposter-night-2x-20260422-1707.png',
+    'snowfall':         'mapposter-snowfall-2x-20260422-1707.png',
+    'autumn':           'mapposter-autumn-2x-20260422-1707.png',
+    'cherry-blossom':   'mapposter-cherry-blossom-2x-20260422-1708.png',
+    'rainy':            'mapposter-rainy-2x-20260422-1708.png',
+    'foggy-dawn':       'mapposter-foggy-dawn-2x-20260422-1708.png',
+    'watercolor':       'mapposter-watercolor-2x-20260422-1708.png',
+    'oil-painting':     'mapposter-oil-painting-2x-20260422-1709.png',
+    'gouache':          'mapposter-gouache-2x-20260422-1709.png',
+    'pastel-dream':     'mapposter-pastel-dream-2x-20260422-1709.png',
+    'stained-glass':    'mapposter-stained-glass-2x-20260422-1710.png',
+    'pixel-art':        'mapposter-pixel-art-2x-20260422-1710.png',
+    'cyberpunk':        'mapposter-cyberpunk-2x-20260422-1710.png',
+    'studio-ghibli':    'mapposter-studio-ghibli-2x-20260422-1711.png',
+    'travel-poster':    'mapposter-travel-poster-2x-20260422-1711.png',
+    'pencil-sketch':    'mapposter-pencil-sketch-2x-20260422-1711.png',
+    'ink-crosshatch':   'mapposter-ink-crosshatch-2x-20260422-1711.png',
+    'charcoal':         'mapposter-charcoal-2x-20260422-1712.png',
+    'line-drawing':     'mapposter-line-drawing-2x-20260422-1712.png',
+    'architect-marker': 'mapposter-architect-marker-2x-20260422-1712.png',
+    'travel-journal':   'mapposter-travel-journal-2x-20260422-1713.png',
+    'blueprint':        'mapposter-blueprint-2x-20260422-1713.png',
+    'ukiyo-e-print':    'mapposter-ukiyo-e-print-2x-20260422-1713.png',
+    'raw':              'mapposter-raw-2x-20260422-1714.png',
+  };
+  function src(file) { return '/style-photos/' + (FILES[file] || FILES['realistic']); }
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  const selected = new Set();
+
+  // Wire up the Raw / Original card (shared across all directions).
+  (function renderRaw() {
+    const img = document.getElementById('raw-card-img');
+    img.src = src(RAW_PRESET.file);
+    const card = document.getElementById('raw-card');
+    card.addEventListener('click', () => togglePreset(RAW_PRESET.key));
+  })();
+
+  // Width switcher — drives --sheet-width. Grid A always stays 2-up;
+  // bigger sheet widths just yield bigger thumbnails.
+  function applyWidth(w) {
+    const n = parseInt(w, 10);
+    document.documentElement.style.setProperty('--sheet-width', n + 'px');
+    document.documentElement.style.setProperty('--a-cols', 2);
+  }
+  document.querySelectorAll('.width-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.width-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      applyWidth(btn.dataset.width);
+    });
+  });
+  applyWidth(560);
+
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      document.querySelectorAll('.direction').forEach(d => d.classList.remove('is-active'));
+      document.getElementById('dir-' + tab).classList.add('is-active');
+      ['a','b','c','d','e'].forEach(t => {
+        const n = document.getElementById('note-' + t);
+        if (n) n.style.display = t === tab ? 'block' : 'none';
+      });
+    });
+  });
+
+  // ─── Direction A ───
+  (function renderA() {
+    const root = document.getElementById('a-content');
+    CATS.forEach(cat => {
+      const head = el('div', 'a-cat-head');
+      head.appendChild(document.createTextNode(cat.title));
+      const count = el('span', 'count', String(cat.presets.length));
+      head.appendChild(count);
+      root.appendChild(head);
+      const grid = el('div', 'a-grid');
+      cat.presets.forEach(p => {
+        const card = el('button', 'a-card');
+        card.dataset.key = p.key;
+        const photo = el('div', 'a-card-photo');
+        const img = document.createElement('img');
+        img.src = src(p.file);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        const check = el('div', 'a-card-check');
+        photo.appendChild(img);
+        photo.appendChild(check);
+        card.appendChild(photo);
+        const body = el('div', 'a-card-body');
+        body.appendChild(el('div', 'a-card-label', p.label));
+        body.appendChild(el('div', 'a-card-sub', p.desc.split(',')[0]));
+        card.appendChild(body);
+        card.addEventListener('click', () => togglePreset(p.key));
+        grid.appendChild(card);
+      });
+      root.appendChild(grid);
+    });
+  })();
+
+  // ─── Direction B ───
+  (function renderB() {
+    const root = document.getElementById('b-content');
+    CATS.forEach(cat => {
+      const head = el('div', 'a-cat-head');
+      head.appendChild(document.createTextNode(cat.title));
+      const count = el('span', 'count', String(cat.presets.length));
+      head.appendChild(count);
+      root.appendChild(head);
+      cat.presets.forEach(p => {
+        const card = el('button', 'b-card');
+        card.dataset.key = p.key;
+        const photo = el('div', 'b-card-photo');
+        const img = document.createElement('img');
+        img.src = src(p.file);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        const check = el('div', 'b-card-check');
+        photo.appendChild(img);
+        photo.appendChild(check);
+        const body = el('div', 'b-card-body');
+        body.appendChild(el('div', 'b-card-title', p.label));
+        body.appendChild(el('div', 'b-card-desc', p.desc));
+        card.appendChild(photo);
+        card.appendChild(body);
+        card.addEventListener('click', () => togglePreset(p.key));
+        root.appendChild(card);
+      });
+    });
+  })();
+
+  // ─── Direction C ───
+  (function renderC() {
+    const root = document.getElementById('c-content');
+    CATS.forEach(cat => {
+      const rail = el('div', 'c-rail');
+      const railHead = el('div', 'c-rail-head');
+      railHead.appendChild(el('div', 'c-rail-title', cat.title));
+      railHead.appendChild(el('div', 'c-rail-count', cat.presets.length + ' styles'));
+      rail.appendChild(railHead);
+      const track = el('div', 'c-rail-track');
+      cat.presets.forEach(p => {
+        const tile = el('button', 'c-tile');
+        tile.dataset.key = p.key;
+        const photo = el('div', 'c-tile-photo');
+        const img = document.createElement('img');
+        img.src = src(p.file);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        const badge = el('div', 'c-tile-badge', 'Selected');
+        photo.appendChild(img);
+        photo.appendChild(badge);
+        tile.appendChild(photo);
+        tile.appendChild(el('div', 'c-tile-label', p.label));
+        tile.appendChild(el('div', 'c-tile-sub', p.desc.split(',')[0]));
+        tile.addEventListener('click', () => togglePreset(p.key));
+        track.appendChild(tile);
+      });
+      rail.appendChild(track);
+      root.appendChild(rail);
+    });
+  })();
+
+  // ─── Direction E — Wide filmstrip ───
+  (function renderE() {
+    const root = document.getElementById('e-content');
+    CATS.forEach(cat => {
+      const rail = el('div', 'e-rail');
+      const railHead = el('div', 'e-rail-head');
+      railHead.appendChild(el('div', 'e-rail-title', cat.title));
+      railHead.appendChild(el('div', 'e-rail-count', cat.presets.length + ' styles'));
+      rail.appendChild(railHead);
+      const track = el('div', 'e-rail-track');
+      cat.presets.forEach(p => {
+        const tile = el('button', 'e-tile');
+        tile.dataset.key = p.key;
+        const photo = el('div', 'e-tile-photo');
+        const img = document.createElement('img');
+        img.src = src(p.file);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        const check = el('div', 'e-tile-check');
+        photo.appendChild(img);
+        photo.appendChild(check);
+        tile.appendChild(photo);
+        const body = el('div', 'e-tile-body');
+        body.appendChild(el('div', 'e-tile-label', p.label));
+        body.appendChild(el('div', 'e-tile-sub', p.desc.split(',')[0]));
+        tile.appendChild(body);
+        tile.addEventListener('click', () => togglePreset(p.key));
+        track.appendChild(tile);
+      });
+      rail.appendChild(track);
+      root.appendChild(rail);
+    });
+  })();
+
+  // ─── Direction D ───
+  (function renderD() {
+    const root = document.getElementById('d-content');
+    const list = el('div', 'd-list');
+    CATS.forEach(cat => {
+      const head = el('div', 'd-cat-head');
+      head.appendChild(document.createTextNode(cat.title));
+      head.appendChild(el('span', 'count', cat.presets.length + ' styles'));
+      list.appendChild(head);
+      cat.presets.forEach(p => {
+        const card = el('button', 'd-card');
+        card.dataset.key = p.key;
+        const photo = el('div', 'd-card-photo');
+        const img = document.createElement('img');
+        img.src = src(p.file);
+        img.alt = p.label;
+        img.loading = 'lazy';
+        const check = el('div', 'd-card-check');
+        photo.appendChild(img);
+        photo.appendChild(check);
+        card.appendChild(photo);
+        const body = el('div', 'd-card-body');
+        const text = el('div', 'd-card-text');
+        text.appendChild(el('div', 'd-card-title', p.label));
+        text.appendChild(el('div', 'd-card-desc', p.desc));
+        body.appendChild(text);
+        body.appendChild(el('div', 'd-card-cat', cat.title));
+        card.appendChild(body);
+        card.addEventListener('click', () => togglePreset(p.key));
+        list.appendChild(card);
+      });
+    });
+    root.appendChild(list);
+  })();
+
+  // Select-all toggle — ignores RAW (which is a separate idea: "no stylization").
+  (function wireSelectAll() {
+    const btn = document.getElementById('footer-selectall');
+    btn.addEventListener('click', () => {
+      const allKeys = CATS.flatMap(c => c.presets).map(p => p.key);
+      const allSelected = allKeys.every(k => selected.has(k));
+      if (allSelected) {
+        allKeys.forEach(k => selected.delete(k));
+      } else {
+        allKeys.forEach(k => selected.add(k));
+      }
+      refreshSelection();
+    });
+  })();
+
+  function togglePreset(key) {
+    if (selected.has(key)) selected.delete(key);
+    else selected.add(key);
+    refreshSelection();
+  }
+  function allPresets() { return [RAW_PRESET, ...CATS.flatMap(c => c.presets)]; }
+  function refreshSelection() {
+    document.querySelectorAll('[data-key]').forEach(elm => {
+      elm.classList.toggle('is-active', selected.has(elm.dataset.key));
+    });
+    const strip = document.getElementById('chip-strip');
+    while (strip.firstChild) strip.removeChild(strip.firstChild);
+    const label = el('span', 'chip-strip-label', 'Queued');
+    strip.appendChild(label);
+    if (selected.size === 0) {
+      strip.classList.add('is-empty');
+      const placeholder = el('span', 'chip-placeholder', 'Pick a style below');
+      strip.appendChild(placeholder);
+    } else {
+      strip.classList.remove('is-empty');
+      selected.forEach(key => {
+        const preset = allPresets().find(p => p.key === key);
+        if (!preset) return;
+        const chip = el('span', 'chip');
+        chip.appendChild(document.createTextNode(preset.label));
+        const x = el('span', 'chip-x', '×');
+        chip.appendChild(x);
+        chip.addEventListener('click', () => togglePreset(key));
+        strip.appendChild(chip);
+      });
+    }
+    const primary = document.getElementById('footer-primary');
+    primary.disabled = selected.size === 0;
+    primary.textContent = selected.size === 0 ? 'Pick a style' : ('Add ' + selected.size + ' to queue');
+    const selectAll = document.getElementById('footer-selectall');
+    const allKeys = CATS.flatMap(c => c.presets).map(p => p.key);
+    const allSelected = allKeys.every(k => selected.has(k));
+    selectAll.textContent = allSelected ? 'Clear' : 'Select all';
+  }
+</script>
+</body>
+</html>

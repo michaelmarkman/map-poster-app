@@ -2,6 +2,11 @@ import React, { useMemo, forwardRef } from 'react'
 import { Effect, EffectAttribute, BlendFunction } from 'postprocessing'
 import { Uniform, Vector2 } from 'three'
 
+// DoF-lab additions (see docs/superpowers/specs/2026-04-21-dof-lab-design.md).
+// All new uniforms default to "off / legacy" — when useApertureCoC and
+// tiltShiftMode are both false, the shader runs exactly as it did before
+// these knobs were introduced, and /app renders identically.
+
 // Mobile detection — matches atoms/scene.js. Used to pick a simpler/cheaper
 // DoF variant. iPhone GPUs (and Android tier-1) have mediump-by-default
 // precision on fragment shaders; running the full 81-sample ring blur
@@ -40,14 +45,58 @@ uniform float maxBlur;
 uniform float sceneColorPop;
 uniform float focusColorPop;
 
+// DoF-lab Phase 2: bokeh character. 0 = narrow/crisp (inner-heavy rings,
+// fast sharp→blurred transition). 1 = wide/creamy (outer-heavy rings,
+// soft gradual transition). Aperture slider in /dof-lab writes this.
+uniform float bokehShape;
+
+// Highlight-bokeh strength multiplier. 0 = uniform blur (bright samples
+// get no special treatment). 4 = strong lens-like bokeh balls — bright
+// highlights dominate the blur kernel. Scene.jsx writes this from the
+// dof.highlightBokeh toggle (on → 4, off → 0).
+uniform float highlightStrength;
+
+
 // Multi-ring disk sampler — concentric rings of samples for smooth bokeh.
 // Desktop: 1 + 8 + 16 + 24 + 32 = 81 samples in 4 rings.
 // Mobile : 1 + 6 + 12 + 18     = 37 samples in 3 rings (saves ~55%
 //          fragment work; still smooth enough at moderate radii).
-vec4 ringBlur(vec2 uv, float radius) {
+// Cheap per-pixel hash for angle dithering. One call per fragment, reused
+// across all rings — breaks up the visible ring structure at high blur
+// radii (otherwise you can see faint concentric bands from the fixed
+// sample angles). Different pixels get different rotations so the banding
+// decorrelates between neighbors.
+float dofHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// radius IS the center pixel's CoC (both derived from the same calc in
+// mainImage). focalZ is passed so each sample can reconstruct its own
+// CoC without re-reading focalPoint. centerSigned is the signed view-
+// space distance from focal plane (negative = nearer than focus, positive
+// = farther) — used by occlusion-aware gather (#5).
+//
+// Hex bokeh (#3): real iris diaphragms have N blades (typically 6 on
+// modern lenses). The aperture polygon shows up in OOF highlights as
+// hexagonal bokeh balls instead of perfect circles. We approximate by
+// snapping the per-sample radius to a hexagon — every angle gets shrunk
+// toward the nearest hex apothem. Subtle but reads as "lens-character"
+// rather than "post-effect."
+const float HEX_BLADES = 6.0;
+float hexShape(float angle) {
+  // Apothem of a regular hexagon inscribed in a unit circle, rotated to
+  // make the angle continuous. cos of distance to nearest blade vertex.
+  float a = mod(angle, 6.2831853 / HEX_BLADES);
+  return cos(a - 3.1415926 / HEX_BLADES) / cos(3.1415926 / HEX_BLADES);
+}
+
+vec4 ringBlur(vec2 uv, float radius, highp float focalZ, float centerSigned) {
   vec2 texelSize = 1.0 / vec2(textureSize(inputBuffer, 0));
   vec4 sum = texture(inputBuffer, uv);
   float tw = 1.0;
+  float centerCoC = radius;
+  // One random rotation per pixel, applied to every ring. 2π range.
+  float angleJitter = dofHash(uv) * 6.2831853;
 
 #ifdef MOBILE_DOF
   const int RING_COUNTS[3] = int[](6, 12, 18);
@@ -62,17 +111,84 @@ vec4 ringBlur(vec2 uv, float radius) {
   for (int r = 0; r < RINGS; r++) {
     int count = RING_COUNTS[r];
     float ringRadius = RING_RADII[r] * radius;
-    float weight = 1.0 - RING_RADII[r] * 0.5; // outer rings weighted slightly less
+    // Uniform-disc weight — the natural shape a circular aperture
+    // produces. Each ring's per-sample weight is constant; the outer
+    // rings naturally contribute more total energy because they have
+    // more samples (8/16/24/32). Earlier inner-heavy / outer-heavy
+    // mix was driven by bokehShape but produced visibly non-uniform
+    // bokeh "halos" — a flat disc reads as cleaner lens character.
+    // bokehShape still controls the mainImage sharp→blur transition
+    // ramp, which is where it actually belongs.
+    float baseWeight = 1.0;
     for (int i = 0; i < count; i++) {
-      float angle = 6.2831853 * float(i) / float(count) + float(r) * 0.5;
-      vec2 offset = vec2(cos(angle), sin(angle)) * ringRadius * texelSize;
+      // Add the per-pixel jitter on top of the ring's evenly-spaced angles.
+      // The old float(r) * 0.5 stagger between rings is kept — it's a
+      // deterministic rotation that helps when dithering is disabled, and
+      // does no harm when layered under the hash jitter.
+      float angle = angleJitter + 6.2831853 * float(i) / float(count) + float(r) * 0.5;
+      // Hex bokeh (#3): blend a hexagon-apothem squish into the kernel
+      // shape. Pure hex shape squishes radius by ~0.866 at the apothem
+      // angles, which combined with per-pixel angle jitter creates a
+      // visible "scratchy" pattern in low-frequency OOF regions. 50%
+      // blend (mix circle ↔ hex) keeps a hint of hex at bright bokeh
+      // balls without amplifying jitter noise on diffuse blur.
+      float effRadius = ringRadius * mix(1.0, hexShape(angle), 0.5);
+      vec2 offset = vec2(cos(angle), sin(angle)) * effRadius * texelSize;
       // Clamp UV to [0,1]. Without this, samples off the frame edge return
       // black on many mobile GPUs regardless of the texture wrap mode,
       // which produces a dark band along the top/side edges wherever the
       // blur ring extends off-screen — the "black seam" bug. Desktop GPUs
       // clamp-to-edge implicitly, so this is a no-op there.
       vec2 sampleUv = clamp(uv + offset, vec2(0.0), vec2(1.0));
-      sum += texture(inputBuffer, sampleUv) * weight;
+
+      // Depth-aware weighting. Reconstruct the sample's own signed depth
+      // and CoC. Signed lets us tell near-OOF (sample closer than focus)
+      // from far-OOF (sample farther) — required for occlusion bleed.
+      highp float sampleDepth = readDepth(sampleUv);
+      highp float sampleViewZ = getViewZ(sampleDepth);
+      highp float sampleSigned = sampleViewZ - focalZ;
+      highp float sampleRelDiff = abs(sampleSigned) / max(abs(focalZ), 0.001);
+      float sampleCoC = smoothstep(0.0, depthRange, sampleRelDiff) * maxBlur;
+      // Standard depth weight: reject samples sharper than us so a
+      // crisp subject doesn't bleed into the blurred backdrop around it.
+      float baseDepthWeight = smoothstep(-1.0, 1.0, sampleCoC - centerCoC);
+      // Occlusion bleed (#5): a near-OOF sample (foreground out-of-focus)
+      // optically scatters its blur disc forward — its edge SHOULD spill
+      // over an in-focus background. Enable that by accepting near-OOF
+      // samples whenever their CoC reaches our pixel's distance from the
+      // sample. Standard gather (above) doesn't do this; without it the
+      // blurred foreground keeps a hard silhouette against sharp
+      // background — the post-effect "tell." Sign convention: viewZ is
+      // negative going into the screen, so sampleSigned < 0 means sample
+      // is BEHIND focal (farther). centerSigned > 0 means our pixel is
+      // in front (nearer). For a near-OOF sample to bleed, sample must
+      // be further from camera than the focal (sampleSigned < 0)? No —
+      // in three.js perspective view-Z, more-negative is farther. So
+      // "nearer than focus" = sampleViewZ > focalZ = sampleSigned > 0.
+      bool sampleNearer = sampleSigned > 0.0;
+      float scatterReach = sampleNearer
+        ? smoothstep(effRadius - 1.0, effRadius + 1.0, sampleCoC)
+        : 0.0;
+      float depthWeight = max(baseDepthWeight, scatterReach);
+      // No floor — truly sharp far-side samples remain fully rejected.
+      // tw is seeded at 1.0 by the center sample so we never divide by zero.
+
+      // Highlight bokeh. Real lenses concentrate blurred-out bright
+      // highlights into visible bokeh "balls" rather than washing them
+      // out evenly. Boost bright samples in the kernel so the brightest
+      // pixels dominate the disc.
+      // CustomDof runs AFTER ToneMapping AGX in the composer chain, so
+      // the input is in display-referred [0, 1] (not HDR). Threshold
+      // (0.88, 1.0) picks up the brightest 12% of pixels — sun glints,
+      // sunlit white roofs — without flooding diffuse whites like haze
+      // or sky. Earlier threshold (1.0, 1.5) never fired because luma
+      // can't exceed 1.0 in the post-AGX buffer.
+      vec4 sampleColor = texture(inputBuffer, sampleUv);
+      float sampleLuma = dot(sampleColor.rgb, vec3(0.299, 0.587, 0.114));
+      float highlightBoost = 1.0 + smoothstep(0.88, 1.0, sampleLuma) * highlightStrength;
+
+      float weight = baseWeight * depthWeight * highlightBoost;
+      sum += sampleColor * weight;
       tw += weight;
     }
   }
@@ -88,6 +204,8 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   highp float rawDepth = readDepth(uv);
   highp float focalRaw = readDepth(focalPoint);
 
+  // Short-circuit: if the user's focal point is on the sky (no geometry),
+  // depth-based DoF has no meaningful focal distance so pass through.
   if (focalRaw >= 1.0) { outputColor = inputColor; return; }
 
   // Soften the far-plane short-circuit into a very tight ramp. A hard
@@ -105,37 +223,82 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
 
   highp float viewZ = getViewZ(rawDepth);
   highp float focalZ = getViewZ(focalRaw);
+  // Signed view-Z delta from focal plane. In three.js perspective view-Z,
+  // values get more negative going into the screen, so signedDelta > 0
+  // means the pixel is NEARER than focus, < 0 means FARTHER. Used by
+  // both #2 (asymmetric near/far slab) and #5 (occlusion-aware gather).
+  highp float signedDelta = viewZ - focalZ;
   // Epsilon in the denominator so a focalZ that quantizes to 0 on
-  // low-precision buffers doesn't produce Inf/NaN (which on some mobile
-  // GPUs samples as black).
-  highp float relDiff = abs(viewZ - focalZ) / max(abs(focalZ), 0.001);
-  float coc = smoothstep(0.0, depthRange, relDiff) * maxBlur;
-  // Keep the blur radius bounded — runaway CoC from depth precision
-  // spikes would sample wildly across the frame, amplifying the OOB
-  // darkening before the UV clamp catches it.
-  coc = clamp(coc, 0.0, maxBlur);
+  // low-precision buffers doesn't produce Inf/NaN.
+  highp float relDiff = abs(signedDelta) / max(abs(focalZ), 0.001);
+
+  // #2 Near/far DoF asymmetry. Real lenses have an in-focus zone that's
+  // ~⅓ in front of the focal plane and ~⅔ behind — near OOF develops
+  // faster per unit depth than far OOF. We achieve that by scaling the
+  // relative-distance for the near side so it crosses the smoothstep
+  // ramp twice as quickly. Same maxBlur on both sides (so a fully OOF
+  // foreground and fully OOF background reach the same bokeh radius);
+  // only the rate of leaving sharpness changes.
+  float asymmetricRelDiff = signedDelta > 0.0 ? relDiff * 2.0 : relDiff;
+
+  // CoC + focusAmount. depthRange is picked on the JS side (tightness
+  // quadratic vs. aperture log curve in /dof-lab) — shader just consumes it.
+  // Clamp the blur radius: runaway CoC from depth precision spikes would
+  // sample wildly across the frame, amplifying OOB darkening before the
+  // UV clamp catches it.
+  float t = smoothstep(0.0, depthRange, asymmetricRelDiff);
+  float coc = clamp(t * maxBlur, 0.0, maxBlur);
+  float focusAmount = 1.0 - t;
 
   vec4 color = inputColor;
-  // Soft blend into the blurred result instead of a hard coc>=0.5
-  // threshold. The hard cutoff created a visible step at the focal
-  // boundary wherever mobile depth jitter pushed coc from 0.49 to 0.51
-  // between adjacent pixels.
-  if (coc > 0.0) {
-    vec4 blurred = ringBlur(uv, coc);
-    float mixAmt = smoothstep(0.0, 1.5, coc);
+  // Soft blend into the blurred result. The mix curve endpoints widen
+  // with bokehShape so wide apertures give a gradual, creamy sharp→blur
+  // transition (endpoints 0.0→2.5) and narrow apertures keep the crisp,
+  // quick transition (endpoints 0.1→1.0). This is subtle on a globe
+  // scene but adds to the "lens character" feel.
+  // #15 Skip ring blur entirely when CoC is sub-pixel — the blurred
+  // result mixes back at near-zero anyway via mixAmt, so the 81 sample
+  // taps are wasted fragment work for the in-focus zone (which is most
+  // of the frame at moderate apertures). Saves a big chunk of the
+  // shader's cost on every "in-focus" pixel.
+  if (coc > 1.0) {
+    vec4 blurred = ringBlur(uv, coc, focalZ, signedDelta);
+    float mixLo = mix(0.1, 0.0, bokehShape);
+    float mixHi = mix(1.0, 2.5, bokehShape);
+    float mixAmt = smoothstep(mixLo, mixHi, coc);
     color = mix(inputColor, blurred, mixAmt);
   }
 
   // Blend toward full sky-blur at the far plane ramp.
   if (skyMix > 0.0) {
-    vec4 skyBlur = ringBlur(uv, maxBlur);
+    vec4 skyBlur = ringBlur(uv, maxBlur, focalZ, signedDelta);
     color = mix(color, skyBlur, skyMix);
   }
 
+  // #11 Chromatic aberration on CoC edges. Real lenses split RGB
+  // wavelengths slightly at the focal-plane boundary — bright edges
+  // pick up a faint cyan/red fringe. Approximate by sampling R and B
+  // channels with a small UV offset proportional to coc, along the
+  // local view direction (here just diagonal). Effect scales with
+  // blur strength and disappears in-focus, so it reads as "lens
+  // character" rather than "broken effect."
+  // Earlier 0.15 offset + 0.3 mix produced visible R/B doubling on
+  // building edges at moderate blur (~3px channel split at coc=20).
+  // Subtler: 0.04 offset (sub-pixel until very high coc), 0.10 mix,
+  // ramp pushed out to coc=12 so most of the frame stays pristine.
+  if (coc > 1.0) {
+    vec2 caTexel = 1.0 / vec2(textureSize(inputBuffer, 0));
+    vec2 caOffset = vec2(1.0, 0.0) * coc * 0.04 * caTexel;
+    float caR = texture(inputBuffer, clamp(uv + caOffset, vec2(0.0), vec2(1.0))).r;
+    float caB = texture(inputBuffer, clamp(uv - caOffset, vec2(0.0), vec2(1.0))).b;
+    float caAmt = smoothstep(1.0, 12.0, coc) * 0.10;
+    color.r = mix(color.r, caR, caAmt);
+    color.b = mix(color.b, caB, caAmt);
+  }
+
   // Color pop — scene baseline everywhere + focus boost on top of the
-  // focal area. Clamped so two maxed sliders can't exceed the shader's
-  // natural "fully popped" range.
-  float focusAmount = 1.0 - smoothstep(0.0, depthRange, relDiff);
+  // focal area. focusAmount was set above alongside coc so color pop
+  // tracks the same focal region the blur uses.
   float pop = min(1.0, sceneColorPop + focusAmount * focusColorPop);
   float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 
@@ -169,6 +332,11 @@ export class CustomDofEffect extends Effect {
         ['maxBlur', new Uniform(20)],
         ['sceneColorPop', new Uniform(0.0)],
         ['focusColorPop', new Uniform(0.6)],
+        // DoF-lab Phase 2 — 0 = narrow/crisp (legacy feel), 1 = wide/creamy.
+        ['bokehShape', new Uniform(0)],
+        // Highlight bokeh strength. Default 4 matches the original
+        // hardcoded value; /dof-lab toggle can set it to 0.
+        ['highlightStrength', new Uniform(4)],
       ]),
     })
   }
