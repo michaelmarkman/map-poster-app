@@ -316,7 +316,6 @@ file is the raw log — CLAUDE.md is the curated summary.
 - General rule: anywhere the app writes to sceneRef directly (bypassing
   atoms) or changes visible render state in response to a single user
   gesture, call invalidate(). Cheap on desktop, load-bearing on mobile.
-
 ## 2026-04-21 — DoF sky-mix ramp was catastrophically wide on a globe scene
 
 - Bug: after PR #41 (mobile DoF black-band fix) shipped, DoF looked
