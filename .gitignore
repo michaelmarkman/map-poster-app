@@ -7,3 +7,7 @@ dist-deploy/
 .playwright-mcp/
 editor-*.png
 *.png
+# Static assets in public/ are real ship-able files — the *.png catch-all
+# above keeps build screenshots / dev output PNGs out of git but should
+# not block legitimate public assets that the app references at runtime.
+!public/**/*.png
