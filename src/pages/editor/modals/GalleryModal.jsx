@@ -16,6 +16,7 @@ export default function GalleryModal() {
   const setLightboxEntry = useSetAtom(lightboxEntryAtom)
   const gallery = useAtomValue(galleryEntriesAtom)
   const [view, setView] = useState('grid') // 'grid' | 'large' | 'list'
+  const [groupBatches, setGroupBatches] = useState(true) // batch grouping on/off
 
   const open = modals.gallery
 
@@ -72,7 +73,12 @@ export default function GalleryModal() {
 
   if (!open) return null
 
-  const entries = buildGalleryEntries(gallery)
+  // When grouping is on, buildGalleryEntries collapses batched items
+  // into one card. When off, render every item flat (newest first to
+  // match the existing reverse-chronological grid order).
+  const entries = groupBatches
+    ? buildGalleryEntries(gallery)
+    : [...gallery].reverse().map((item) => ({ type: 'item', item }))
   const count = gallery.length
   const gridClass = 'gallery-grid' + (view !== 'grid' ? ` view-${view}` : '')
 
@@ -87,6 +93,15 @@ export default function GalleryModal() {
             </span>
           </div>
           <div className="gallery-actions">
+            <button
+              type="button"
+              className={'view-toggle gallery-group-toggle' + (groupBatches ? ' active' : '')}
+              onClick={() => setGroupBatches((v) => !v)}
+              title={groupBatches ? 'Grouping batched renders — click to flatten' : 'Showing every render flat — click to group batches'}
+              aria-pressed={groupBatches}
+            >
+              {groupBatches ? 'Grouped' : 'Flat'}
+            </button>
             <div className="view-toggles">
               {['grid', 'large', 'list'].map((v) => (
                 <button

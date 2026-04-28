@@ -24,6 +24,15 @@ export const aiPromptAtom = atom(
 export const aiPresetAtom = atom(null) // null | 'realistic' | 'golden' | ...
 export const aiApiKeyAtom = atom('') // Gemini — stored locally only
 
+// Whether to append the photogrammetry-cleanup directive to AI render
+// prompts. The Google 3D Tiles source has jagged polygon corners and
+// faceted rooftops at close zoom; the cleanup prompt tells the model
+// to interpret those as their real-world clean architectural form.
+// Defaults true (most renders look better with it). Render-sheet UI
+// surface the toggle so users can flip it off when they actually
+// want the mesh-faithful look (e.g. low-poly art renders).
+export const aiCleanArtifactsAtom = atom(true)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 

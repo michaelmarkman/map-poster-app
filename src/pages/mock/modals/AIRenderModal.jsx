@@ -5,6 +5,7 @@ import {
   aiPromptAtom,
   aiPresetAtom,
   aiApiKeyAtom,
+  aiCleanArtifactsAtom,
   exportResolutionAtom,
   queueAtom,
 } from '../../editor/atoms/sidebar'
@@ -150,6 +151,7 @@ export default function AIRenderModal() {
   const [modals, setModals] = useAtom(modalsAtom)
   const open = modals.aiRender
   const [aiPrompt, setAiPrompt] = useAtom(aiPromptAtom)
+  const [cleanArtifacts, setCleanArtifacts] = useAtom(aiCleanArtifactsAtom)
   const setAiPreset = useSetAtom(aiPresetAtom)
   const [aiKey, setAiKey] = useAtom(aiApiKeyAtom)
   const [exportRes, setExportRes] = useAtom(exportResolutionAtom)
@@ -260,24 +262,37 @@ export default function AIRenderModal() {
   const submitSelected = () => {
     if (stagedCount === 0) return
     const keys = Array.from(selected)
-    const realPresetKeys = keys.filter((k) => k !== RAW_KEY && k !== CUSTOM_KEY)
-    const batchId = keys.length > 1 ? `batch-${Date.now()}` : null
-    const batchLabel = batchId ? `${keys.length} styles` : null
 
-    keys.forEach((key) => {
+    if (keys.length === 1) {
+      // Single-style fast path — fire the existing add-to-queue event.
+      // batchId stays null so it shows up as a solo card in the queue
+      // list (no batch-group header).
+      const key = keys[0]
       if (key === RAW_KEY) {
-        fire('add-to-queue', { preset: null, includeGraphics, batchId, batchLabel })
+        fire('add-to-queue', { preset: null, includeGraphics })
       } else if (key === CUSTOM_KEY) {
-        // Custom slot fires with the user's free-form prompt; the queue
-        // hook treats `prompt` as override text instead of looking up a
-        // canned preset.
-        fire('add-to-queue', { preset: 'custom', includeGraphics, prompt: aiPrompt, batchId, batchLabel })
+        fire('add-to-queue', { preset: 'custom', includeGraphics, prompt: aiPrompt })
       } else {
         setAiPreset(key)
-        fire('add-to-queue', { preset: key, includeGraphics, prompt: aiPrompt, batchId, batchLabel })
+        fire('add-to-queue', { preset: key, includeGraphics, prompt: aiPrompt })
       }
-    })
-    void realPresetKeys // keep var available for future analytics hooks
+    } else {
+      // Multi-style — fire ONE batch event so the queue hook snapshots
+      // the canvas exactly once and fans out N jobs sharing a batchId.
+      // The naive per-preset fan-out used to lock the main thread for
+      // several seconds at "Select all → Render" (28 GPU readbacks +
+      // Fabric serializations + composites in a tight loop).
+      // Map RAW_KEY → null and CUSTOM_KEY → 'custom' the way the queue
+      // hook expects; the rest pass through as-is.
+      const presets = keys.map((k) => (k === RAW_KEY ? null : k))
+      fire('add-batch-to-queue', {
+        presets,
+        includeGraphics,
+        prompt: aiPrompt,
+        batchLabel: `${keys.length} styles`,
+      })
+    }
+
     setSelected(new Set())
     setPane('queue')
   }
@@ -509,7 +524,7 @@ export default function AIRenderModal() {
                 </div>
               ))}
 
-              {/* Include-graphics toggle */}
+              {/* Include-graphics + cleanup toggles */}
               <div className="rs-section">
                 <div className="rs-toggle-row">
                   <span>Include graphics in export</span>
@@ -518,6 +533,15 @@ export default function AIRenderModal() {
                     className={`rs-toggle${includeGraphics ? ' is-on' : ''}`}
                     onClick={() => setIncludeGraphics((v) => !v)}
                     aria-pressed={includeGraphics}
+                  />
+                </div>
+                <div className="rs-toggle-row" title="Tells the AI to clean up jagged building corners and faceted rooftops from the 3D source mesh. Turn off to keep the polygon-faceted look (e.g. for low-poly art renders).">
+                  <span>Clean up mesh artifacts</span>
+                  <button
+                    type="button"
+                    className={`rs-toggle${cleanArtifacts ? ' is-on' : ''}`}
+                    onClick={() => setCleanArtifacts((v) => !v)}
+                    aria-pressed={cleanArtifacts}
                   />
                 </div>
               </div>

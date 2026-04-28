@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import {
   aiApiKeyAtom,
+  aiCleanArtifactsAtom,
   aiEnhanceAtom,
   aiPresetAtom,
   aiPromptAtom,
@@ -269,6 +270,7 @@ export default function useQueue() {
   const aiPrompt = useAtomValue(aiPromptAtom)
   const aiPreset = useAtomValue(aiPresetAtom)
   const aiKey = useAtomValue(aiApiKeyAtom)
+  const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
   const resolution = useAtomValue(exportResolutionAtom)
   const savedViews = useAtomValue(savedViewsAtom)
   const dof = useAtomValue(dofAtom)
@@ -280,6 +282,7 @@ export default function useQueue() {
     aiPrompt,
     aiPreset,
     aiKey,
+    aiCleanArtifacts,
     resolution,
     savedViews,
     dof,
@@ -336,8 +339,11 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        // Auto-download when the job wasn't part of a batch (matches prototype).
-        if (!job.batchId) downloadDataUrl(snapshotUrl, fname)
+        // Auto-download every completed job, including batched ones. The
+        // queue runs single-concurrency, so even a 28-style batch trickles
+        // downloads out one-by-one as each render finishes (minutes
+        // apart) — no risk of a download-spam burst.
+        downloadDataUrl(snapshotUrl, fname)
         dispatchGalleryAdd(job.label, fname, snapshotUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
@@ -381,7 +387,8 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        if (!job.batchId) downloadDataUrl(finalUrl, fname)
+        // See raw-export branch — auto-download all jobs, batched or not.
+        downloadDataUrl(finalUrl, fname)
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
@@ -468,8 +475,14 @@ export default function useQueue() {
     // Mirrors `appendEffectPrompts` in the prototype (poster-v3-ui.jsx:~2291).
     function appendEffectPrompts(prompt) {
       let out = prompt
-      out +=
-        ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
+      // Gate the photogrammetry cleanup on aiCleanArtifactsAtom so users
+      // can flip it off when they actually want the mesh-faithful look
+      // (e.g. low-poly art renders that lean into the source's polygon
+      // character). Default-on; the toggle lives in the Render sheet.
+      if (settingsRef.current.aiCleanArtifacts) {
+        out +=
+          ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
+      }
       if (settingsRef.current.dof?.on) {
         out +=
           ' Preserve the depth-of-field blur exactly as shown in the input — keep the focused area tack-sharp and reproduce the background and foreground blur with the same falloff and intensity. Do not sharpen blurred regions.'
@@ -605,6 +618,90 @@ export default function useQueue() {
       processQueue()
     }
 
+    // Multi-preset add — fired by the Render sheet when the user submits
+    // 2+ styles at once. The naive path was to fire one `add-to-queue`
+    // event per preset, but that re-snapshots the WebGL canvas on every
+    // call (expensive: GPU readback + Fabric capture + composite). At
+    // 28 presets ("Select all → Render") that locks the main thread
+    // for several seconds and on slower machines the page goes
+    // unresponsive. Snapshot ONCE here, fan out as N addJob calls
+    // sharing a batchId so they group in the queue UI.
+    async function onAddBatchToQueue(e) {
+      const detail = e?.detail || {}
+      const presetKeys = Array.isArray(detail.presets) ? detail.presets : []
+      if (presetKeys.length === 0) return
+      const includeGraphics = detail.includeGraphics !== false
+      const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
+      const batchId = detail.batchId || ('batch-' + Date.now())
+      const batchLabel = detail.batchLabel || `${presetKeys.length} styles`
+
+      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
+      if (!rawSnapshot) return
+
+      let graphicsJSON = null
+      try {
+        const fabric = window.__editorOverlayFabric
+        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
+          graphicsJSON = JSON.stringify(
+            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
+          )
+        }
+      } catch {}
+
+      const s = settingsRef.current
+      const location = getLocation()
+      const view = await captureCurrentView()
+      // Pre-composite the raw export once if any preset key is the raw
+      // export (the only path that needs graphics baked in pre-Gemini).
+      const compositedRaw = presetKeys.includes(null)
+        ? (includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot)
+        : null
+
+      for (const presetKey of presetKeys) {
+        const baseJob = {
+          resolution: s.resolution,
+          location,
+          apiKey: s.aiKey,
+          view,
+          graphicsJSON,
+          includeGraphicsAfter: includeGraphics,
+          batchId,
+          batchLabel,
+        }
+        if (presetKey === null) {
+          addJob({
+            ...baseJob,
+            label: 'Raw',
+            prompt: '',
+            useAI: false,
+            snapshot: compositedRaw,
+            baseImage: rawSnapshot,
+          })
+        } else if (presetKey === 'custom') {
+          addJob({
+            ...baseJob,
+            label: 'Custom',
+            prompt: appendEffectPrompts(overridePrompt ?? s.aiPrompt),
+            useAI: true,
+            snapshot: rawSnapshot,
+          })
+        } else {
+          const preset = AI_PRESETS[presetKey]
+          addJob({
+            ...baseJob,
+            label: preset?.label || presetKey,
+            prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
+            useAI: true,
+            snapshot: rawSnapshot,
+            preset: presetKey,
+          })
+        }
+      }
+
+      try { window.__openQueueDropdown?.() } catch (e) {}
+      processQueue()
+    }
+
     async function onGenerateAll() {
       const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
       if (!snapshot) return
@@ -710,6 +807,7 @@ export default function useQueue() {
 
     window.addEventListener('quick-download', onQuickDownload)
     window.addEventListener('add-to-queue', onAddToQueue)
+    window.addEventListener('add-batch-to-queue', onAddBatchToQueue)
     window.addEventListener('generate-all', onGenerateAll)
     window.addEventListener('queue-clear-done', onClearDone)
     window.addEventListener('queue-clear-all', onClearAll)
@@ -723,6 +821,7 @@ export default function useQueue() {
     return () => {
       window.removeEventListener('quick-download', onQuickDownload)
       window.removeEventListener('add-to-queue', onAddToQueue)
+      window.removeEventListener('add-batch-to-queue', onAddBatchToQueue)
       window.removeEventListener('generate-all', onGenerateAll)
       window.removeEventListener('queue-clear-done', onClearDone)
       window.removeEventListener('queue-clear-all', onClearAll)
