@@ -449,18 +449,32 @@ export default function useQueue() {
       })
     }
 
-    // Tell the AI model to preserve the in-scene DoF blur when the user
-    // has DoF turned on. Without this, realistic / golden-hour / etc.
-    // presets re-render a sharp-everywhere photo and the focal plane is
-    // lost. Mirrors `appendEffectPrompts` in the prototype (poster-v3-ui.jsx:~2291).
+    // Universal instructions appended to every preset prompt.
+    //
+    // 1. Photogrammetry cleanup — the source is a Google 3D Tiles render,
+    //    which means building corners, rooftop edges, and tree silhouettes
+    //    are made of polygon facets that read as jagged, blocky, or
+    //    crumpled at close zoom. Without this instruction the AI faithfully
+    //    reproduces those artifacts as if they were intentional features
+    //    (visible in early renders: woodblock buildings with "wavy"
+    //    corners, watercolor rooftops that look crumpled). Tell the model
+    //    to interpret the source as a 3D-mesh approximation of real
+    //    architecture, not as photographic ground truth.
+    //
+    // 2. DoF preservation — when the user has DoF on, keep the focused
+    //    area sharp and reproduce the OOF blur falloff (otherwise the AI
+    //    "fixes" the blur and the focal plane is lost).
+    //
+    // Mirrors `appendEffectPrompts` in the prototype (poster-v3-ui.jsx:~2291).
     function appendEffectPrompts(prompt) {
+      let out = prompt
+      out +=
+        ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
       if (settingsRef.current.dof?.on) {
-        return (
-          prompt +
+        out +=
           ' Preserve the depth-of-field blur exactly as shown in the input — keep the focused area tack-sharp and reproduce the background and foreground blur with the same falloff and intensity. Do not sharpen blurred regions.'
-        )
       }
-      return prompt
+      return out
     }
 
     function promptFor(presetKey, fallback) {
