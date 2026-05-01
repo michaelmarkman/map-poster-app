@@ -33,6 +33,7 @@ import {
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
+import SavedViewMarkers from './SavedViewMarkers'
 import { sceneRef, useSceneRefSync } from './stateRef'
 import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
@@ -603,6 +604,7 @@ export default function Scene() {
       </Globe>
       <ClickToFocus />
       <SubjectListener />
+      <SavedViewMarkers />
 
       <PostProcessing composerRef={composerRef} dofRef={dofRef}>
         <Clouds
