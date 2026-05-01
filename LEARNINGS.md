@@ -449,3 +449,31 @@ file is the raw log — CLAUDE.md is the curated summary.
   neutralize its effect via uniform/texture data instead. `Object.assign`
   won't copy accessor properties from a prototype — use a Proxy when
   the forwarded object uses classes.
+
+## 2026-05-01 — Saved-view markers turning ON made the screen go solid brown
+
+- Bug: enabling the new saved-view camera markers right after a fresh
+  page load turned the entire viewport solid `#c8b897` (the marker's
+  cream accent color). Looked like a WebGL context-loss crash —
+  console even printed `Context Lost` warnings — but bisecting from
+  a returns-null component up to a hardcoded box (worked) to a full
+  primitive camera body (broke) showed the issue wasn't the
+  scene-graph at all.
+- Mechanism: session-persistence restores the live camera to the
+  saved-view's exact position. With `MARKER_SCALE = 50` and a
+  multi-mesh camera body roughly 1.2 × 0.7 × 0.4 in local units, the
+  marker's bounding box was ~60×35×20 m centred on the live camera —
+  the camera was sitting INSIDE the marker mesh, so every fragment
+  shaded the inside of the cream box and filled the screen. The
+  context-lost warnings were a secondary effect of submitting absurd
+  draw calls per frame to a fully-eclipsed view, not the cause.
+- Fix (src/pages/editor/scene/SavedViewMarkers.jsx): drop
+  `MARKER_SCALE` to 10 and add `MARKER_HIDE_DIST = 80`. In useFrame,
+  hide the marker group via `groupRef.current.visible = false` when
+  `camera.position.distanceTo(savedPosition) < MARKER_HIDE_DIST`.
+  The user's "saved" view IS where they are — drawing a marker on
+  top of themselves is never useful.
+- General rule: any in-scene marker placed at a camera-restorable
+  position needs an "I'm at the marker" hide rule. Otherwise the
+  first thing a user sees on a fresh page load with a restored
+  saved camera is the inside of the marker mesh, not the world.

@@ -1,36 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAtomValue } from 'jotai'
-import { useGLTF, Line } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Line } from '@react-three/drei'
 import { Quaternion, Vector3 } from 'three'
 import { savedViewsAtom, savedViewMarkersOnAtom } from '../atoms/sidebar'
 import { altitudeToOpacity, resolveFocalWorld } from './savedViewMarkerMath'
 import '../styles/saved-view-marker-tooltip.css'
 
-const CAMERA_GLB = '/camera-models/1990s_low_poly_camera.glb'
-// World-units. The saved camera position lives in scene-local space but the
-// scene is geo-referenced in meters; ~50m makes the mesh visible at typical
-// aerial altitudes (200m–5km) without dominating the frame at low altitude.
-const MARKER_SCALE = 50
-const ACCENT = '#c8b897' // editor cream accent
-const PIN_RADIUS = 5     // m
-const PIN_HEIGHT = 12    // m
+// World-units scale for the camera marker. Each saved view position is in
+// scene-local ECEF (metres), so this is the marker body size in metres.
+// Earlier 50m caused the marker to fill the screen when the live camera
+// was sitting at the saved position (after a fresh page load that
+// restored a saved camera). 10m gives a visible marker at typical
+// viewing distances (200m–5km away) without eclipsing nearby cameras.
+const MARKER_SCALE = 10
+// Hide the marker when the live camera is within this many metres of the
+// saved camera position — at that range the marker would either be
+// inside the camera (eclipsing the entire view) or so big in the frame
+// it'd block the actual content. The user's "saved" view IS where they
+// are; we don't need to draw a marker on top of themselves.
+const MARKER_HIDE_DIST = 80
+const ACCENT = '#c8b897'
+const PIN_RADIUS = 5
+const PIN_HEIGHT = 12
 const EARTH_RADIUS_M = 6378137
-
-// Drei caches the GLTF; preloading kicks off the fetch before the component
-// mounts so first hover doesn't flash the placeholder.
-useGLTF.preload(CAMERA_GLB)
-
-function ellipsoidDrop(positionVec3) {
-  // Project the camera origin straight down onto the WGS84 ellipsoid surface
-  // (treat scene-local coords as ECEF — that's how the takram atmosphere
-  // pipeline configures things). Returns a Vector3 on the sphere.
-  const len = positionVec3.length()
-  if (len < 1) return positionVec3.clone()
-  const scale = EARTH_RADIUS_M / len
-  return positionVec3.clone().multiplyScalar(scale)
-}
 
 function TooltipPositioner({ tooltipRef, hoveredView }) {
   const camera = useThree((s) => s.camera)
@@ -45,11 +39,8 @@ function TooltipPositioner({ tooltipRef, hoveredView }) {
     }
     const p = hoveredView.camera.position
     projected.current.set(p[0], p[1], p[2]).project(camera)
-    // NDC → CSS pixels; offset by tooltip width so it floats to the right
-    // of the marker, and 24px above so it doesn't sit on top of the mesh.
     const x = (projected.current.x * 0.5 + 0.5) * size.width
     const y = (-projected.current.y * 0.5 + 0.5) * size.height
-    // Hide if the marker is behind the camera (z > 1) or off-screen.
     if (projected.current.z > 1 || x < -300 || x > size.width + 300) {
       el.style.transform = 'translate3d(-9999px, -9999px, 0)'
       return
@@ -59,6 +50,25 @@ function TooltipPositioner({ tooltipRef, hoveredView }) {
   return null
 }
 
+function ellipsoidDrop(positionVec3) {
+  // Project the camera origin straight down onto the WGS84 ellipsoid surface
+  // (treat scene-local coords as ECEF — that's how the takram atmosphere
+  // pipeline configures things). Returns a Vector3 on the sphere.
+  const len = positionVec3.length()
+  if (len < 1) return positionVec3.clone()
+  const scale = EARTH_RADIUS_M / len
+  return positionVec3.clone().multiplyScalar(scale)
+}
+
+// In-scene layer of camera markers for saved views. Each saved view
+// renders as a small primitive camera body at its world position +
+// quaternion, with a frustum-style line dropping to a focal pin on
+// the ground. Hovering a marker portals a screen-space tooltip with
+// the view's name + thumbnail; clicking dispatches `restore-view` so
+// the existing flyTo + DoF/time/graphics restore path runs.
+//
+// Markers are hidden when the live camera is essentially AT the saved
+// position — see MARKER_HIDE_DIST above.
 export default function SavedViewMarkers() {
   const on = useAtomValue(savedViewMarkersOnAtom)
   const views = useAtomValue(savedViewsAtom)
@@ -97,38 +107,7 @@ export default function SavedViewMarkers() {
 }
 
 function SavedViewMarker({ view, isHovered, onHover }) {
-  const { scene: gltfScene } = useGLTF(CAMERA_GLB)
-  // Each marker needs its own clone — sharing the same Object3D across
-  // multiple <primitive> mounts would re-parent the mesh each frame and
-  // only the last one would render.
-  const cloned = useMemo(() => gltfScene.clone(true), [gltfScene])
   const liveScene = useThree((s) => s.scene)
-
-  const opacityRef = useRef(1)
-  const groupRef = useRef(null)
-  const lineRef = useRef(null)
-  const pinRef = useRef(null)
-
-  useFrame(({ camera }) => {
-    // ECEF position length minus Earth radius ≈ altitude above ellipsoid.
-    // Same trick used elsewhere in Scene.jsx.
-    const altitude = Math.max(camera.position.length() - EARTH_RADIUS_M, 0)
-    const op = altitudeToOpacity(altitude)
-    if (op === opacityRef.current) return
-    opacityRef.current = op
-    // Walk the cloned GLB and update every material's opacity. Cheap — the
-    // 1990s low-poly GLB has < 10 materials.
-    if (groupRef.current) {
-      groupRef.current.traverse((child) => {
-        if (child.material) {
-          child.material.transparent = true
-          child.material.opacity = op
-        }
-      })
-    }
-    if (lineRef.current?.material) lineRef.current.material.opacity = op * 0.5
-    if (pinRef.current?.material) pinRef.current.material.opacity = op * 0.9
-  })
 
   const position = useMemo(() => {
     const p = view?.camera?.position
@@ -140,29 +119,56 @@ function SavedViewMarker({ view, isHovered, onHover }) {
     return Array.isArray(q) ? new Quaternion(q[0], q[1], q[2], q[3]) : null
   }, [view?.camera?.quaternion])
 
+  const opacityRef = useRef(1)
+  const groupRef = useRef(null)
+  const lineRef = useRef(null)
+  const pinRef = useRef(null)
+
   // Lazy focal-world resolution. Tries the raycast on mount; falls back to
-  // the ellipsoid drop on miss (sky tap, tileset not yet loaded for region).
+  // the ellipsoid drop on miss (sky tap, tileset not loaded for region).
   // Cached on a ref so we don't re-raycast every render.
   const focalWorldRef = useRef(null)
   useEffect(() => {
     if (!position) return
     const hit = resolveFocalWorld(view, liveScene)
     focalWorldRef.current = hit ?? ellipsoidDrop(position)
-    // No deps on liveScene.children — we only resolve once per marker.
-    // If the user expects markers to "snap" once tiles finish streaming,
-    // re-running here on a tileset-loaded event would be the hook.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.id])
 
-  if (!position || !quaternion) return null
+  useFrame(({ camera }) => {
+    if (!groupRef.current || !position) return
+    // Hide the marker when the live camera is essentially AT the saved
+    // position — typical case: page just loaded with restored saved
+    // camera. Drawing the marker on top of the user's own viewpoint
+    // makes the whole frame brown.
+    const distToMarker = camera.position.distanceTo(position)
+    const tooClose = distToMarker < MARKER_HIDE_DIST
+    if (tooClose) {
+      if (groupRef.current.visible) groupRef.current.visible = false
+      return
+    } else if (!groupRef.current.visible) {
+      groupRef.current.visible = true
+    }
+    const altitude = Math.max(camera.position.length() - EARTH_RADIUS_M, 0)
+    const op = altitudeToOpacity(altitude)
+    if (op === opacityRef.current) return
+    opacityRef.current = op
+    groupRef.current.traverse((child) => {
+      if (child.material) {
+        child.material.transparent = true
+        child.material.opacity = op
+      }
+    })
+    if (lineRef.current?.material) lineRef.current.material.opacity = op * 0.5
+    if (pinRef.current?.material) pinRef.current.material.opacity = op * 0.9
+  })
 
-  // Pin position is a world coord — render the pin in WORLD space (a sibling
-  // group), not nested inside the position-locked camera group.
+  if (!position || !quaternion) return null
   const focalWorld = focalWorldRef.current
 
   const handleClick = (e) => {
     e.stopPropagation()
-    if (opacityRef.current < 0.05) return // invisible — don't react
+    if (opacityRef.current < 0.05) return
     window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
   }
   const handleOver = (e) => {
@@ -188,7 +194,26 @@ function SavedViewMarker({ view, isHovered, onHover }) {
         onPointerOver={handleOver}
         onPointerOut={handleOut}
       >
-        <primitive object={cloned} />
+      {/* Body */}
+      <mesh>
+        <boxGeometry args={[1.2, 0.7, 0.4]} />
+        <meshBasicMaterial color={ACCENT} toneMapped={false} />
+      </mesh>
+      {/* Lens barrel */}
+      <mesh position={[0, 0, -0.35]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.22, 0.18, 0.3, 16]} />
+        <meshBasicMaterial color="#1a1715" toneMapped={false} />
+      </mesh>
+      {/* Lens glass */}
+      <mesh position={[0, 0, -0.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.14, 0.14, 0.04, 16]} />
+        <meshBasicMaterial color="#0a0908" toneMapped={false} />
+      </mesh>
+      {/* Viewfinder bump */}
+      <mesh position={[0.3, 0.4, 0]}>
+        <boxGeometry args={[0.3, 0.15, 0.2]} />
+        <meshBasicMaterial color={ACCENT} toneMapped={false} />
+      </mesh>
       </group>
       {focalWorld && (
         <>
