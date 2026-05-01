@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { useGLTF, Line } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
@@ -33,18 +33,26 @@ function ellipsoidDrop(positionVec3) {
 export default function SavedViewMarkers() {
   const on = useAtomValue(savedViewMarkersOnAtom)
   const views = useAtomValue(savedViewsAtom)
+  const [hoveredId, setHoveredId] = useState(null)
   if (!on) return null
   if (!views?.length) return null
   return (
     <>
       {views.map((view) => (
-        <SavedViewMarker key={view.id} view={view} />
+        <SavedViewMarker
+          key={view.id}
+          view={view}
+          isHovered={hoveredId === view.id}
+          onHover={(hover) =>
+            setHoveredId(hover ? view.id : (h) => (h === view.id ? null : h))
+          }
+        />
       ))}
     </>
   )
 }
 
-function SavedViewMarker({ view }) {
+function SavedViewMarker({ view, isHovered, onHover }) {
   const { scene: gltfScene } = useGLTF(CAMERA_GLB)
   // Each marker needs its own clone — sharing the same Object3D across
   // multiple <primitive> mounts would re-parent the mesh each frame and
@@ -107,9 +115,35 @@ function SavedViewMarker({ view }) {
   // Pin position is a world coord — render the pin in WORLD space (a sibling
   // group), not nested inside the position-locked camera group.
   const focalWorld = focalWorldRef.current
+
+  const handleClick = (e) => {
+    e.stopPropagation()
+    if (opacityRef.current < 0.05) return // invisible — don't react
+    window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
+  }
+  const handleOver = (e) => {
+    e.stopPropagation()
+    if (opacityRef.current < 0.05) return
+    onHover(true)
+    document.body.style.cursor = 'pointer'
+  }
+  const handleOut = (e) => {
+    e.stopPropagation()
+    onHover(false)
+    document.body.style.cursor = ''
+  }
+
   return (
     <>
-      <group ref={groupRef} position={position} quaternion={quaternion} scale={MARKER_SCALE}>
+      <group
+        ref={groupRef}
+        position={position}
+        quaternion={quaternion}
+        scale={MARKER_SCALE * (isHovered ? 1.15 : 1)}
+        onClick={handleClick}
+        onPointerOver={handleOver}
+        onPointerOut={handleOut}
+      >
         <primitive object={cloned} />
       </group>
       {focalWorld && (
