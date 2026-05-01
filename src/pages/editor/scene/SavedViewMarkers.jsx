@@ -275,6 +275,10 @@ function SavedViewMarker({ view, isHovered, onHover }) {
         // the distance-based size. We start at MIN so the first frame
         // (before useFrame fires) doesn't show a pop-in at scale=1.
         scale={MARKER_SCALE_MIN}
+        // Tag every descendant so resolveFocalWorld's raycast can skip
+        // marker geometry (otherwise a saved view's ray can lock onto
+        // another saved view's camera body sitting in line of sight).
+        userData={{ savedViewMarker: true }}
         onClick={handleClick}
         onPointerOver={handleOver}
         onPointerOut={handleOut}
@@ -310,7 +314,11 @@ function SavedViewMarker({ view, isHovered, onHover }) {
             opacity={0.5}
             lineWidth={1}
           />
-          <mesh ref={pinRef} position={focalWorld}>
+          <mesh
+            ref={pinRef}
+            position={focalWorld}
+            userData={{ savedViewMarker: true }}
+          >
             <coneGeometry args={[PIN_RADIUS, PIN_HEIGHT, 8]} />
             <meshBasicMaterial color={ACCENT} transparent opacity={0.9} />
           </mesh>

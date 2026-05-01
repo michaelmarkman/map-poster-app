@@ -27,8 +27,7 @@ const _virtualCam = new PerspectiveCamera()
 
 // Given a saved view (camera position + quaternion + fov + focalUV) and the
 // live scene graph, raycast from the saved viewpoint through focalUV and
-// return the world-space hit point. Returns null on miss (caller falls
-// back to ellipsoid drop).
+// return the world-space hit point. Returns null on miss.
 //
 // We DON'T move the live camera — we configure a virtual PerspectiveCamera
 // with the saved transform and fire the ray from there. That way this can
@@ -38,7 +37,18 @@ const _virtualCam = new PerspectiveCamera()
 // `nameRejectRegex` matches mesh names we consider "shells" (atmosphere,
 // clouds, ellipsoid stand-ins). Mirrors the filter in Scene.jsx's
 // click-to-focus raycast so we don't lock onto the sky.
+//
+// `minDist` filters out hits that are too close to be the real subject.
+// Default 50m: the saved camera often sits on or just inside a rooftop
+// (3D Tiles geometry hugs the camera), and the raycast's first hit lands
+// 1–10 m away on that surface. Skipping those hits lets us find the
+// actual subject behind. Set to a larger value (200m+) for views taken
+// from far above their subject so even macro hits are skipped.
+//
+// We also exclude any object marked with `userData.savedViewMarker` so a
+// view's raycast can't lock onto another (or its own) marker mesh.
 export function resolveFocalWorld(view, scene, opts = {}) {
+  const minDist = opts.minDist ?? 50
   const maxDist = opts.maxDist ?? 20000
   const nameRejectRegex = opts.nameRejectRegex ?? /atmosphere|cloud|ellipsoid|sky|globe/i
 
@@ -61,10 +71,19 @@ export function resolveFocalWorld(view, scene, opts = {}) {
   const hits = _raycaster.intersectObjects(scene.children, true)
   for (const h of hits) {
     const d = _virtualCam.position.distanceTo(h.point)
-    if (d < 1 || d > maxDist) continue
+    if (d < minDist || d > maxDist) continue
     const name = (h.object?.name || '').toLowerCase()
     if (nameRejectRegex.test(name)) continue
     if (h.object?.isAtmosphereMesh || h.object?.isCloudsEffect) continue
+    // Skip our own gizmos — every mesh under a SavedViewMarker group
+    // gets `userData.savedViewMarker = true` (set by SavedViewMarkers.jsx).
+    let o = h.object
+    let isMarker = false
+    while (o) {
+      if (o.userData?.savedViewMarker) { isMarker = true; break }
+      o = o.parent
+    }
+    if (isMarker) continue
     return new Vector3(h.point.x, h.point.y, h.point.z)
   }
   return null
