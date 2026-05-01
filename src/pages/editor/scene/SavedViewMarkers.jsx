@@ -11,13 +11,17 @@ import {
 import { altitudeToOpacity, resolveFocalWorld } from './savedViewMarkerMath'
 import '../styles/saved-view-marker-tooltip.css'
 
-// World-units scale for the camera marker. Each saved view position is in
-// scene-local ECEF (metres), so this is the marker body size in metres.
-// 10m gives a visible marker at typical viewing distances (200m–5km away)
-// without eclipsing nearby cameras when the live camera sits exactly on a
-// saved-view position (the case after a fresh page load that restored a
-// saved camera) — see MARKER_HIDE_DIST below for the second guard.
-const MARKER_SCALE = 10
+// World-unit floor on the camera marker's body size, in metres. At close
+// range the marker won't shrink below this; the rest of the size scales
+// linearly with distance so the marker stays noticeable from any altitude
+// (see MARKER_SCALE_PER_METER + the per-frame scale.setScalar in useFrame).
+const MARKER_SCALE_MIN = 25
+// World metres of marker scale per metre of camera distance. A pure
+// "constant screen size" projection would compute this from the camera's
+// FOV; this approximation is close enough that the marker reads as the
+// same apparent size at 500m as at 50km without doing the trig per frame.
+// At 1km away the marker body is ~20m; at 10km it's ~200m.
+const MARKER_SCALE_PER_METER = 0.02
 // Hide the marker when the live camera is within this many metres of the
 // saved camera position — at that range the marker would either be
 // inside the camera (eclipsing the entire view) or so big in the frame
@@ -25,6 +29,11 @@ const MARKER_SCALE = 10
 // are; we don't need to draw a marker on top of themselves.
 const MARKER_HIDE_DIST = 80
 const ACCENT = '#c8b897'
+// Ground-pin floor + per-metre growth, mirroring the marker scale logic
+// but using the pin's own distance from the live camera (which differs
+// from the marker's distance whenever the saved view was looking down).
+const PIN_SCALE_MIN = 1
+const PIN_SCALE_PER_METER = 0.015
 const PIN_RADIUS = 5
 const PIN_HEIGHT = 12
 const EARTH_RADIUS_M = 6378137
@@ -197,6 +206,23 @@ function SavedViewMarker({ view, isHovered, onHover }) {
     } else if (!groupRef.current.visible) {
       groupRef.current.visible = true
     }
+    // Distance-based scale: grow with camera distance so the marker
+    // reads as the same apparent size whether the user is 500m away
+    // or 50km up. Hover gives a 15% bump for affordance.
+    const bodyScale =
+      Math.max(MARKER_SCALE_MIN, distToMarker * MARKER_SCALE_PER_METER) *
+      (isHovered ? 1.15 : 1)
+    groupRef.current.scale.setScalar(bodyScale)
+    // Pin scales independently — it uses its own ground-position
+    // distance, which differs from the marker's distance whenever
+    // the saved view was looking down at a foreshortened angle.
+    if (pinRef.current) {
+      const fw = focalWorldRef.current
+      const distToPin = fw ? camera.position.distanceTo(fw) : distToMarker
+      pinRef.current.scale.setScalar(
+        Math.max(PIN_SCALE_MIN, distToPin * PIN_SCALE_PER_METER),
+      )
+    }
     const altitude = Math.max(camera.position.length() - EARTH_RADIUS_M, 0)
     const op = altitudeToOpacity(altitude)
     if (op === opacityRef.current) return
@@ -237,7 +263,10 @@ function SavedViewMarker({ view, isHovered, onHover }) {
         ref={groupRef}
         position={position}
         quaternion={quaternion}
-        scale={MARKER_SCALE * (isHovered ? 1.15 : 1)}
+        // Initial scale; useFrame overwrites this on the next tick with
+        // the distance-based size. We start at MIN so the first frame
+        // (before useFrame fires) doesn't show a pop-in at scale=1.
+        scale={MARKER_SCALE_MIN}
         onClick={handleClick}
         onPointerOver={handleOver}
         onPointerOut={handleOut}
