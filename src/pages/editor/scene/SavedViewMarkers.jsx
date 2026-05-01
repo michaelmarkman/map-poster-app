@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { useGLTF, Line } from '@react-three/drei'
-import { useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Quaternion, Vector3 } from 'three'
 import { savedViewsAtom, savedViewMarkersOnAtom } from '../atoms/sidebar'
-import { resolveFocalWorld } from './savedViewMarkerMath'
+import { altitudeToOpacity, resolveFocalWorld } from './savedViewMarkerMath'
 
 const CAMERA_GLB = '/camera-models/1990s_low_poly_camera.glb'
 // World-units. The saved camera position lives in scene-local space but the
@@ -52,6 +52,32 @@ function SavedViewMarker({ view }) {
   const cloned = useMemo(() => gltfScene.clone(true), [gltfScene])
   const liveScene = useThree((s) => s.scene)
 
+  const opacityRef = useRef(1)
+  const groupRef = useRef(null)
+  const lineRef = useRef(null)
+  const pinRef = useRef(null)
+
+  useFrame(({ camera }) => {
+    // ECEF position length minus Earth radius ≈ altitude above ellipsoid.
+    // Same trick used elsewhere in Scene.jsx.
+    const altitude = Math.max(camera.position.length() - EARTH_RADIUS_M, 0)
+    const op = altitudeToOpacity(altitude)
+    if (op === opacityRef.current) return
+    opacityRef.current = op
+    // Walk the cloned GLB and update every material's opacity. Cheap — the
+    // 1990s low-poly GLB has < 10 materials.
+    if (groupRef.current) {
+      groupRef.current.traverse((child) => {
+        if (child.material) {
+          child.material.transparent = true
+          child.material.opacity = op
+        }
+      })
+    }
+    if (lineRef.current?.material) lineRef.current.material.opacity = op * 0.5
+    if (pinRef.current?.material) pinRef.current.material.opacity = op * 0.9
+  })
+
   const position = useMemo(() => {
     const p = view?.camera?.position
     return Array.isArray(p) ? new Vector3(p[0], p[1], p[2]) : null
@@ -83,19 +109,20 @@ function SavedViewMarker({ view }) {
   const focalWorld = focalWorldRef.current
   return (
     <>
-      <group position={position} quaternion={quaternion} scale={MARKER_SCALE}>
+      <group ref={groupRef} position={position} quaternion={quaternion} scale={MARKER_SCALE}>
         <primitive object={cloned} />
       </group>
       {focalWorld && (
         <>
           <Line
+            ref={lineRef}
             points={[position.toArray(), focalWorld.toArray()]}
             color={ACCENT}
             transparent
             opacity={0.5}
             lineWidth={1}
           />
-          <mesh position={focalWorld}>
+          <mesh ref={pinRef} position={focalWorld}>
             <coneGeometry args={[PIN_RADIUS, PIN_HEIGHT, 8]} />
             <meshBasicMaterial color={ACCENT} transparent opacity={0.9} />
           </mesh>
