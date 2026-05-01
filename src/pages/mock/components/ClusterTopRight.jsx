@@ -1,8 +1,9 @@
 import { useAtom } from 'jotai'
 import HoverPopoverPill from './HoverPopoverPill'
 import GuestSignInChip from './GuestSignInChip'
-import { CloudIcon, ApertureIcon } from './icons'
+import { CloudIcon, ApertureIcon, CameraIcon } from './icons'
 import { cloudsAtom, dofAtom } from '../../editor/atoms/scene'
+import { savedViewMarkersOnAtom } from '../../editor/atoms/sidebar'
 
 // Aperture mode mapping: 0–100 slider → f-stop on a log scale.
 // 0% = f/16 (deep focus, almost no blur), 100% = f/1.4 (shallow + creamy).
@@ -54,6 +55,7 @@ function MockToggleRow({ label, on, onToggle }) {
 export default function ClusterTopRight() {
   const [clouds, setClouds] = useAtom(cloudsAtom)
   const [dof, setDof] = useAtom(dofAtom)
+  const [markersOn, setMarkersOn] = useAtom(savedViewMarkersOnAtom)
 
   return (
     <div className="mock-cluster mock-cluster--top-right">
@@ -161,6 +163,12 @@ export default function ClusterTopRight() {
           />
         </div>
       </HoverPopoverPill>
+      <HoverPopoverPill
+        icon={<CameraIcon />}
+        label={`Markers: ${markersOn ? 'ON' : 'OFF'}`}
+        active={markersOn}
+        onToggle={() => setMarkersOn((v) => !v)}
+      />
     </div>
   )
 }

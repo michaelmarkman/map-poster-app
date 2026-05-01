@@ -33,6 +33,11 @@ export const aiApiKeyAtom = atom('') // Gemini — stored locally only
 // want the mesh-faithful look (e.g. low-poly art renders).
 export const aiCleanArtifactsAtom = atom(true)
 
+// Toggles the in-scene layer of camera markers for saved views — see
+// docs/superpowers/specs/2026-04-30-saved-view-camera-markers-design.md.
+// Off by default; persists across sessions via useSessionPersistence.
+export const savedViewMarkersOnAtom = atom(false)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 
