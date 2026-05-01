@@ -3,6 +3,7 @@ import { useAtomValue, useAtom, useSetAtom } from 'jotai'
 import '../editor/styles/index.css'
 import './styles/mock.css'
 import EditorCanvas from '../editor/scene/EditorCanvas'
+import { SavedViewMarkersOverlay } from '../editor/scene/SavedViewMarkers'
 import GalleryModal from '../editor/modals/GalleryModal'
 import Lightbox from '../editor/modals/Lightbox'
 import PosterPreviewModal from '../editor/modals/PosterPreviewModal'
@@ -209,6 +210,14 @@ export default function MockEditorShell() {
       </div>
 
       <FrameOverlay />
+
+      {/* Tooltip for hovered saved-view markers. Lives OUTSIDE the
+          R3F Canvas so its `<div>` doesn't go through the Three.js
+          reconciler — that would throw "R3F: Div is not part of the
+          THREE namespace". The Canvas-side `<SavedViewMarkers />`
+          inside Scene drives this element's position via a module
+          ref + a useFrame projection. */}
+      <SavedViewMarkersOverlay />
 
       <ClusterTopLeft />
       <ClusterTopMid />

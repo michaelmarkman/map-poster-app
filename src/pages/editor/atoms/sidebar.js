@@ -38,6 +38,12 @@ export const aiCleanArtifactsAtom = atom(true)
 // Off by default; persists across sessions via useSessionPersistence.
 export const savedViewMarkersOnAtom = atom(false)
 
+// Currently-hovered saved view marker id (or null). Lives at module scope
+// so the in-Canvas markers (which detect hover via R3F pointer events) can
+// signal the out-of-Canvas tooltip overlay (which renders the actual
+// HTML). Don't persist — purely transient.
+export const hoveredSavedViewIdAtom = atom(null)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 

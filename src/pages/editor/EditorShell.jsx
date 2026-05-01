@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import './styles/index.css'
 import EditorCanvas from './scene/EditorCanvas'
+import { SavedViewMarkersOverlay } from './scene/SavedViewMarkers'
 import Sidebar from './sidebar/Sidebar'
 import CanvasHUD from './overlays/CanvasHUD'
 import TextOverlay from './overlays/TextOverlay'
@@ -70,6 +71,10 @@ export default function EditorShell() {
           </div>
           <TextOverlay />
         </div>
+        {/* Tooltip for hovered saved-view markers — see comment in
+            MockEditorShell. Mounted outside the Canvas so its DOM
+            doesn't route through R3F's reconciler. */}
+        <SavedViewMarkersOverlay />
         <CanvasHUD />
         <PosterPreviewToggle />
       </div>

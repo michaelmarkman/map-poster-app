@@ -477,3 +477,40 @@ file is the raw log — CLAUDE.md is the curated summary.
   position needs an "I'm at the marker" hide rule. Otherwise the
   first thing a user sees on a fresh page load with a restored
   saved camera is the inside of the marker mesh, not the world.
+
+## 2026-05-01 — `react-dom`'s `createPortal` doesn't escape `<Canvas>`
+
+- Bug: turning saved-view markers ON crashed the canvas to solid
+  black with `Uncaught Error: R3F: Div is not part of the THREE
+  namespace! Did you forget to extend?` followed by
+  `WebGLRenderer: Context Lost.` Looked like a shader-recompile or
+  a coordinate-magnitude blow-up. It was neither — bisecting from
+  parent-returns-null (worked) up to a single static mesh (crashed)
+  through every variation (small position, no events, imperative
+  scene.add, etc.) all crashed identically. Even a no-op marker
+  with zero saved views crashed on toggle.
+- Mechanism: `SavedViewMarkers` lived inside the R3F `<Canvas>` and
+  rendered the tooltip via `createPortal(<div>…</div>, document.body)`
+  from `react-dom`. The portal escapes the DOM but NOT the active
+  reconciler — its children are still constructed by R3F's
+  custom-renderer reconciler, which only knows Three.js primitives.
+  R3F throws on the first `<div>` it tries to host, the error
+  bubbles through the Canvas fiber tree, and the WebGL context
+  drops on the next frame. The "Context Lost" line is a downstream
+  symptom of React unmounting the canvas element, not a GPU
+  watchdog timeout.
+- Fix (src/pages/editor/scene/SavedViewMarkers.jsx): split the
+  component in two. `<SavedViewMarkers />` stays inside the Canvas,
+  renders only Three.js primitives, and publishes hovered-id to a
+  Jotai atom. New `<SavedViewMarkersOverlay />` mounts as a sibling
+  of `<EditorCanvas />` (in MockEditorShell + EditorShell), owns the
+  tooltip `<div>` in the regular DOM, and exposes its element to
+  the Canvas-side useFrame projection via a module-scoped ref
+  (`tooltipDomRef`). The Canvas-side `<TooltipPositioner>` writes
+  `style.transform` directly on that DOM node every frame.
+- General rule: never call `react-dom`'s `createPortal` from a
+  component that lives inside a custom-reconciler tree (R3F,
+  react-konva, etc.). The portal target is irrelevant — what
+  matters is which reconciler is mounted in the React fiber path.
+  Use the host renderer's own bridge (drei `<Html>`) or render the
+  HTML from a sibling of the custom-renderer root.
