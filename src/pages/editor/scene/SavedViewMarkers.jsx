@@ -30,12 +30,14 @@ const MARKER_SCALE_PER_METER = 0.02
 const MARKER_HIDE_DIST = 80
 const ACCENT = '#c8b897'
 // Ground-pin floor + per-metre growth, mirroring the marker scale logic
-// but using the pin's own distance from the live camera (which differs
-// from the marker's distance whenever the saved view was looking down).
+// but tuned much smaller — the pin is just a footprint indicator, the
+// camera body is the actual landmark. Geometry is tiny too (1.5m × 3m
+// before scaling) so even at 10km out the pin reads as a stake, not a
+// monolith.
 const PIN_SCALE_MIN = 1
-const PIN_SCALE_PER_METER = 0.015
-const PIN_RADIUS = 5
-const PIN_HEIGHT = 12
+const PIN_SCALE_PER_METER = 0.003
+const PIN_RADIUS = 1.5
+const PIN_HEIGHT = 3
 const EARTH_RADIUS_M = 6378137
 
 // Module-level handle to the tooltip DOM element. Set by
