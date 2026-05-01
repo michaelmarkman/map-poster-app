@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Line } from '@react-three/drei'
@@ -52,16 +52,6 @@ const EARTH_RADIUS_M = 6378137
 // HTML must be rendered by a sibling of the Canvas, and the in-Canvas
 // projection code reaches it through this module-scoped ref instead.
 const tooltipDomRef = { current: null }
-
-function ellipsoidDrop(positionVec3) {
-  // Project the camera origin straight down onto the WGS84 ellipsoid surface
-  // (treat scene-local coords as ECEF — that's how the takram atmosphere
-  // pipeline configures things). Returns a Vector3 on the sphere.
-  const len = positionVec3.length()
-  if (len < 1) return positionVec3.clone()
-  const scale = EARTH_RADIUS_M / len
-  return positionVec3.clone().multiplyScalar(scale)
-}
 
 // Drives the screen-space position of the (DOM-rendered) tooltip from
 // inside the Canvas where the camera lives. Reads `tooltipDomRef`
@@ -183,14 +173,32 @@ function SavedViewMarker({ view, isHovered, onHover }) {
   const lineRef = useRef(null)
   const pinRef = useRef(null)
 
-  // Lazy focal-world resolution. Tries the raycast on mount; falls back to
-  // the ellipsoid drop on miss (sky tap, tileset not loaded for region).
-  // Cached on a ref so we don't re-raycast every render.
-  const focalWorldRef = useRef(null)
+  // Lazy focal-world resolution. The raycast can only hit something real
+  // once 3D Tiles have streamed in for the saved view's region — which on
+  // a fresh page load happens AFTER mount. Retry every second until we
+  // get a real hit, then stop. Until then `focalWorld` stays null and we
+  // don't render the frustum line / pin (the alternative — falling back
+  // to a "straight down to ellipsoid" line — produces a vertical line
+  // that doesn't represent the camera's actual look direction and looks
+  // like the line is pointing UP from the marker).
+  const [focalWorld, setFocalWorld] = useState(null)
   useEffect(() => {
     if (!position) return
-    const hit = resolveFocalWorld(view, liveScene)
-    focalWorldRef.current = hit ?? ellipsoidDrop(position)
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 15
+    const tryResolve = () => {
+      if (cancelled) return
+      attempts++
+      const hit = resolveFocalWorld(view, liveScene)
+      if (hit) {
+        setFocalWorld(hit)
+        return
+      }
+      if (attempts < MAX_ATTEMPTS) setTimeout(tryResolve, 1000)
+    }
+    tryResolve()
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.id])
 
@@ -219,8 +227,7 @@ function SavedViewMarker({ view, isHovered, onHover }) {
     // distance, which differs from the marker's distance whenever
     // the saved view was looking down at a foreshortened angle.
     if (pinRef.current) {
-      const fw = focalWorldRef.current
-      const distToPin = fw ? camera.position.distanceTo(fw) : distToMarker
+      const distToPin = focalWorld ? camera.position.distanceTo(focalWorld) : distToMarker
       pinRef.current.scale.setScalar(
         Math.max(PIN_SCALE_MIN, distToPin * PIN_SCALE_PER_METER),
       )
@@ -240,7 +247,6 @@ function SavedViewMarker({ view, isHovered, onHover }) {
   })
 
   if (!position || !quaternion) return null
-  const focalWorld = focalWorldRef.current
 
   const handleClick = (e) => {
     e.stopPropagation()
