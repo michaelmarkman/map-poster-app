@@ -20,6 +20,7 @@ import {
   textFieldsAtom,
   cameraReadoutAtom,
 } from '../atoms/ui'
+import { savedViewMarkersOnAtom } from '../atoms/sidebar'
 
 const SESSION_KEY = 'mapposter3d_poster_v2_session'
 const DEBOUNCE_MS = 500
@@ -64,6 +65,7 @@ export default function useSessionPersistence() {
   const setAspectRatio = useSetAtom(aspectRatioAtom)
   const setTextOverlay = useSetAtom(textOverlayAtom)
   const setTextFields = useSetAtom(textFieldsAtom)
+  const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -82,6 +84,7 @@ export default function useSessionPersistence() {
   const textOverlay = useAtomValue(textOverlayAtom)
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
+  const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -92,7 +95,7 @@ export default function useSessionPersistence() {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-      textFields, cameraReadout,
+      textFields, cameraReadout, savedViewMarkersOn,
     }
   })
 
@@ -157,6 +160,11 @@ export default function useSessionPersistence() {
         if (u.textFields) setTextFields(mergeObj(latest.current.textFields, u.textFields))
         if (u.mapStyle) setMapStyle(u.mapStyle)
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
+        // Guard with typeof check so old session blobs that pre-date this
+        // field don't overwrite the default with `undefined`.
+        if (typeof u.savedViewMarkersOn === 'boolean') {
+          setSavedViewMarkersOn(u.savedViewMarkersOn)
+        }
       }
 
       // Camera is rehydrated directly by Scene's useLayoutEffect reading
@@ -205,6 +213,7 @@ export default function useSessionPersistence() {
         textFields: { ...v.textFields },
         mapStyle: v.mapStyle,
         todUnlocked: !!v.todUnlocked,
+        savedViewMarkersOn: !!v.savedViewMarkersOn,
       },
       timestamp: Date.now(),
     }
@@ -250,7 +259,7 @@ export default function useSessionPersistence() {
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-    textFields,
+    textFields, savedViewMarkersOn,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture
