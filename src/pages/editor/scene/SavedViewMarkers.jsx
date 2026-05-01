@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAtomValue } from 'jotai'
 import { useGLTF, Line } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Quaternion, Vector3 } from 'three'
 import { savedViewsAtom, savedViewMarkersOnAtom } from '../atoms/sidebar'
 import { altitudeToOpacity, resolveFocalWorld } from './savedViewMarkerMath'
+import '../styles/saved-view-marker-tooltip.css'
 
 const CAMERA_GLB = '/camera-models/1990s_low_poly_camera.glb'
 // World-units. The saved camera position lives in scene-local space but the
@@ -30,10 +32,42 @@ function ellipsoidDrop(positionVec3) {
   return positionVec3.clone().multiplyScalar(scale)
 }
 
+function TooltipPositioner({ tooltipRef, hoveredView }) {
+  const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
+  const projected = useRef(new Vector3())
+
+  useFrame(() => {
+    const el = tooltipRef.current
+    if (!el || !hoveredView?.camera?.position) {
+      if (el) el.style.transform = 'translate3d(-9999px, -9999px, 0)'
+      return
+    }
+    const p = hoveredView.camera.position
+    projected.current.set(p[0], p[1], p[2]).project(camera)
+    // NDC → CSS pixels; offset by tooltip width so it floats to the right
+    // of the marker, and 24px above so it doesn't sit on top of the mesh.
+    const x = (projected.current.x * 0.5 + 0.5) * size.width
+    const y = (-projected.current.y * 0.5 + 0.5) * size.height
+    // Hide if the marker is behind the camera (z > 1) or off-screen.
+    if (projected.current.z > 1 || x < -300 || x > size.width + 300) {
+      el.style.transform = 'translate3d(-9999px, -9999px, 0)'
+      return
+    }
+    el.style.transform = `translate3d(${Math.round(x + 16)}px, ${Math.round(y - 24)}px, 0)`
+  })
+  return null
+}
+
 export default function SavedViewMarkers() {
   const on = useAtomValue(savedViewMarkersOnAtom)
   const views = useAtomValue(savedViewsAtom)
   const [hoveredId, setHoveredId] = useState(null)
+  const tooltipRef = useRef(null)
+  const hoveredView = useMemo(
+    () => (hoveredId ? views.find((v) => v.id === hoveredId) : null),
+    [hoveredId, views],
+  )
   if (!on) return null
   if (!views?.length) return null
   return (
@@ -48,6 +82,16 @@ export default function SavedViewMarkers() {
           }
         />
       ))}
+      <TooltipPositioner tooltipRef={tooltipRef} hoveredView={hoveredView} />
+      {typeof document !== 'undefined' && createPortal(
+        <div ref={tooltipRef} className="svm-tooltip" aria-hidden={!hoveredView}>
+          {hoveredView?.thumbnail && (
+            <img className="svm-tooltip__img" src={hoveredView.thumbnail} alt="" />
+          )}
+          <div className="svm-tooltip__name">{hoveredView?.name || 'View'}</div>
+        </div>,
+        document.body,
+      )}
     </>
   )
 }
