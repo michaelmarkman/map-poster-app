@@ -92,10 +92,14 @@ export default function useGalleryData() {
     }
     window.addEventListener('gallery-add', onAdd)
     window.addEventListener('gallery-delete', onDelete)
+    // 'gallery-remove' alias — the gallery card per-item delete dispatches
+    // this name (Phase 2.5). Same shape as gallery-delete; keep both wired.
+    window.addEventListener('gallery-remove', onDelete)
     window.addEventListener('gallery-download-all', onDownloadAll)
     return () => {
       window.removeEventListener('gallery-add', onAdd)
       window.removeEventListener('gallery-delete', onDelete)
+      window.removeEventListener('gallery-remove', onDelete)
       window.removeEventListener('gallery-download-all', onDownloadAll)
     }
   }, [addEntry, deleteEntry])

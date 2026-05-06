@@ -469,12 +469,44 @@
     color: #14100a;
     border-color: var(--accent);
   }
-  /* Share button sits just left of the download button. Previously an
-     inline style carried right: 38px + smaller font; moved here so the
-     mobile override can actually win without !important. */
+  /* Action button positions: Delete (right-most), Download, Share, in
+     that order from far-right to nearer-center.
+     Phase 2.5 added Delete; Share + Download are pre-existing. */
   .gallery-card .gc-dl-share {
-    right: 38px;
+    right: 69px;
     font-size: 11px;
+  }
+  .gallery-card .gc-dl-download {
+    right: 38px;
+  }
+  .gallery-card .gc-dl-delete {
+    /* Stays at right: 7px from the base .gc-dl rule. */
+    font-size: 14px;
+    line-height: 1;
+  }
+  .gallery-card .gc-dl-delete:hover {
+    background: var(--red);
+    color: var(--ink);
+    border-color: var(--red);
+  }
+  .gallery-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--s-10) var(--s-7);
+    color: var(--ink-soft);
+  }
+  .gallery-empty-title {
+    font: 600 var(--t-lg)/1.2 var(--serif);
+    color: var(--ink);
+    margin-bottom: var(--s-3);
+  }
+  .gallery-empty-body {
+    font: 400 var(--t-base)/1.5 var(--body);
+    color: var(--ink-dim);
+    max-width: 360px;
   }
   .gallery-card.gallery-batch .gc-mosaic {
     display: grid;

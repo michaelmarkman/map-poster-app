@@ -15,8 +15,9 @@ export default function GalleryModal() {
   const [modals, setModals] = useAtom(modalsAtom)
   const setLightboxEntry = useSetAtom(lightboxEntryAtom)
   const gallery = useAtomValue(galleryEntriesAtom)
-  const [view, setView] = useState('grid') // 'grid' | 'large' | 'list'
-  const [groupBatches, setGroupBatches] = useState(true) // batch grouping on/off
+  // Phase 2.5: simplified to a single canonical grid view. The old
+  // grid/large/list toggle was rarely used and added clutter.
+  const [groupBatches, setGroupBatches] = useState(true)
 
   const open = modals.gallery
 
@@ -80,7 +81,6 @@ export default function GalleryModal() {
     ? buildGalleryEntries(gallery)
     : [...gallery].reverse().map((item) => ({ type: 'item', item }))
   const count = gallery.length
-  const gridClass = 'gallery-grid' + (view !== 'grid' ? ` view-${view}` : '')
 
   return (
     <div className="modal open" id="gallery-overlay">
@@ -102,19 +102,6 @@ export default function GalleryModal() {
             >
               {groupBatches ? 'Grouped' : 'Flat'}
             </button>
-            <div className="view-toggles">
-              {['grid', 'large', 'list'].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={'view-toggle' + (view === v ? ' active' : '')}
-                  data-view={v}
-                  onClick={() => setView(v)}
-                >
-                  {v === 'grid' ? 'Grid' : v === 'large' ? 'Large' : 'List'}
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               className="gallery-btn accent"
@@ -135,7 +122,15 @@ export default function GalleryModal() {
           </div>
         </div>
         <div className="gallery-body">
-          <div className={gridClass} id="gallery-grid">
+          {count === 0 ? (
+            <div className="gallery-empty">
+              <div className="gallery-empty-title">Nothing rendered yet</div>
+              <div className="gallery-empty-body">
+                Frame a shot, hit Render, and your finished posters will land here.
+              </div>
+            </div>
+          ) : (
+          <div className="gallery-grid" id="gallery-grid">
             {entries.map((entry) => {
               if (entry.type === 'item') {
                 // Singleton scope = all other singletons. Excludes batch
@@ -162,6 +157,7 @@ export default function GalleryModal() {
               )
             })}
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -184,14 +180,22 @@ function GalleryCard({ item, onOpen }) {
     e.stopPropagation()
     window.dispatchEvent(new CustomEvent('open-share', { detail: { item } }))
   }
+  const handleDelete = (e) => {
+    e.stopPropagation()
+    if (!confirm(`Delete "${item.label}"?`)) return
+    window.dispatchEvent(new CustomEvent('gallery-remove', { detail: { id: item.id } }))
+  }
   return (
     <div className="gallery-card" onClick={onOpen}>
       <img src={item.dataUrl} alt={item.label} />
       <div className="gc-dl gc-dl-share" title="Share to Community" onClick={handleShare}>
         {'\u2191'}
       </div>
-      <div className="gc-dl gc-dl-download" onClick={handleDownload}>
+      <div className="gc-dl gc-dl-download" title="Download" onClick={handleDownload}>
         {'\u2193'}
+      </div>
+      <div className="gc-dl gc-dl-delete" title="Delete" onClick={handleDelete}>
+        {'\u00d7'}
       </div>
       <div className="gc-info">
         <span className="gc-label">{item.label}</span>
