@@ -439,10 +439,16 @@ export default function AIRenderModal() {
                   <span className="rs-chip-placeholder">Tap a style below to stage it</span>
                 ) : (
                   Array.from(selected).map((key) => (
-                    <span key={key} className="rs-chip" onClick={() => togglePreset(key)}>
+                    <button
+                      key={key}
+                      type="button"
+                      className="rs-chip"
+                      onClick={() => togglePreset(key)}
+                      aria-label={`Unstage ${labelByKey(key)}`}
+                    >
                       {labelByKey(key)}
-                      <span className="rs-chip-x">×</span>
-                    </span>
+                      <span className="rs-chip-x" aria-hidden="true">×</span>
+                    </button>
                   ))
                 )}
               </div>
@@ -693,12 +699,14 @@ export default function AIRenderModal() {
                                       className="rs-qact"
                                       onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'up') }}
                                       title="Move earlier in queue"
+                                      aria-label="Move earlier in queue"
                                     >↑</button>
                                     <button
                                       type="button"
                                       className="rs-qact"
                                       onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'down') }}
                                       title="Move later in queue"
+                                      aria-label="Move later in queue"
                                     >↓</button>
                                     <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
                                   </>
