@@ -21,6 +21,7 @@ import {
 import {
   aiCleanArtifactsAtom,
   defaultSavedViewIdAtom,
+  exportResolutionAtom,
   onboardedAtom,
   savedViewMarkersOnAtom,
 } from '../atoms/sidebar'
@@ -79,6 +80,7 @@ export default function useSessionPersistence() {
   const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
   const setOnboarded = useSetAtom(onboardedAtom)
   const setAiCleanArtifacts = useSetAtom(aiCleanArtifactsAtom)
+  const setExportResolution = useSetAtom(exportResolutionAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -99,6 +101,7 @@ export default function useSessionPersistence() {
   const defaultSavedViewId = useAtomValue(defaultSavedViewIdAtom)
   const onboarded = useAtomValue(onboardedAtom)
   const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
+  const exportResolution = useAtomValue(exportResolutionAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -110,7 +113,7 @@ export default function useSessionPersistence() {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, todUnlocked, fillMode, aspectRatio,
       textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
-      aiCleanArtifacts,
+      aiCleanArtifacts, exportResolution,
     }
   })
 
@@ -194,6 +197,9 @@ export default function useSessionPersistence() {
         if (typeof u.aiCleanArtifacts === 'boolean') {
           setAiCleanArtifacts(u.aiCleanArtifacts)
         }
+        if (typeof u.exportResolution === 'number' && [1, 2, 3, 4, 6].includes(u.exportResolution)) {
+          setExportResolution(u.exportResolution)
+        }
       }
 
       // Camera is rehydrated directly by Scene's useLayoutEffect reading
@@ -244,6 +250,7 @@ export default function useSessionPersistence() {
         defaultSavedViewId: v.defaultSavedViewId ?? null,
         onboarded: !!v.onboarded,
         aiCleanArtifacts: !!v.aiCleanArtifacts,
+        exportResolution: v.exportResolution,
       },
       timestamp: Date.now(),
     }
@@ -290,7 +297,7 @@ export default function useSessionPersistence() {
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, todUnlocked, fillMode, aspectRatio,
     textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
-    aiCleanArtifacts,
+    aiCleanArtifacts, exportResolution,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture
