@@ -270,6 +270,49 @@ describe('useSavedViews', () => {
     detach()
   })
 
+  it('lightbox-save-view also gates on the free-tier entitlement', async () => {
+    // Same entitlement gate as `save-view` — without this, a free user
+    // could click "Save view" inside the lightbox to bypass the 5-view
+    // cap. The lightbox path took entry.view directly so it skipped the
+    // requestCameraState step where the gate originally lived.
+    vi.useFakeTimers()
+    const existing = Array.from({ length: 5 }, (_, i) => ({
+      id: 'old-' + i,
+      name: 'View ' + i,
+      camera: { px: i, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12,
+      focalUV: [0.5, 0.5],
+      dofTightness: 70,
+      dofBlur: 25,
+      dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-save-view', {
+        detail: {
+          id: 'gallery-entry-1',
+          label: 'From gallery',
+          view: {
+            camera: { px: 9, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 14,
+            focalUV: [0.5, 0.5],
+            dofTightness: 70,
+            dofBlur: 25,
+            dofColorPop: 60,
+          },
+        },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    // List untouched — gate fired, "From gallery" never landed.
+    expect(result.current).toHaveLength(5)
+    expect(result.current.find((v) => v.name === 'From gallery')).toBeUndefined()
+  })
+
   it('rename-view event updates the view name', async () => {
     vi.useFakeTimers()
     const existing = [{

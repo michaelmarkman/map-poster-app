@@ -34,7 +34,12 @@ function captureThumbnail() {
 // Old numeric ids still match via strict equality on load/delete lookups.
 
 const VIEWS_KEY = 'vedute_views'
-const MAX_VIEWS = 20
+// Defensive cap to keep localStorage from blowing up if something weird
+// happens (storage corruption, an entitlement check skipped, etc). The
+// real per-tier limits live in src/lib/entitlements.js (`maxSavedViews`)
+// and gate save submissions before we get here. Pro is "unlimited" up
+// to this hard ceiling.
+const MAX_VIEWS = 200
 const WRITE_THROTTLE_MS = 100
 const CAMERA_REPLY_TIMEOUT_MS = 500
 
@@ -385,6 +390,16 @@ export default function useSavedViews() {
     const onLightboxSave = (e) => {
       const entry = e?.detail
       if (!entry?.view) return
+      // Entitlement gate (Phase 6.1) — same as the keyboard / pill save
+      // path. Without this, a free user clicking "Save view" inside the
+      // lightbox could exceed the 5-view cap.
+      if (!canSaveAnotherView({ currentCount: stateRef.current.views.length })) {
+        fireToast(
+          'error',
+          'Free tier saves up to 5 views. Delete one or upgrade to Pro.',
+        )
+        return
+      }
       const cam = entry.view.camera || entry.view
       const view = buildSavedView(
         {
