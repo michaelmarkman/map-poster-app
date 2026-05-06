@@ -1,12 +1,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import './ToastHost.css'
 
-// Listens for `toast` window events and renders a stack of dismissible
-// notifications. useSavedViews's fireToast (and any future caller) finally
-// has a renderer — before this component, those events vanished into the
-// void.
+// App-wide toast host. Listens for `toast` window events and renders a
+// stack of dismissible notifications.
 //
-// Stack of up to 3 toasts; older ones auto-expire after TOAST_TTL ms.
-// Click → dismiss immediately.
+// Single source of truth — mount once at the App level so /profile,
+// /community, and the editor all share one renderer. Before this lived
+// only in MockEditorShell, so any toast dispatched from /profile (e.g.
+// "Upgrade endpoint unreachable") fell into the void exactly like the
+// pre-ToastHost fireToast bug from the editor.
+//
+// Stack capped at 3, auto-expire after TOAST_TTL ms, click → dismiss.
 
 const TOAST_TTL = 4000
 const MAX_TOASTS = 3

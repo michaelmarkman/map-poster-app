@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
-import ToastHost from '../components/ToastHost'
+import ToastHost from '../ToastHost'
 
 describe('ToastHost', () => {
   beforeEach(() => {

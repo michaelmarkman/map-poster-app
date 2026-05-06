@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import ToastHost from './components/ToastHost'
 import AppLayout from './components/layout/AppLayout'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -16,6 +17,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        {/* App-wide toast host. Single mount so /profile, /community,
+         *  and the editor all share one renderer. */}
+        <ToastHost />
         <Routes>
           {/* Auth pages — no navbar */}
           <Route path="/login" element={<LoginPage />} />

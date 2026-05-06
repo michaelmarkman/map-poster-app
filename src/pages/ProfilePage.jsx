@@ -142,6 +142,8 @@ export default function ProfilePage() {
   const handleUpgrade = async () => {
     // TODO Phase 6.2 — POST to /api/stripe-checkout and redirect to the
     // returned session URL. Today the endpoint returns 501.
+    const toast = (type, message) =>
+      window.dispatchEvent(new CustomEvent('toast', { detail: { type, message } }))
     try {
       const r = await fetch('/api/stripe-checkout', { method: 'POST' })
       const data = await r.json().catch(() => ({}))
@@ -149,9 +151,9 @@ export default function ProfilePage() {
         window.location.href = data.url
         return
       }
-      alert(data?.message || 'Upgrade not yet available.')
+      toast('info', data?.message || 'Upgrade not yet available.')
     } catch {
-      alert('Upgrade endpoint unreachable.')
+      toast('error', 'Upgrade endpoint unreachable.')
     }
   }
 

@@ -562,7 +562,12 @@ export default function useQueue() {
           byokKey: s.aiKey,
         })
         if (!gate.ok) {
-          try { window.alert(gate.reason) } catch {}
+          // Surface the gate reason via the shared toast channel rather
+          // than window.alert (the rest of the app moved to toasts when
+          // ToastHost shipped).
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { type: 'error', message: gate.reason },
+          }))
           return
         }
       }
@@ -646,7 +651,12 @@ export default function useQueue() {
           byokKey: s.aiKey,
         })
         if (!gate.ok) {
-          try { window.alert(gate.reason) } catch {}
+          // Surface the gate reason via the shared toast channel rather
+          // than window.alert (the rest of the app moved to toasts when
+          // ToastHost shipped).
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { type: 'error', message: gate.reason },
+          }))
           return
         }
       }
