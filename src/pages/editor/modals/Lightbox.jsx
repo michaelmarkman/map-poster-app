@@ -338,7 +338,11 @@ export default function Lightbox() {
         id="lb-img"
         ref={imgRef}
         src={entry?.dataUrl || undefined}
-        alt={label}
+        alt={label || 'Render'}
+        // Browsers default img to draggable=true, which intercepts the
+        // touch carousel's gesture and lets the user drag the image OUT
+        // of the modal as a file. Off entirely.
+        draggable={false}
         style={{
           transform: dragDx ? `translateX(${dragDx}px)` : undefined,
           // Snap back smoothly once the finger lifts; while dragging we
