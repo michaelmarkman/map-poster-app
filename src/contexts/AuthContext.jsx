@@ -70,7 +70,16 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username } },
+      options: {
+        data: { username },
+        // Land confirmed users straight in the editor. Without a
+        // redirectTo, Supabase points the confirmation link at the
+        // site root, which leaves a #access_token=… hash sitting
+        // in the URL bar with no UI consuming it. /app already
+        // handles guest-mode flow and gracefully transitions to
+        // logged-in once the AuthContext picks up the new session.
+        emailRedirectTo: `${window.location.origin}/app`,
+      },
     })
     if (error) throw error
     return data
