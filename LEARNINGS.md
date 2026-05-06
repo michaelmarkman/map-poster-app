@@ -594,3 +594,29 @@ file is the raw log — CLAUDE.md is the curated summary.
   add an explicit "ref is now ready" signal that any consumer can
   subscribe to. Cheaper than rearranging mount order, more robust
   than tightening debounce.
+
+## 2026-05-06 — fireToast events were vanishing into the void
+
+- Bug: useSavedViews has been calling `fireToast('success', 'View
+  saved!')` and `fireToast('error', 'Camera not ready')` for months.
+  Phase 6.1 added `'Free tier saves up to 5 views. Delete one or
+  upgrade to Pro.'`. None of these toasts ever appeared on screen.
+  Users got silent failures (clicking save with a sealed camera state
+  did nothing visible) and silent successes (a saved view appeared in
+  the panel but no confirmation flash).
+- Mechanism: `fireToast` dispatches a `'toast'` window CustomEvent.
+  The `/app-classic` sidebar editor used to mount a Toast component
+  that listened for it — but `/app-classic` was deleted in Phase 1.2,
+  and the matching ToastHost was never built for `/app`. The dispatch
+  worked perfectly; nobody was listening.
+- Fix (src/pages/mock/components/ToastHost.jsx): new component that
+  subscribes to the 'toast' event and renders a stack of up to 3
+  toasts with auto-dismiss at 4s. Mounted in MockEditorShell next
+  to the existing overlays. CSS uses Phase 2.1 tokens; per-type
+  classes give success / error / info visual variants.
+- General rule: when you remove a UI shell (route, sidebar, etc.),
+  audit the EVENT LISTENERS it removed too. Components that only
+  exist on the deleted shell take their listeners with them. Search
+  for `addEventListener` and `dispatchEvent` pairs whenever you
+  delete a top-level mount. The dispatchers stay; the receivers
+  silently disappear; the data flow looks intact in code but isn't.

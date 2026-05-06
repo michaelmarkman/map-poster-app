@@ -26,63 +26,74 @@ with `git push --no-verify` in an emergency.
 
 ## Architecture
 
-Two editor routes share one Scene + one set of atoms/hooks/modals:
+Single editor route, pill-based UI, shared scene/atoms/hooks. The legacy sidebar editor was retired in Phase 1.2 of the Vedute roadmap (vedute-rebrand branch).
 
-- **`/app` (default)** — pill-based UI. Floating glass pills around a full-bleed canvas; an aspect-ratio frame overlay shows the poster crop. Lives in `src/pages/mock/`. (The folder name is historical from when this was a prototype variant — don't read into it.)
-- **`/app-classic`** — the legacy sidebar UI. Lives in `src/pages/editor/`. Preserved for reference + still receives shared changes.
-- **`/mock`** → 301-style React Router redirect to `/app`.
-
-Both editors mount the same scene (`src/pages/editor/scene/`) and share atoms, hooks, modals, and most utilities. Cross-imports go one direction: pill (`pages/mock/`) imports from sidebar (`pages/editor/`); never the reverse.
+- **`/app` (the only editor)** — pill-based UI. Floating glass pills around a full-bleed canvas; an aspect-ratio frame overlay shows the poster crop. Lives in `src/pages/mock/`. (The folder name is historical from when this was a prototype variant alongside the now-deleted sidebar editor — don't read into it.)
+- **`/app-classic`** → React Router redirect to `/app` (kept so legacy bookmarks resolve).
+- **`/mock`** → React Router redirect to `/app`.
+- **`/dof-lab`** — DoF prototype variant, still mounted but secondary.
 
 The editor was migrated from the standalone HTML prototype at `prototypes/poster-v3-ui.{html,jsx}` — that prototype still builds and routes (via `vercel.json`), kept as a reference implementation. Changes go into the React tree; the prototype is intentionally frozen.
 
 ```
 src/
-├── App.jsx                     # Routes; /app + /app-classic are full-screen (no AppLayout)
-├── main.jsx                    # React root
+├── App.jsx                     # Routes; /app full-screen (no AppLayout)
+├── main.jsx                    # React root; calls runLocalStorageMigrations() before mount
 ├── index.html                  # SPA entry — script src is absolute /src/main.jsx
 ├── contexts/AuthContext.jsx    # Supabase auth (falls back gracefully if env missing)
+│                               # Publishes profile to entitlements bridge for tier gating
 ├── components/ProtectedRoute   # Bypasses when no Supabase configured
-├── pages/editor/               # /app-classic — sidebar editor + the SHARED scene/atoms/hooks
-│   ├── EditorPage.jsx          # /app-classic route entry
-│   ├── EditorShell.jsx         # Sidebar layout + mounts all hooks (order matters)
+├── lib/                        # Cross-cutting utilities (no React)
+│   ├── migrations.js           # localStorage key migration (vedute_* prefix)
+│   ├── geocode.js              # Nominatim wrapper (forward + reverse)
+│   ├── entitlements.js         # Tier limits + active-profile bridge
+│   ├── renderCount.js          # Per-month AI render counter
+│   ├── supabase.js, errors.js, guestMode.js
+├── pages/editor/               # SHARED scene/atoms/hooks (no UI shell — /app-classic is gone)
 │   ├── atoms/                  # Jotai atoms — scene, ui, sidebar, modals, gallery
 │   ├── scene/
 │   │   ├── EditorCanvas.jsx    # <Canvas> wrapper
 │   │   ├── Scene.jsx           # THE important file. useFrame reads sceneRef.
 │   │   ├── Globe.jsx, Controls.jsx, PostProcessing.jsx, CustomDofEffect.jsx
+│   │   ├── SavedViewMarkers.jsx + savedViewMarkerMath.js
 │   │   ├── stateRef.js         # Mutable mirror of scene atoms (60fps reads)
 │   │   └── events.js           # dispatchCameraSet / dispatchFlyTo / etc.
-│   ├── sidebar/                # 6 sections, all atom-driven (only mounted at /app-classic)
-│   ├── modals/                 # Always-mount pattern; each self-gates on modalsAtom
-│   ├── overlays/               # CanvasHUD, TextOverlay, PosterPreviewToggle
-│   ├── hooks/                  # useSession, useSavedViews, useGallery, useQueue, …
-│   └── styles/                 # 8 co-located CSS files (don't put CSS elsewhere)
-├── pages/mock/                 # /app — pill editor (the new default UI)
+│   ├── modals/                 # GalleryModal, Lightbox, PosterPreviewModal (used by /app)
+│   ├── hooks/                  # useSession, useSavedViews, useGallery, useQueue
+│   └── styles/                 # CSS for shared chrome
+├── pages/mock/                 # /app — the canonical editor
 │   ├── MockEditorPage.jsx      # /app route entry
-│   ├── MockEditorShell.jsx     # Pill layout + mounts the same hook set as /app-classic
-│   ├── components/             # Pill primitives + 5 corner clusters
+│   ├── MockEditorShell.jsx     # Pill layout + mounts the hook set
+│   ├── components/             # Pill primitives, 6 corner clusters, OnboardingCard,
+│   │                           # ToastHost, RenderCountChip, HelpPill, SavedViewsPanel
+│   ├── hooks/useMockKeyboardShortcuts.js
 │   ├── modals/AIRenderModal.jsx
-│   ├── hooks/useSavedGraphics.js
 │   ├── styles/mock.css         # All `body.mock-mounted`-scoped overrides
-│   ├── utils/frameRect.js
-│   └── atoms.js                # editingBackdropAtom (render-edit backdrop)
-scripts/smoke.js                # Prod-build canary; tests both /app and /app-classic
-docs/superpowers/               # Migration spec + plan — read before big changes
-prototypes/                     # Reference implementation; don't edit
+│   └── utils/frameRect.js
+api/                            # Vercel serverless functions
+├── gemini.js                   # Existing AI render proxy
+├── og.js                       # OG-tag share page
+├── stripe-{checkout,webhook,portal}.js  # Phase 6.2 stubs (501 today)
+scripts/smoke.js                # Prod-build canary; /app + /app-classic redirect
+docs/superpowers/plans/         # Roadmap + monetization handoff
+prototypes/                     # Frozen HTML prototypes; don't edit
 ```
 
 **State pattern.** Jotai atoms are the UI source of truth. `Scene.jsx`'s `useFrame` reads from `sceneRef` (a mutable mirror of atom values), NOT the atoms directly — React render rate is too slow for 60fps reads. `useSceneRefSync` at the top of Scene keeps the mirror in lockstep with atoms.
 
 **Event channels between UI and Scene** (all on `window`):
-- `camera-set` — sidebar slider → Scene moves camera
-- `fly-to` — location search → Scene tweens camera
+- `camera-set` — UI slider → Scene moves camera
+- `fly-to` — location search / preset view click → Scene tweens camera
 - `fov-change` — focal length slider → Controls.jsx dolly-zooms
 - `get-camera` — save-view / session save → Scene responds via `detail.resolve(cam)`
 - `restore-view` — saved-view click OR session restore → Scene applies camera
-- `effects-changed` — effects toggle → Scene re-renders composer
+- `save-view`, `load-view`, `delete-view`, `rename-view`, `reorder-view` — saved-view mgmt
+- `set-default-view` — `{id}` or `{id: null}` to mark/unmark default
+- `gallery-add`, `gallery-remove`, `gallery-toggle-public` — gallery mgmt
+- `queue-retry`, `queue-remove`, `queue-reorder`, `queue-clear-{done,all}` — render queue
+- `toast` — `{type: 'success'|'error'|'info', message}` rendered by ToastHost
 - `save-session` — forces immediate persist
-- `aspect-changed`, `location-changed`, `gallery-add`, `open-*` for modals, queue, etc.
+- `aspect-changed`, `location-changed`, `open-*` for modals
 
 When adding a new event: **test both sides of the contract in `__tests__/integration/event-contracts.test.js`**. Half the regressions this session were shape mismatches.
 
