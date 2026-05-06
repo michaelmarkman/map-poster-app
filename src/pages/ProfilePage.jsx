@@ -283,17 +283,21 @@ export default function ProfilePage() {
               value={displayName} onChange={e => setDisplayName(e.target.value)}
             />
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 13, color: '#8a8780', marginBottom: 6 }}>Bio</label>
-              <textarea
-                value={bio} onChange={e => setBio(e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%', padding: '10px 14px',
-                  background: '#151518', border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 8, color: '#e8e4dc', fontSize: 14, resize: 'vertical',
-                  fontFamily: "'Inter', system-ui, sans-serif", outline: 'none',
-                }}
-              />
+              {/* Same wrap-the-control pattern as AuthInput so label and
+               * textarea are implicitly associated for a11y. */}
+              <label>
+                <span style={{ display: 'block', fontSize: 13, color: '#8a8780', marginBottom: 6 }}>Bio</span>
+                <textarea
+                  value={bio} onChange={e => setBio(e.target.value)}
+                  rows={3}
+                  style={{
+                    width: '100%', padding: '10px 14px',
+                    background: '#151518', border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8, color: '#e8e4dc', fontSize: 14, resize: 'vertical',
+                    fontFamily: "'Inter', system-ui, sans-serif", outline: 'none',
+                  }}
+                />
+              </label>
             </div>
             {error && <p style={{ color: '#e55353', fontSize: 13, marginBottom: 16 }}>{error}</p>}
             {success && <p style={s.success}>{success}</p>}
