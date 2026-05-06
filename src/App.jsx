@@ -24,11 +24,15 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
 // /dof-lab is the internal DoF-tuning sandbox — its own copies of every
-// cluster + an aperture-coc dof variant. Not customer-facing. We keep it
-// in the codebase for ongoing tuning work but lazy-import it so it doesn't
-// bloat the main app chunk, and dev-gate the route so prod doesn't surface
-// it at all.
-const DofLabPage = lazy(() => import('./pages/dof-lab/DofLabPage'))
+// cluster + an aperture-coc dof variant. Not customer-facing. Wrap the
+// lazy() factory in a DEV-only ternary so rolldown's static analysis
+// can drop the import.meta.env.DEV branch (and the entire DofLabPage
+// chunk + CSS, ~46KB combined) from production builds. Plain
+// runtime-gated routes still ship the chunk file because the closure
+// keeps the import reference reachable.
+const DofLabPage = import.meta.env.DEV
+  ? lazy(() => import('./pages/dof-lab/DofLabPage'))
+  : null
 
 // Editor's loading state matches its dark glass aesthetic — a black
 // viewport with a faint cream pulse. Anything brighter is jarring on a
@@ -86,7 +90,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {import.meta.env.DEV && (
+          {import.meta.env.DEV && DofLabPage && (
             <Route
               path="/dof-lab"
               element={
