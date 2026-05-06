@@ -6,7 +6,6 @@ import EditorCanvas from '../editor/scene/EditorCanvas'
 import GalleryModal from '../editor/modals/GalleryModal'
 import Lightbox from '../editor/modals/Lightbox'
 import PosterPreviewModal from '../editor/modals/PosterPreviewModal'
-import useGalleryData from '../editor/hooks/useGalleryData'
 import useSessionPersistence from '../editor/hooks/useSessionPersistence'
 import useSavedViews from '../editor/hooks/useSavedViews'
 import useQueue from '../editor/hooks/useQueue'
@@ -56,7 +55,7 @@ export default function DofLabShell() {
   }, [])
 
   useSessionPersistence()
-  useGalleryData()
+  // useGalleryData lives app-wide in App.jsx; see MockEditorShell note.
   useSavedViews()
   useQueue()
   useAspectSync()

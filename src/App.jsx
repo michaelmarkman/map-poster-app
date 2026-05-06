@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import ToastHost from './components/ToastHost'
+import useGalleryData from './pages/editor/hooks/useGalleryData'
 import AppLayout from './components/layout/AppLayout'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -73,6 +74,18 @@ function PageLoading() {
   return <div style={{ minHeight: 'calc(100vh - 56px)' }} />
 }
 
+// Mount useGalleryData app-wide (not inside the editor shell) so the
+// gallery-add listener stays registered even when the user navigates
+// away from /app. Without this: a user starts an AI render, navigates
+// to /community while it's in flight, the render completes after the
+// editor unmounts, gallery-add fires into the void, and the entry is
+// lost. The cost is one initial IDB read on every page load instead
+// of just /app's — negligible.
+function GalleryDataMount() {
+  useGalleryData()
+  return null
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -81,6 +94,7 @@ export default function App() {
           {/* App-wide toast host. Single mount so /profile, /community,
            *  and the editor all share one renderer. */}
           <ToastHost />
+          <GalleryDataMount />
           <Routes>
             {/* Auth pages — no navbar */}
             <Route path="/login" element={<LoginPage />} />

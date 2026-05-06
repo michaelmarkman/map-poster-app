@@ -7,7 +7,6 @@ import { SavedViewMarkersOverlay } from '../editor/scene/SavedViewMarkers'
 import GalleryModal from '../editor/modals/GalleryModal'
 import Lightbox from '../editor/modals/Lightbox'
 import PosterPreviewModal from '../editor/modals/PosterPreviewModal'
-import useGalleryData from '../editor/hooks/useGalleryData'
 import useSessionPersistence from '../editor/hooks/useSessionPersistence'
 import useSavedViews from '../editor/hooks/useSavedViews'
 import useQueue from '../editor/hooks/useQueue'
@@ -107,7 +106,9 @@ export default function MockEditorShell() {
   }, [])
 
   useSessionPersistence()
-  useGalleryData()
+  // useGalleryData is mounted app-wide in App.jsx (not here) so the
+  // gallery-add listener survives navigation away from /app while a
+  // render is in flight.
   useSavedViews()
   useQueue()
   useAspectSync()
