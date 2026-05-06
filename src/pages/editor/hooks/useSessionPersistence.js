@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   timeOfDayAtom,
@@ -118,8 +118,15 @@ export default function useSessionPersistence() {
 
   // Restore — runs once on mount. Guarded by a ref so StrictMode's double
   // invocation doesn't overwrite freshly-set atoms with stale storage twice.
+  // useLayoutEffect (not useEffect) so all the setAtom calls below batch
+  // and re-render synchronously BEFORE the browser paints. With useEffect
+  // there was a visible flash on cold load: OnboardingCard rendering
+  // briefly with the default `onboarded=false` even for users who'd
+  // already dismissed it, fillMode flipping, etc. Same applies to the
+  // body class toggles below — they need to be in sync with the first
+  // paint, not the second.
   const restored = useRef(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (restored.current) return
     restored.current = true
     try {
