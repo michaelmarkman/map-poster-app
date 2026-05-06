@@ -11,6 +11,8 @@ import { modalsAtom } from '../../editor/atoms/modals'
 //   G         open gallery modal
 //   F         toggle fill mode (chrome-off)
 //   P         toggle poster preview
+//   E         export — quick-download (raw PNG, no AI). Replaces the
+//             visible Capture button retired in Phase 2.7.
 //   Cmd/Ctrl+S  flush session save now
 //
 // Shortcuts are ignored while typing in <input> / <textarea> / [contenteditable]
@@ -54,6 +56,14 @@ export default function useMockKeyboardShortcuts() {
         case 'p':
           e.preventDefault()
           setModals((m) => ({ ...m, posterPreview: !m.posterPreview }))
+          break
+        case 'e':
+          // Quick-download — useQueue listens to this and skips the AI
+          // path entirely (raw snapshot → PNG download). Free for all
+          // tiers. Visible Capture button moved off-screen in Phase 2.7;
+          // E is the only way to trigger it now.
+          e.preventDefault()
+          window.dispatchEvent(new Event('quick-download'))
           break
         default:
           break

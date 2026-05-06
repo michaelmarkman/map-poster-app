@@ -114,4 +114,18 @@ describe('useMockKeyboardShortcuts', () => {
     act(() => dispatch({ key: 'f', altKey: true }))
     expect(store.get(fillModeAtom)).toBe(false)
   })
+
+  it('E dispatches quick-download (replaces the retired Capture button)', () => {
+    const store = createStore()
+    renderHook(() => useMockKeyboardShortcuts(), { wrapper: withProvider(store) })
+    const seen = []
+    const handler = () => seen.push('quick-download')
+    window.addEventListener('quick-download', handler)
+    try {
+      act(() => dispatch({ key: 'e' }))
+      expect(seen).toEqual(['quick-download'])
+    } finally {
+      window.removeEventListener('quick-download', handler)
+    }
+  })
 })
