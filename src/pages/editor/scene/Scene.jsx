@@ -124,7 +124,6 @@ function ClickToFocus() {
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
       if (!downPos || !sceneRef.dof.on) return
-      if (sceneRef.editorActive || window.__editorActive) { downPos = null; return }
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return

@@ -13,7 +13,6 @@ import {
 import { dofAtom } from '../atoms/scene'
 import {
   buildFilename,
-  composite,
   downloadDataUrl,
   snapshotCanvas,
 } from '../utils/export'
@@ -349,7 +348,6 @@ export default function useQueue() {
           batchLabel: job.batchLabel,
           view: job.view,
           baseImage: job.baseImage || snapshotUrl,
-          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
@@ -371,36 +369,25 @@ export default function useQueue() {
       }, 1000)
 
       try {
-        // Send the raw snapshot to Gemini (no graphics baked in — they get
-        // re-stylized otherwise). Composite the saved graphics layer back
-        // on top of the AI result here so text/shapes stay pixel-crisp.
         const aiResult = await callGemini(snapshotUrl, job.prompt, job.apiKey)
         clearInterval(pulse)
-        let finalUrl = aiResult
-        if (job.includeGraphicsAfter !== false && job.graphicsJSON) {
-          try {
-            updateJob(job.id, { statusText: 'Compositing...', progress: 90 })
-            finalUrl = (await composite(aiResult, { includeGraphics: true })) || aiResult
-          } catch {}
-        }
         const fname = buildFilename(job.label, {
           resolution: job.resolution,
           location: job.location,
         })
         // See raw-export branch — auto-download all jobs, batched or not.
-        downloadDataUrl(finalUrl, fname)
-        dispatchGalleryAdd(job.label, fname, finalUrl, {
+        downloadDataUrl(aiResult, fname)
+        dispatchGalleryAdd(job.label, fname, aiResult, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
           baseImage: aiResult,
-          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
           statusText: 'Done',
           progress: 100,
-          resultUrl: finalUrl,
+          resultUrl: aiResult,
         })
       } catch (err) {
         clearInterval(pulse)
@@ -502,11 +489,8 @@ export default function useQueue() {
     // ─── Event handlers ─────────────────────────────────────────
 
     async function onQuickDownload() {
-      const raw = snapshotCanvas(settingsRef.current.resolution)
-      if (!raw) return
-      // Composite is a no-op today (see utils/export.js) but we route through
-      // it so wiring the overlay in a later phase only touches that util.
-      const dataUrl = await composite(raw)
+      const dataUrl = snapshotCanvas(settingsRef.current.resolution)
+      if (!dataUrl) return
       const fname = buildFilename('raw', {
         resolution: settingsRef.current.resolution,
         location: getLocation(),
@@ -519,43 +503,19 @@ export default function useQueue() {
       dispatchGalleryAdd('Quick', fname, dataUrl, { view })
     }
 
-    // /mock dispatches `add-to-queue` with a detail payload to override
+    // /app dispatches `add-to-queue` with a detail payload to override
     // settingsRef-derived behavior on a per-job basis:
-    //   { preset: string|null, includeGraphics: boolean, prompt?: string }
+    //   { preset: string|null, prompt?: string }
     // - preset === null  → raw export (no AI), regardless of aiPreset state
     // - preset === string → that preset is used for this single job
-    // - includeGraphics === false → graphics layer is dropped from the result
     // - prompt → custom prompt override (used by 'custom' preset)
-    // /app's ExportSection still fires `add-to-queue` with no detail; that
-    // path falls through to settingsRef as before.
-    //
-    // IMPORTANT: graphics are *never* sent to Gemini — we always snapshot
-    // raw and composite the Fabric overlay back on top of the AI result
-    // afterwards. This keeps text/shapes pixel-crisp instead of getting
-    // re-stylized by the AI. The graphics layer is also captured as JSON
-    // and stored on the gallery entry so it can be hidden / edited later.
     async function onAddToQueue(e) {
       const detail = e?.detail || {}
       const overridePreset = Object.hasOwn(detail, 'preset') ? detail.preset : undefined
-      const includeGraphics = detail.includeGraphics !== false // default true
       const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
 
-      // Raw snapshot — no graphics baked in. Used as-is for AI; composited
-      // for raw exports below.
       const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
       if (!rawSnapshot) return
-
-      // Capture the live Fabric state at queue time so a later edit/replay
-      // can rebuild the graphics layer exactly as it was at this moment.
-      let graphicsJSON = null
-      try {
-        const fabric = window.__editorOverlayFabric
-        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
-          graphicsJSON = JSON.stringify(
-            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-          )
-        }
-      } catch {}
 
       const s = settingsRef.current
       const location = getLocation()
@@ -567,8 +527,6 @@ export default function useQueue() {
         location,
         apiKey: s.aiKey,
         view,
-        graphicsJSON,
-        includeGraphicsAfter: includeGraphics,
         // Propagate batch info from the dispatcher (Render sheet sends
         // these when the user picks multiple styles at once so they
         // group as a single batch in the queue list).
@@ -577,14 +535,12 @@ export default function useQueue() {
       }
 
       if (presetKey === null) {
-        // Raw — composite graphics now and queue.
-        const final = includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot
         addJob({
           ...baseJob,
           label: 'Raw',
           prompt: '',
           useAI: false,
-          snapshot: final,
+          snapshot: rawSnapshot,
           baseImage: rawSnapshot,
         })
       } else if (s.aiEnhance && presetKey) {
@@ -594,22 +550,19 @@ export default function useQueue() {
           label: preset?.label || presetKey,
           prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
           useAI: true,
-          snapshot: rawSnapshot, // sent to Gemini raw
+          snapshot: rawSnapshot,
           preset: presetKey,
         })
       } else {
         const useAI = !!s.aiEnhance
         const label = useAI ? 'Custom' : 'Raw'
         const prompt = useAI ? appendEffectPrompts(overridePrompt ?? s.aiPrompt) : ''
-        const final = !useAI && includeGraphics
-          ? await composite(rawSnapshot, { includeGraphics: true })
-          : rawSnapshot
         addJob({
           ...baseJob,
           label,
           prompt,
           useAI,
-          snapshot: final,
+          snapshot: rawSnapshot,
           baseImage: rawSnapshot,
         })
       }
@@ -619,18 +572,12 @@ export default function useQueue() {
     }
 
     // Multi-preset add — fired by the Render sheet when the user submits
-    // 2+ styles at once. The naive path was to fire one `add-to-queue`
-    // event per preset, but that re-snapshots the WebGL canvas on every
-    // call (expensive: GPU readback + Fabric capture + composite). At
-    // 28 presets ("Select all → Render") that locks the main thread
-    // for several seconds and on slower machines the page goes
-    // unresponsive. Snapshot ONCE here, fan out as N addJob calls
+    // 2+ styles at once. Snapshot ONCE here, fan out as N addJob calls
     // sharing a batchId so they group in the queue UI.
     async function onAddBatchToQueue(e) {
       const detail = e?.detail || {}
       const presetKeys = Array.isArray(detail.presets) ? detail.presets : []
       if (presetKeys.length === 0) return
-      const includeGraphics = detail.includeGraphics !== false
       const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
       const batchId = detail.batchId || ('batch-' + Date.now())
       const batchLabel = detail.batchLabel || `${presetKeys.length} styles`
@@ -638,24 +585,9 @@ export default function useQueue() {
       const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
       if (!rawSnapshot) return
 
-      let graphicsJSON = null
-      try {
-        const fabric = window.__editorOverlayFabric
-        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
-          graphicsJSON = JSON.stringify(
-            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-          )
-        }
-      } catch {}
-
       const s = settingsRef.current
       const location = getLocation()
       const view = await captureCurrentView()
-      // Pre-composite the raw export once if any preset key is the raw
-      // export (the only path that needs graphics baked in pre-Gemini).
-      const compositedRaw = presetKeys.includes(null)
-        ? (includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot)
-        : null
 
       for (const presetKey of presetKeys) {
         const baseJob = {
@@ -663,8 +595,6 @@ export default function useQueue() {
           location,
           apiKey: s.aiKey,
           view,
-          graphicsJSON,
-          includeGraphicsAfter: includeGraphics,
           batchId,
           batchLabel,
         }
@@ -674,7 +604,7 @@ export default function useQueue() {
             label: 'Raw',
             prompt: '',
             useAI: false,
-            snapshot: compositedRaw,
+            snapshot: rawSnapshot,
             baseImage: rawSnapshot,
           })
         } else if (presetKey === 'custom') {
@@ -703,7 +633,7 @@ export default function useQueue() {
     }
 
     async function onGenerateAll() {
-      const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
+      const snapshot = snapshotCanvas(settingsRef.current.resolution)
       if (!snapshot) return
       const s = settingsRef.current
       const location = getLocation()
@@ -789,8 +719,7 @@ export default function useQueue() {
         // Settle delay matches the prototype's 1500ms (poster-v3-ui.jsx:2404).
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 1500))
-        // eslint-disable-next-line no-await-in-loop
-        const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
+        const snapshot = snapshotCanvas(settingsRef.current.resolution)
         if (!snapshot) continue
         addJob({
           label: view.name || 'View',

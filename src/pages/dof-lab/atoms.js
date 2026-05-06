@@ -1,8 +1,5 @@
 import { atom } from 'jotai'
 
-// Lab-only: render backdrop for graphic-editor mode. Same purpose as /app's.
-export const editingBackdropAtom = atom(null)
-
 // Lab-only: which of the three DoF popover UIs is showing.
 //   'A' — today's sliders, aperture derived from Blur (stealth)
 //   'B' — Aperture replaces Blur (camera-metaphor, keeps Tightness)

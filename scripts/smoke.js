@@ -133,7 +133,9 @@ async function run() {
     await new Promise(r => setTimeout(r, 1500))
     localStorage.removeItem('vedute_views')
     window.dispatchEvent(new CustomEvent('save-view'))
-    await new Promise(r => setTimeout(r, 1200))
+    // 2s gives the persistence debounce (500ms) + Scene's get-camera
+    // reply round-trip plenty of headroom on a slow CI runner.
+    await new Promise(r => setTimeout(r, 2000))
   })
   const views = await page.evaluate(() => JSON.parse(localStorage.getItem('vedute_views') || '[]'))
   check('save-view persists a view', views.length === 1, `count=${views.length}`)
@@ -141,7 +143,11 @@ async function run() {
   check('saved view has auto-derived coord name', /°[NS]\s+\d+\.\d+°[EW]/.test(views[0]?.name || ''), views[0]?.name)
   const sessionBlob = await page.evaluate(() => JSON.parse(localStorage.getItem('vedute_session') || 'null'))
   check('session blob written to localStorage', !!sessionBlob, 'session key missing')
-  check('session has camera position', Array.isArray(sessionBlob?.camera?.position) && sessionBlob.camera.position.length === 3)
+  check(
+    'session has camera position',
+    Array.isArray(sessionBlob?.camera?.position) && sessionBlob.camera.position.length === 3,
+    `camera=${JSON.stringify(sessionBlob?.camera || null).slice(0, 200)}`,
+  )
 
   // --- Phase 4: style bundle sanity ---
   console.log('styles')

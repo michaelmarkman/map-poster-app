@@ -45,10 +45,6 @@ export const sceneRef = {
     aperture: 4,            // f-stop; lab UI range f/1.4 – f/16
     highlightBokeh: true,   // weight bright samples in blur kernel as bokeh balls
   },
-  // Set by useGraphicEditor when the Fabric editor is on. Scene input
-  // handlers (click-to-focus, WASD fly, scroll-wheel dolly) read this and
-  // bail out so the editor owns pointer/keyboard input exclusively.
-  editorActive: false,
 }
 
 // Subscribes to every scene atom via useAtomValue and copies the current

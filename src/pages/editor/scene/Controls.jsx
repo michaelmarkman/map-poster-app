@@ -34,7 +34,6 @@ function WasdFly() {
   }, [])
 
   useFrame((_, delta) => {
-    if (sceneRef.editorActive || window.__editorActive) return
     const k = keysRef.current
     if (!k.w && !k.a && !k.s && !k.d && !k.q && !k.e && !k[' ']) return
 
@@ -135,7 +134,6 @@ function ScrollDolly() {
     const tmpFwd = new Vector3()
     const tmpGeo = new Geodetic()
     const onWheel = (e) => {
-      if (sceneRef.editorActive || window.__editorActive) return
       e.preventDefault()
       const alt = Math.max(50, tmpGeo.setFromECEF(camera.position).height)
       // 0.0006 chosen to feel close to a Maps zoom step on a typical mouse

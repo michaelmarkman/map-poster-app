@@ -84,11 +84,13 @@ function requestCameraState() {
   })
 }
 
-// Compose a saved-view record identical in shape to the prototype's
-// buildSavedViewFromCapture output, aside from a UUID `id`. Now also
-// captures a serialized snapshot of the Fabric graphics layer so loading
-// the view restores both camera + graphics together.
-function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorPop, graphicsJSON }, { name = 'View', fromGalleryId = null, thumbnail = null } = {}) {
+// Compose a saved-view record. Shape matches the prototype's
+// buildSavedViewFromCapture output, aside from a UUID `id` and (since
+// Phase 1.3) no `graphicsJSON` field — the graphics editor is gone.
+//
+// Old views in localStorage may still carry `graphicsJSON`; we preserve
+// that field on round-trip but no longer write or apply it.
+function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorPop }, { name = 'View', fromGalleryId = null, thumbnail = null } = {}) {
   return {
     id: uuid(),
     fromGalleryId,
@@ -99,42 +101,8 @@ function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorP
     dofTightness,
     dofBlur,
     dofColorPop,
-    graphicsJSON: graphicsJSON || null,
     thumbnail: thumbnail || undefined,
   }
-}
-
-// Snapshot the live Fabric editor state. Returns a JSON string or null
-// when there's no Fabric canvas / no user-added objects.
-function captureGraphicsJSON() {
-  try {
-    const fabric = window.__editorOverlayFabric
-    if (!fabric || !fabric.getObjects) return null
-    const objects = fabric.getObjects().filter((o) => !o.excludeFromExport)
-    if (objects.length === 0) return null
-    return JSON.stringify(
-      fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-    )
-  } catch {
-    return null
-  }
-}
-
-// Restore a Fabric overlay from saved JSON. If the view has no graphics,
-// clear any existing Fabric content so the loaded view doesn't carry stale
-// objects from a previous edit.
-async function applyGraphicsJSON(graphicsJSON) {
-  try {
-    const fabric = window.__editorOverlayFabric
-    if (!fabric) return
-    if (graphicsJSON) {
-      await fabric.loadFromJSON(JSON.parse(graphicsJSON))
-      fabric.renderAll?.()
-    } else {
-      fabric.clear?.()
-      fabric.renderAll?.()
-    }
-  } catch {}
 }
 
 // Pull lat/lng out of whatever shape get-camera responded with — same
@@ -268,7 +236,6 @@ export default function useSavedViews() {
           dofTightness: curDof.tightness,
           dofBlur: curDof.blur,
           dofColorPop: curDof.colorPop,
-          graphicsJSON: captureGraphicsJSON(),
         },
         { name: initialName },
       )
@@ -317,9 +284,6 @@ export default function useSavedViews() {
         colorPop: view.dofColorPop ?? prev.colorPop,
       }))
 
-      // Restore the Fabric graphics overlay if the view has one.
-      applyGraphicsJSON(view.graphicsJSON)
-
       // Camera: dispatch a restore-view event with the full view detail. Scene
       // (or the session-persistence agent's Scene wiring) is responsible for
       // applying px/py/pz + quaternion. Matches the prototype channel name.
@@ -337,9 +301,8 @@ export default function useSavedViews() {
     }
 
     // Lightbox bridges — Jump-to-view on a gallery entry should restore the
-    // camera/graphics that produced it; Save-view should add it to the
-    // saved-views list. Both read entry.view (captured at queue time) and
-    // optionally entry.graphicsJSON (overlay layer).
+    // camera that produced it; Save-view should add it to the saved-views
+    // list. Both read entry.view (captured at queue time).
     const onLightboxSave = (e) => {
       const entry = e?.detail
       if (!entry?.view) return
@@ -352,7 +315,6 @@ export default function useSavedViews() {
           dofTightness: entry.view.dofTightness,
           dofBlur: entry.view.dofBlur,
           dofColorPop: entry.view.dofColorPop,
-          graphicsJSON: entry.graphicsJSON || null,
         },
         { name: entry.label || 'View', fromGalleryId: entry.id ?? null },
       )
@@ -380,8 +342,6 @@ export default function useSavedViews() {
         const detail = entry.view.camera ? entry.view : { camera: entry.view }
         window.dispatchEvent(new CustomEvent('restore-view', { detail }))
       } catch {}
-      // Restore the saved graphics overlay if present.
-      applyGraphicsJSON(entry.graphicsJSON || null)
     }
 
     window.addEventListener('save-view', onSave)

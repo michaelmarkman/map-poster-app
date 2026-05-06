@@ -564,3 +564,33 @@ file is the raw log — CLAUDE.md is the curated summary.
   that unit tests can't see. If a smoke check duplicates a unit
   test, drop it from smoke. Keep smoke fast, focused, and
   resilient to UI churn.
+
+## 2026-05-06 — Phase 1.3: removed graphics editor + persistence/Scene mount race
+
+- Task: delete the Fabric-based graphics editor, including the lazy-
+  loaded prototype/editor-overlay.jsx, useGraphicEditor / useSavedGraphics,
+  GraphicEditorOverlay component, RenderBackdrop component, the
+  composite() function in utils/export, and all the threading through
+  useQueue + useSavedViews + ClusterBottomLeft. ~5000 LOC gone.
+- Subtle race surfaced after the cleanup: smoke check
+  `session has camera position` started failing intermittently. The
+  persistence hook's first debounced save fires 500ms after mount, but
+  Scene's useLayoutEffect — which calls registerCamera(camera) to
+  populate the module-scoped _camera ref — sometimes runs AFTER that
+  500ms, especially on slow CI. With the graphics editor's lazy load
+  gone, MockEditorShell mounts faster; the race that was hidden by
+  Fabric's bundle latency now bites.
+- Symptom: session blob written with `camera = { tilt, heading,
+  altitude, fovMm }` (from cameraReadout via latest.current), but no
+  `position`/`quaternion`/`up` fields. writeNow's
+  `if (_camera) { … }` block silently no-ops when _camera is null.
+- Fix (src/pages/editor/hooks/useSessionPersistence.js): in
+  registerCamera, dispatch a synthetic `camera-set` event the first
+  time it's called with a non-null camera. The hook already listens
+  for `camera-set` and reschedules its debounced save; this guarantees
+  the next save runs after the camera ref is live.
+- General rule: when one subsystem populates a module-scoped ref that
+  another subsystem reads, mount order matters. Don't rely on it —
+  add an explicit "ref is now ready" signal that any consumer can
+  subscribe to. Cheaper than rearranging mount order, more robust
+  than tightening debounce.

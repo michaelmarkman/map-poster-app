@@ -30,7 +30,16 @@ const DEBOUNCE_MS = 500
 let _camera = null
 
 export function registerCamera(camera) {
+  const wasNull = _camera === null
   _camera = camera
+  // Race: persistence's first debounced save can fire before Scene's
+  // useLayoutEffect runs registerCamera. The save then writes a session
+  // blob with camera={tilt,heading,altitude,fovMm} from cameraReadout
+  // but no position/quaternion/up. Nudge a save the first time the
+  // camera registers so the next blob has the full ECEF.
+  if (wasNull && camera) {
+    try { window.dispatchEvent(new Event('camera-set')) } catch {}
+  }
 }
 
 // Black-canvas heal: if a previous session saved with tod outside the safe
