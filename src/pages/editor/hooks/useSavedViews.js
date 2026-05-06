@@ -7,6 +7,20 @@ import {
 } from '../atoms/scene'
 import { reverseGeocodeName } from '../../../lib/geocode'
 import { canSaveAnotherView } from '../../../lib/entitlements'
+import { snapshotCanvas } from '../utils/export'
+
+// Capture a small thumbnail for the saved view at the moment of save.
+// Resolution 0.5 keeps the thumb tiny (typically ~150kB at 2x DPR);
+// the SavedViewsPanel renders these at 56x56 so smaller is fine.
+// Returns null on capture failure — callers treat thumbnail as
+// optional in buildSavedView.
+function captureThumbnail() {
+  try {
+    return snapshotCanvas(0.5) || null
+  } catch {
+    return null
+  }
+}
 
 // Saved views hook — mounted once from MockEditorShell. Owns the
 // localStorage <-> savedViewsAtom sync and listens for the window events
@@ -267,6 +281,8 @@ export default function useSavedViews() {
       // fire reverse-geocode in the background; if it returns a place
       // name, patch the view's name in-place.
       const initialName = userName || coordName(cam)
+      // Phase 2.3 thumbnail — 0.5x snapshot, ~150kB, used by SavedViewsPanel.
+      const thumbnail = captureThumbnail()
       const view = buildSavedView(
         {
           camera: cam,
@@ -276,7 +292,7 @@ export default function useSavedViews() {
           dofBlur: curDof.blur,
           dofColorPop: curDof.colorPop,
         },
-        { name: initialName },
+        { name: initialName, thumbnail },
       )
 
       if (!userName) {

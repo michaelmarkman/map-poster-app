@@ -1,6 +1,7 @@
 import { useAtom } from 'jotai'
 import HoverPopoverPill from './HoverPopoverPill'
 import GuestSignInChip from './GuestSignInChip'
+import RenderCountChip from './RenderCountChip'
 import { CloudIcon, ApertureIcon, CameraIcon } from './icons'
 import { cloudsAtom, dofAtom } from '../../editor/atoms/scene'
 import { savedViewMarkersOnAtom } from '../../editor/atoms/sidebar'
@@ -59,6 +60,7 @@ export default function ClusterTopRight() {
 
   return (
     <div className="mock-cluster mock-cluster--top-right">
+      <RenderCountChip />
       <GuestSignInChip />
       <HoverPopoverPill
         icon={<ApertureIcon />}
