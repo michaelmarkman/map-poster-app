@@ -105,8 +105,7 @@
   body.preview-open #main { padding: 0; }
   body.preview-open #main::before,
   body.preview-open #main::after { display: none; }
-  /* Sidebar collapsed: give the canvas the full width */
-  body.sidebar-collapsed #main { padding: 20px; }
+  /* (body.sidebar-collapsed rules retired with /app-classic in Phase 1.2) */
 
   /* Register --ratio as an animatable CSS number so transitioning the
      property interpolates (instead of snap-changing). Without @property,
@@ -176,8 +175,6 @@
     box-shadow: none;
   }
   body.fill-mode #canvas-container::before { display: none; }
-  /* Sidebar collapsed: expand canvas to use the freed width */
-  body.sidebar-collapsed #canvas-container { --main-h-padding: 60px; }
   body.preview-open #canvas-container {
     width: 100vw;
     height: 100vh;
