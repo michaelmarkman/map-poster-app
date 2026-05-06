@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Vedute favicon. Italic 'v' on a dark square — tracks the wordmark
+       used in the Navbar / AuthLayout / LandingPage hero. Kept simple so
+       it renders cleanly at 16×16 in the tab bar. -->
+  <rect width="64" height="64" rx="12" fill="#0c0a08"/>
+  <text
+    x="32" y="46"
+    text-anchor="middle"
+    font-family="'Playfair Display', 'Fraunces', Georgia, serif"
+    font-style="italic"
+    font-weight="500"
+    font-size="44"
+    fill="#c8b897"
+  >v</text>
+</svg>
