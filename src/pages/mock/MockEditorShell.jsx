@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import { useEffect, useRef } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
 import '../editor/styles/index.css'
 import './styles/mock.css'
 import EditorCanvas from '../editor/scene/EditorCanvas'
@@ -65,18 +65,24 @@ function usePendingRestore() {
 // ESC before this fires (their own listeners win), so this only handles
 // the "no chrome should be visible" reach.
 function useMockEscape() {
-  const [fillMode, setFillMode] = useAtom(fillModeAtom)
+  const fillMode = useAtomValue(fillModeAtom)
+  const setFillMode = useSetAtom(fillModeAtom)
+  // Mirror fillMode into a ref so the keydown listener can branch on
+  // its current value without forcing the effect to re-attach the
+  // listener every toggle. (Same pattern as useMockKeyboardShortcuts.)
+  const fillModeRef = useRef(fillMode)
+  fillModeRef.current = fillMode
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return
-      if (!fillMode) {
+      if (!fillModeRef.current) {
         e.preventDefault()
         setFillMode(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fillMode, setFillMode])
+  }, [setFillMode])
 }
 
 // Pill editor — the canonical (and only) editor at /app.
