@@ -1,7 +1,8 @@
 /* ═══ Render sheet — unified Styles + Queue ═══════════════════════════
  *
- * Ported from public/render-merged-prototype.html (Grid @ 560 direction +
- * The Darkroom queue). Everything in here is scoped to `.mock-render-sheet`
+ * Ported from docs/design-references/render-merged-prototype.html
+ * (Grid @ 560 direction + The Darkroom queue). Everything here is
+ * scoped to `.mock-render-sheet`
  * so the old `.mock-airender-*` styles in mock.css are untouched — those
  * still live on the right edge / are used elsewhere (dof-lab).
  *
