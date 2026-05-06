@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { friendlyError } from '../lib/errors'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
 import { aiApiKeyAtom } from './editor/atoms/sidebar'
@@ -194,7 +195,7 @@ export default function ProfilePage() {
       setSuccess('Profile updated')
       setEditing(false)
     } catch (err) {
-      setError(err.message)
+      setError(friendlyError(err))
     } finally {
       setLoading(false)
     }
@@ -209,7 +210,7 @@ export default function ProfilePage() {
       await uploadAvatar(file)
       setSuccess('Avatar updated')
     } catch (err) {
-      setError(err.message)
+      setError(friendlyError(err))
     } finally {
       setUploading(false)
     }
