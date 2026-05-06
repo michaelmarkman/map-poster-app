@@ -685,3 +685,30 @@ file is the raw log — CLAUDE.md is the curated summary.
   client → proxy → external pattern even when the proxy isn't real
   yet. The 501 forces fallback behavior to be designed into the
   client from day one rather than retrofitted later.
+
+## 2026-05-06 — vite.deploy.config.js prototype inputs are doing real work as code-split forcers
+
+- Tried to drop the prototype HTML files from the deploy build (they
+  were a brand-leak vector — old "MapPoster" stale prototypes that
+  shipped to production at /prototypes/*.html). Removed the entries
+  from `rollupOptions.input` in `vite.deploy.config.js` so only
+  `app: src/index.html` remained.
+- Build went from healthy chunked output (app 267KB + editor-overlay
+  364KB + DRACOLoader 1725KB lazy chunk) to a single 2.18MB bundle.
+  Auth/landing pages now ship the entire editor JS upfront. Big
+  perf regression.
+- Mechanism: rolldown defaults to splitting only when there are
+  multiple inputs OR `rolldownOptions.output.codeSplitting: true` is
+  set. With one input and no override, it bundles everything. The
+  prototype inputs were forcing splitting as a side-effect.
+- Tried `rolldownOptions.output.codeSplitting: true` next to
+  `rollupOptions.input` — error because rolldownOptions overrides
+  rollupOptions entirely (not merged), so input was lost.
+- Reverted. The prototypes are still customer-reachable at
+  /prototypes/*.html but: (1) robots.txt blocks indexing,
+  (2) vercel.json no longer aliases clean URLs to them, (3) no
+  React route links to them. Acceptable footprint for now.
+- General rule: a build config that "looks redundant" might be
+  doing structural work (chunking discipline, asset routing). Run
+  `npm run build` and diff sizes before deleting any input/output
+  config.
