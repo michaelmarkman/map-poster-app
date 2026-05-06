@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { aiApiKeyAtom } from '../editor/atoms/sidebar'
@@ -26,16 +26,25 @@ vi.mock('../editor/utils/galleryDb', () => ({
 
 import ProfilePage from '../ProfilePage'
 
-function renderPage({ aiKey = '' } = {}) {
+async function renderPage({ aiKey = '' } = {}) {
   const store = createStore()
   store.set(aiApiKeyAtom, aiKey)
-  return render(
-    <MemoryRouter>
-      <Provider store={store}>
-        <ProfilePage />
-      </Provider>
-    </MemoryRouter>,
-  )
+  let result
+  // Async act() so the loadGalleryEntries promise resolution that fires
+  // inside ProfilePage's mount-effect is batched into the same React
+  // update cycle. Without this, every test that calls renderPage() sees
+  // the "An update to ProfilePage was not wrapped in act(...)" warning
+  // when the gallery effect's setEntries() lands a microtask later.
+  await act(async () => {
+    result = render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ProfilePage />
+        </Provider>
+      </MemoryRouter>,
+    )
+  })
+  return result
 }
 
 describe('ProfilePage', () => {
@@ -53,19 +62,19 @@ describe('ProfilePage', () => {
     setActiveProfile(null)
   })
 
-  it('shows the email in the read-only view', () => {
-    renderPage()
+  it('shows the email in the read-only view', async () => {
+    await renderPage()
     expect(screen.getByText('a@b.com')).toBeDefined()
   })
 
-  it('renders Edit profile button in the read-only view', () => {
-    renderPage()
+  it('renders Edit profile button in the read-only view', async () => {
+    await renderPage()
     expect(screen.getByRole('button', { name: /Edit profile/ })).toBeDefined()
   })
 
   it('clicking Edit reveals the form with the current display_name + bio', async () => {
     mockProfile = { display_name: 'Alice', bio: 'Lover of city posters', tier: null }
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: /Edit profile/ }))
     expect(screen.getByDisplayValue('Alice')).toBeDefined()
     expect(screen.getByDisplayValue('Lover of city posters')).toBeDefined()
@@ -73,7 +82,7 @@ describe('ProfilePage', () => {
 
   it('rejects empty display_name on Save', async () => {
     mockProfile = { display_name: 'Alice', bio: '' }
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: /Edit profile/ }))
     const nameInput = screen.getByDisplayValue('Alice')
     fireEvent.change(nameInput, { target: { value: '   ' } })
@@ -84,7 +93,7 @@ describe('ProfilePage', () => {
 
   it('rejects display_name longer than 50 chars', async () => {
     mockProfile = { display_name: 'Alice', bio: '' }
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: /Edit profile/ }))
     fireEvent.change(screen.getByDisplayValue('Alice'), {
       target: { value: 'x'.repeat(51) },
@@ -96,7 +105,7 @@ describe('ProfilePage', () => {
 
   it('rejects bio longer than 500 chars', async () => {
     mockProfile = { display_name: 'Alice', bio: '' }
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: /Edit profile/ }))
     const bioField = screen.getByLabelText(/Bio/)
     fireEvent.change(bioField, { target: { value: 'x'.repeat(501) } })
@@ -108,7 +117,7 @@ describe('ProfilePage', () => {
   it('saves a valid edit + leaves the form', async () => {
     mockProfile = { display_name: 'Alice', bio: 'old bio' }
     mockUpdateProfile.mockResolvedValueOnce()
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: /Edit profile/ }))
     fireEvent.change(screen.getByDisplayValue('Alice'), { target: { value: 'Alice Cooper' } })
     fireEvent.change(screen.getByDisplayValue('old bio'), { target: { value: 'new bio' } })
@@ -121,29 +130,29 @@ describe('ProfilePage', () => {
     expect(screen.queryByRole('button', { name: /^Save$/ })).toBe(null)
   })
 
-  it('shows the used / monthly meter text for free users', () => {
+  it('shows the used / monthly meter text for free users', async () => {
     incrementRenderCount(2)
-    renderPage()
+    await renderPage()
     // Free tier is 5/month; meter reads e.g. '2 of 5 AI renders used'
     expect(screen.getByText(/2 of 5 AI renders used/i)).toBeDefined()
   })
 
-  it('shows "Unlimited" for Pro users', () => {
+  it('shows "Unlimited" for Pro users', async () => {
     mockProfile = { tier: 'pro' }
     setActiveProfile({ tier: 'pro' })
-    renderPage()
+    await renderPage()
     expect(screen.getByText(/Unlimited renders/i)).toBeDefined()
     // The 'X of 5' line should NOT appear
     expect(screen.queryByText(/of 5/)).toBe(null)
   })
 
-  it('appends BYOK-bypass note when an aiKey is set', () => {
-    renderPage({ aiKey: 'sk-real' })
+  it('appends BYOK-bypass note when an aiKey is set', async () => {
+    await renderPage({ aiKey: 'sk-real' })
     expect(screen.getByText(/BYOK bypasses this limit/)).toBeDefined()
   })
 
-  it('avatar: rejects a non-image file with a specific message (not the generic friendlyError fallback)', () => {
-    renderPage()
+  it('avatar: rejects a non-image file with a specific message (not the generic friendlyError fallback)', async () => {
+    await renderPage()
     // jsdom's File expects a Blob constructor input; an empty array works.
     const file = new File([''], 'evil.exe', { type: 'application/x-msdownload' })
     Object.defineProperty(file, 'size', { value: 100 })
@@ -155,8 +164,8 @@ describe('ProfilePage', () => {
     expect(mockUploadAvatar).not.toHaveBeenCalled()
   })
 
-  it('avatar: rejects an over-size image with a specific message', () => {
-    renderPage()
+  it('avatar: rejects an over-size image with a specific message', async () => {
+    await renderPage()
     const file = new File([''], 'huge.jpg', { type: 'image/jpeg' })
     Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 }) // 10 MB
     const input = document.querySelector('input[type=file]')
@@ -168,7 +177,7 @@ describe('ProfilePage', () => {
 
   it('avatar: a valid image hits uploadAvatar', async () => {
     mockUploadAvatar.mockResolvedValue('https://example.com/avatar.jpg')
-    renderPage()
+    await renderPage()
     const file = new File([''], 'me.png', { type: 'image/png' })
     Object.defineProperty(file, 'size', { value: 100 * 1024 })
     const input = document.querySelector('input[type=file]')

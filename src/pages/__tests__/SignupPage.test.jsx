@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const mockSignUp = vi.fn()
@@ -36,7 +36,14 @@ async function fillAndSubmit({ username = 'alice42', email = 'a@b.com', password
   fireEvent.change(screen.getByLabelText(/Username/), { target: { value: username } })
   fireEvent.change(screen.getByLabelText(/Email/), { target: { value: email } })
   fireEvent.change(screen.getByLabelText(/Password/), { target: { value: password } })
-  fireEvent.click(screen.getByRole('button', { name: /Create account/ }))
+  // Async act() wraps the form's submit + the setLoading(false) /
+  // setSuccess(true) state updates that come back from the awaited
+  // signUp call. Without it, the resolve fires outside any test act
+  // wrapper and React logs "An update to SignupPage was not wrapped"
+  // for every successful test.
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /Create account/ }))
+  })
 }
 
 describe('SignupPage', () => {
