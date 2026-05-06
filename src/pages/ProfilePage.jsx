@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { friendlyError } from '../lib/errors'
 import { fireToast } from '../lib/toast'
+import { validateAvatarFile } from '../lib/avatarValidation'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
 import { aiApiKeyAtom } from './editor/atoms/sidebar'
@@ -230,8 +231,19 @@ export default function ProfilePage() {
   async function handleAvatarChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true)
     setError('')
+    // Run validation here (not just inside uploadAvatar) so the friendly
+    // copy from validateAvatarFile ("Avatar must be a JPG, PNG, WebP, or
+    // GIF image.") reaches the user verbatim. Otherwise the message went
+    // through friendlyError, which doesn't recognize avatar-specific
+    // copy and dropped it onto the generic "Something went wrong" path.
+    try {
+      validateAvatarFile(file)
+    } catch (err) {
+      setError(err?.message || 'That file looks invalid.')
+      return
+    }
+    setUploading(true)
     try {
       await uploadAvatar(file)
       setSuccess('Avatar updated')

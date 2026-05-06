@@ -141,4 +141,38 @@ describe('ProfilePage', () => {
     renderPage({ aiKey: 'sk-real' })
     expect(screen.getByText(/BYOK bypasses this limit/)).toBeDefined()
   })
+
+  it('avatar: rejects a non-image file with a specific message (not the generic friendlyError fallback)', () => {
+    renderPage()
+    // jsdom's File expects a Blob constructor input; an empty array works.
+    const file = new File([''], 'evil.exe', { type: 'application/x-msdownload' })
+    Object.defineProperty(file, 'size', { value: 100 })
+    const input = document.querySelector('input[type=file]')
+    fireEvent.change(input, { target: { files: [file] } })
+    // The validation message must reach the user verbatim, not be
+    // smothered into "Something went wrong".
+    expect(screen.getByText(/JPG, PNG, WebP, or GIF/i)).toBeInTheDocument()
+    expect(mockUploadAvatar).not.toHaveBeenCalled()
+  })
+
+  it('avatar: rejects an over-size image with a specific message', () => {
+    renderPage()
+    const file = new File([''], 'huge.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 }) // 10 MB
+    const input = document.querySelector('input[type=file]')
+    fireEvent.change(input, { target: { files: [file] } })
+    expect(screen.getByText(/too large/i)).toBeInTheDocument()
+    expect(screen.getByText(/max is 5 MB/i)).toBeInTheDocument()
+    expect(mockUploadAvatar).not.toHaveBeenCalled()
+  })
+
+  it('avatar: a valid image hits uploadAvatar', async () => {
+    mockUploadAvatar.mockResolvedValue('https://example.com/avatar.jpg')
+    renderPage()
+    const file = new File([''], 'me.png', { type: 'image/png' })
+    Object.defineProperty(file, 'size', { value: 100 * 1024 })
+    const input = document.querySelector('input[type=file]')
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => expect(mockUploadAvatar).toHaveBeenCalledWith(file))
+  })
 })
