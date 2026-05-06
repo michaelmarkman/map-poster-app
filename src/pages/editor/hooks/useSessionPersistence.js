@@ -340,14 +340,19 @@ export default function useSessionPersistence() {
   // even if the user closes the tab mid-debounce.
   useEffect(() => {
     const onFlush = () => { if (restored.current) writeNow() }
+    // visibilitychange fires when the tab is hidden (mobile lock, tab
+    // switch, etc.) — flush so we don't lose state on backgrounding.
+    // Hoisted so we can actually remove it on cleanup; the previous
+    // anonymous form leaked one listener per mount cycle (StrictMode +
+    // HMR + tests).
+    const onVis = () => { if (document.visibilityState === 'hidden') onFlush() }
     window.addEventListener('beforeunload', onFlush)
     window.addEventListener('pagehide', onFlush)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') onFlush()
-    })
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       window.removeEventListener('beforeunload', onFlush)
       window.removeEventListener('pagehide', onFlush)
+      document.removeEventListener('visibilitychange', onVis)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
