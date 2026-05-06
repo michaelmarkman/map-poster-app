@@ -367,7 +367,6 @@ export default function useQueue() {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
-          baseImage: job.baseImage || snapshotUrl,
         })
         updateJob(job.id, {
           status: 'done',
@@ -404,7 +403,6 @@ export default function useQueue() {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
-          baseImage: aiResult,
         })
         updateJob(job.id, {
           status: 'done',
@@ -595,7 +593,6 @@ export default function useQueue() {
           prompt: '',
           useAI: false,
           snapshot: rawSnapshot,
-          baseImage: rawSnapshot,
         })
       } else if (s.aiEnhance && presetKey) {
         const preset = AI_PRESETS[presetKey]
@@ -617,7 +614,6 @@ export default function useQueue() {
           prompt,
           useAI,
           snapshot: rawSnapshot,
-          baseImage: rawSnapshot,
         })
       }
 
@@ -679,7 +675,6 @@ export default function useQueue() {
             prompt: '',
             useAI: false,
             snapshot: rawSnapshot,
-            baseImage: rawSnapshot,
           })
         } else if (presetKey === 'custom') {
           addJob({

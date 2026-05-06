@@ -17,12 +17,10 @@ describe('buildGalleryItem', () => {
       batchId: 'b1',
       batchLabel: 'Batch 1',
       view: { foo: 1 },
-      baseImage: 'data:base',
     })
     expect(item.batchId).toBe('b1')
     expect(item.batchLabel).toBe('Batch 1')
     expect(item.view).toEqual({ foo: 1 })
-    expect(item.baseImage).toBe('data:base')
   })
 
   it('defaults missing opts to null', () => {
@@ -30,8 +28,18 @@ describe('buildGalleryItem', () => {
     expect(item.batchId).toBe(null)
     expect(item.batchLabel).toBe(null)
     expect(item.view).toBe(null)
-    expect(item.baseImage).toBe(null)
-    expect(item.graphicsJSON).toBe(null)
+  })
+
+  it('does not write the deprecated baseImage / graphicsJSON fields', () => {
+    // Vestigial from the deleted graphics editor (Phase 1.3). New
+    // entries skip them; old entries with the fields still load via
+    // loadGalleryEntries (kept tolerant for backward compat).
+    const item = buildGalleryItem('label', 'fname', 'data:url', {
+      baseImage: 'data:base',
+      graphicsJSON: '{}',
+    })
+    expect('baseImage' in item).toBe(false)
+    expect('graphicsJSON' in item).toBe(false)
   })
 })
 

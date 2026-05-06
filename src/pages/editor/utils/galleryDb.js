@@ -86,6 +86,14 @@ export async function deleteGalleryEntry(id) {
 
 // Persist a single gallery entry. Port of `saveToGalleryDB` (prototype 2022).
 // Time is stored as ISO string; caller passes a Date.
+//
+// `baseImage` and `graphicsJSON` are vestigial from the deleted graphics
+// editor (Phase 1.3). They were the un-composited render + Fabric overlay
+// state that the editor's "re-edit graphics" flow rehydrated from. With
+// the editor gone, no consumer reads them. New writes drop them — we
+// were duplicating a full PNG dataURL per AI render into IDB for nothing.
+// Reads (loadGalleryEntries above) still tolerate them for backward
+// compat with entries written before this change.
 export async function saveGalleryEntry(item) {
   try {
     const db = await openGalleryDB()
@@ -99,8 +107,6 @@ export async function saveGalleryEntry(item) {
       batchId: item.batchId || null,
       batchLabel: item.batchLabel || null,
       view: item.view || null,
-      baseImage: item.baseImage || null,
-      graphicsJSON: item.graphicsJSON || null,
       isPublic: !!item.isPublic,
     })
   } catch (e) {
@@ -121,8 +127,6 @@ export function buildGalleryItem(label, filename, dataUrl, opts = {}) {
     batchId: opts.batchId || null,
     batchLabel: opts.batchLabel || null,
     view: opts.view || null,
-    baseImage: opts.baseImage || null,
-    graphicsJSON: opts.graphicsJSON || null,
   }
 }
 
