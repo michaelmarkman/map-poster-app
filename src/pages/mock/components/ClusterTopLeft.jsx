@@ -49,7 +49,9 @@ export default function ClusterTopLeft() {
     if (!trimmed) return
     const result = await geocodeSearch(trimmed)
     if (!result) {
-      alert('Location not found')
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: { type: 'error', message: 'Location not found' },
+      }))
       return
     }
     const { lat, lng, displayName: name } = result

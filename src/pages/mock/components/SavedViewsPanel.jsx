@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   defaultSavedViewIdAtom,
@@ -156,20 +156,20 @@ export default function SavedViewsPanel({ onClose }) {
   const savedViews = useAtomValue(savedViewsAtom)
   const [defaultId, setDefaultId] = useAtom(defaultSavedViewIdAtom)
 
-  // Listen for set-default-view via the same event pattern the other
-  // saved-view methods use. Lifted into the panel since this is a UI
-  // concern (no need to muddy useSavedViews with default-id state).
-  if (typeof window !== 'undefined') {
-    // Attach once per render cycle using a passive flag — repeated
-    // attaches are de-duped because we check flag-on-window.
-    if (!window.__svpDefaultListenerAttached) {
-      window.__svpDefaultListenerAttached = true
-      window.addEventListener('set-default-view', (e) => {
-        const id = e?.detail?.id
-        setDefaultId(id ?? null)
-      })
+  // Listen for set-default-view. The original implementation attached
+  // a listener during render guarded by a window-global flag — that's
+  // a React side-effect-in-render rule violation AND it leaked the
+  // listener forever after the first mount. useEffect with a cleanup
+  // is the right shape: tied to the panel's lifecycle, removed when
+  // the popover closes, re-attached cleanly on next mount.
+  useEffect(() => {
+    const onSetDefault = (e) => {
+      const id = e?.detail?.id
+      setDefaultId(id ?? null)
     }
-  }
+    window.addEventListener('set-default-view', onSetDefault)
+    return () => window.removeEventListener('set-default-view', onSetDefault)
+  }, [setDefaultId])
 
   const flyToPreset = (preset) => {
     dispatchFlyTo({
