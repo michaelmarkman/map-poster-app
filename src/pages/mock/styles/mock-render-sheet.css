@@ -57,9 +57,9 @@
 
 /* ═══ Backdrop ═══════════════════════════════════════════════════════ */
 /* Sits above the Gallery modal (z:200) and below the Lightbox (z:300) so
- * opening Render over an already-open gallery works cleanly. Not named
- * `.mock-render-backdrop` because that class is taken by the poster-edit
- * backdrop-image in mock.css (z:5, pointer-events:none). */
+ * opening Render over an already-open gallery works cleanly. (The
+ * `.mock-render-backdrop` class that used to clash with this name went
+ * away with the graphics editor in Phase 1.3.) */
 .mock-rs-overlay {
   position: fixed;
   inset: 0;
