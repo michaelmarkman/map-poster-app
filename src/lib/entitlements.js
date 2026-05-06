@@ -55,7 +55,7 @@ export function getActiveProfile() {
 // (src/contexts/AuthContext.jsx). Falls back to 'free' for guests / unset.
 // Pass undefined to use the active profile bridge.
 export function getTier(profile) {
-  const p = profile === undefined ? _activeProfile : profile
+  const p = profile === undefined ? getActiveProfile() : profile
   if (p?.tier === 'pro') return 'pro'
   return 'free'
 }
@@ -73,7 +73,7 @@ export function getTierLimits(profile) {
 // Omit `profile` to use the active-profile bridge.
 export function canSubmitRender({ profile, count, byokKey } = {}) {
   if (byokKey) return { ok: true }
-  const limits = getTierLimits(profile === undefined ? _activeProfile : profile)
+  const limits = getTierLimits(profile === undefined ? getActiveProfile() : profile)
   if (count >= limits.rendersPerMonth) {
     return {
       ok: false,
@@ -85,7 +85,7 @@ export function canSubmitRender({ profile, count, byokKey } = {}) {
 
 // Resolution gate. UI surfaces blocked options as disabled with a tooltip.
 export function canUseResolution({ profile, multiplier } = {}) {
-  const limits = getTierLimits(profile === undefined ? _activeProfile : profile)
+  const limits = getTierLimits(profile === undefined ? getActiveProfile() : profile)
   return multiplier <= limits.maxResolutionMultiplier
 }
 
@@ -98,11 +98,11 @@ export function canUseResolution({ profile, multiplier } = {}) {
 // (BYOK does bypass canSubmitRender's count check, since we're not
 // the ones paying Google for that call.)
 export function shouldShowWatermark({ profile } = {}) {
-  return getTierLimits(profile === undefined ? _activeProfile : profile).showWatermark
+  return getTierLimits(profile === undefined ? getActiveProfile() : profile).showWatermark
 }
 
 // Saved views gate.
 export function canSaveAnotherView({ profile, currentCount } = {}) {
-  const limits = getTierLimits(profile === undefined ? _activeProfile : profile)
+  const limits = getTierLimits(profile === undefined ? getActiveProfile() : profile)
   return currentCount < limits.maxSavedViews
 }
