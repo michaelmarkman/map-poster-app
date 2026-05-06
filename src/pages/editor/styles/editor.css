@@ -24,41 +24,8 @@
     height: 100dvh; /* mobile-safe: excludes collapsing browser chrome */
     overflow: hidden;
   }
-  /* Floating poster-preview toggle — top-right of the workbench. Flat glass
-     chip; active state gets the accent tint to mirror other "on" toggles. */
-  .poster-preview-toggle {
-    position: absolute;
-    top: 18px;
-    right: 18px;
-    width: 34px;
-    height: 34px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--panel);
-    backdrop-filter: blur(24px) saturate(150%);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    border: 0.5px solid var(--panel-border);
-    border-radius: 10px;
-    color: var(--ink-soft);
-    cursor: pointer;
-    padding: 0;
-    z-index: 60;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .poster-preview-toggle:hover {
-    color: var(--ink);
-    border-color: var(--panel-border-strong);
-  }
-  .poster-preview-toggle.on {
-    color: var(--accent);
-    border-color: var(--accent-dim);
-    background: rgba(200, 184, 151, 0.08);
-  }
-  body.preview-open .poster-preview-toggle {
-    /* Keep the toggle above the preview backdrop so it stays tappable. */
-    z-index: 501;
-  }
+  /* (.poster-preview-toggle was the sidebar editor's floating workbench
+   * toggle; the bottom-left frame pill in /app replaces it. Removed.) */
 
   ::selection { background: var(--accent-soft); color: var(--ink); }
   ::-webkit-scrollbar { width: 0; height: 0; }
@@ -98,10 +65,8 @@
     mask-image: radial-gradient(ellipse 85% 75% at 58% 48%, #000 20%, transparent 85%);
     -webkit-mask-image: radial-gradient(ellipse 85% 75% at 58% 48%, #000 20%, transparent 85%);
   }
-  /* Fill mode: no grid, no padding — poster fills viewport */
-  body.fill-mode #main { padding: 0; background: var(--bg-deep); }
-  body.fill-mode #main::before,
-  body.fill-mode #main::after { display: none; }
+  /* Fill mode (sidebar-era body class) is gone. /app uses
+   * body.mock-fill-mode (handled in mock.css). */
   body.preview-open #main { padding: 0; }
   body.preview-open #main::before,
   body.preview-open #main::after { display: none; }
@@ -163,18 +128,6 @@
     pointer-events: none;
   }
 
-  body.fill-mode #canvas-container {
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    max-width: none;
-    max-height: none;
-    position: absolute;
-    inset: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  body.fill-mode #canvas-container::before { display: none; }
   body.preview-open #canvas-container {
     width: 100vw;
     height: 100vh;
@@ -225,46 +178,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* On-canvas HUD (top-right) */
-  .canvas-hud {
-    position: absolute;
-    top: 32px; right: 32px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    font-size: 10px;
-    color: var(--ink-dim);
-    letter-spacing: 0.04em;
-    z-index: 20;
-    pointer-events: none;
-    font-variant-numeric: tabular-nums;
-  }
-  .canvas-hud .dot {
-    width: 3px; height: 3px;
-    background: var(--ink-ghost);
-    border-radius: 50%;
-  }
-  .canvas-hud .val { color: var(--ink-soft); }
-  body.fill-mode .canvas-hud,
-  body.preview-open .canvas-hud { color: rgba(255,255,255,0.65); }
-  body.fill-mode .canvas-hud .val,
-  body.preview-open .canvas-hud .val { color: rgba(255,255,255,0.9); }
-
-  /* Corner meta (bottom-right) */
-  .corner-meta {
-    position: absolute;
-    bottom: 32px; right: 32px;
-    font-size: 9px;
-    color: var(--ink-ghost);
-    letter-spacing: 0.05em;
-    text-align: right;
-    line-height: 1.6;
-    z-index: 20;
-    pointer-events: none;
-    font-variant-numeric: tabular-nums;
-  }
-  body.fill-mode .corner-meta,
-  body.preview-open .corner-meta { color: rgba(255,255,255,0.5); }
+  /* (.canvas-hud + .corner-meta belonged to the legacy sidebar editor's
+   * on-canvas HUD overlay. Both DOM elements went with /app-classic in
+   * Phase 1.2; their CSS came along by accident and is gone now.) */
 
   /* Status readout */
   #status {
