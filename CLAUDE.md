@@ -131,9 +131,11 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 ## Deployment
 
 Vercel auto-deploys on push to `main`. Rewrites in `vercel.json`:
-- `/` → `/prototypes/index.html` (landing is the prototype page, not React)
+- `/` → `/src/index.html` (Vedute landing — `src/pages/LandingPage.jsx`).
+  The legacy `/prototypes/index.html` is still reachable directly but
+  is no longer wired to `/` — it had stale "MapPoster" brand on it.
 - `/app`, `/app/*` → `/src/index.html` (pill editor)
-- `/app-classic`, `/app-classic/*` → `/src/index.html` (sidebar editor)
+- `/app-classic`, `/app-classic/*` → `/src/index.html` (sidebar editor — redirects to /app)
 - `/mock`, `/mock/*` → `/src/index.html` (React redirects to /app)
 - `/*.html` → their matching prototype pages
 

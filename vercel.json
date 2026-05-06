@@ -3,7 +3,7 @@
   "outputDirectory": "dist-deploy",
   "framework": null,
   "rewrites": [
-    { "source": "/", "destination": "/prototypes/index.html" },
+    { "source": "/", "destination": "/src/index.html" },
     { "source": "/poster-v2.html", "destination": "/prototypes/poster-v2.html" },
     { "source": "/poster-v2-timemachine.html", "destination": "/prototypes/poster-v2-timemachine.html" },
     { "source": "/poster-v3-ui.html", "destination": "/prototypes/poster-v3-ui.html" },
