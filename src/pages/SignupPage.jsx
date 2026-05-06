@@ -9,6 +9,9 @@ import AuthButton from '../components/auth/AuthButton'
 
 function validateUsername(username) {
   if (username.length < 3) return 'Username must be at least 3 characters'
+  // 24 covers every realistic handle, well under Supabase's 64-char column
+  // and short enough to render cleanly in the navbar / community page.
+  if (username.length > 24) return 'Username must be 24 characters or fewer'
   if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Only letters, numbers, and underscores'
   return null
 }

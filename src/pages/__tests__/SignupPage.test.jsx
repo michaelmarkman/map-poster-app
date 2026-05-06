@@ -78,6 +78,13 @@ describe('SignupPage', () => {
     expect(mockSignUp).not.toHaveBeenCalled()
   })
 
+  it('rejects usernames longer than 24 chars without calling signUp', async () => {
+    renderPage()
+    await fillAndSubmit({ username: 'a'.repeat(25) })
+    expect(screen.getByText(/24 characters or fewer/i)).toBeDefined()
+    expect(mockSignUp).not.toHaveBeenCalled()
+  })
+
   it('signs up + shows the check-your-email confirmation on success', async () => {
     mockSignUp.mockResolvedValueOnce()
     renderPage()
