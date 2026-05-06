@@ -39,6 +39,8 @@ export default function PopoverPill({
         icon={icon}
         active={active || open}
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
         {...rest}
       >
         {label}
