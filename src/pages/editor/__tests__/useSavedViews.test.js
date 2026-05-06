@@ -117,6 +117,101 @@ describe('useSavedViews', () => {
     detach()
   })
 
+  it('save-view soon after location-changed uses the picked name verbatim', async () => {
+    // Phase 3.2 follow-up. ClusterTopLeft dispatches `location-changed`
+    // with shortName + lat/lng when the user commits a search prediction.
+    // If the user then saves the view shortly after AND the camera is
+    // still near that location, useSavedViews skips reverse-geocoding
+    // entirely and uses the picked name as the saved-view name.
+    vi.useFakeTimers()
+    // ECEF for lat=0, lng=0 is (R, 0, 0) where R = earth radius.
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    // Mimic ClusterTopLeft dispatching after a successful search.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: {
+          lat: 0, lng: 0,
+          shortName: 'Null Island',
+          fullName: 'Null Island, Atlantic Ocean',
+          coordStr: '0.0000° N, 0.0000° E',
+        },
+      }))
+    })
+
+    // Save shortly after.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    expect(result.current[0].name).toBe('Null Island')
+    detach()
+  })
+
+  it('save-view long after location-changed (TTL expired) falls back to coord-based name', async () => {
+    vi.useFakeTimers()
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: { lat: 0, lng: 0, shortName: 'Null Island' },
+      }))
+    })
+
+    // Advance clock past the 60s TTL.
+    await act(async () => { vi.advanceTimersByTime(61_000) })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    // TTL expired → coord-derived name (contains the degree symbol).
+    expect(result.current[0].name).toContain('°')
+    expect(result.current[0].name).not.toBe('Null Island')
+    detach()
+  })
+
+  it('save-view far from the picked location does NOT use the picked name', async () => {
+    vi.useFakeTimers()
+    // Camera at ECEF for lat=0, lng=0.
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    // Pick a location very far from the camera (Tokyo-ish).
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: { lat: 35.6762, lng: 139.6503, shortName: 'Tokyo' },
+      }))
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    expect(result.current[0].name).not.toBe('Tokyo')
+    detach()
+  })
+
   it('save-view with {name} detail uses the provided name', async () => {
     vi.useFakeTimers()
     const cam = { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 }

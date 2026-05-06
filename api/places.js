@@ -3,13 +3,19 @@
 // gives us a single chokepoint for fallback to Nominatim if quota/auth
 // fails.
 //
-// Two actions distinguished by `?action=`:
+// Three actions distinguished by `?action=`:
 //
 //   POST /api/places?action=autocomplete  body: { q, sessionToken? }
 //     → { predictions: [{ placeId, description, mainText, secondaryText }] }
 //
 //   POST /api/places?action=resolve       body: { placeId, sessionToken? }
 //     → { placeId, lat, lng, displayName, formattedAddress }
+//
+//   POST /api/places?action=reverse       body: { lat, lng }
+//     → { displayName, formattedAddress, placeId? }
+//     Uses the Geocoding API (NOT Places API) since Places (New)'s
+//     reverse-by-coords endpoint requires a Place type filter that
+//     drops most of the useful neighborhood/locality results.
 //
 // On auth/quota failure either action returns `{ fallback: true }` with
 // non-2xx so the client (src/lib/geocode.js) drops to Nominatim instead
@@ -35,6 +41,7 @@ const rateBuckets = new Map()
 
 const PLACES_AUTOCOMPLETE = 'https://places.googleapis.com/v1/places:autocomplete'
 const PLACES_DETAILS_BASE = 'https://places.googleapis.com/v1/places/'
+const GEOCODING_BASE = 'https://maps.googleapis.com/maps/api/geocode/json'
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -225,6 +232,107 @@ async function resolve(req, res) {
   }
 }
 
+// Pick the most user-friendly name from a Geocoding API result list.
+// Geocoding returns a stack of address-component-grained results; we
+// prefer specific landmarks → neighborhood → locality → administrative
+// area, falling back to the formatted_address of the top result.
+//
+// Result shape (one of many): { types: [...], formatted_address, address_components: [...], place_id }
+//
+// "types" rank from most-specific to least:
+//   point_of_interest / establishment / premise → a named landmark
+//   neighborhood / sublocality_level_1          → "Midtown", "East Village"
+//   locality                                     → "New York"
+//   administrative_area_level_1                  → "New York" (the state)
+//   country                                      → last-ditch fallback
+function pickBestName(results) {
+  if (!Array.isArray(results) || !results.length) return null
+  const rankOrder = [
+    ['point_of_interest', 'establishment', 'premise'],
+    ['neighborhood'],
+    ['sublocality_level_1', 'sublocality'],
+    ['locality'],
+    ['administrative_area_level_2'],
+    ['administrative_area_level_1'],
+    ['country'],
+  ]
+  for (const tier of rankOrder) {
+    for (const r of results) {
+      if (!Array.isArray(r?.types)) continue
+      if (tier.some((t) => r.types.includes(t))) {
+        // The address_components has the friendly name; formatted_address
+        // is the full address. Prefer the long_name of the matching
+        // component when we can find it; fall back to the first segment
+        // of formatted_address.
+        const comp = r.address_components?.find((c) =>
+          tier.some((t) => c.types?.includes(t)),
+        )
+        const name = comp?.long_name || r.formatted_address?.split(',')[0]?.trim()
+        if (name) return { displayName: name, formattedAddress: r.formatted_address || null, placeId: r.place_id || null }
+      }
+    }
+  }
+  // Nothing matched the rank. Best effort: top result's first segment.
+  const top = results[0]
+  const name = top?.formatted_address?.split(',')[0]?.trim()
+  return name ? { displayName: name, formattedAddress: top.formatted_address || null, placeId: top.place_id || null } : null
+}
+
+async function reverse(req, res) {
+  const key = getApiKey()
+  if (!key) {
+    return jsonResponse(res, 501, {
+      error: 'places_not_configured',
+      fallback: true,
+    })
+  }
+  const body = await readJsonBody(req)
+  const lat = +body?.lat
+  const lng = +body?.lng
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return jsonResponse(res, 400, { error: 'invalid_coords' })
+  }
+
+  // Geocoding API GET. The lat/lng pair is appended to the query as a
+  // single `latlng=` param (Google's documented format).
+  const url = `${GEOCODING_BASE}?latlng=${encodeURIComponent(`${lat},${lng}`)}&key=${encodeURIComponent(key)}`
+  try {
+    const upstream = await fetch(url)
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => '')
+      return jsonResponse(res, upstream.status, {
+        error: 'places_upstream_error',
+        status: upstream.status,
+        detail: detail.slice(0, 240),
+        fallback: true,
+      })
+    }
+    const data = await upstream.json()
+    if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      return jsonResponse(res, 502, {
+        error: 'geocoding_status_' + data.status,
+        detail: (data.error_message || '').slice(0, 240),
+        fallback: true,
+      })
+    }
+    const picked = pickBestName(data?.results)
+    if (!picked) {
+      return jsonResponse(res, 200, {
+        displayName: null,
+        formattedAddress: null,
+        placeId: null,
+      })
+    }
+    return jsonResponse(res, 200, picked)
+  } catch (e) {
+    return jsonResponse(res, 502, {
+      error: 'places_network_error',
+      detail: String(e?.message || e),
+      fallback: true,
+    })
+  }
+}
+
 export default async function handler(req, res) {
   setCors(res)
   if (req.method === 'OPTIONS') {
@@ -241,5 +349,6 @@ export default async function handler(req, res) {
   const action = url.searchParams.get('action') || 'autocomplete'
   if (action === 'autocomplete') return autocomplete(req, res)
   if (action === 'resolve') return resolve(req, res)
+  if (action === 'reverse') return reverse(req, res)
   return jsonResponse(res, 400, { error: 'unknown_action' })
 }

@@ -35,6 +35,29 @@ function captureThumbnail() {
 // Old numeric ids still match via strict equality on load/delete lookups.
 
 const VIEWS_KEY = 'vedute_views'
+
+// "Recent search wins the save name" window. If the user picks a place
+// from the search dropdown and saves a view within this many ms — and
+// hasn't moved more than RECENT_PICK_RADIUS_M meters away — the picked
+// name is used as the saved-view name verbatim instead of relying on
+// reverse geocoding the camera coords (which often resolves to a
+// nearby street address rather than the intended landmark).
+const RECENT_PICK_TTL_MS = 60_000
+const RECENT_PICK_RADIUS_M = 300
+
+// Cheap lat/lng → meters distance. Uses the equirectangular approximation;
+// at typical city-scale distances (<1km) the error vs. haversine is well
+// under 1%, which is far inside the radius we care about. Avoids importing
+// a haversine helper for one user.
+function approxDistanceMeters(latA, lngA, latB, lngB) {
+  const R = 6378137 // earth radius (m)
+  const toRad = Math.PI / 180
+  const dLat = (latB - latA) * toRad
+  const dLng = (lngB - lngA) * toRad
+  const meanLat = ((latA + latB) / 2) * toRad
+  const x = dLng * Math.cos(meanLat)
+  return Math.sqrt(x * x + dLat * dLat) * R
+}
 // Defensive ceiling against localStorage exhaustion. The real per-tier
 // limit lives in src/lib/entitlements.js (`maxSavedViews`) and gates
 // save submissions upstream. This cap exists because each saved view
@@ -225,6 +248,12 @@ export default function useSavedViews() {
   const writeTimerRef = useRef(null)
   const pendingWriteRef = useRef(null)
 
+  // Most-recent place picked via search. Populated by listening to
+  // `location-changed` (dispatched by ClusterTopLeft when the user
+  // commits a prediction). Used by the save-view path to use the
+  // picked name verbatim when the user saves shortly after picking.
+  const lastPickedRef = useRef(null)
+
   useEffect(() => {
     // Hydrate on mount.
     const initial = safeReadStorage()
@@ -311,7 +340,28 @@ export default function useSavedViews() {
       // synchronously (tests + perceived snappiness depend on this). Then
       // fire reverse-geocode in the background; if it returns a place
       // name, patch the view's name in-place.
-      const initialName = userName || coordName(cam)
+      //
+      // Recent-pick override: if the user just searched for a place and
+      // saves within RECENT_PICK_TTL_MS while the camera is still near
+      // it, use that name verbatim. Skips the reverse-geocode call
+      // entirely — the picked place is more authoritative than whatever
+      // a reverse-geocoder would resolve from the lat/lng.
+      let initialName = userName || coordName(cam)
+      let usedRecentPick = false
+      if (!userName) {
+        const pick = lastPickedRef.current
+        if (pick && Date.now() - pick.timestamp < RECENT_PICK_TTL_MS) {
+          const [camLat, camLng] = extractLatLng(cam)
+          if (
+            Number.isFinite(camLat) &&
+            Number.isFinite(camLng) &&
+            approxDistanceMeters(camLat, camLng, pick.lat, pick.lng) < RECENT_PICK_RADIUS_M
+          ) {
+            initialName = pick.name
+            usedRecentPick = true
+          }
+        }
+      }
       // Phase 2.3 thumbnail — 0.5x snapshot, ~150kB, used by SavedViewsPanel.
       const thumbnail = captureThumbnail()
       const view = buildSavedView(
@@ -327,7 +377,7 @@ export default function useSavedViews() {
         { name: initialName, thumbnail },
       )
 
-      if (!userName) {
+      if (!userName && !usedRecentPick) {
         const [lat, lng] = extractLatLng(cam)
         if (lat != null && lng != null) {
           reverseGeocodeName(lat, lng).then((place) => {
@@ -485,6 +535,22 @@ export default function useSavedViews() {
       } catch {}
     }
 
+    // Picked-place memory. ClusterTopLeft dispatches `location-changed`
+    // every time the user commits a search prediction with a fresh
+    // shortName + lat/lng. Stash those under a TTL ref so save-view can
+    // pick the name up if the save happens shortly after the search.
+    const onLocationChanged = (e) => {
+      const d = e?.detail
+      if (!d) return
+      const lat = +d.lat
+      const lng = +d.lng
+      const name = (typeof d.shortName === 'string' && d.shortName.trim()) ||
+                   (typeof d.fullName === 'string' && d.fullName.split(',')[0].trim()) ||
+                   null
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !name) return
+      lastPickedRef.current = { lat, lng, name, timestamp: Date.now() }
+    }
+
     window.addEventListener('save-view', onSave)
     window.addEventListener('load-view', onLoad)
     window.addEventListener('delete-view', onDelete)
@@ -492,6 +558,7 @@ export default function useSavedViews() {
     window.addEventListener('reorder-view', onReorder)
     window.addEventListener('lightbox-save-view', onLightboxSave)
     window.addEventListener('lightbox-jump-view', onLightboxJump)
+    window.addEventListener('location-changed', onLocationChanged)
 
     return () => {
       window.removeEventListener('save-view', onSave)
@@ -501,6 +568,7 @@ export default function useSavedViews() {
       window.removeEventListener('lightbox-jump-view', onLightboxJump)
       window.removeEventListener('rename-view', onRename)
       window.removeEventListener('reorder-view', onReorder)
+      window.removeEventListener('location-changed', onLocationChanged)
       flushWrite()
     }
     // setSavedViews/setTimeOfDay/setDof are stable Jotai setters.

@@ -202,10 +202,34 @@ export async function resolvePlace(placeId, { sessionToken } = {}) {
 }
 
 // Reverse geocode: lat/lng -> a short, human-friendly place label, or null
-// on miss. Picks the most specific neighbourhood-level segment available
-// before falling back to the first comma-separated segment of display_name.
+// on miss.
+//
+// Tries the Places proxy first (Google Geocoding API) — it picks the
+// most specific landmark/neighborhood/locality available. Falls back
+// to Nominatim on { fallback: true } / non-2xx / network failure;
+// Nominatim's pick is the first available of neighbourhood → suburb →
+// city_district → town → village → hamlet → city → first segment of
+// display_name.
 export async function reverseGeocodeName(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  // Proxy first.
+  try {
+    const r = await fetchWithTimeout('/api/places?action=reverse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng }),
+    })
+    if (r.ok) {
+      const data = await r.json()
+      // Empty (ZERO_RESULTS) is valid — fall through to Nominatim
+      // which sometimes finds something Google misses (especially in
+      // sparsely-mapped regions).
+      if (data?.displayName) return data.displayName
+    }
+    // Non-2xx or empty → drop to Nominatim
+  } catch {
+    // network blip; fall through
+  }
   try {
     const r = await fetchWithTimeout(
       `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,

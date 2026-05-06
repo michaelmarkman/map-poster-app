@@ -96,7 +96,41 @@ describe('reverseGeocodeName', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('prefers neighbourhood over fallbacks', async () => {
+  it('uses Places proxy when it returns a displayName', async () => {
+    // Phase 3.2 follow-up: the proxy is the primary path for reverse
+    // geocoding. Nominatim only kicks in on { fallback: true } / non-2xx.
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        displayName: 'Empire State Building',
+        formattedAddress: '20 W 34th St, New York, NY 10001, USA',
+      }),
+    })
+    expect(await reverseGeocodeName(40.748, -73.985)).toBe('Empire State Building')
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/places?action=reverse')
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(body).toEqual({ lat: 40.748, lng: -73.985 })
+  })
+
+  it('falls back to Nominatim when proxy returns 501 / fallback', async () => {
+    // Proxy unavailable (no key configured) — drop to Nominatim.
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'places_not_configured', fallback: true }),
+    })
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        address: { neighbourhood: 'East Village', city: 'New York' },
+        display_name: 'East Village, Manhattan, New York',
+      }),
+    })
+    expect(await reverseGeocodeName(40.7, -73.99)).toBe('East Village')
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('Nominatim path: prefers neighbourhood over fallbacks', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, json: async () => ({ fallback: true }) })
     global.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -107,7 +141,8 @@ describe('reverseGeocodeName', () => {
     expect(await reverseGeocodeName(40.7, -73.99)).toBe('East Village')
   })
 
-  it('falls through neighbourhood → suburb → city_district → town → village → hamlet → city', async () => {
+  it('Nominatim path: falls through neighbourhood → ... → city', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, json: async () => ({ fallback: true }) })
     global.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -118,7 +153,8 @@ describe('reverseGeocodeName', () => {
     expect(await reverseGeocodeName(40.7, -73.99)).toBe('New York')
   })
 
-  it('falls back to display_name first segment when address fields missing', async () => {
+  it('Nominatim path: falls back to display_name first segment when address fields missing', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, json: async () => ({ fallback: true }) })
     global.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ display_name: 'Foo, Bar, Baz' }),
@@ -126,8 +162,9 @@ describe('reverseGeocodeName', () => {
     expect(await reverseGeocodeName(0, 0)).toBe('Foo')
   })
 
-  it('returns null on network failure', async () => {
-    global.fetch.mockRejectedValueOnce(new Error('boom'))
+  it('returns null when both proxy and Nominatim fail', async () => {
+    global.fetch.mockRejectedValueOnce(new Error('proxy down'))
+    global.fetch.mockRejectedValueOnce(new Error('nominatim down'))
     expect(await reverseGeocodeName(40, -70)).toBe(null)
   })
 })
