@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { setActiveProfile } from '../lib/entitlements'
+import { validateAvatarFile } from '../lib/avatarValidation'
 
 const AuthContext = createContext(null)
 
@@ -137,26 +138,11 @@ export function AuthProvider({ children }) {
   }
 
   async function uploadAvatar(file) {
-    // Defensive validation. The <input accept="image/*"> on the form is
-    // a UI hint only — drag-drop / paste / programmatic submit can
-    // bypass it. Reject anything that isn't a real image, and cap size
-    // before sending it to Supabase Storage (which would reject huge
-    // uploads anyway, but with a less friendly error).
-    const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-    const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
-    if (!ALLOWED.has(file.type)) {
-      throw new Error('Avatar must be a JPG, PNG, WebP, or GIF image.')
-    }
-    if (file.size > MAX_SIZE) {
-      throw new Error(`Avatar is too large (${Math.round(file.size / 1024 / 1024)} MB) — max is 5 MB.`)
-    }
-    // Derive extension from MIME, NOT the filename. A user uploading
-    // "evil.html" with image/png would otherwise land at
-    // `<uid>/avatar.html` which Supabase could serve as text/html —
-    // potential XSS vector if anything ever embeds the avatar URL
-    // without a Content-Type override.
-    const extByType = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
-    const ext = extByType[file.type]
+    // Defensive validation lives in src/lib/avatarValidation.js so the
+    // type+size+MIME-extension checks can be unit-tested without spinning
+    // the AuthProvider up. validateAvatarFile throws on rejection and
+    // returns the canonical extension to write into the storage path.
+    const ext = validateAvatarFile(file)
     const path = `${user.id}/avatar.${ext}`
     const { error: uploadError } = await supabase.storage
       .from('avatars')
