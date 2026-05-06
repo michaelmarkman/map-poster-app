@@ -46,18 +46,11 @@
   --green: #6b9b6e;
   --amber: #d4a857;
 
-  /* Legacy tokens (used by some JS-driven bits) */
-  --copper: var(--accent);
-  --copper-dim: var(--accent-soft);
-  --copper-glow: var(--accent-glow);
-  --text-1: var(--ink);
-  --text-2: var(--ink-soft);
-  --text-3: var(--ink-dim);
-  --border: var(--panel-border);
-  --border-hover: var(--panel-border-strong);
-  --bg-panel: var(--panel);
+  /* Surface tints used by hover / nested-card states. (The other legacy
+   * aliases — --copper, --text-1/2/3, --border, --bg-panel, --bg-raised
+   * — were sidebar-era and had zero remaining refs after the Phase 1.2
+   * cleanup.) */
   --bg-surface: rgba(255, 255, 255, 0.03);
-  --bg-raised: rgba(255, 255, 255, 0.05);
   --bg-hover: rgba(255, 255, 255, 0.08);
 
   /* ────── Type ────── */
