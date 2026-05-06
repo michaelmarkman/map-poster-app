@@ -49,7 +49,8 @@ src/
 │   ├── entitlements.js         # Tier limits + active-profile bridge
 │   ├── renderCount.js          # Per-month AI render counter
 │   ├── supabase.js, errors.js, guestMode.js
-├── pages/editor/               # SHARED scene/atoms/hooks (no UI shell — /app-classic is gone)
+├── pages/editor/               # SHARED scene/atoms/hooks (no UI shell here — /app's
+│                               #  shell lives in pages/mock/)
 │   ├── atoms/                  # Jotai atoms — scene, ui, sidebar, modals, gallery
 │   ├── scene/
 │   │   ├── EditorCanvas.jsx    # <Canvas> wrapper
@@ -57,7 +58,7 @@ src/
 │   │   ├── Globe.jsx, Controls.jsx, PostProcessing.jsx, CustomDofEffect.jsx
 │   │   ├── SavedViewMarkers.jsx + savedViewMarkerMath.js
 │   │   ├── stateRef.js         # Mutable mirror of scene atoms (60fps reads)
-│   │   └── events.js           # dispatchCameraSet / dispatchFlyTo / etc.
+│   │   └── events.js           # dispatchFlyTo (only one left after Phase 1.2 cleanup)
 │   ├── modals/                 # GalleryModal, Lightbox, PosterPreviewModal (used by /app)
 │   ├── hooks/                  # useSession, useSavedViews, useGallery, useQueue
 │   └── styles/                 # CSS for shared chrome
@@ -74,7 +75,8 @@ api/                            # Vercel serverless functions
 ├── gemini.js                   # Existing AI render proxy
 ├── og.js                       # OG-tag share page
 ├── stripe-{checkout,webhook,portal}.js  # Phase 6.2 stubs (501 today)
-scripts/smoke.js                # Prod-build canary; /app + /app-classic redirect
+scripts/smoke.js                # Prod-build canary; cold load /app, lazy-route
+                                #  resolution, brand-text guard, asset shipping
 docs/superpowers/plans/         # Roadmap + monetization handoff
 prototypes/                     # Frozen HTML prototypes; don't edit
 ```
@@ -105,9 +107,9 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 
 3. **fov is VERTICAL.** three.js `camera.fov` is vertical degrees. Formula: `2 * atan(12 / mm)` (24mm full-frame sensor height). NOT `2 * atan(36 / (2*mm))` (horizontal). Two listeners using different formulas compound every slider tick and send the camera to space.
 
-4. **CSS minifier strips vendor prefixes.** Rolldown's default CSS minifier deduplicated `backdrop-filter` / `-webkit-backdrop-filter` and kept only the prefixed form — Chrome/Firefox don't read that, so the sidebar glass disappeared only in prod. Fix in `vite.deploy.config.js`: `cssMinify: 'esbuild'`.
+4. **CSS minifier strips vendor prefixes.** Rolldown's default CSS minifier deduplicated `backdrop-filter` / `-webkit-backdrop-filter` and kept only the prefixed form — Chrome/Firefox don't read that, and the pill glass + popover backdrops disappeared only in prod. Fix in `vite.deploy.config.js`: `cssMinify: 'esbuild'`. Smoke verifies both forms ship in the bundled CSS.
 
-5. **Don't wrap `#sidebar` + `#main` in an opaque container.** The sidebar's `backdrop-filter` blurs what's painted behind it; if an ancestor fills its region with a solid background, there's nothing meaningful to blur. `.editor-root` is a transparent flex pass-through; keep it that way.
+5. **`backdrop-filter` needs something behind it to blur.** The pill glass uses `backdrop-filter: blur()`; if an ancestor fills its region with a solid background, there's nothing meaningful to blur. The full-bleed canvas + `.mock-cluster` transparent wrappers keep the chain unbroken — don't wedge an opaque container in between.
 
 6. **React 19 concurrent rendering can drop during-render ref writes.** `latest.current = {…}` in the function body was silently dropped under the prod build. Update refs in `useEffect`, not render.
 
@@ -115,9 +117,21 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 
 ## Testing
 
-- `src/pages/editor/__tests__/*.test.js` — unit tests with Vitest + jsdom
-- `src/pages/editor/__tests__/integration/*.test.js` — cross-boundary tests (event contracts, save/restore shapes)
-- `scripts/smoke.js` — headless Chromium against the built artifact
+Vitest + jsdom for the unit layer (~290 tests across):
+- `src/lib/__tests__/` — pure helpers (errors, geocode, entitlements,
+  migrations, renderCount, avatarValidation, guestMode)
+- `src/components/__tests__/` — shared chrome (ProtectedRoute, ToastHost)
+- `src/components/layout/__tests__/` — Navbar
+- `src/pages/__tests__/` — top-level routes (Landing, Login, Signup,
+  Forgot/Reset, Gallery, Community, Profile)
+- `src/pages/mock/__tests__/` — pill components + keyboard shortcuts
+- `src/pages/editor/__tests__/` — scene math + editor hooks
+- `src/pages/editor/__tests__/integration/` — cross-boundary tests
+  (event contracts, save/restore shapes)
+
+Smoke (`scripts/smoke.js`) drives the prod bundle through Playwright —
+covers the classes of bug unit tests can't see (CSS minification,
+chunk path resolution, rebrand-survives-build, etc).
 
 ## References
 
