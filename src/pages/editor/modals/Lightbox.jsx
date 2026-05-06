@@ -234,15 +234,6 @@ export default function Lightbox() {
     window.dispatchEvent(new CustomEvent('lightbox-save-view', { detail: entry }))
   }
 
-  const onEditGraphics = (e) => {
-    e.stopPropagation()
-    if (!entry) return
-    // /mock listens for this and loads the entry's baseImage as a backdrop +
-    // hydrates Fabric from entry.graphicsJSON. /app currently no-ops it.
-    window.dispatchEvent(new CustomEvent('edit-graphics-request', { detail: entry }))
-    setModals(m => ({ ...m, lightbox: false, gallery: false }))
-  }
-
   const onPreviewAsPoster = (e) => {
     e.stopPropagation()
     if (!entry) return
@@ -348,15 +339,6 @@ export default function Lightbox() {
           title="Preview this render inside a physical poster frame mockup"
         >
           Preview as poster
-        </button>
-        <button
-          className="gallery-btn lb-download"
-          id="lb-edit-graphics"
-          type="button"
-          onClick={onEditGraphics}
-          title="Open this render and edit the text + graphics on top of it"
-        >
-          Edit graphics
         </button>
         {/* TODO: overflow menu is populated imperatively in the prototype —
             on narrow viewports Share / Jump to view / Save view get moved
