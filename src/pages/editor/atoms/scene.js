@@ -58,9 +58,12 @@ export const dofAtom = atom({
   highlightBokeh: true,
 })
 
-// Map style — one of default | satellite | warm | cool | desaturated | noir |
-// sepia | blueprint | neon. See `#map-style-grid` in the sidebar HTML.
-export const mapStyleAtom = atom('default')
+// (mapStyleAtom — color-grade preset for the tile texture — went with
+// the sidebar editor's #map-style-grid in Phase 1.2. Nothing in the
+// scene reads it any more; the atom + the persistence round-trip
+// were write-only. If a future preset picker comes back, recreate
+// here. The 'default | satellite | warm | …' slugs are documented
+// in prototypes/poster-v3-ui.html for reference.)
 
 // Time-of-day unlock — when off, the slider clamps to sunrise/sunset at the
 // current latitude; when on, the user can drag into deep night. Persists via

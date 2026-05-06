@@ -10,7 +10,6 @@ import {
   vignetteAtom,
   cloudsAtom,
   dofAtom,
-  mapStyleAtom,
   todUnlockedAtom,
 } from '../atoms/scene'
 import {
@@ -71,7 +70,6 @@ export default function useSessionPersistence() {
   const setVignette = useSetAtom(vignetteAtom)
   const setClouds = useSetAtom(cloudsAtom)
   const setDof = useSetAtom(dofAtom)
-  const setMapStyle = useSetAtom(mapStyleAtom)
   const setTodUnlocked = useSetAtom(todUnlockedAtom)
   const setFillMode = useSetAtom(fillModeAtom)
   const setAspectRatio = useSetAtom(aspectRatioAtom)
@@ -90,7 +88,6 @@ export default function useSessionPersistence() {
   const vignette = useAtomValue(vignetteAtom)
   const clouds = useAtomValue(cloudsAtom)
   const dof = useAtomValue(dofAtom)
-  const mapStyle = useAtomValue(mapStyleAtom)
   const todUnlocked = useAtomValue(todUnlockedAtom)
   const fillMode = useAtomValue(fillModeAtom)
   const aspectRatio = useAtomValue(aspectRatioAtom)
@@ -108,7 +105,7 @@ export default function useSessionPersistence() {
   useEffect(() => {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-      clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio,
+      clouds, dof, todUnlocked, fillMode, aspectRatio,
       textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
     }
   })
@@ -178,7 +175,6 @@ export default function useSessionPersistence() {
           if (!isNaN(n)) setAspectRatio(n)
         }
         if (u.textFields) setTextFields(mergeObj(latest.current.textFields, u.textFields))
-        if (u.mapStyle) setMapStyle(u.mapStyle)
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
         // Guard with typeof check so old session blobs that pre-date this
         // field don't overwrite the default with `undefined`.
@@ -236,7 +232,6 @@ export default function useSessionPersistence() {
         fillMode: !!v.fillMode,
         aspectRatio: v.aspectRatio,
         textFields: { ...v.textFields },
-        mapStyle: v.mapStyle,
         todUnlocked: !!v.todUnlocked,
         savedViewMarkersOn: !!v.savedViewMarkersOn,
         defaultSavedViewId: v.defaultSavedViewId ?? null,
@@ -285,7 +280,7 @@ export default function useSessionPersistence() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-    clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio,
+    clouds, dof, todUnlocked, fillMode, aspectRatio,
     textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
   ])
 
