@@ -151,6 +151,19 @@ async function run() {
     check(`${path} renders`, ok, 'no h1 mounted within 5s')
   }
 
+  // Brand-text guard. The landing page's <h1> must read 'Vedute' — locks
+  // the Phase 1.1 rebrand at the production-build level. Unit tests cover
+  // the source, this covers the prod bundle (catches a future minify /
+  // tree-shake / SSR step that might mangle the literal).
+  await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
+  await page.evaluate(() => {
+    history.pushState({}, '', '/')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await page.waitForFunction(() => !!document.querySelector('h1'), null, { timeout: 5_000 })
+  const heroText = await page.evaluate(() => document.querySelector('h1')?.textContent?.trim())
+  check('landing hero reads "Vedute"', heroText === 'Vedute', `got: "${heroText}"`)
+
   // --- Phase 2: session persistence writes (driven by save-view) ---
   // Note: full restore-roundtrip is covered by the useSessionPersistence
   // unit tests; here we just verify the persistence hook is wired up at
