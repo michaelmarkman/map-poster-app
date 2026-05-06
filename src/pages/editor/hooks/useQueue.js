@@ -382,6 +382,16 @@ export default function useQueue() {
       return entry
     }
 
+    // Has the user removed this job since runJob started? When yes, the
+    // download + gallery-add + render-count bump should all skip — the
+    // user explicitly cancelled. Without this guard, a user clicking
+    // Remove on an active AI render still saw the result land in the
+    // gallery (and got billed against the monthly cap) once the in-flight
+    // fetch resolved, which contradicts the explicit cancel intent.
+    function isJobLive(id) {
+      return queueRef.current.some((j) => j.id === id)
+    }
+
     async function runJob(job) {
       // Already-captured snapshot locks the view to the moment the job was
       // created — matches the prototype (see poster-v3-ui.jsx:2312).
@@ -404,6 +414,7 @@ export default function useQueue() {
         const finalUrl = shouldShowWatermark()
           ? await applyWatermark(snapshotUrl)
           : snapshotUrl
+        if (!isJobLive(job.id)) return
         downloadDataUrl(finalUrl, fname)
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
@@ -432,6 +443,9 @@ export default function useQueue() {
       try {
         const aiResult = await callGemini(snapshotUrl, job.prompt, job.apiKey)
         clearInterval(pulse)
+        // Bail if the user removed the job during the fetch — don't
+        // download, don't add to gallery, don't bump the render counter.
+        if (!isJobLive(job.id)) return
         const fname = buildFilename(job.label, {
           resolution: job.resolution,
           location: job.location,
@@ -440,6 +454,7 @@ export default function useQueue() {
         const finalUrl = shouldShowWatermark()
           ? await applyWatermark(aiResult)
           : aiResult
+        if (!isJobLive(job.id)) return
         downloadDataUrl(finalUrl, fname)
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
@@ -457,6 +472,7 @@ export default function useQueue() {
         if (!job.apiKey) incrementRenderCount(1)
       } catch (err) {
         clearInterval(pulse)
+        if (!isJobLive(job.id)) return
         updateJob(job.id, {
           status: 'error',
           statusText: err?.message?.slice(0, 80) || 'Error',
