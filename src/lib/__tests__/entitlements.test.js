@@ -67,8 +67,13 @@ describe('shouldShowWatermark', () => {
   it('hides for Pro', () => {
     expect(shouldShowWatermark({ profile: { tier: 'pro' } })).toBe(false)
   })
-  it('hides for BYOK regardless of tier', () => {
-    expect(shouldShowWatermark({ profile: null, byokKey: 'sk-...' })).toBe(false)
+  it('still shows for free + BYOK (BYOK does NOT bypass watermark)', () => {
+    // Watermark is Vedute's product gating, not the model's — a free user
+    // pasting any string into the API-key field shouldn't be able to
+    // launder their way out of free-tier branding. The doc comment at
+    // the top of entitlements.js reads "Resolution + watermark gates
+    // still apply (those are Vedute's product, not the model's)".
+    expect(shouldShowWatermark({ profile: null, byokKey: 'sk-...' })).toBe(true)
   })
 })
 

@@ -357,8 +357,9 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        // Phase 6 — apply free-tier watermark (no-op for BYOK / future Pro).
-        const finalUrl = shouldShowWatermark({ byokKey: job.apiKey })
+        // Phase 6 — apply free-tier watermark (no-op for Pro). BYOK does
+        // NOT bypass the watermark (see entitlements.js doc comment).
+        const finalUrl = shouldShowWatermark()
           ? await applyWatermark(snapshotUrl)
           : snapshotUrl
         downloadDataUrl(finalUrl, fname)
@@ -395,7 +396,7 @@ export default function useQueue() {
           location: job.location,
         })
         // Phase 6 — apply free-tier watermark.
-        const finalUrl = shouldShowWatermark({ byokKey: job.apiKey })
+        const finalUrl = shouldShowWatermark()
           ? await applyWatermark(aiResult)
           : aiResult
         downloadDataUrl(finalUrl, fname)
@@ -520,12 +521,9 @@ export default function useQueue() {
         resolution: settingsRef.current.resolution,
         location: getLocation(),
       })
-      // Phase 6 — quick downloads also get the free-tier watermark
-      // (BYOK still bypasses).
-      const dataUrl = shouldShowWatermark({
-        // profile: undefined → entitlements reads from the active profile bridge
-        byokKey: settingsRef.current.aiKey,
-      })
+      // Phase 6 — quick downloads also get the free-tier watermark.
+      // BYOK does NOT bypass — watermark is Vedute's product gating.
+      const dataUrl = shouldShowWatermark()
         ? await applyWatermark(raw)
         : raw
       downloadDataUrl(dataUrl, fname)

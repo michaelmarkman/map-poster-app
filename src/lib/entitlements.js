@@ -91,8 +91,13 @@ export function canUseResolution({ profile, multiplier } = {}) {
 
 // Watermark gate. Used by the export pipeline to decide whether to bake
 // a Vedute wordmark into the bottom-right of the rendered PNG.
-export function shouldShowWatermark({ profile, byokKey } = {}) {
-  if (byokKey) return false // BYOK bypasses watermark too
+//
+// BYOK does NOT bypass — the watermark is Vedute's product gating, not
+// the model's. A free user pasting any string into the API-key field
+// shouldn't be able to launder their way out of free-tier branding.
+// (BYOK does bypass canSubmitRender's count check, since we're not
+// the ones paying Google for that call.)
+export function shouldShowWatermark({ profile } = {}) {
   return getTierLimits(profile === undefined ? _activeProfile : profile).showWatermark
 }
 
