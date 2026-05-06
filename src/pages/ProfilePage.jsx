@@ -393,6 +393,9 @@ export default function ProfilePage() {
           <input
             type="password"
             placeholder="API key (optional)"
+            // Gemini keys are ~40 chars; cap well above that so a paste
+            // of garbage doesn't end up in localStorage.
+            maxLength={200}
             value={aiKey}
             autoComplete="off"
             onChange={handleByokChange}

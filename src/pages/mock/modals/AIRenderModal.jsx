@@ -494,6 +494,11 @@ export default function AIRenderModal() {
                       'Describe the look. Examples:\n  • A neon-soaked rainy night in Tokyo, cinematic.\n  • Watercolor with hand-drawn ink outlines, off-white paper.\n  • Golden-hour aerial photograph, slight tilt-shift.'
                     }
                     rows={4}
+                    // Plenty of headroom for natural-language style
+                    // descriptions; stops a runaway paste from sending
+                    // megabytes of prompt to Gemini and racking up
+                    // token costs (or hitting Gemini's input cap).
+                    maxLength={2000}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                   />
@@ -510,6 +515,9 @@ export default function AIRenderModal() {
                   className="rs-input rs-provider"
                   type="password"
                   placeholder="API key (optional)"
+                  // Gemini keys are ~40 chars; cap well above that so
+                  // a paste of garbage doesn't end up in localStorage.
+                  maxLength={200}
                   value={aiKey}
                   autoComplete="off"
                   onChange={handleKeyChange}
