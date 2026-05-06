@@ -421,9 +421,17 @@ export default function Scene() {
   }, [camera])
 
   // Saved-view consumer: restore-view applies a saved payload directly to
-  // the camera. Accepts either the bare camera object {position, quaternion,
-  // up, ...} OR a wrapped saved-view {camera: {...}, tod, ...}. Geodetic
-  // {latitude, longitude, altitude} is the last-resort fallback.
+  // the camera. Accepts three position shapes:
+  //   1. {position: [x, y, z]}            — current React format (get-camera)
+  //   2. {px, py, pz, qx, qy, qz, qw, fov} — prototype legacy shape, still
+  //                                          on disk for users who saved
+  //                                          views before the rebrand
+  //                                          (mapposter3d_v2_views →
+  //                                          vedute_views migration carries
+  //                                          them through unchanged)
+  //   3. {latitude, longitude, altitude}  — geodetic fallback
+  // Each can be wrapped in {camera: {...}} (from saved views) or sent flat
+  // (from get-camera reply / direct restore).
   useEffect(() => {
     const handler = (e) => {
       const detail = e.detail
@@ -431,12 +439,19 @@ export default function Scene() {
       const v = detail.camera && typeof detail.camera === 'object' ? detail.camera : detail
       if (Array.isArray(v.position) && v.position.length === 3) {
         camera.position.set(v.position[0], v.position[1], v.position[2])
+      } else if (typeof v.px === 'number' && typeof v.py === 'number' && typeof v.pz === 'number') {
+        camera.position.set(v.px, v.py, v.pz)
       } else if (v.latitude != null && v.longitude != null && v.altitude != null) {
         const p = new Geodetic(radians(v.longitude), radians(v.latitude), v.altitude).toECEF()
         camera.position.copy(p)
       }
       if (Array.isArray(v.quaternion) && v.quaternion.length === 4) {
         camera.quaternion.set(v.quaternion[0], v.quaternion[1], v.quaternion[2], v.quaternion[3])
+      } else if (
+        typeof v.qx === 'number' && typeof v.qy === 'number'
+        && typeof v.qz === 'number' && typeof v.qw === 'number'
+      ) {
+        camera.quaternion.set(v.qx, v.qy, v.qz, v.qw)
       }
       if (Array.isArray(v.up) && v.up.length === 3) {
         camera.up.set(v.up[0], v.up[1], v.up[2])
@@ -445,6 +460,11 @@ export default function Scene() {
         // Vertical fov from 24mm-full-frame-sensor-height formula (see
         // useLayoutEffect above). Must match syncCameraToUI / FovListener.
         camera.fov = 2 * Math.atan(12 / v.fovMm) * 180 / Math.PI
+        camera.updateProjectionMatrix()
+      } else if (typeof v.fov === 'number') {
+        // Prototype-shape views stored vertical fov directly (Three's
+        // camera.fov), not the focal-length-derived fovMm.
+        camera.fov = v.fov
         camera.updateProjectionMatrix()
       }
     }
