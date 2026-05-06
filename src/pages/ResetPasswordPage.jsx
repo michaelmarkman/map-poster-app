@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { friendlyError } from '../lib/errors'
@@ -27,6 +27,11 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  // Track the redirect timer so unmounting (e.g. user clicks "Back to
+  // sign in" on the success view) cancels the pending navigate('/app')
+  // — without this, the redirect fires after a user has explicitly
+  // navigated elsewhere.
+  const redirectRef = useRef(null)
 
   // Some browsers leave the hash in the address bar after Supabase
   // hydrates the session. Clean it on mount so the recovery token
@@ -38,6 +43,9 @@ export default function ResetPasswordPage() {
         const url = window.location.pathname + window.location.search
         window.history.replaceState(null, '', url)
       } catch {}
+    }
+    return () => {
+      if (redirectRef.current) clearTimeout(redirectRef.current)
     }
   }, [])
 
@@ -59,7 +67,7 @@ export default function ResetPasswordPage() {
       // Brief beat so the success state lands, then bounce into the
       // editor — Supabase already set a session as part of the
       // recovery link, so the user is logged in.
-      setTimeout(() => navigate('/app'), 1200)
+      redirectRef.current = setTimeout(() => navigate('/app'), 1200)
     } catch (err) {
       setError(friendlyError(err))
     } finally {
