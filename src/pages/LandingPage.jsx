@@ -64,7 +64,7 @@ const s = {
 const features = [
   { icon: '🌍', title: '3D Globe View', text: 'Explore any place on Earth with photorealistic 3D tiles and atmospheric effects.' },
   { icon: '🎨', title: 'Art Styles', text: 'Choose from dozens of poster styles — minimal, watercolor, sketch, halftone, and more.' },
-  { icon: '🌅', title: 'Time Machine', text: 'Set the time of day with golden hour, blue hour, and sunset lighting.' },
+  { icon: '🌅', title: 'Time of Day', text: 'Scrub the sun. Pick golden hour, blue hour, or anywhere in between.' },
   { icon: '🖨️', title: 'Export & Print', text: 'High-resolution export ready for printing, framing, or sharing online.' },
 ]
 
@@ -136,20 +136,20 @@ export default function LandingPage() {
         }} />
 
         <div className="hero-content" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h1 style={{ ...s.title, transform: `translateY(${-scrollY * 0.15}px)` }}>
-            Map<span style={s.accent}>Poster</span>
+          <h1 style={{ ...s.title, ...s.accent, transform: `translateY(${-scrollY * 0.15}px)` }}>
+            Vedute
           </h1>
           <p style={{ ...s.sub, transform: `translateY(${-scrollY * 0.08}px)` }}>
-            Create stunning 3D map posters of any place on Earth.
-            Choose your style, frame it, and share it with the world.
+            Aerial city posters, made from 3D maps. Pick a place,
+            choose a style, frame it, share it.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            <a href="/app" className="landing-btn" style={s.btn}>
+            <Link to="/app" className="landing-btn" style={s.btn}>
               {user ? 'Open editor' : 'Try it free'}
-            </a>
-            <a href="/prototypes/community.html" className="landing-btn-sec" style={s.secondary}>
+            </Link>
+            <Link to="/community" className="landing-btn-sec" style={s.secondary}>
               Browse gallery
-            </a>
+            </Link>
           </div>
         </div>
       </div>
