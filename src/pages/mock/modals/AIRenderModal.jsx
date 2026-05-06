@@ -463,10 +463,11 @@ export default function AIRenderModal() {
                   type="button"
                   className={`rs-raw${isRawSelected ? ' is-active' : ''}`}
                   onClick={() => togglePreset(RAW_KEY)}
+                  aria-pressed={isRawSelected}
                 >
                   <div className="rs-raw-photo">
                     <img src={photoFor('raw')} alt="Raw / original scene" loading="lazy" />
-                    <div className="rs-raw-check" />
+                    <div className="rs-raw-check" aria-hidden="true" />
                   </div>
                   <div className="rs-raw-body">
                     <div className="rs-raw-title">Raw export</div>
@@ -485,9 +486,10 @@ export default function AIRenderModal() {
                   type="button"
                   className={`rs-raw${isCustomSelected ? ' is-active' : ''}`}
                   onClick={() => togglePreset(CUSTOM_KEY)}
+                  aria-pressed={isCustomSelected}
                 >
                   <div className="rs-raw-photo" style={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)' }}>
-                    <div className="rs-raw-check" />
+                    <div className="rs-raw-check" aria-hidden="true" />
                   </div>
                   <div className="rs-raw-body">
                     <div className="rs-raw-title">Custom prompt</div>
@@ -547,10 +549,11 @@ export default function AIRenderModal() {
                           type="button"
                           className={`rs-card${on ? ' is-active' : ''}`}
                           onClick={() => togglePreset(p.key)}
+                          aria-pressed={on}
                         >
                           <div className="rs-card-photo">
                             <img src={photoFor(p.file)} alt={p.label} loading="lazy" />
-                            <div className="rs-card-check" />
+                            <div className="rs-card-check" aria-hidden="true" />
                           </div>
                           <div className="rs-card-body">
                             <div className="rs-card-label">{p.label}</div>
