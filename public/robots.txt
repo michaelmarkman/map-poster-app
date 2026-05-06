@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /prototypes/
 
-Sitemap: https://mapposter.app/sitemap.xml
+Sitemap: https://vedute.com/sitemap.xml
