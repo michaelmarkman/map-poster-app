@@ -212,6 +212,28 @@ function emitStatus(text) {
 // useQueue threads textFields through settingsRef and reads .title at
 // snapshot time.)
 
+// Pull a user-facing error message from a failed /api/gemini response.
+// Handles both error shapes in flight:
+//   - our proxy returns { error: "string" } (no key / rate limit / upstream error)
+//   - Gemini's upstream returns { error: { message: "..." } }
+// Earlier code only honored the second shape, so the first collapsed to
+// "API error 500" with no useful detail. Exported so unit tests can pin
+// the shape across both proxies.
+export function geminiErrorMessage(status, body) {
+  let msg = `API error ${status}`
+  if (body && typeof body === 'object') {
+    const fromProxy = typeof body.error === 'string' ? body.error : null
+    const fromUpstream = body.error?.message
+    msg = fromProxy || fromUpstream?.slice(0, 200) || msg
+  }
+  // 500 with "not configured" is the recurring "no GEMINI_API_KEY"
+  // case — translate it to a friendlier hint that points at BYOK.
+  if (status === 500 && /not configured/i.test(msg)) {
+    msg = 'Gemini key not set. Add one on /profile (BYOK), or set GEMINI_API_KEY in .env.local.'
+  }
+  return msg
+}
+
 // Gemini call — mirrors sendToGemini from poster-v3-ui.jsx:2215. The server
 // proxy at /api/gemini expects the raw Gemini REST payload; `apiKey` is sent
 // alongside so the server can fall back to the caller's key when no
@@ -271,9 +293,9 @@ async function callGemini(snapshotDataUrl, prompt, apiKey) {
   }
   clearTimeout(timeoutId)
   if (!res.ok) {
-    let msg = `API error ${res.status}`
-    try { msg = (await res.json()).error?.message?.slice(0, 80) || msg } catch (e) {}
-    throw new Error(msg)
+    let body = null
+    try { body = await res.json() } catch {}
+    throw new Error(geminiErrorMessage(res.status, body))
   }
   const result = await res.json()
   for (const cand of result.candidates || []) {
