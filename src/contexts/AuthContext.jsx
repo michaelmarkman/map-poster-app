@@ -137,11 +137,30 @@ export function AuthProvider({ children }) {
   }
 
   async function uploadAvatar(file) {
-    const ext = file.name.split('.').pop()
+    // Defensive validation. The <input accept="image/*"> on the form is
+    // a UI hint only — drag-drop / paste / programmatic submit can
+    // bypass it. Reject anything that isn't a real image, and cap size
+    // before sending it to Supabase Storage (which would reject huge
+    // uploads anyway, but with a less friendly error).
+    const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+    const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
+    if (!ALLOWED.has(file.type)) {
+      throw new Error('Avatar must be a JPG, PNG, WebP, or GIF image.')
+    }
+    if (file.size > MAX_SIZE) {
+      throw new Error(`Avatar is too large (${Math.round(file.size / 1024 / 1024)} MB) — max is 5 MB.`)
+    }
+    // Derive extension from MIME, NOT the filename. A user uploading
+    // "evil.html" with image/png would otherwise land at
+    // `<uid>/avatar.html` which Supabase could serve as text/html —
+    // potential XSS vector if anything ever embeds the avatar URL
+    // without a Content-Type override.
+    const extByType = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
+    const ext = extByType[file.type]
     const path = `${user.id}/avatar.${ext}`
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true })
+      .upload(path, file, { upsert: true, contentType: file.type })
     if (uploadError) throw uploadError
 
     const { data: { publicUrl } } = supabase.storage
