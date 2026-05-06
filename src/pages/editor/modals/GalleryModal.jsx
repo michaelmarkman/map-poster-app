@@ -183,9 +183,11 @@ function GalleryCard({ item, onOpen }) {
     // automatically (the design choice was: download + manual share).
     const place = item.location?.split(',')[0]?.trim() || 'Somewhere'
     const caption = `${place}. Made with Vedute — vedute.com`
+    let captionCopied = false
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(caption)
+        captionCopied = true
       }
     } catch {}
     // Trigger a download alongside the clipboard copy. Twitter / IG don't
@@ -194,6 +196,18 @@ function GalleryCard({ item, onOpen }) {
     link.download = item.filename + '.png'
     link.href = item.dataUrl
     link.click()
+    // Surface what just happened — the share flow has no visible UI
+    // otherwise (a clipboard copy + a download both happen invisibly to
+    // the user). Without this, users click Share and wonder if it did
+    // anything.
+    window.dispatchEvent(new CustomEvent('toast', {
+      detail: {
+        type: 'success',
+        message: captionCopied
+          ? 'Caption copied · image downloading'
+          : 'Image downloading',
+      },
+    }))
     window.dispatchEvent(new CustomEvent('open-share', { detail: { item } }))
   }
   const handleDelete = (e) => {
