@@ -8,6 +8,18 @@
 
 const USER_AGENT = 'Vedute/1.0'
 const NOMINATIM = 'https://nominatim.openstreetmap.org'
+// Network calls share a tight ceiling — geocoding is decorative
+// (search a place, label a saved view), never load-bearing. A stalled
+// request shouldn't keep the user staring at a frozen search input.
+const FETCH_TIMEOUT_MS = 8000
+
+function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => {
+    clearTimeout(timer)
+  })
+}
 
 // Forward geocode: query string -> { lat, lng, displayName } or null.
 //
@@ -17,7 +29,7 @@ export async function geocodeSearch(query) {
   const trimmed = (query || '').trim()
   if (!trimmed) return null
   try {
-    const r = await fetch(
+    const r = await fetchWithTimeout(
       `${NOMINATIM}/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`,
       { headers: { 'User-Agent': USER_AGENT } },
     )
@@ -48,7 +60,7 @@ export async function searchPlaces(query, { limit = 5 } = {}) {
   // Try the server proxy first. If the proxy returns 501 / fallback:true,
   // we drop into the Nominatim path silently.
   try {
-    const r = await fetch('/api/places', {
+    const r = await fetchWithTimeout('/api/places', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ q: trimmed, limit }),
@@ -69,7 +81,7 @@ export async function searchPlaces(query, { limit = 5 } = {}) {
     // network blip; fall through
   }
   try {
-    const r = await fetch(
+    const r = await fetchWithTimeout(
       `${NOMINATIM}/search?q=${encodeURIComponent(trimmed)}&format=json&limit=${limit}`,
       { headers: { 'User-Agent': USER_AGENT } },
     )
@@ -98,7 +110,7 @@ export async function searchPlaces(query, { limit = 5 } = {}) {
 export async function reverseGeocodeName(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
   try {
-    const r = await fetch(
+    const r = await fetchWithTimeout(
       `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
       { headers: { 'User-Agent': USER_AGENT } },
     )
