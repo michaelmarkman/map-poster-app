@@ -1,168 +1,155 @@
-import { useAtom } from 'jotai'
-import HoverPopoverPill from './HoverPopoverPill'
-import GuestSignInChip from './GuestSignInChip'
+import { useMemo } from 'react'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import ReadoutPill from './ReadoutPill'
 import RenderCountChip from './RenderCountChip'
-import { CloudIcon, ApertureIcon } from './icons'
-import { cloudsAtom, dofAtom } from '../../editor/atoms/scene'
+import {
+  cloudsAtom,
+  dofAtom,
+  latitudeAtom,
+  timeOfDayAtom,
+  todUnlockedAtom,
+} from '../../editor/atoms/scene'
+import { cameraReadoutAtom } from '../../editor/atoms/ui'
+import { getSunTimes } from '../../editor/utils/sun'
 
-// Aperture mode mapping: 0–100 slider → f-stop on a log scale.
-// 0% = f/16 (deep focus, almost no blur), 100% = f/1.4 (shallow + creamy).
-// Each f-stop halves the aperture area, so log-interp keeps the slider feel
-// linear in stops. Mirrors /dof-lab variant C.
-const sliderToFStop = (s) => {
-  const t = Math.max(0, Math.min(100, s)) / 100
-  return Math.exp(Math.log(16) + t * (Math.log(1.4) - Math.log(16)))
-}
-const fStopToSlider = (f) => {
-  const t = (Math.log(16) - Math.log(f)) / (Math.log(16) - Math.log(1.4))
-  return Math.round(Math.max(0, Math.min(1, t)) * 100)
-}
-const fmtFStop = (f) => `f/${f < 10 ? f.toFixed(1) : Math.round(f)}`
+// Phase 2.7 — top-right cluster collapses focal length + aperture +
+// time-of-day + cloud coverage into one ReadoutPill (visually unified
+// strip with hairline dividers between drag-scrubber segments).
+//
+// Aperture mapping: slider 0% = OFF (DoF disabled, readout = 'f/—').
+// Slider 1–100% = f/16 → f/1.4 on a log scale (each f-stop halves
+// the aperture area, so log-interp keeps the slider feel linear in
+// stops).
+//
+// Clouds: slider 0% disables clouds (coverage=0); 1–100% maps to
+// coverage 0.01–1.0.
+//
+// TOD: clamps to sunrise–sunset by default. Shift+drag flips
+// todUnlocked so the user can drag past the natural day window into
+// night.
 
-function MockSlider({ label, value, min, max, step = 1, onChange, suffix = '', format }) {
-  return (
-    <div className="mock-slider-row">
-      <div className="mock-slider-head">
-        <span>{label}</span>
-        <span className="mock-slider-val">{format ? format(value) : `${value}${suffix}`}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(+e.target.value)}
-      />
-    </div>
-  )
+// f-stop mapping: 0–100 slider maps log-linearly from f/16 (deep) to
+// f/1.4 (shallow). 0 is the OFF detent (slider sentinel; outside the
+// f-stop range entirely).
+const APERTURE_STEPS = 100
+const F_MIN = 1.4
+const F_MAX = 16
+const L_MIN = Math.log(F_MIN)
+const L_MAX = Math.log(F_MAX)
+
+const apertureValueToSlider = (aperture) => {
+  if (!aperture || aperture <= 0) return 0
+  // 1..100 maps log-linearly across f/16..f/1.4 (slider 1 ≈ f/16, 100 = f/1.4).
+  const t = (L_MAX - Math.log(aperture)) / (L_MAX - L_MIN)
+  return Math.max(1, Math.min(APERTURE_STEPS, 1 + Math.round(t * (APERTURE_STEPS - 1))))
 }
 
-function MockToggleRow({ label, on, onToggle }) {
-  return (
-    <div className="mock-toggle-row">
-      <span>{label}</span>
-      <button
-        type="button"
-        className={`mock-toggle${on ? ' is-on' : ''}`}
-        onClick={onToggle}
-        aria-pressed={on}
-      />
-    </div>
-  )
+const sliderToApertureValue = (slider) => {
+  if (slider <= 0) return 0
+  const t = (Math.max(1, Math.min(APERTURE_STEPS, slider)) - 1) / (APERTURE_STEPS - 1)
+  return Math.exp(L_MAX + t * (L_MIN - L_MAX))
+}
+
+const formatAperture = (slider) => {
+  const f = sliderToApertureValue(slider)
+  if (!f) return 'f/—'
+  return `f/${f < 10 ? f.toFixed(1) : Math.round(f)}`
+}
+
+const formatHour = (h) => {
+  const hh = Math.floor(h)
+  const mm = Math.round((h - hh) * 60)
+  const ap = hh >= 12 ? 'pm' : 'am'
+  const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+  return `${h12}:${String(mm).padStart(2, '0')}${ap}`
 }
 
 export default function ClusterTopRight() {
-  const [clouds, setClouds] = useAtom(cloudsAtom)
   const [dof, setDof] = useAtom(dofAtom)
+  const [clouds, setClouds] = useAtom(cloudsAtom)
+  const [timeOfDay, setTimeOfDay] = useAtom(timeOfDayAtom)
+  const setTodUnlocked = useSetAtom(todUnlockedAtom)
+  const todUnlocked = useAtomValue(todUnlockedAtom)
+  const latitude = useAtomValue(latitudeAtom)
+  const readout = useAtomValue(cameraReadoutAtom)
+
+  const todRange = useMemo(() => {
+    if (todUnlocked) return { min: 0, max: 24 }
+    const { sunrise, sunset } = getSunTimes(latitude)
+    return { min: sunrise + 0.5, max: sunset - 0.5 }
+  }, [latitude, todUnlocked])
+
+  const setFov = (mm) => {
+    window.dispatchEvent(new CustomEvent('fov-change', { detail: Math.round(mm) }))
+  }
+
+  // Aperture's atom value is the f-stop (or 0 = off). The scrubber
+  // works in slider-units (0–100) so the drag delta is intuitive at
+  // every f-stop. Wrap on each end to translate.
+  const apertureSliderValue = apertureValueToSlider(dof.aperture)
+  const setApertureFromSlider = (slider) => {
+    setDof((d) => ({ ...d, aperture: sliderToApertureValue(slider) }))
+  }
+
+  // Cloud coverage's atom value is 0–1. Slider works in 0–100 percent
+  // for parity with the rest of the pill; 0 disables clouds entirely.
+  const cloudsSliderValue = Math.round((clouds.coverage || 0) * 100)
+  const setCloudsFromSlider = (slider) => {
+    setClouds((c) => ({ ...c, coverage: Math.max(0, Math.min(100, slider)) / 100 }))
+  }
 
   return (
     <div className="mock-cluster mock-cluster--top-right">
       <RenderCountChip />
-      <GuestSignInChip />
-      <HoverPopoverPill
-        icon={<ApertureIcon />}
-        label={`DoF: ${dof.on ? 'ON' : 'OFF'}`}
-        active={dof.on}
-        onToggle={() => setDof({ ...dof, on: !dof.on })}
-      >
-        {/* Mode toggle — Aperture mode replaces Tightness+Blur with one
-            f-stop slider that drives both depthRange and maxBlur via the
-            shader's `useApertureCoC` branch. Manual mode keeps the legacy
-            two-knob workflow. Both modes share Pop. */}
-        <MockToggleRow
-          label="Aperture mode"
-          on={!!dof.useApertureCoC}
-          onToggle={() => setDof({ ...dof, useApertureCoC: !dof.useApertureCoC })}
-        />
-        {dof.useApertureCoC ? (
-          <MockSlider
-            label="Aperture"
-            value={fStopToSlider(dof.aperture ?? 4)}
-            min={0}
-            max={100}
-            onChange={(v) => setDof({ ...dof, aperture: sliderToFStop(v) })}
-            format={() => fmtFStop(dof.aperture ?? 4)}
-          />
-        ) : (
-          <>
-            <MockSlider
-              label="Tightness"
-              value={dof.tightness}
-              min={0}
-              max={100}
-              onChange={(v) => setDof({ ...dof, tightness: v })}
-              suffix="%"
-            />
-            <MockSlider
-              label="Blur"
-              value={dof.blur}
-              min={0}
-              max={100}
-              onChange={(v) => setDof({ ...dof, blur: v })}
-              suffix="%"
-            />
-          </>
-        )}
-        <MockSlider
-          label="Pop"
-          value={dof.focusColorPop ?? 0}
-          min={0}
-          max={100}
-          onChange={(v) => setDof({ ...dof, focusColorPop: v })}
-          suffix="%"
-        />
-      </HoverPopoverPill>
-      <HoverPopoverPill
-        icon={<CloudIcon />}
-        label={`Clouds: ${clouds.on ? 'ON' : 'OFF'}`}
-        active={clouds.on}
-        onToggle={() => setClouds({ ...clouds, on: !clouds.on })}
-        alwaysShowPopover
-      >
-        <div
-          className={`mock-controls-group${clouds.on ? '' : ' is-disabled'}`}
-          aria-disabled={!clouds.on}
-        >
-          <MockSlider
-            label="Coverage"
-            value={Math.round(clouds.coverage * 100)}
-            min={0}
-            max={100}
-            onChange={(v) => setClouds({ ...clouds, coverage: v / 100 })}
-            suffix="%"
-          />
-          <MockSlider
-            label="Speed"
-            value={clouds.speed}
-            min={-10}
-            max={10}
-            step={0.5}
-            onChange={(v) => setClouds({ ...clouds, speed: v })}
-            suffix="x"
-          />
-          <MockToggleRow
-            label="Shadows"
-            on={!!clouds.shadows}
-            onToggle={() => setClouds({ ...clouds, shadows: !clouds.shadows })}
-          />
-          <MockToggleRow
-            label="Pause"
-            on={!!clouds.paused}
-            onToggle={() => setClouds({ ...clouds, paused: !clouds.paused })}
-          />
-        </div>
-        <div className="mock-controls-group mock-controls-group--separated">
-          <MockSlider
-            label="Color Pop"
-            value={dof.sceneColorPop ?? 0}
-            min={0}
-            max={100}
-            onChange={(v) => setDof({ ...dof, sceneColorPop: v })}
-            suffix="%"
-          />
-        </div>
-      </HoverPopoverPill>
+      <ReadoutPill
+        segments={[
+          {
+            key: 'focal',
+            label: 'Focal length',
+            value: readout.fovMm,
+            setValue: setFov,
+            min: 14,
+            max: 200,
+            scale: 0.5,
+            format: (v) => `${Math.round(v)}mm`,
+          },
+          {
+            key: 'aperture',
+            label: 'Aperture',
+            value: apertureSliderValue,
+            setValue: setApertureFromSlider,
+            min: 0,
+            max: APERTURE_STEPS,
+            scale: 0.5,
+            format: formatAperture,
+          },
+          {
+            key: 'tod',
+            label: 'Time of day',
+            value: timeOfDay,
+            setValue: setTimeOfDay,
+            min: todRange.min,
+            max: todRange.max,
+            scale: 0.05,
+            format: formatHour,
+            // Shift+drag unlocks the day-window clamp so the user can
+            // drag past sunset into night. Sticky once flipped — the
+            // user re-clamps by clearing the session or unsetting in
+            // a future settings panel.
+            onShiftDrag: () => setTodUnlocked(true),
+          },
+          {
+            key: 'clouds',
+            label: 'Cloud coverage',
+            value: cloudsSliderValue,
+            setValue: setCloudsFromSlider,
+            min: 0,
+            max: 100,
+            scale: 0.5,
+            format: (v) => `${Math.round(v)}%`,
+          },
+        ]}
+      />
     </div>
   )
 }
