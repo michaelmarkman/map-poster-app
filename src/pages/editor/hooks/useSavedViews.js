@@ -211,11 +211,15 @@ export default function useSavedViews() {
   const setDof = useSetAtom(dofAtom)
 
   // Latest snapshot of atoms — used by event handlers without retriggering
-  // effect setup on every atom change.
+  // effect setup on every atom change. The ref is updated inside useEffect
+  // (not the render body) to stay safe under React 19 concurrent rendering;
+  // see LEARNINGS 2026-04-17 for the discarded-render scenario.
   const dof = useAtomValue(dofAtom)
   const tod = useAtomValue(timeOfDayAtom)
   const stateRef = useRef({ dof, tod, views: savedViews })
-  stateRef.current = { dof, tod, views: savedViews }
+  useEffect(() => {
+    stateRef.current = { dof, tod, views: savedViews }
+  }, [dof, tod, savedViews])
 
   // Throttled writer: coalesces rapid saves into one localStorage write.
   const writeTimerRef = useRef(null)
