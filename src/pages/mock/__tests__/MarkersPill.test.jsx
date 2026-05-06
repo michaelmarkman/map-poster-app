@@ -3,9 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { savedViewMarkersOnAtom } from '../../editor/atoms/sidebar'
 
-// GuestSignInChip pulls in AuthContext + react-router; the Markers pill test
-// doesn't care about it, so stub it out.
+// GuestSignInChip + RenderCountChip pull in AuthContext + react-router.
+// This test only cares about the Markers pill, so stub them out — saves
+// us from wrapping in MemoryRouter / a fake AuthProvider.
 vi.mock('../components/GuestSignInChip', () => ({
+  default: () => null,
+}))
+vi.mock('../components/RenderCountChip', () => ({
   default: () => null,
 }))
 
