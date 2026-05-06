@@ -13,9 +13,11 @@ const s = {
     fontFamily: "'Inter', system-ui, sans-serif",
   },
   logo: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 18, fontWeight: 400, color: accent,
-    textDecoration: 'none', fontStyle: 'italic',
+    display: 'inline-flex', alignItems: 'center',
+    textDecoration: 'none', height: 24,
+  },
+  logoImg: {
+    height: 24, width: 'auto', display: 'block',
   },
   navLink: {
     color: '#8a8780', textDecoration: 'none', fontSize: 13,
@@ -117,7 +119,9 @@ export default function Navbar() {
       `}</style>
       <nav style={s.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link to="/" style={s.logo}>Vedute</Link>
+          <Link to="/" style={s.logo} aria-label="Vedute home">
+            <img src="/wordmark.svg" alt="Vedute" style={s.logoImg} />
+          </Link>
           <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {navLinks}
           </div>

@@ -47,11 +47,15 @@ describe('Navbar', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the Vedute wordmark linking to /', () => {
+  it('renders the Vedute wordmark (SVG) linking to /', () => {
     renderNavbar()
-    const logo = screen.getByText('Vedute')
-    expect(logo).toBeDefined()
-    expect(logo.closest('a').getAttribute('href')).toBe('/')
+    // The wordmark moved from text → /wordmark.svg in Phase 2.7. The
+    // <Link> still aria-labels itself "Vedute home" for screen readers.
+    const link = screen.getByLabelText('Vedute home')
+    expect(link.getAttribute('href')).toBe('/')
+    const img = link.querySelector('img')
+    expect(img).toBeDefined()
+    expect(img.getAttribute('alt')).toBe('Vedute')
   })
 
   it('Create + Community links route via React Router (not prototype HTML)', () => {

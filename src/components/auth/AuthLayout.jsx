@@ -1,7 +1,5 @@
 import { Link } from 'react-router-dom'
 
-const accent = '#c8b897'
-
 const styles = {
   wrapper: {
     minHeight: '100vh',
@@ -18,14 +16,16 @@ const styles = {
   // brand was completely absent from /login + /signup +
   // /forgot-password.
   brand: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 22,
-    fontWeight: 400,
-    fontStyle: 'italic',
-    color: accent,
+    display: 'inline-flex',
+    alignItems: 'center',
     textDecoration: 'none',
     marginBottom: 24,
-    letterSpacing: '0.02em',
+    height: 32,
+  },
+  brandImg: {
+    height: 32,
+    width: 'auto',
+    display: 'block',
   },
   card: {
     width: '100%',
@@ -54,7 +54,9 @@ const styles = {
 export default function AuthLayout({ title, subtitle, children }) {
   return (
     <div style={styles.wrapper}>
-      <Link to="/" style={styles.brand}>Vedute</Link>
+      <Link to="/" style={styles.brand} aria-label="Vedute home">
+        <img src="/wordmark.svg" alt="Vedute" style={styles.brandImg} />
+      </Link>
       <div style={styles.card}>
         <h1 style={styles.title}>{title}</h1>
         {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
