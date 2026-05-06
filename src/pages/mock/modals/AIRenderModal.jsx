@@ -197,6 +197,18 @@ export default function AIRenderModal() {
     return () => clearInterval(id)
   }, [open, queue])
 
+  // Esc closes — matches GalleryModal + Lightbox so all three modals
+  // share the same dismissal contract. Only attaches while open so we
+  // don't compete with other listeners when the sheet is closed.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setModals((m) => ({ ...m, aiRender: false }))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, setModals])
+
   const allPresetKeys = useMemo(
     () => PRESET_CATS.flatMap((c) => c.presets.map((p) => p.key)),
     [],
