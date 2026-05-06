@@ -10,7 +10,6 @@ import {
   bloomAtom,
   dofAtom,
   cloudsAtom,
-  mapStyleAtom,
   todUnlockedAtom,
 } from '../atoms/scene'
 import {
@@ -67,7 +66,6 @@ describe('useSessionPersistence', () => {
         fillMode: true,
         aspectRatio: 1.5,
         textFields: { title: 'SF', subtitle: 'Mission', coords: '37.76° N, 122.42° W' },
-        mapStyle: 'noir',
         todUnlocked: true,
       },
       timestamp: 1700000000000,
@@ -84,7 +82,6 @@ describe('useSessionPersistence', () => {
       bloom: useAtomValue(bloomAtom),
       dof: useAtomValue(dofAtom),
       clouds: useAtomValue(cloudsAtom),
-      mapStyle: useAtomValue(mapStyleAtom),
       todUnlocked: useAtomValue(todUnlockedAtom),
       fillMode: useAtomValue(fillModeAtom),
       aspectRatio: useAtomValue(aspectRatioAtom),
@@ -107,7 +104,6 @@ describe('useSessionPersistence', () => {
     expect('colorPop' in result.current.dof).toBe(false)
     expect('globalPop' in result.current.dof).toBe(false)
     expect(result.current.clouds.coverage).toBe(0.5)
-    expect(result.current.mapStyle).toBe('noir')
     expect(result.current.todUnlocked).toBe(true)
     expect(result.current.fillMode).toBe(true)
     expect(result.current.aspectRatio).toBe(1.5)
