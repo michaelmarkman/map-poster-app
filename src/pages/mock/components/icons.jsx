@@ -55,12 +55,6 @@ export const ApertureIcon = () => (
     <path d="M3 12h18" />
   </Svg>
 )
-export const PencilIcon = () => (
-  <Svg>
-    <path d="M4 20h4l11-11-4-4L4 16v4Z" />
-    <path d="m13.5 6.5 4 4" />
-  </Svg>
-)
 export const FrameIcon = () => (
   <Svg>
     <rect x="3.5" y="3.5" width="17" height="17" rx="1" />
@@ -77,36 +71,6 @@ export const ImageIcon = () => (
 export const SparkleIcon = () => (
   <Svg>
     <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.5 5.5l4 4M14.5 14.5l4 4M5.5 18.5l4-4M14.5 9.5l4-4" />
-  </Svg>
-)
-export const TrashIcon = () => (
-  <Svg>
-    <path d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6" />
-  </Svg>
-)
-export const SaveIcon = () => (
-  <Svg>
-    <path d="M5 4h11l3 3v13H5z" />
-    <path d="M8 4v5h7V4M8 14h8v6H8z" />
-  </Svg>
-)
-export const LayersIcon = () => (
-  <Svg>
-    <path d="M12 2 2 8l10 6 10-6-10-6Z" />
-    <path d="M2 14l10 6 10-6M2 11l10 6 10-6" />
-  </Svg>
-)
-export const EyeIcon = () => (
-  <Svg>
-    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-    <circle cx="12" cy="12" r="3" />
-  </Svg>
-)
-export const EyeOffIcon = () => (
-  <Svg>
-    <path d="M3 3l18 18" />
-    <path d="M10.5 6.1A11.5 11.5 0 0 1 12 6c6.5 0 10 7 10 7a16.4 16.4 0 0 1-3.6 4.4M6.6 6.6A16 16 0 0 0 2 13s3.5 7 10 7c1.4 0 2.7-.3 3.9-.8" />
-    <path d="M9.9 9.9A3 3 0 0 0 14 14" />
   </Svg>
 )
 export const CameraSnapIcon = () => (
