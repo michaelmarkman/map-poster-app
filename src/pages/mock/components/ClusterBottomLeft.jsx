@@ -11,17 +11,21 @@ import { modalsAtom } from '../../editor/atoms/modals'
 // toggle. aspectRatioAtom stays a plain number (the ratio w/h); fillMode
 // is still its own atom but the UI treats them as one selection.
 
+// Phase 2.7 — labels are W × H integer mnemonics (24 × 36, 16 × 9, etc.)
+// instead of W:H ratio shorthand. Reads as physical poster proportions
+// at a glance, even when the user hasn't memorized aspect-ratio numbers.
+// Same atom, same picker — just the display string changes.
 const PORTRAIT_RATIOS = [
-  { label: '4:5', ratio: 4 / 5 },
-  { label: '2:3', ratio: 2 / 3 },
-  { label: '3:4', ratio: 3 / 4 },
-  { label: '9:16', ratio: 9 / 16 },
+  { label: '16 × 20', ratio: 4 / 5 },
+  { label: '24 × 36', ratio: 2 / 3 },
+  { label: '18 × 24', ratio: 3 / 4 },
+  { label: '9 × 16', ratio: 9 / 16 },
 ]
 const LANDSCAPE_RATIOS = [
-  { label: '5:4', ratio: 5 / 4 },
-  { label: '3:2', ratio: 3 / 2 },
-  { label: '4:3', ratio: 4 / 3 },
-  { label: '16:9', ratio: 16 / 9 },
+  { label: '20 × 16', ratio: 5 / 4 },
+  { label: '36 × 24', ratio: 3 / 2 },
+  { label: '24 × 18', ratio: 4 / 3 },
+  { label: '16 × 9', ratio: 16 / 9 },
 ]
 const ALL_RATIOS = [...PORTRAIT_RATIOS, ...LANDSCAPE_RATIOS]
 
@@ -190,14 +194,14 @@ export default function ClusterBottomLeft() {
   )
 }
 
-// Render a custom ratio as W:H using small integers when possible.
-// (Integers up to 20:20 covers most user-typed values; otherwise fall back
-// to a 1-decimal float.)
+// Render a custom ratio as W × H using small integers when possible.
+// (Integers up to 20×20 covers most user-typed values; otherwise fall
+// back to a 1-decimal float.)
 function formatCustomRatio(r) {
   if (!Number.isFinite(r) || r <= 0) return '—'
   for (let h = 1; h <= 20; h++) {
     for (let w = 1; w <= 20; w++) {
-      if (Math.abs(w / h - r) < 0.005) return `${w}:${h}`
+      if (Math.abs(w / h - r) < 0.005) return `${w} × ${h}`
     }
   }
   return r.toFixed(2)

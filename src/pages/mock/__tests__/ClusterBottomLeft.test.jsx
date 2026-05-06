@@ -29,8 +29,8 @@ function openAspectPopover(container) {
 describe('ClusterBottomLeft', () => {
   it('shows the active ratio label on the trigger pill', () => {
     renderWith({ aspectRatio: 16 / 9 })
-    // 16:9 is one of the labelled landscape presets.
-    expect(screen.getAllByText('16:9').length).toBeGreaterThan(0)
+    // 16:9 renders as the "16 × 9" mnemonic in the label.
+    expect(screen.getAllByText('16 × 9').length).toBeGreaterThan(0)
   })
 
   it('shows "Fill" on the trigger when in fill mode', () => {
@@ -41,7 +41,8 @@ describe('ClusterBottomLeft', () => {
   it('clicking a portrait preset sets the atom + clears fill mode', () => {
     const { store, container } = renderWith({ fillMode: true })
     openAspectPopover(container)
-    fireEvent.click(screen.getByText('4:5'))
+    // 4:5 = 16 × 20 in the new mnemonic.
+    fireEvent.click(screen.getByText('16 × 20'))
     expect(store.get(aspectRatioAtom)).toBeCloseTo(0.8, 3)
     expect(store.get(fillModeAtom)).toBe(false)
   })
