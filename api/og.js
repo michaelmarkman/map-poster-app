@@ -35,7 +35,11 @@ export default async function handler(req, res) {
   const desc = post.description || `An aerial poster of ${post.location_name || 'a beautiful location'}`
   const image = post.image_url || ''
   const author = post.profiles?.display_name || post.profiles?.username || 'Vedute'
-  const canonicalUrl = `https://${req.headers.host}/community.html?post=${postId}`
+  // Redirect target: the React /community route, NOT the legacy
+  // /community.html prototype (which still carries the old MapPoster
+  // brand and isn't part of the live product). When Phase 7.3 lands a
+  // dedicated /v/:id route, swap this for that.
+  const canonicalUrl = `https://${req.headers.host}/community?post=${postId}`
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')

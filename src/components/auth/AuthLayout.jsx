@@ -1,12 +1,31 @@
+import { Link } from 'react-router-dom'
+
+const accent = '#c8b897'
+
 const styles = {
   wrapper: {
     minHeight: '100vh',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     background: '#09090b',
     padding: '24px',
     fontFamily: "'Inter', system-ui, sans-serif",
+  },
+  // Wordmark above the card so visitors know what they're signing
+  // into. Auth pages don't render the Navbar, so without this the
+  // brand was completely absent from /login + /signup +
+  // /forgot-password.
+  brand: {
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontSize: 22,
+    fontWeight: 400,
+    fontStyle: 'italic',
+    color: accent,
+    textDecoration: 'none',
+    marginBottom: 24,
+    letterSpacing: '0.02em',
   },
   card: {
     width: '100%',
@@ -35,6 +54,7 @@ const styles = {
 export default function AuthLayout({ title, subtitle, children }) {
   return (
     <div style={styles.wrapper}>
+      <Link to="/" style={styles.brand}>Vedute</Link>
       <div style={styles.card}>
         <h1 style={styles.title}>{title}</h1>
         {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
