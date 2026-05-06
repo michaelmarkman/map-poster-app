@@ -701,36 +701,6 @@ export default function useQueue() {
       processQueue()
     }
 
-    async function onGenerateAll() {
-      const snapshot = snapshotCanvas(settingsRef.current.resolution)
-      if (!snapshot) return
-      const s = settingsRef.current
-      const location = (settingsRef.current.textFields?.title || '')
-      const batchId = 'batch-' + Date.now()
-      const batchLabel = (location ? location.split(',')[0] : 'All Styles') + ' · All Styles'
-
-      // If a single preset is selected, only render that one; otherwise fan
-      // out across every preset. Matches the spec ("each active AI preset
-      // (or just the selected one)").
-      const keys = s.aiPreset ? [s.aiPreset] : Object.keys(AI_PRESETS)
-      for (const key of keys) {
-        const preset = AI_PRESETS[key]
-        addJob({
-          label: preset.label || key,
-          prompt: promptFor(key),
-          useAI: true,
-          snapshot,
-          resolution: s.resolution,
-          location,
-          apiKey: s.aiKey,
-          preset: key,
-          batchId,
-          batchLabel,
-        })
-      }
-      processQueue()
-    }
-
     function onClearDone() {
       setQueue((cur) => cur.filter((j) => j.status !== 'done'))
       queueRef.current = queueRef.current.filter((j) => j.status !== 'done')
@@ -795,59 +765,24 @@ export default function useQueue() {
       processQueue()
     }
 
-    async function onBatchExport() {
-      // TODO(Phase 6+): drive the full batch-export loop (restore view ->
-      // wait for scene settle -> snapshot -> queue entry -> next). Needs the
-      // saved-views restore event and a reliable "scene is rendered" signal
-      // before we can run it without races. For now, fall back to snapshotting
-      // the current view once per saved view so the button isn't dead.
-      const views = settingsRef.current.savedViews || []
-      if (!views.length) return
-      for (const view of views) {
-        window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
-        // Settle delay matches the prototype's 1500ms (poster-v3-ui.jsx:2404).
-        await new Promise((r) => setTimeout(r, 1500))
-        const snapshot = snapshotCanvas(settingsRef.current.resolution)
-        if (!snapshot) continue
-        addJob({
-          label: view.name || 'View',
-          prompt: '',
-          useAI: false,
-          snapshot,
-          resolution: settingsRef.current.resolution,
-          location: (settingsRef.current.textFields?.title || ''),
-          view,
-        })
-      }
-      processQueue()
-    }
-
     window.addEventListener('quick-download', onQuickDownload)
     window.addEventListener('add-to-queue', onAddToQueue)
     window.addEventListener('add-batch-to-queue', onAddBatchToQueue)
-    window.addEventListener('generate-all', onGenerateAll)
     window.addEventListener('queue-clear-done', onClearDone)
-    window.addEventListener('queue-clear-all', onClearAll)
-    // Legacy alias — ExportSection.jsx dispatches 'clear-queue'. Keep both
-    // wired so Phase-5 UI changes don't have to happen in lockstep.
     window.addEventListener('clear-queue', onClearAll)
     window.addEventListener('queue-remove', onRemove)
     window.addEventListener('queue-retry', onRetry)
     window.addEventListener('queue-reorder', onReorder)
-    window.addEventListener('batch-export', onBatchExport)
 
     return () => {
       window.removeEventListener('quick-download', onQuickDownload)
       window.removeEventListener('add-to-queue', onAddToQueue)
       window.removeEventListener('add-batch-to-queue', onAddBatchToQueue)
-      window.removeEventListener('generate-all', onGenerateAll)
       window.removeEventListener('queue-clear-done', onClearDone)
-      window.removeEventListener('queue-clear-all', onClearAll)
       window.removeEventListener('clear-queue', onClearAll)
       window.removeEventListener('queue-remove', onRemove)
       window.removeEventListener('queue-retry', onRetry)
       window.removeEventListener('queue-reorder', onReorder)
-      window.removeEventListener('batch-export', onBatchExport)
     }
   }, [setQueue])
 }
