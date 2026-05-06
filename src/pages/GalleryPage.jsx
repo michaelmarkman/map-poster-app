@@ -158,7 +158,7 @@ export default function GalleryPage() {
       <div style={s.container}>
         <div style={s.hero}>
           <h1 style={s.title}>Your Gallery</h1>
-          <p style={s.subtitle}>Every poster you've rendered, locally on this device.</p>
+          <p style={s.subtitle}>Every poster you&rsquo;ve rendered, locally on this device.</p>
         </div>
         <div style={s.countLine}>{entries.length} {entries.length === 1 ? 'poster' : 'posters'}</div>
         <div style={s.grid}>

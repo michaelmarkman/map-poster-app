@@ -451,7 +451,7 @@ export default function AIRenderModal() {
                   </div>
                   <div className="rs-raw-body">
                     <div className="rs-raw-title">Raw export</div>
-                    <div className="rs-raw-desc">No AI stylization — ships exactly what's on your canvas.</div>
+                    <div className="rs-raw-desc">No AI stylization — ships exactly what&rsquo;s on your canvas.</div>
                   </div>
                 </button>
               </div>

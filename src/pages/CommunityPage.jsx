@@ -120,7 +120,7 @@ export default function CommunityPage() {
             ordered by created_at desc. The card layout below is final
             for that schema (image_url, author, location_name, created_at). */}
         <div style={s.banner}>
-          You're seeing your local gallery here. Public sharing arrives with the next release.
+          You&rsquo;re seeing your local gallery here. Public sharing arrives with the next release.
         </div>
 
         {loading ? (

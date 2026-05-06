@@ -355,7 +355,7 @@ export default function ProfilePage() {
           />
           <div style={s.byokHint}>
             Stored locally only. When set, AI renders use your key directly
-            with Google's Gemini API and bypass Vedute's per-month limit.
+            with Google&rsquo;s Gemini API and bypass Vedute&rsquo;s per-month limit.
             {' '}
             <a
               href="https://aistudio.google.com/apikey"
