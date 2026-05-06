@@ -49,6 +49,10 @@ export const hoveredSavedViewIdAtom = atom(null)
 // user's pick survives reloads. null = no default chosen.
 export const defaultSavedViewIdAtom = atom(null)
 
+// Onboarding flag — false on first visit, set true once the user has
+// dismissed the welcome card. Persisted; survives reloads.
+export const onboardedAtom = atom(false)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 

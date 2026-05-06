@@ -19,6 +19,7 @@ import ClusterBottomLeft from './components/ClusterBottomLeft'
 import ClusterBottomMid from './components/ClusterBottomMid'
 import ClusterBottomRight from './components/ClusterBottomRight'
 import FrameOverlay from './components/FrameOverlay'
+import OnboardingCard from './components/OnboardingCard'
 import AIRenderModal from './modals/AIRenderModal'
 
 // /app keeps the canvas at full viewport at all times — the aspect ratio is
@@ -111,6 +112,7 @@ export default function MockEditorShell() {
       <Lightbox />
       <PosterPreviewModal />
       <AIRenderModal />
+      <OnboardingCard />
     </div>
   )
 }

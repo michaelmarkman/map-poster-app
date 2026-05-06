@@ -746,6 +746,58 @@ body.mock-mounted #canvas-container::before {
   margin-top: var(--s-2);
 }
 
+/* Tour list — preset 'cool views' that ship with the app. (Phase 4.1) */
+.svp-tour {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s-4);
+  margin-top: var(--s-2);
+}
+.svp-tour-label {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-bottom: var(--s-3);
+}
+.svp-tour-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.svp-tour-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out);
+}
+.svp-tour-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-soft);
+}
+.svp-tour-name {
+  font: 500 var(--t-sm)/1.2 var(--body);
+  color: var(--ink);
+}
+.svp-tour-sub {
+  font: 400 var(--t-xs)/1.2 var(--body);
+  color: var(--ink-dim);
+}
+
 /* ═══════ Slider rows used in hover popovers ═══════ */
 .mock-slider-row { margin-bottom: 10px; }
 .mock-slider-row:last-child { margin-bottom: 0; }
@@ -1431,4 +1483,99 @@ body.mock-mounted #poster-preview .pp-scene {
   }
   /* DragPill labels (FOV / time) — abbreviate to keep the pill compact. */
   .mock-cluster--top-mid .mock-pill { padding: 10px 12px; }
+}
+
+/* ═══════ Onboarding card (Phase 4.2) ═══════ */
+.vd-onboard {
+  position: fixed;
+  bottom: var(--s-9);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-onboarding);
+  background: var(--panel-deep);
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(160%);
+          backdrop-filter: blur(var(--blur-modal)) saturate(160%);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--r-lg);
+  padding: var(--s-7) var(--s-8);
+  width: min(420px, calc(100vw - var(--s-7) * 2));
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+  font-family: var(--body);
+  animation: vd-onboard-rise var(--d-slow) var(--ease-emphasized);
+}
+@keyframes vd-onboard-rise {
+  from { opacity: 0; transform: translate(-50%, var(--s-6)); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.vd-onboard-close {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  background: transparent;
+  border: 0;
+  color: var(--ink-soft);
+  font: 400 var(--t-lg)/1 var(--body);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+.vd-onboard-close:hover { background: var(--bg-hover); color: var(--ink); }
+.vd-onboard-title {
+  font: 600 var(--t-xl)/1.1 var(--serif);
+  color: var(--accent);
+  margin-bottom: var(--s-3);
+  letter-spacing: 0.01em;
+}
+.vd-onboard-body {
+  font: 400 var(--t-base)/1.5 var(--body);
+  color: var(--ink-soft);
+  margin-bottom: var(--s-6);
+}
+.vd-onboard-hints {
+  list-style: none;
+  margin: 0 0 var(--s-7) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.vd-onboard-hints li {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: var(--s-5);
+  font: 400 var(--t-sm)/1.4 var(--body);
+}
+.vd-onboard-key {
+  font: 500 var(--t-xs)/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  text-align: center;
+  color: var(--accent);
+}
+.vd-onboard-text {
+  color: var(--ink-soft);
+}
+.vd-onboard-cta {
+  width: 100%;
+  background: var(--accent);
+  color: var(--ink-deepest);
+  border: 0;
+  border-radius: var(--r-md);
+  padding: var(--s-5) var(--s-6);
+  font: 600 var(--t-sm)/1 var(--body);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.vd-onboard-cta:hover {
+  background: #d8c8a7;
 }

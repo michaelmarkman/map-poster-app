@@ -5,6 +5,10 @@ import {
   hoveredSavedViewIdAtom,
   savedViewsAtom,
 } from '../../editor/atoms/sidebar'
+import { dispatchFlyTo } from '../../editor/scene/events'
+import presetData from '../../../data/presetViews.json'
+
+const PRESETS = presetData.presets || []
 
 // Phase 2.3 — saved views revamp.
 //
@@ -167,13 +171,25 @@ export default function SavedViewsPanel({ onClose }) {
     }
   }
 
+  const flyToPreset = (preset) => {
+    dispatchFlyTo({
+      lat: preset.lat,
+      lng: preset.lng,
+      altitude: preset.altitude,
+      tilt: preset.tilt,
+      heading: preset.heading,
+      fovMm: preset.fovMm,
+    })
+    onClose?.()
+  }
+
   return (
     <div className="svp">
       {savedViews.length === 0 ? (
         <div className="svp-empty">
           <div className="svp-empty-text">No saved views yet.</div>
           <div className="svp-empty-hint">
-            Frame a shot, then hit Save current view below.
+            Frame a shot, then hit Save current view below — or pick a tour.
           </div>
         </div>
       ) : (
@@ -190,6 +206,25 @@ export default function SavedViewsPanel({ onClose }) {
           ))}
         </ul>
       )}
+
+      <div className="svp-tour">
+        <div className="svp-tour-label">Tour</div>
+        <ul className="svp-tour-list">
+          {PRESETS.map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                className="svp-tour-row"
+                onClick={() => flyToPreset(p)}
+              >
+                <span className="svp-tour-name">{p.name}</span>
+                <span className="svp-tour-sub">{p.subtitle}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <button
         type="button"
         className="mock-btn-primary svp-save"
