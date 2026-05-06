@@ -64,6 +64,10 @@ function ViewRow({ view, index, total, isDefault, onClose }) {
             className="svp-rename"
             value={draftName}
             autoFocus
+            // useSavedViews truncates renames at 60 chars on commit;
+            // mirror the cap on the input so the user can't even type
+            // past it (less surprising than getting silently truncated).
+            maxLength={60}
             onChange={(e) => setDraftName(e.target.value)}
             onBlur={commitRename}
             onClick={(e) => e.stopPropagation()}

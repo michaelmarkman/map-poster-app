@@ -64,6 +64,7 @@ export default function SignupPage() {
       <form onSubmit={handleSubmit}>
         <AuthInput
           label="Username" type="text" required autoComplete="username"
+          minLength={3} maxLength={24}
           value={username} onChange={e => { setUsername(e.target.value); setUsernameError('') }}
           error={usernameError}
         />
