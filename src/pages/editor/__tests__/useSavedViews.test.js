@@ -313,6 +313,112 @@ describe('useSavedViews', () => {
     expect(result.current.find((v) => v.name === 'From gallery')).toBeUndefined()
   })
 
+  describe('Phase 4.3 default-view auto-load', () => {
+    it('dispatches restore-view for the default view on cold load', async () => {
+      vi.useFakeTimers()
+      const view = {
+        id: 'default-1',
+        name: 'My default',
+        camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+        tod: 12,
+        focalUV: [0.5, 0.5],
+        dofTightness: 70,
+        dofBlur: 25,
+        dofColorPop: 60,
+      }
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([view]))
+      // Session has no camera position (cold load) but knows the default id.
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: 'default-1' }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      // 600ms defer for Scene mount.
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(1)
+      expect(restores[0].id).toBe('default-1')
+    })
+
+    it('does NOT auto-load when the session already has a camera position', () => {
+      vi.useFakeTimers()
+      const view = {
+        id: 'default-1',
+        name: 'My default',
+        camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+        tod: 12,
+        focalUV: [0.5, 0.5],
+        dofTightness: 70,
+        dofBlur: 25,
+        dofColorPop: 60,
+      }
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([view]))
+      // Session already has a camera position from a prior session — that
+      // takes precedence over the default-view auto-load.
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({
+          ui: { defaultSavedViewId: 'default-1' },
+          camera: { position: [1, 2, 3] },
+        }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+
+    it('is a no-op when defaultSavedViewId is null', () => {
+      vi.useFakeTimers()
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([]))
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: null }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+
+    it('is a no-op when the default id points to a deleted view', () => {
+      vi.useFakeTimers()
+      // The user marked a view as default, then deleted it. Don't crash;
+      // don't dispatch.
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([
+        { id: 'still-here', name: 'Other' },
+      ]))
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: 'gone' }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+  })
+
   it('rename-view event updates the view name', async () => {
     vi.useFakeTimers()
     const existing = [{
