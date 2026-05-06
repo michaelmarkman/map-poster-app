@@ -620,3 +620,24 @@ file is the raw log — CLAUDE.md is the curated summary.
   for `addEventListener` and `dispatchEvent` pairs whenever you
   delete a top-level mount. The dispatchers stay; the receivers
   silently disappear; the data flow looks intact in code but isn't.
+
+## 2026-05-06 — API-stub pattern for endpoints we can't ship without external keys
+
+- Phases 3.2 (Google Places), 5.1 (server upscaling), and 6.2 (Stripe)
+  all needed real third-party API keys to ship live, but punting on the
+  call sites would have left the front-end full of dead code paths.
+- Pattern adopted across api/places.js, api/upscale.js, and
+  api/stripe-*.js: each endpoint is a 501-returning handler with an
+  exhaustive top-of-file comment that documents (1) every env var it
+  needs, (2) the exact third-party HTTP call, (3) the response shape,
+  (4) pricing implications, and (5) any entitlement / auth checks.
+  The client is wired to call the proxy and falls back gracefully on
+  a 501 / { fallback: true } response.
+- Concrete: `searchPlaces` in src/lib/geocode.js calls /api/places
+  first, drops to Nominatim search on a non-OK response, and reshapes
+  the result into the same prediction format. So the day a Places key
+  is wired, only api/places.js needs replacing — no client changes.
+- General rule: stubs are only useful if they're swappable. Keep the
+  client → proxy → external pattern even when the proxy isn't real
+  yet. The 501 forces fallback behavior to be designed into the
+  client from day one rather than retrofitted later.
