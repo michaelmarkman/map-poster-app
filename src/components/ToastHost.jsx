@@ -37,6 +37,19 @@ export default function ToastHost() {
       const id = ++_id
       setToasts((cur) => {
         const next = [...cur, { id, type, message }]
+        if (next.length <= MAX_TOASTS) return next
+        // Stack-cap overflow — clear timers for the toasts we're about
+        // to drop so they don't fire dismiss() a few seconds later for
+        // ids that were never visible. Tiny leak, but keeps the timers
+        // map honest.
+        const dropped = next.slice(0, next.length - MAX_TOASTS)
+        for (const t of dropped) {
+          const tm = timersRef.current.get(t.id)
+          if (tm) {
+            clearTimeout(tm)
+            timersRef.current.delete(t.id)
+          }
+        }
         return next.slice(-MAX_TOASTS)
       })
       const tm = setTimeout(() => dismiss(id), TOAST_TTL)

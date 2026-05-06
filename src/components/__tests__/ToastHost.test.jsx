@@ -64,6 +64,42 @@ describe('ToastHost', () => {
     expect(container.firstChild).toBe(null)
   })
 
+  it('does not leave dropped-from-stack toast timers ticking', () => {
+    // Regression: when the stack overflows MAX_TOASTS we drop the oldest
+    // from the visible set. Those toasts' timers used to keep ticking
+    // until TTL, then call dismiss() with a now-unknown id (no-op on
+    // state, but extra setTimeout work). The cap path should clear
+    // them too.
+    const realSetTimeout = global.setTimeout
+    const realClearTimeout = global.clearTimeout
+    const live = new Set()
+    global.setTimeout = (fn, ms) => {
+      const id = realSetTimeout(fn, ms)
+      live.add(id)
+      return id
+    }
+    global.clearTimeout = (id) => {
+      live.delete(id)
+      realClearTimeout(id)
+    }
+    try {
+      render(<ToastHost />)
+      act(() => {
+        for (let i = 0; i < 6; i++) {
+          window.dispatchEvent(new CustomEvent('toast', {
+            detail: { type: 'info', message: `msg-${i}` },
+          }))
+        }
+      })
+      // Three visible, three dropped → only the visible three should have
+      // pending timers (the dropped three were cleared).
+      expect(live.size).toBe(3)
+    } finally {
+      global.setTimeout = realSetTimeout
+      global.clearTimeout = realClearTimeout
+    }
+  })
+
   it('applies a CSS class for each toast type', () => {
     render(<ToastHost />)
     act(() => {
