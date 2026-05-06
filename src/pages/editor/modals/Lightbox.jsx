@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
+import { shareEntry } from '../../../lib/share'
 
 // Ported from prototypes/poster-v3-ui.html (lines 2691-2709) and the handlers
 // around poster-v3-ui.jsx:2767-2998. The prototype used a global `gallery`
@@ -189,34 +190,11 @@ export default function Lightbox() {
   const onShare = async (e) => {
     e.stopPropagation()
     if (!entry) return
-    // Same flow as the gallery-card Share button (Phase 7.3): copy a
-    // pre-formatted caption to the clipboard, trigger the file download,
-    // and toast so the user knows it worked. The modals.share +
-    // shareDraftAtom path was scaffolded but never actually wired to a
-    // visible modal, so clicking Share used to be invisible.
-    const place = (entry.location?.split(',')[0] || '').trim() || 'Somewhere'
-    const caption = `${place}. Made with Vedute — vedute.com`
-    let captionCopied = false
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(caption)
-        captionCopied = true
-      }
-    } catch {}
-    if (entry.dataUrl) {
-      const link = document.createElement('a')
-      link.download = (entry.filename || entry.label || 'vedute') + '.png'
-      link.href = entry.dataUrl
-      link.click()
-    }
-    window.dispatchEvent(new CustomEvent('toast', {
-      detail: {
-        type: 'success',
-        message: captionCopied
-          ? 'Caption copied · image downloading'
-          : 'Image downloading',
-      },
-    }))
+    // Same flow as the gallery-card Share button (Phase 7.3) —
+    // both route through src/lib/share.js so behavior stays in lockstep.
+    // The modals.share + shareDraftAtom scaffolding from before this
+    // helper used to silently flip a flag with no consumer.
+    await shareEntry(entry)
   }
 
   const onJumpView = (e) => {

@@ -3,6 +3,7 @@ import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
 import { galleryEntriesAtom } from '../atoms/gallery'
 import { buildGalleryEntries } from '../utils/galleryDb'
+import { shareEntry } from '../../../lib/share'
 
 // Gallery modal — shows all saved exports from IndexedDB. Ported from
 // prototypes/poster-v3-ui.{html,jsx}. Clicking an entry stacks the lightbox
@@ -178,37 +179,10 @@ function GalleryCard({ item, onOpen }) {
   }
   const handleShare = async (e) => {
     e.stopPropagation()
-    // Phase 7.3 — bake a pre-formatted caption into the clipboard so the
-    // user can paste it directly into Twitter / IG / etc. We don't post
-    // automatically (the design choice was: download + manual share).
-    const place = item.location?.split(',')[0]?.trim() || 'Somewhere'
-    const caption = `${place}. Made with Vedute — vedute.com`
-    let captionCopied = false
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(caption)
-        captionCopied = true
-      }
-    } catch {}
-    // Trigger a download alongside the clipboard copy. Twitter / IG don't
-    // accept image URLs for paste, so the user needs the file.
-    const link = document.createElement('a')
-    link.download = item.filename + '.png'
-    link.href = item.dataUrl
-    link.click()
-    // Surface what just happened — the share flow has no visible UI
-    // otherwise (a clipboard copy + a download both happen invisibly to
-    // the user). Without this, users click Share and wonder if it did
-    // anything.
-    window.dispatchEvent(new CustomEvent('toast', {
-      detail: {
-        type: 'success',
-        message: captionCopied
-          ? 'Caption copied · image downloading'
-          : 'Image downloading',
-      },
-    }))
-    window.dispatchEvent(new CustomEvent('open-share', { detail: { item } }))
+    // Phase 7.3 — bake the caption + download + toast. Both the gallery
+    // card and the lightbox route through src/lib/share.js so behavior
+    // can't drift between callers.
+    await shareEntry(item)
   }
   const handleDelete = (e) => {
     e.stopPropagation()
