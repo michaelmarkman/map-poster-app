@@ -69,9 +69,14 @@ function useMockEscape() {
   const setFillMode = useSetAtom(fillModeAtom)
   // Mirror fillMode into a ref so the keydown listener can branch on
   // its current value without forcing the effect to re-attach the
-  // listener every toggle. (Same pattern as useMockKeyboardShortcuts.)
+  // listener every toggle. Update the ref inside useEffect — under
+  // React 19 concurrent rendering, ref writes that happen during the
+  // render function body can be silently dropped if the render is
+  // restarted. See LEARNINGS 2026-04-17 ("R19 concurrent rendering").
   const fillModeRef = useRef(fillMode)
-  fillModeRef.current = fillMode
+  useEffect(() => {
+    fillModeRef.current = fillMode
+  }, [fillMode])
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return

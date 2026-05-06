@@ -288,6 +288,11 @@ export default function useQueue() {
   const textFields = useAtomValue(textFieldsAtom)
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
+  // Writes happen in useEffect (not during render): under React 19 concurrent
+  // rendering, ref writes inside the function body can be silently dropped
+  // when a render is restarted, leaving listeners with stale state. See the
+  // 2026-04-17 LEARNINGS entry on R19 concurrent rendering for the full
+  // story — same fix applies here.
   const settingsRef = useRef({})
   // Phase 6 — clamp resolution to the user's tier max so a user who had
   // 4× selected before the entitlements layer landed (or after a downgrade)
@@ -297,22 +302,36 @@ export default function useQueue() {
   const clampedResolution = canUseResolution({ multiplier: resolution })
     ? resolution
     : tierMax
-  settingsRef.current = {
+  useEffect(() => {
+    settingsRef.current = {
+      aiEnhance,
+      aiPrompt,
+      aiPreset,
+      aiKey,
+      aiCleanArtifacts,
+      resolution: clampedResolution,
+      savedViews,
+      dof,
+      textFields,
+    }
+  }, [
     aiEnhance,
     aiPrompt,
     aiPreset,
     aiKey,
     aiCleanArtifacts,
-    resolution: clampedResolution,
+    clampedResolution,
     savedViews,
     dof,
     textFields,
-  }
+  ])
 
   // Queue snapshot ref so async processors can read the newest array without
-  // re-subscribing each tick.
+  // re-subscribing each tick. Same R19-concurrent-safe pattern as above.
   const queueRef = useRef(queue)
-  queueRef.current = queue
+  useEffect(() => {
+    queueRef.current = queue
+  }, [queue])
 
   // Processor loop — single-concurrency like the prototype's exportProcessing
   // flag. Runs until there are no more pending jobs, then releases.
