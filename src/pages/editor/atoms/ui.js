@@ -1,8 +1,9 @@
 import { atom } from 'jotai'
 
-// UI atoms — read/written by sidebar, overlays, and modals. Scene components
-// generally don't touch these.
-export const sidebarCollapsedAtom = atom(false)
+// UI atoms — read/written by /app's pill clusters, overlays, and modals.
+// Scene components generally don't touch these.
+//
+// (sidebarCollapsedAtom went with the sidebar editor in Phase 1.2.)
 export const fillModeAtom = atom(false)
 // 4:3 default matches the prototype HTML's initial --ratio (1.333) and the
 // default-active size-btn in the sidebar.

@@ -1,16 +1,8 @@
 import { atom } from 'jotai'
 
-// Which sidebar section is expanded. The section-head buttons toggle this;
-// other sections don't collapse automatically — open sections list is held
-// here so saved-views / dropdowns can drive it too.
-export const openSectionsAtom = atom({
-  environment: true,
-  camera: true,
-  canvas: true,
-  text: true,
-  editor: true,
-  export: true,
-})
+// (openSectionsAtom — which sidebar section was expanded — went with
+// the sidebar editor in Phase 1.2. /app's pill UI doesn't have
+// collapsible sections; nothing imports this atom anymore.)
 
 // AI enhance panel state
 // AI render is implicitly on whenever the Render Styles panel is used
