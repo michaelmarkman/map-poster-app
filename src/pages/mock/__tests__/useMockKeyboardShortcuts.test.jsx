@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { Provider, createStore, useAtomValue } from 'jotai'
+import { Provider, createStore } from 'jotai'
 import useMockKeyboardShortcuts from '../hooks/useMockKeyboardShortcuts'
 import { fillModeAtom } from '../../editor/atoms/ui'
 import { modalsAtom } from '../../editor/atoms/modals'
@@ -9,13 +9,6 @@ function withProvider(store) {
   return function Wrapper({ children }) {
     return <Provider store={store}>{children}</Provider>
   }
-}
-
-function key(opts) {
-  // Default to a non-input target so the typing-guard doesn't skip.
-  return Object.assign(new KeyboardEvent('keydown', opts), {
-    target: document.body,
-  })
 }
 
 function dispatch(opts) {

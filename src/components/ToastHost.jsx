@@ -43,10 +43,14 @@ export default function ToastHost() {
       timersRef.current.set(id, tm)
     }
     window.addEventListener('toast', onToast)
+    // Capture the ref into a local so cleanup uses the same Map instance
+    // we registered timers on (the lint rule's concern: timersRef.current
+    // could be reassigned between mount and unmount in the general case).
+    const timers = timersRef.current
     return () => {
       window.removeEventListener('toast', onToast)
-      for (const tm of timersRef.current.values()) clearTimeout(tm)
-      timersRef.current.clear()
+      for (const tm of timers.values()) clearTimeout(tm)
+      timers.clear()
     }
   }, [dismiss])
 

@@ -1,5 +1,5 @@
 import { Vector3 } from 'three'
-import { Geodetic, radians } from '@takram/three-geospatial'
+import { Geodetic } from '@takram/three-geospatial'
 
 // Module-local state — used to coalesce slider writes. These are values the
 // sidebar reads back at ~5Hz, and also the defaults dispatchCameraSet falls

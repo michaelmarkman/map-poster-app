@@ -432,7 +432,6 @@ export default function useQueue() {
           const next = queueRef.current.find((j) => j.status === 'pending')
           if (!next) break
           emitStatus(`Rendering ${next.label || 'job'}…`)
-          // eslint-disable-next-line no-await-in-loop
           await runJob(next)
         }
         emitStatus('')
@@ -813,7 +812,6 @@ export default function useQueue() {
       for (const view of views) {
         window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
         // Settle delay matches the prototype's 1500ms (poster-v3-ui.jsx:2404).
-        // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 1500))
         const snapshot = snapshotCanvas(settingsRef.current.resolution)
         if (!snapshot) continue

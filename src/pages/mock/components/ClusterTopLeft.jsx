@@ -15,10 +15,6 @@ import { dispatchFlyTo } from '../../editor/scene/events'
 import { getSunTimes } from '../../editor/utils/sun'
 import { geocodeSearch } from '../../../lib/geocode'
 
-function fire(name, detail) {
-  window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))
-}
-
 function shorten(name) {
   return name.split(',').slice(0, 2).join(',').trim()
 }
