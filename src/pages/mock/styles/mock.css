@@ -447,51 +447,162 @@ body.mock-mounted #canvas-container::before {
 }
 .mock-saved-del:hover { color: rgba(255, 200, 200, 0.85); }
 
-/* ═══════ Aspect popover ═══════ */
-.mock-aspect-grid { display: flex; flex-direction: column; gap: 6px; }
+/* ═══════ Aspect popover (Phase 2.2 redesign) ═══════ */
+.mock-aspect-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 220px;
+}
 .mock-aspect-label {
-  font-size: 10px;
+  font-size: var(--t-xs);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-top: var(--s-2);
 }
 .mock-aspect-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  gap: var(--s-2);
 }
 .mock-aspect-btn {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font: 11px/1 inherit;
-  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  font: 500 var(--t-xs)/1 var(--body);
+  padding: var(--s-3) 0;
   cursor: pointer;
   font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
 }
-.mock-aspect-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-aspect-btn:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
 .mock-aspect-btn.is-active {
-  background: rgba(200, 184, 151, 0.14);
-  border-color: rgba(200, 184, 151, 0.42);
-  color: rgba(232, 220, 192, 0.96);
+  background: var(--accent-soft);
+  border-color: var(--accent-dim);
+  color: var(--accent);
 }
-.mock-aspect-fill {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font: 11px/1 inherit;
-  padding: 8px 0;
+.mock-aspect-btn-label {
+  font-feature-settings: 'tnum';
+}
+
+/* Tiny rectangle preview of the chosen aspect inside each button. */
+.mock-ratio-glyph {
+  display: block;
+  background: var(--ink-ghost);
+  border-radius: 1px;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.mock-aspect-btn.is-active .mock-ratio-glyph,
+.mock-aspect-fill-row.is-active .mock-ratio-glyph {
+  background: var(--accent);
+}
+.mock-ratio-glyph--fill {
+  width: 22px;
+  height: 14px;
+  border: 1px dashed var(--ink-dim);
+  background: transparent;
+}
+.mock-aspect-fill-row.is-active .mock-ratio-glyph--fill {
+  border-color: var(--accent);
+}
+
+/* "Fill" row sits at the top of the popover as a wide button. */
+.mock-aspect-fill-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  font: 500 var(--t-sm)/1 var(--body);
+  padding: var(--s-4) var(--s-5);
   cursor: pointer;
-  margin-top: 4px;
   font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
 }
-.mock-aspect-fill:hover { background: rgba(255, 255, 255, 0.06); }
-.mock-aspect-fill.is-active {
-  background: rgba(200, 184, 151, 0.14);
-  border-color: rgba(200, 184, 151, 0.42);
-  color: rgba(232, 220, 192, 0.96);
+.mock-aspect-fill-row:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.mock-aspect-fill-row.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.mock-aspect-fill-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Custom W:H input row. */
+.mock-aspect-custom {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+.mock-aspect-custom-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font: 500 var(--t-sm)/1 var(--body);
+  padding: var(--s-3) var(--s-4);
+  -moz-appearance: textfield;
+}
+.mock-aspect-custom-input::-webkit-outer-spin-button,
+.mock-aspect-custom-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.mock-aspect-custom-input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+.mock-aspect-custom-sep {
+  color: var(--ink-soft);
+  font: 500 var(--t-base)/1 var(--body);
+}
+.mock-aspect-custom-apply {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent);
+  font: 600 var(--t-sm)/1 var(--body);
+  padding: var(--s-3) var(--s-5);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.mock-aspect-custom-apply:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--ink-deepest);
+}
+.mock-aspect-custom-apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mock-aspect-custom-current {
+  font: 500 var(--t-xs)/1 var(--body);
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-top: var(--s-2);
 }
 
 /* ═══════ Slider rows used in hover popovers ═══════ */
