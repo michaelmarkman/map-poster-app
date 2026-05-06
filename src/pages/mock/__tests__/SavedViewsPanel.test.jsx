@@ -83,14 +83,30 @@ describe('SavedViewsPanel', () => {
     ])
   })
 
-  it('clicking × dispatches delete-view with the id', () => {
+  it('clicking × dispatches delete-view with the id (after confirm)', () => {
+    // Saved views can't be undone — Delete prompts a confirm. The
+    // test always confirms; cancel-path is covered separately.
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const events = []
     const handler = (e) => events.push(e.detail)
     window.addEventListener('delete-view', handler)
     renderWith()
     fireEvent.click(screen.getAllByLabelText('Delete')[0])
     window.removeEventListener('delete-view', handler)
+    confirmSpy.mockRestore()
     expect(events).toEqual(['a'])
+  })
+
+  it('cancelling the Delete confirm does NOT dispatch delete-view', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const events = []
+    const handler = (e) => events.push(e.detail)
+    window.addEventListener('delete-view', handler)
+    renderWith()
+    fireEvent.click(screen.getAllByLabelText('Delete')[0])
+    window.removeEventListener('delete-view', handler)
+    confirmSpy.mockRestore()
+    expect(events).toEqual([])
   })
 
   it('Save button dispatches save-view + closes the popover', () => {

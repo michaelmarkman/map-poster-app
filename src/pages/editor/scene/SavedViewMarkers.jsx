@@ -185,6 +185,7 @@ function SavedViewMarker({ view, isHovered, onHover }) {
   useEffect(() => {
     if (!position) return
     let cancelled = false
+    let timer = null
     let attempts = 0
     const MAX_ATTEMPTS = 15
     const tryResolve = () => {
@@ -195,10 +196,13 @@ function SavedViewMarker({ view, isHovered, onHover }) {
         setFocalWorld(hit)
         return
       }
-      if (attempts < MAX_ATTEMPTS) setTimeout(tryResolve, 1000)
+      if (attempts < MAX_ATTEMPTS) timer = setTimeout(tryResolve, 1000)
     }
     tryResolve()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.id])
 

@@ -140,6 +140,10 @@ function ViewRow({ view, index, total, isDefault, onClose }) {
           className="svp-action svp-action--danger"
           onClick={(e) => {
             e.stopPropagation()
+            // Saved views can't be undone — confirm first. Mirrors the
+            // gallery-card delete flow so the two delete UIs feel
+            // consistent.
+            if (!window.confirm(`Delete "${view.name || 'this view'}"?`)) return
             fire('delete-view', view.id)
           }}
           aria-label="Delete"
