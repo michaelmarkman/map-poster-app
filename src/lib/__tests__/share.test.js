@@ -121,4 +121,12 @@ describe('shareEntry', () => {
     // Toast still fires
     expect(toasts).toHaveLength(1)
   })
+
+  it("doesn't double-extension a filename that already ends in .png", async () => {
+    // Defensive — gallery entries today have extension-free filenames,
+    // but a future caller (or a manually constructed entry) shouldn't
+    // produce 'foo.png.png'.
+    await shareEntry({ filename: 'vedute-tokyo.png', dataUrl: 'data:img' })
+    expect(clickedLinks[0].download).toBe('vedute-tokyo.png')
+  })
 })

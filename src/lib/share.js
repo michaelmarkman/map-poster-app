@@ -36,7 +36,8 @@ export async function shareEntry(entry) {
   }
   if (entry.dataUrl) {
     const link = document.createElement('a')
-    link.download = (entry.filename || entry.label || 'vedute') + '.png'
+    const base = entry.filename || entry.label || 'vedute'
+    link.download = base.endsWith('.png') ? base : base + '.png'
     link.href = entry.dataUrl
     link.click()
   }
