@@ -728,16 +728,17 @@
      Below that, the preview can open from Lightbox's "Preview as poster"
      button but still be hidden behind its own parent — which looked like
      clicking the button did nothing. */
+  /* Phase 2.6 — preview spans the whole viewport now that the sidebar
+     is gone (Phase 1.2). The left: 316px gutter was reserving space
+     for the sidebar that no longer exists. */
   #poster-preview {
-    position: fixed; top: 0; right: 0; bottom: 0; left: 316px;
-    z-index: 400;
+    position: fixed; inset: 0;
+    z-index: var(--z-modal);
     display: none;
     align-items: center;
     justify-content: center;
     cursor: grab;
   }
-  /* Keep sidebar above the preview so it remains interactive */
-  body.preview-open #sidebar { z-index: 200; }
   #poster-preview.open { display: flex; }
   #poster-preview:active { cursor: grabbing; }
 
