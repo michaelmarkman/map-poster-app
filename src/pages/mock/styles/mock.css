@@ -224,6 +224,99 @@ body.mock-mounted #canvas-container::before {
   font-variant-numeric: tabular-nums;
 }
 
+/* ═══════ Account chip (avatar + dropdown) ═══════ */
+.mock-account-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.mock-account-chip {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(232, 220, 192, 0.96);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.mock-account-chip:hover {
+  background: rgba(28, 28, 32, 0.82);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.mock-account-chip.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+}
+.mock-account-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mock-account-initial {
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: rgba(200, 184, 151, 0.95);
+}
+.mock-account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  padding: 4px 0;
+  background: rgba(15, 15, 18, 0.96);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+}
+.mock-account-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.mock-account-name {
+  font: 13px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #e8dcc0;
+}
+.mock-account-email {
+  margin-top: 2px;
+  font: 11px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #5a5750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.mock-account-item {
+  display: block;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  text-decoration: none;
+  font: 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #e8dcc0;
+  cursor: pointer;
+}
+.mock-account-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.mock-account-item--accent {
+  color: rgba(200, 184, 151, 0.95);
+}
+.mock-account-item--danger {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e55353;
+}
+
 /* ═══════ Multi-segment readout pill ═══════ */
 /* One glass surface housing N drag-scrubber segments separated by hairline
  * dividers. Used in the top-right cluster: focal | aperture | TOD | clouds.
