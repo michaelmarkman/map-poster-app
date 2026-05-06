@@ -44,6 +44,11 @@ export const savedViewMarkersOnAtom = atom(false)
 // HTML). Don't persist — purely transient.
 export const hoveredSavedViewIdAtom = atom(null)
 
+// Saved view id to load on first visit (or after a fresh page load when
+// no session blob exists yet). Persisted via useSessionPersistence so the
+// user's pick survives reloads. null = no default chosen.
+export const defaultSavedViewIdAtom = atom(null)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 

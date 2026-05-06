@@ -300,6 +300,32 @@ export default function useSavedViews() {
       commitViews(next)
     }
 
+    // Rename: detail = { id, name }
+    const onRename = (e) => {
+      const detail = e?.detail
+      if (!detail?.id || typeof detail.name !== 'string') return
+      const trimmed = detail.name.trim()
+      if (!trimmed) return
+      const next = stateRef.current.views.map((v) =>
+        v.id === detail.id ? { ...v, name: trimmed } : v,
+      )
+      commitViews(next)
+    }
+
+    // Reorder: detail = { id, direction: 'up' | 'down' }
+    const onReorder = (e) => {
+      const detail = e?.detail
+      if (!detail?.id || (detail.direction !== 'up' && detail.direction !== 'down')) return
+      const list = stateRef.current.views
+      const idx = list.findIndex((v) => v.id === detail.id)
+      if (idx < 0) return
+      const target = detail.direction === 'up' ? idx - 1 : idx + 1
+      if (target < 0 || target >= list.length) return
+      const next = [...list]
+      ;[next[idx], next[target]] = [next[target], next[idx]]
+      commitViews(next)
+    }
+
     // Lightbox bridges — Jump-to-view on a gallery entry should restore the
     // camera that produced it; Save-view should add it to the saved-views
     // list. Both read entry.view (captured at queue time).
@@ -347,6 +373,8 @@ export default function useSavedViews() {
     window.addEventListener('save-view', onSave)
     window.addEventListener('load-view', onLoad)
     window.addEventListener('delete-view', onDelete)
+    window.addEventListener('rename-view', onRename)
+    window.addEventListener('reorder-view', onReorder)
     window.addEventListener('lightbox-save-view', onLightboxSave)
     window.addEventListener('lightbox-jump-view', onLightboxJump)
 
@@ -356,6 +384,8 @@ export default function useSavedViews() {
       window.removeEventListener('delete-view', onDelete)
       window.removeEventListener('lightbox-save-view', onLightboxSave)
       window.removeEventListener('lightbox-jump-view', onLightboxJump)
+      window.removeEventListener('rename-view', onRename)
+      window.removeEventListener('reorder-view', onReorder)
       flushWrite()
     }
     // setSavedViews/setTimeOfDay/setDof are stable Jotai setters.

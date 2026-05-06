@@ -20,7 +20,7 @@ import {
   textFieldsAtom,
   cameraReadoutAtom,
 } from '../atoms/ui'
-import { savedViewMarkersOnAtom } from '../atoms/sidebar'
+import { defaultSavedViewIdAtom, savedViewMarkersOnAtom } from '../atoms/sidebar'
 
 const SESSION_KEY = 'vedute_session'
 const DEBOUNCE_MS = 500
@@ -75,6 +75,7 @@ export default function useSessionPersistence() {
   const setTextOverlay = useSetAtom(textOverlayAtom)
   const setTextFields = useSetAtom(textFieldsAtom)
   const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
+  const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -94,6 +95,7 @@ export default function useSessionPersistence() {
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
   const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
+  const defaultSavedViewId = useAtomValue(defaultSavedViewIdAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -104,7 +106,7 @@ export default function useSessionPersistence() {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-      textFields, cameraReadout, savedViewMarkersOn,
+      textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId,
     }
   })
 
@@ -174,6 +176,9 @@ export default function useSessionPersistence() {
         if (typeof u.savedViewMarkersOn === 'boolean') {
           setSavedViewMarkersOn(u.savedViewMarkersOn)
         }
+        if (typeof u.defaultSavedViewId === 'string' || u.defaultSavedViewId === null) {
+          setDefaultSavedViewId(u.defaultSavedViewId)
+        }
       }
 
       // Camera is rehydrated directly by Scene's useLayoutEffect reading
@@ -223,6 +228,7 @@ export default function useSessionPersistence() {
         mapStyle: v.mapStyle,
         todUnlocked: !!v.todUnlocked,
         savedViewMarkersOn: !!v.savedViewMarkersOn,
+        defaultSavedViewId: v.defaultSavedViewId ?? null,
       },
       timestamp: Date.now(),
     }
@@ -268,7 +274,7 @@ export default function useSessionPersistence() {
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-    textFields, savedViewMarkersOn,
+    textFields, savedViewMarkersOn, defaultSavedViewId,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture

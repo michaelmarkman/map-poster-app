@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import PopoverPill from './PopoverPill'
+import SavedViewsPanel from './SavedViewsPanel'
 import { SearchIcon, PinIcon } from './icons'
 import {
   latitudeAtom,
@@ -108,53 +109,9 @@ export default function ClusterTopLeft() {
         icon={<PinIcon />}
         label={`Saved${savedViews.length ? ` · ${savedViews.length}` : ''}`}
         align="left"
-        panelClassName="mock-popover--saved"
+        panelClassName="mock-popover--saved svp-panel"
       >
-        {({ close }) => (
-          <div className="mock-saved-views">
-            {savedViews.length === 0 ? (
-              <div className="mock-empty">No saved views yet.</div>
-            ) : (
-              <ul className="mock-saved-list">
-                {savedViews.map((v) => (
-                  <li key={v.id}>
-                    <button
-                      type="button"
-                      className="mock-saved-row"
-                      onClick={() => {
-                        fire('load-view', v.id)
-                        close()
-                      }}
-                    >
-                      {v.name || 'Untitled view'}
-                    </button>
-                    <button
-                      type="button"
-                      className="mock-saved-del"
-                      aria-label="Delete saved view"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        fire('delete-view', v.id)
-                      }}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button
-              type="button"
-              className="mock-btn-primary"
-              onClick={() => {
-                fire('save-view')
-                close()
-              }}
-            >
-              Save current view
-            </button>
-          </div>
-        )}
+        {({ close }) => <SavedViewsPanel onClose={close} />}
       </PopoverPill>
     </div>
   )
