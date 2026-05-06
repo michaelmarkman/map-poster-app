@@ -11,6 +11,7 @@ import {
   savedViewsAtom,
 } from '../atoms/sidebar'
 import { dofAtom } from '../atoms/scene'
+import { textFieldsAtom } from '../atoms/ui'
 import {
   applyWatermark,
   buildFilename,
@@ -203,13 +204,12 @@ function emitStatus(text) {
   window.dispatchEvent(new CustomEvent('export-status', { detail: text || '' }))
 }
 
-function getLocation() {
-  try {
-    return document.getElementById('location-search')?.value || ''
-  } catch (e) {
-    return ''
-  }
-}
+// (getLocation that read document.getElementById('location-search') was
+// dead code from /app-classic — that input lived in the sidebar's
+// EnvironmentSection. /app uses textFieldsAtom.title as the canonical
+// location label, populated by ClusterTopLeft on every search hit.
+// useQueue threads textFields through settingsRef and reads .title at
+// snapshot time.)
 
 // Gemini call — mirrors sendToGemini from poster-v3-ui.jsx:2215. The server
 // proxy at /api/gemini expects the raw Gemini REST payload; `apiKey` is sent
@@ -284,6 +284,7 @@ export default function useQueue() {
   const resolution = useAtomValue(exportResolutionAtom)
   const savedViews = useAtomValue(savedViewsAtom)
   const dof = useAtomValue(dofAtom)
+  const textFields = useAtomValue(textFieldsAtom)
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
   const settingsRef = useRef({})
@@ -304,6 +305,7 @@ export default function useQueue() {
     resolution: clampedResolution,
     savedViews,
     dof,
+    textFields,
   }
 
   // Queue snapshot ref so async processors can read the newest array without
@@ -516,7 +518,7 @@ export default function useQueue() {
       if (!raw) return
       const fname = buildFilename('raw', {
         resolution: settingsRef.current.resolution,
-        location: getLocation(),
+        location: (settingsRef.current.textFields?.title || ''),
       })
       // Phase 6 — quick downloads also get the free-tier watermark.
       // BYOK does NOT bypass — watermark is Vedute's product gating.
@@ -570,7 +572,7 @@ export default function useQueue() {
       const rawSnapshot = snapshotCanvas(s.resolution)
       if (!rawSnapshot) return
 
-      const location = getLocation()
+      const location = (settingsRef.current.textFields?.title || '')
       const view = await captureCurrentView()
 
       const presetKey = overridePreset !== undefined ? overridePreset : s.aiPreset
@@ -656,7 +658,7 @@ export default function useQueue() {
 
       const rawSnapshot = snapshotCanvas(s.resolution)
       if (!rawSnapshot) return
-      const location = getLocation()
+      const location = (settingsRef.current.textFields?.title || '')
       const view = await captureCurrentView()
 
       for (const presetKey of presetKeys) {
@@ -705,7 +707,7 @@ export default function useQueue() {
       const snapshot = snapshotCanvas(settingsRef.current.resolution)
       if (!snapshot) return
       const s = settingsRef.current
-      const location = getLocation()
+      const location = (settingsRef.current.textFields?.title || '')
       const batchId = 'batch-' + Date.now()
       const batchLabel = (location ? location.split(',')[0] : 'All Styles') + ' · All Styles'
 
@@ -816,7 +818,7 @@ export default function useQueue() {
           useAI: false,
           snapshot,
           resolution: settingsRef.current.resolution,
-          location: getLocation(),
+          location: (settingsRef.current.textFields?.title || ''),
           view,
         })
       }
