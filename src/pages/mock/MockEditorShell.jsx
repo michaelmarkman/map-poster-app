@@ -11,6 +11,7 @@ import useGalleryData from '../editor/hooks/useGalleryData'
 import useSessionPersistence from '../editor/hooks/useSessionPersistence'
 import useSavedViews from '../editor/hooks/useSavedViews'
 import useQueue from '../editor/hooks/useQueue'
+import useMockKeyboardShortcuts from './hooks/useMockKeyboardShortcuts'
 import { aspectRatioAtom, fillModeAtom } from '../editor/atoms/ui'
 import ClusterTopLeft from './components/ClusterTopLeft'
 import ClusterTopMid from './components/ClusterTopMid'
@@ -80,6 +81,7 @@ export default function MockEditorShell() {
   useQueue()
   useAspectSync()
   useMockEscape()
+  useMockKeyboardShortcuts()
 
   return (
     <div className="mock-root editor-root">

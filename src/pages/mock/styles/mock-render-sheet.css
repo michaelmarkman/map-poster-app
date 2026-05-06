@@ -334,7 +334,13 @@
   font-family: inherit;
   cursor: pointer;
 }
-.mock-render-sheet .rs-res-btn:hover { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-res-btn:hover:not(.is-locked):not(:disabled) { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-res-btn.is-locked,
+.mock-render-sheet .rs-res-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  font-size: 10px;
+}
 .mock-render-sheet .rs-res-btn.is-active {
   background: linear-gradient(180deg, rgba(255, 200, 115, 0.14), rgba(230, 162, 74, 0.08));
   border-color: rgba(255, 200, 115, 0.55);

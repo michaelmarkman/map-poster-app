@@ -6,6 +6,7 @@ import {
   dofAtom,
 } from '../atoms/scene'
 import { reverseGeocodeName } from '../../../lib/geocode'
+import { canSaveAnotherView } from '../../../lib/entitlements'
 
 // Saved views hook — mounted once from MockEditorShell. Owns the
 // localStorage <-> savedViewsAtom sync and listens for the window events
@@ -183,6 +184,32 @@ export default function useSavedViews() {
     setSavedViews(initial)
     stateRef.current.views = initial
 
+    // Phase 4.3 — first-run auto-load of the default saved view.
+    // If the user has marked a view as default AND there's no session
+    // blob (i.e. we're on a cold load with no camera state to restore),
+    // dispatch restore-view for that default view a moment after mount
+    // so Scene's listener has registered. Session-restore takes
+    // precedence over this — no-op if the user already has a session.
+    try {
+      const SESSION_KEY = 'vedute_session'
+      const hasSession = !!localStorage.getItem(SESSION_KEY)
+      const sessionRaw = hasSession ? localStorage.getItem(SESSION_KEY) : null
+      const sessionData = sessionRaw ? JSON.parse(sessionRaw) : null
+      const hasCamera = !!sessionData?.camera?.position
+      const defaultId = sessionData?.ui?.defaultSavedViewId
+      if (!hasCamera && defaultId) {
+        const view = initial.find((v) => v.id === defaultId)
+        if (view) {
+          // Defer past Scene's mount + get-camera listener attach.
+          setTimeout(() => {
+            try {
+              window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
+            } catch {}
+          }, 600)
+        }
+      }
+    } catch {}
+
     const flushWrite = () => {
       if (writeTimerRef.current) {
         clearTimeout(writeTimerRef.current)
@@ -216,6 +243,18 @@ export default function useSavedViews() {
         typeof detail === 'string' ? detail
         : detail && typeof detail === 'object' ? detail.name
         : null
+
+      // Phase 6 entitlement gate. Free tier capped at 5 saved views.
+      if (!canSaveAnotherView({
+        profile: null,
+        currentCount: stateRef.current.views.length,
+      })) {
+        fireToast(
+          'error',
+          'Free tier saves up to 5 views. Delete one or upgrade to Pro.',
+        )
+        return
+      }
 
       const cam = await requestCameraState()
       if (!cam) {

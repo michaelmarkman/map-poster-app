@@ -19,6 +19,8 @@ import {
 } from '../utils/export'
 import {
   canSubmitRender,
+  canUseResolution,
+  getTierLimits,
   shouldShowWatermark,
 } from '../../../lib/entitlements'
 import {
@@ -285,13 +287,21 @@ export default function useQueue() {
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
   const settingsRef = useRef({})
+  // Phase 6 — clamp resolution to the user's tier max so a user who had
+  // 4× selected before the entitlements layer landed (or after a downgrade)
+  // doesn't keep rendering at 4×. UI gating disables the disallowed buttons;
+  // this is the safety net at submission time.
+  const tierMax = getTierLimits(null).maxResolutionMultiplier
+  const clampedResolution = canUseResolution({ profile: null, multiplier: resolution })
+    ? resolution
+    : tierMax
   settingsRef.current = {
     aiEnhance,
     aiPrompt,
     aiPreset,
     aiKey,
     aiCleanArtifacts,
-    resolution,
+    resolution: clampedResolution,
     savedViews,
     dof,
   }

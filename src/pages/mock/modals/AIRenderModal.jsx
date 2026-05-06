@@ -10,6 +10,7 @@ import {
   queueAtom,
 } from '../../editor/atoms/sidebar'
 import { galleryEntriesAtom } from '../../editor/atoms/gallery'
+import { canUseResolution } from '../../../lib/entitlements'
 import '../styles/mock-render-sheet.css'
 
 // ─── Style catalogue ──────────────────────────────────────────────────
@@ -391,20 +392,30 @@ export default function AIRenderModal() {
         {pane === 'styles' && (
           <div className="rs-pane is-active">
             <div className="rs-body">
-              {/* Resolution selector */}
+              {/* Resolution selector — Phase 6 entitlement-gated.
+                  Free tier caps at 2×; Pro goes to 6× (we expose 1×–4×
+                  here, the 6× rung lives behind the pro-tier upscale
+                  flow which Phase 5.1 will deliver). BYOK does NOT
+                  bypass resolution — that's Vedute's product, not
+                  the model's. */}
               <div className="rs-section">
                 <div className="rs-section-head">Resolution</div>
                 <div className="rs-resgroup">
-                  {[1, 2, 3, 4].map((mult) => (
-                    <button
-                      key={mult}
-                      type="button"
-                      className={`rs-res-btn${exportRes === mult ? ' is-active' : ''}`}
-                      onClick={() => setExportRes(mult)}
-                    >
-                      {mult}×
-                    </button>
-                  ))}
+                  {[1, 2, 3, 4].map((mult) => {
+                    const allowed = canUseResolution({ profile: null, multiplier: mult })
+                    return (
+                      <button
+                        key={mult}
+                        type="button"
+                        className={`rs-res-btn${exportRes === mult ? ' is-active' : ''}${allowed ? '' : ' is-locked'}`}
+                        onClick={() => allowed && setExportRes(mult)}
+                        disabled={!allowed}
+                        title={allowed ? '' : 'Free tier caps at 2× — upgrade to Pro for higher resolution'}
+                      >
+                        {mult}×{allowed ? '' : ' 🔒'}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

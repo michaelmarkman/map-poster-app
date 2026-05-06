@@ -233,9 +233,14 @@ describe('useSavedViews', () => {
     detach()
   })
 
-  it('caps saved views at 20 entries (unshift + trim)', async () => {
+  it('blocks saves once the free-tier entitlement cap is hit', async () => {
+    // Phase 6.1 — free-tier saved-view cap is 5. After 5 entries, the
+    // gate fires before requestCameraState so the existing list isn't
+    // touched. (The ancient MAX_VIEWS=20 trim is now downstream of the
+    // entitlement check; it only kicks in if a future Pro tier adds
+    // headroom and the user hits it.)
     vi.useFakeTimers()
-    const existing = Array.from({ length: 20 }, (_, i) => ({
+    const existing = Array.from({ length: 5 }, (_, i) => ({
       id: 'old-' + i,
       name: 'View ' + i,
       camera: { px: i, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
@@ -258,10 +263,9 @@ describe('useSavedViews', () => {
     })
 
     const { result } = renderHook(() => useAtomValue(savedViewsAtom))
-    expect(result.current).toHaveLength(20)
-    expect(result.current[0].name).toBe('Newest')
-    // Oldest entry dropped (old-19 was at index 19, now bumped off).
-    expect(result.current.find((v) => v.id === 'old-19')).toBeUndefined()
+    // List untouched: still 5, still the originals, no 'Newest' appended.
+    expect(result.current).toHaveLength(5)
+    expect(result.current.find((v) => v.name === 'Newest')).toBeUndefined()
 
     detach()
   })
