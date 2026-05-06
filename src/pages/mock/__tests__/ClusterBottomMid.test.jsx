@@ -19,26 +19,26 @@ describe('ClusterBottomMid', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the Capture + Render split pill', () => {
+  it('renders a single Capture button (no separate Render button)', () => {
     renderWithStore()
     expect(screen.getByRole('button', { name: /Capture/ })).toBeDefined()
-    expect(screen.getByRole('button', { name: /Render/ })).toBeDefined()
+    expect(screen.queryByRole('button', { name: /^Render$/ })).toBe(null)
   })
 
-  it('clicking Render flips modals.aiRender to true', () => {
+  it('clicking Capture flips modals.aiRender to true (opens the Render sheet)', () => {
     const { store } = renderWithStore()
-    fireEvent.click(screen.getByRole('button', { name: /Render/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Capture/ }))
     expect(store.get(modalsAtom).aiRender).toBe(true)
   })
 
-  it('clicking Capture dispatches the quick-download window event', () => {
+  it('does NOT dispatch quick-download — that path moved to the E keyboard shortcut', () => {
     const events = []
     const handler = (e) => events.push(e.type)
     window.addEventListener('quick-download', handler)
     try {
       renderWithStore()
       fireEvent.click(screen.getByRole('button', { name: /Capture/ }))
-      expect(events).toEqual(['quick-download'])
+      expect(events).toEqual([])
     } finally {
       window.removeEventListener('quick-download', handler)
     }
