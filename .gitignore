@@ -11,3 +11,8 @@ editor-*.png
 # above keeps build screenshots / dev output PNGs out of git but should
 # not block legitimate public assets that the app references at runtime.
 !public/**/*.png
+
+# Local-only Claude state (settings.json + show-recent-learnings.sh stay
+# checked in; everything else under .claude/ is per-machine).
+.claude/launch.json
+.claude/*.local.*
