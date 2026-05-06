@@ -1,7 +1,11 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useAtom } from 'jotai'
 import { useAuth } from '../contexts/AuthContext'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
+import { aiApiKeyAtom } from './editor/atoms/sidebar'
+import { getTier, getTierLimits } from '../lib/entitlements'
+import { getRenderCount } from '../lib/renderCount'
 
 const s = {
   page: {
@@ -10,8 +14,8 @@ const s = {
   },
   container: { maxWidth: 480, margin: '0 auto' },
   heading: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 28, fontWeight: 400, marginBottom: 32,
+    fontFamily: "'Fraunces', 'Playfair Display', Georgia, serif",
+    fontSize: 28, fontWeight: 500, marginBottom: 32, letterSpacing: '0.01em',
   },
   avatarRow: {
     display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32,
@@ -30,7 +34,49 @@ const s = {
   success: {
     color: '#6ecf6e', fontSize: 13, textAlign: 'center', marginBottom: 16,
   },
+  sectionLabel: {
+    fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em',
+    color: 'rgba(232,228,220,0.5)', marginBottom: 12, marginTop: 32,
+  },
+  card: {
+    background: '#151518', border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 12, padding: 18,
+  },
+  tierRow: {
+    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  tierName: { fontSize: 16, fontWeight: 600 },
+  tierBadge: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+    padding: '4px 8px', borderRadius: 999,
+    background: 'rgba(200,184,151,0.14)', color: '#c8b897',
+    border: '1px solid rgba(200,184,151,0.42)',
+  },
+  meterTrack: {
+    width: '100%', height: 4, borderRadius: 999, overflow: 'hidden',
+    background: 'rgba(255,255,255,0.06)', marginTop: 8,
+  },
+  meterFill: { height: '100%', background: '#c8b897', borderRadius: 999 },
+  meterText: {
+    fontSize: 12, color: '#8a8780', marginTop: 8, fontVariantNumeric: 'tabular-nums',
+  },
+  byokInput: {
+    width: '100%', padding: '10px 14px',
+    background: '#0e0d11', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 8, color: '#e8e4dc', fontSize: 13,
+    fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+    outline: 'none', letterSpacing: '0.02em',
+  },
+  byokHint: {
+    fontSize: 12, color: '#8a8780', marginTop: 8, lineHeight: 1.4,
+  },
 }
+
+// Phase 7.1 — when localStorage holds the BYOK key (set from the AI render
+// modal), the atom is hydrated from there at module load. Profile reads
+// the same atom so the two surfaces stay in sync.
+const LS_GEMINI_KEY = 'vedute_gemini_key'
 
 export default function ProfilePage() {
   const { profile, user, updateProfile, uploadAvatar } = useAuth()
@@ -42,6 +88,44 @@ export default function ProfilePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const fileRef = useRef(null)
+
+  const [aiKey, setAiKey] = useAtom(aiApiKeyAtom)
+  const [renderCount, setRenderCount] = useState(0)
+  useEffect(() => {
+    setRenderCount(getRenderCount())
+    // Refresh on focus so the count updates after the user renders something
+    // and comes back to this tab.
+    const onFocus = () => setRenderCount(getRenderCount())
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
+  // Hydrate the BYOK atom from localStorage on mount (mirrors AI render modal
+  // behavior) so the input shows whatever the user already set there.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_GEMINI_KEY) || ''
+      if (stored && !aiKey) setAiKey(stored)
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleByokChange = (e) => {
+    const v = e.target.value
+    setAiKey(v)
+    try {
+      if (v) localStorage.setItem(LS_GEMINI_KEY, v)
+      else localStorage.removeItem(LS_GEMINI_KEY)
+    } catch {}
+  }
+
+  const tier = getTier(profile)
+  const limits = getTierLimits(profile)
+  const monthly = limits.rendersPerMonth
+  const isUnlimited = !Number.isFinite(monthly)
+  const meterPct = isUnlimited
+    ? 0
+    : Math.min(100, Math.round((renderCount / monthly) * 100))
 
   async function handleSave(e) {
     e.preventDefault()
@@ -164,6 +248,62 @@ export default function ProfilePage() {
             </button>
           </>
         )}
+
+        {/* Phase 7.1 — Vedute-specific account state. */}
+        <div style={s.sectionLabel}>Plan</div>
+        <div style={s.card}>
+          <div style={s.tierRow}>
+            <div style={s.tierName}>{limits.label}</div>
+            <div style={s.tierBadge}>{tier === 'pro' ? 'Pro' : 'Free'}</div>
+          </div>
+          <div style={s.meterTrack}>
+            <div
+              style={{
+                ...s.meterFill,
+                width: isUnlimited ? '100%' : `${meterPct}%`,
+                opacity: isUnlimited ? 0.4 : 1,
+              }}
+            />
+          </div>
+          <div style={s.meterText}>
+            {isUnlimited
+              ? `Unlimited renders this month — ${renderCount} used`
+              : `${renderCount} of ${monthly} AI renders used this month${aiKey ? ' (BYOK bypasses this limit)' : ''}`}
+          </div>
+          {tier !== 'pro' && (
+            <div style={{ ...s.byokHint, marginTop: 16 }}>
+              {/* TODO Phase 6.2: link to Stripe Checkout once price IDs are set up.
+                 See docs/superpowers/plans/2026-05-06-monetization-handoff.md */}
+              Upgrade to Pro coming soon. Or set your own Gemini key below to
+              skip the limit.
+            </div>
+          )}
+        </div>
+
+        <div style={s.sectionLabel}>Bring your own Gemini key</div>
+        <div style={s.card}>
+          <input
+            type="password"
+            placeholder="API key (optional)"
+            value={aiKey}
+            autoComplete="off"
+            onChange={handleByokChange}
+            style={s.byokInput}
+          />
+          <div style={s.byokHint}>
+            Stored locally only. When set, AI renders use your key directly
+            with Google's Gemini API and bypass Vedute's per-month limit.
+            {' '}
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#c8b897' }}
+            >
+              Get a key →
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   )
