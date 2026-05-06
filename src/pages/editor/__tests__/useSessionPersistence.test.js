@@ -199,6 +199,33 @@ describe('useSessionPersistence', () => {
     registerCamera(null)
   })
 
+  it('registerCamera fires camera-set the first time it gets a non-null camera', () => {
+    // Race fix from a prior commit: persistence's debounced save can
+    // fire BEFORE Scene's useLayoutEffect calls registerCamera. The
+    // result was a session blob without position/quaternion/up. Solution:
+    // when registerCamera transitions null → camera, dispatch camera-set
+    // so the persistence hook reschedules its save with _camera ready.
+    // Test pins that synthetic dispatch.
+    registerCamera(null) // start clean
+    const events = []
+    const handler = () => events.push('camera-set')
+    window.addEventListener('camera-set', handler)
+    try {
+      registerCamera({ position: { x: 0, y: 0, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 }, up: { x: 0, y: 1, z: 0 } })
+      expect(events).toEqual(['camera-set'])
+      // Subsequent calls should NOT re-fire (we only nudge the first
+      // null → real transition).
+      registerCamera({ position: { x: 1, y: 1, z: 1 }, quaternion: { x: 0, y: 0, z: 0, w: 1 }, up: { x: 0, y: 1, z: 0 } })
+      expect(events).toEqual(['camera-set'])
+      // Resetting to null does NOT fire (we only fire on the rising edge).
+      registerCamera(null)
+      expect(events).toEqual(['camera-set'])
+    } finally {
+      window.removeEventListener('camera-set', handler)
+      registerCamera(null)
+    }
+  })
+
   it('persists savedViewMarkersOn across reload', () => {
     // Seed storage with the field set to true, mount hook, expect atom restored.
     const saved = { ui: { savedViewMarkersOn: true } }
