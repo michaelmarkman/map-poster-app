@@ -101,4 +101,28 @@ describe('Navbar', () => {
     renderNavbar()
     expect(screen.getAllByText('C').length).toBeGreaterThan(0)
   })
+
+  it('avatar trigger is a button, keyboard-focusable, with aria-haspopup', () => {
+    mockUser = { id: 'u1', email: 'alice@example.com' }
+    mockProfile = { display_name: 'Alice' }
+    renderNavbar()
+    const trigger = screen.getByRole('button', { name: /Account menu/i })
+    expect(trigger).toBeDefined()
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
+    // aria-expanded flips when the menu opens.
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('Esc closes the open dropdown', () => {
+    mockUser = { id: 'u1', email: 'alice@example.com' }
+    mockProfile = { display_name: 'Alice' }
+    renderNavbar()
+    const trigger = screen.getByRole('button', { name: /Account menu/i })
+    fireEvent.click(trigger)
+    expect(screen.getByText('Sign out')).toBeDefined()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByText('Sign out')).toBe(null)
+  })
 })

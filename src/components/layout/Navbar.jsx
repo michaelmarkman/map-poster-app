@@ -60,8 +60,15 @@ export default function Navbar() {
     function close(e) {
       if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false)
     }
+    function onKey(e) {
+      if (e.key === 'Escape') setDropOpen(false)
+    }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   // Close mobile menu on resize to desktop
@@ -116,11 +123,18 @@ export default function Navbar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {user ? (
             <div ref={dropRef} style={{ position: 'relative' }}>
-              <div style={s.avatar} onClick={() => setDropOpen(!dropOpen)}>
+              <button
+                type="button"
+                style={{ ...s.avatar, padding: 0 }}
+                onClick={() => setDropOpen(!dropOpen)}
+                aria-haspopup="menu"
+                aria-expanded={dropOpen}
+                aria-label="Account menu"
+              >
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : initials}
-              </div>
+              </button>
               {dropOpen && (
                 <div style={s.dropdown}>
                   <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
