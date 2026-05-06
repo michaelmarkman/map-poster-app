@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import SavedViewsPanel from '../components/SavedViewsPanel'
@@ -26,10 +26,6 @@ function renderWith({ views = sampleViews, defaultId = null } = {}) {
 }
 
 describe('SavedViewsPanel', () => {
-  beforeEach(() => {
-    // Each test gets a clean window listener slate.
-    delete window.__svpDefaultListenerAttached
-  })
 
   it('renders empty-state when there are no saved views', () => {
     renderWith({ views: [] })
@@ -133,14 +129,33 @@ describe('SavedViewsPanel', () => {
   })
 
   it('the set-default-view listener cleans up on unmount', () => {
-    const before = window.__svpListenerCount || 0
-    const { unmount } = renderWith()
-    unmount()
-    // Sanity: re-mount + unmount cycle. If cleanup was missing, the
-    // listener count would diverge each time. The exact count is
-    // implementation-dependent — what matters is no leak.
-    const { unmount: unmount2 } = renderWith()
-    unmount2()
-    expect(window.__svpListenerCount || 0).toBe(before)
+    // Spy on add/remove for the specific event name, then assert add
+    // count == remove count after a mount/unmount cycle. (Was checking
+    // window.__svpListenerCount against itself, which always passed
+    // regardless of cleanup behavior — a test from before the source
+    // moved away from a window-global counter.)
+    let added = 0
+    let removed = 0
+    const realAdd = window.addEventListener
+    const realRemove = window.removeEventListener
+    window.addEventListener = function (type, ...rest) {
+      if (type === 'set-default-view') added++
+      return realAdd.call(this, type, ...rest)
+    }
+    window.removeEventListener = function (type, ...rest) {
+      if (type === 'set-default-view') removed++
+      return realRemove.call(this, type, ...rest)
+    }
+    try {
+      const { unmount } = renderWith()
+      unmount()
+      const { unmount: unmount2 } = renderWith()
+      unmount2()
+      expect(added).toBe(removed)
+      expect(added).toBeGreaterThan(0)
+    } finally {
+      window.addEventListener = realAdd
+      window.removeEventListener = realRemove
+    }
   })
 })
