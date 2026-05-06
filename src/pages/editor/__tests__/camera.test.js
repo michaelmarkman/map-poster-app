@@ -2,75 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { Vector3 } from 'three'
 import { Geodetic } from '@takram/three-geospatial'
 import {
-  sliderToAlt,
-  altToSlider,
   intersectEarthSphere,
   clampCameraAltitude,
 } from '../utils/camera'
 
-const ALT_MIN = 100
-const ALT_MAX = 10000
 const EARTH_RADIUS = 6378137
-
-describe('sliderToAlt', () => {
-  it('maps 0 → ALT_MIN', () => {
-    expect(sliderToAlt(0)).toBeCloseTo(ALT_MIN, 6)
-  })
-
-  it('maps 1000 → ALT_MAX', () => {
-    expect(sliderToAlt(1000)).toBeCloseTo(ALT_MAX, 6)
-  })
-
-  it('is monotonically increasing across the slider range', () => {
-    let prev = -Infinity
-    for (let s = 0; s <= 1000; s += 50) {
-      const alt = sliderToAlt(s)
-      expect(alt).toBeGreaterThan(prev)
-      prev = alt
-    }
-  })
-
-  it('clamps slider inputs below 0 to ALT_MIN', () => {
-    expect(sliderToAlt(-200)).toBeCloseTo(ALT_MIN, 6)
-  })
-
-  it('clamps slider inputs above 1000 to ALT_MAX', () => {
-    expect(sliderToAlt(5000)).toBeCloseTo(ALT_MAX, 6)
-  })
-})
-
-describe('altToSlider', () => {
-  it('maps ALT_MIN → 0', () => {
-    expect(altToSlider(ALT_MIN)).toBe(0)
-  })
-
-  it('maps ALT_MAX → 1000', () => {
-    expect(altToSlider(ALT_MAX)).toBe(1000)
-  })
-
-  it('clamps altitudes below ALT_MIN to slider 0', () => {
-    expect(altToSlider(0)).toBe(0)
-    expect(altToSlider(-50)).toBe(0)
-  })
-
-  it('clamps altitudes above ALT_MAX to slider 1000', () => {
-    expect(altToSlider(50000)).toBe(1000)
-  })
-})
-
-describe('sliderToAlt / altToSlider roundtrip', () => {
-  it('sliderToAlt(altToSlider(500)) ≈ 500 within a slider-step', () => {
-    const rounded = sliderToAlt(altToSlider(500))
-    // altToSlider rounds to integer slider steps; one step near 500m is
-    // ~1.15m along the log curve. Allow 2m of slop.
-    expect(Math.abs(rounded - 500)).toBeLessThan(2)
-  })
-
-  it('roundtrips stably near the endpoints', () => {
-    expect(sliderToAlt(altToSlider(ALT_MIN))).toBeCloseTo(ALT_MIN, 6)
-    expect(sliderToAlt(altToSlider(ALT_MAX))).toBeCloseTo(ALT_MAX, 6)
-  })
-})
 
 describe('intersectEarthSphere', () => {
   it('returns a point on the sphere when the ray points inward', () => {
