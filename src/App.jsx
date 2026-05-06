@@ -6,7 +6,6 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import EditorPage from './pages/editor/EditorPage'
 import MockEditorPage from './pages/mock/MockEditorPage'
 import DofLabPage from './pages/dof-lab/DofLabPage'
 import GalleryPage from './pages/GalleryPage'
@@ -24,12 +23,12 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           {/* Full-screen editor — no navbar; owns the whole viewport.
-           * /app  → the floating-pills editor (current default)
-           * /app-classic → the legacy sidebar editor, preserved
-           * /mock → historical alias, redirects to /app */}
+           * /app          → Vedute editor (the only editor as of Phase 1.2)
+           * /app-classic  → 301 to /app (sidebar editor was removed)
+           * /mock         → historical alias, also redirects to /app */}
           <Route path="/app" element={<ProtectedRoute guestAllowed><MockEditorPage /></ProtectedRoute>} />
-          <Route path="/app-classic" element={<ProtectedRoute guestAllowed><EditorPage /></ProtectedRoute>} />
           <Route path="/dof-lab" element={<ProtectedRoute guestAllowed><DofLabPage /></ProtectedRoute>} />
+          <Route path="/app-classic" element={<Navigate to="/app" replace />} />
           <Route path="/mock" element={<Navigate to="/app" replace />} />
 
           {/* Pages with navbar */}

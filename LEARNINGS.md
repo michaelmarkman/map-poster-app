@@ -534,3 +534,33 @@ file is the raw log — CLAUDE.md is the curated summary.
 - General rule: localStorage key migrations are append-only
   unless you can prove the new key is unset. Always guard with
   `getItem(newKey) === null` before the write.
+
+## 2026-05-06 — Phase 1.2: deleting /app-classic + smoke tightly coupled to sidebar DOM
+
+- Task: delete the /app-classic sidebar editor (~3000 LOC), keep
+  the shared scene/atoms/hooks alive, and rewrite the smoke test
+  which was driving sidebar-only DOM (`#tod-slider`, `#toggle-clouds`,
+  `[data-ratio]`, `.size-btn`).
+- Subtle issue: trying to recreate the sidebar's "set TOD → save →
+  reload → assert restored" flow against /app's pill UI doesn't
+  work. The pills don't expose stable DOM IDs the way the sidebar
+  did. And replicating the flow by seeding localStorage + reload
+  + asserting "session blob still has my values" fails because
+  the persistence hook's debounced save fires within 500ms of
+  mount and overwrites the seeded blob with current atom values
+  (which start as defaults until restore lands and atoms re-render).
+  Race-condition territory.
+- Fix (scripts/smoke.js): the smoke test exists to catch BUILD
+  bugs (minifier strips, asset paths, prod-only React surprises).
+  It is not a re-test of the persistence hook — those round-trips
+  are covered by useSessionPersistence.test.js. Drop the
+  set-via-DOM + reload-and-assert dance entirely. Smoke now
+  verifies: cold-load /app renders pills + frame + canvas,
+  /app-classic redirects to /app, save-view round-trips through
+  the event channel into localStorage, session blob gets written
+  with a camera position, CSS bundle has both prefixed and
+  unprefixed backdrop-filter rules. Done.
+- General rule: smoke tests are for CI-against-prod-bundle bugs
+  that unit tests can't see. If a smoke check duplicates a unit
+  test, drop it from smoke. Keep smoke fast, focused, and
+  resilient to UI churn.

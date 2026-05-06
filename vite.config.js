@@ -38,6 +38,8 @@ const spaFallback = {
   name: 'spa-fallback',
   configureServer(server) {
     const SPA_ROUTES = new Set([
+      // /app-classic is a 301 redirect handled by React Router (Phase 1.2),
+      // but we still need to fallback the bare path so React boots.
       '/', '/app', '/app-classic', '/mock', '/dof-lab', '/gallery', '/community', '/profile',
       '/login', '/signup', '/forgot-password',
     ])

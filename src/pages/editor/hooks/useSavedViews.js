@@ -5,10 +5,11 @@ import {
   timeOfDayAtom,
   dofAtom,
 } from '../atoms/scene'
+import { reverseGeocodeName } from '../../../lib/geocode'
 
-// Saved views hook — mounted once from EditorShell. Owns the localStorage
-// <-> savedViewsAtom sync and listens for the window events dispatched from
-// ExportSection ('save-view', 'load-view', 'delete-view').
+// Saved views hook — mounted once from MockEditorShell. Owns the
+// localStorage <-> savedViewsAtom sync and listens for the window events
+// dispatched from save-view UI ('save-view', 'load-view', 'delete-view').
 //
 // Serialization shape matches prototypes/poster-v3-ui.jsx `buildSavedViewFromCapture`
 // so views already in users' localStorage keep loading after the port:
@@ -134,32 +135,6 @@ async function applyGraphicsJSON(graphicsJSON) {
       fabric.renderAll?.()
     }
   } catch {}
-}
-
-// Reverse-geocode a coordinate to a human-readable place name via Nominatim.
-// Returns the most specific neighbourhood/town/city it can find, falling
-// back to the first segment of `display_name`. Resolves to null on any
-// failure (network, parse, missing fields) so the caller can fall back to
-// coord-based naming.
-async function reverseGeocodeName(lat, lng) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
-      { headers: { 'User-Agent': 'Vedute/1.0' } },
-    )
-    if (!r.ok) return null
-    const data = await r.json()
-    const a = data?.address || {}
-    return (
-      a.neighbourhood || a.suburb || a.city_district ||
-      a.town || a.village || a.hamlet || a.city ||
-      (typeof data?.display_name === 'string' ? data.display_name.split(',')[0].trim() : null) ||
-      null
-    )
-  } catch {
-    return null
-  }
 }
 
 // Pull lat/lng out of whatever shape get-camera responded with — same

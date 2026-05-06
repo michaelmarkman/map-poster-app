@@ -12,6 +12,7 @@ import { textFieldsAtom } from '../../editor/atoms/ui'
 import { savedViewsAtom } from '../../editor/atoms/sidebar'
 import { dispatchFlyTo } from '../../editor/scene/events'
 import { getSunTimes } from '../../editor/utils/sun'
+import { geocodeSearch } from '../../../lib/geocode'
 
 function fire(name, detail) {
   window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))
@@ -45,42 +46,32 @@ export default function ClusterTopLeft() {
   const runSearch = async (q) => {
     const trimmed = q.trim()
     if (!trimmed) return
-    try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`,
-        { headers: { 'User-Agent': 'Vedute/1.0' } },
-      )
-      const results = await r.json()
-      if (!results?.length) {
-        alert('Location not found')
-        return
-      }
-      const lat = +results[0].lat
-      const lng = +results[0].lon
-      const name = results[0].display_name
-      setLocationLabel(shorten(name))
-      const oldOffset = longitude / 15
-      const newOffset = lng / 15
-      const adjusted = ((timeOfDay + (newOffset - oldOffset)) % 24 + 24) % 24
-      setLatitude(lat)
-      setLongitude(lng)
-      const { sunrise, sunset } = getSunTimes(lat)
-      setTimeOfDay(todUnlocked ? adjusted : Math.max(sunrise + 0.5, Math.min(sunset - 0.5, adjusted)))
-      dispatchFlyTo({ lat, lng })
-      const shortName = name.split(',')[0]
-      const coordStr =
-        Math.abs(lat).toFixed(4) + '\u00b0 ' + (lat >= 0 ? 'N' : 'S') + ', ' +
-        Math.abs(lng).toFixed(4) + '\u00b0 ' + (lng >= 0 ? 'E' : 'W')
-      setTextFields((p) => ({ ...p, title: shortName, coords: coordStr }))
-      window.dispatchEvent(
-        new CustomEvent('location-changed', {
-          detail: { lat, lng, shortName, coordStr, fullName: name },
-        }),
-      )
-      setQuery('')
-    } catch {
-      alert('Geocoding failed')
+    const result = await geocodeSearch(trimmed)
+    if (!result) {
+      alert('Location not found')
+      return
     }
+    const { lat, lng, displayName: name } = result
+    setLocationLabel(shorten(name))
+    const oldOffset = longitude / 15
+    const newOffset = lng / 15
+    const adjusted = ((timeOfDay + (newOffset - oldOffset)) % 24 + 24) % 24
+    setLatitude(lat)
+    setLongitude(lng)
+    const { sunrise, sunset } = getSunTimes(lat)
+    setTimeOfDay(todUnlocked ? adjusted : Math.max(sunrise + 0.5, Math.min(sunset - 0.5, adjusted)))
+    dispatchFlyTo({ lat, lng })
+    const shortName = name.split(',')[0]
+    const coordStr =
+      Math.abs(lat).toFixed(4) + '\u00b0 ' + (lat >= 0 ? 'N' : 'S') + ', ' +
+      Math.abs(lng).toFixed(4) + '\u00b0 ' + (lng >= 0 ? 'E' : 'W')
+    setTextFields((p) => ({ ...p, title: shortName, coords: coordStr }))
+    window.dispatchEvent(
+      new CustomEvent('location-changed', {
+        detail: { lat, lng, shortName, coordStr, fullName: name },
+      }),
+    )
+    setQuery('')
   }
 
   return (
