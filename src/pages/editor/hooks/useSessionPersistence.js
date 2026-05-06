@@ -19,6 +19,7 @@ import {
   cameraReadoutAtom,
 } from '../atoms/ui'
 import {
+  aiCleanArtifactsAtom,
   defaultSavedViewIdAtom,
   onboardedAtom,
   savedViewMarkersOnAtom,
@@ -77,6 +78,7 @@ export default function useSessionPersistence() {
   const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
   const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
   const setOnboarded = useSetAtom(onboardedAtom)
+  const setAiCleanArtifacts = useSetAtom(aiCleanArtifactsAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -96,6 +98,7 @@ export default function useSessionPersistence() {
   const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
   const defaultSavedViewId = useAtomValue(defaultSavedViewIdAtom)
   const onboarded = useAtomValue(onboardedAtom)
+  const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -107,6 +110,7 @@ export default function useSessionPersistence() {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, todUnlocked, fillMode, aspectRatio,
       textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
+      aiCleanArtifacts,
     }
   })
 
@@ -187,6 +191,9 @@ export default function useSessionPersistence() {
         if (typeof u.onboarded === 'boolean') {
           setOnboarded(u.onboarded)
         }
+        if (typeof u.aiCleanArtifacts === 'boolean') {
+          setAiCleanArtifacts(u.aiCleanArtifacts)
+        }
       }
 
       // Camera is rehydrated directly by Scene's useLayoutEffect reading
@@ -236,6 +243,7 @@ export default function useSessionPersistence() {
         savedViewMarkersOn: !!v.savedViewMarkersOn,
         defaultSavedViewId: v.defaultSavedViewId ?? null,
         onboarded: !!v.onboarded,
+        aiCleanArtifacts: !!v.aiCleanArtifacts,
       },
       timestamp: Date.now(),
     }
@@ -282,6 +290,7 @@ export default function useSessionPersistence() {
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, todUnlocked, fillMode, aspectRatio,
     textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
+    aiCleanArtifacts,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture
