@@ -712,3 +712,31 @@ file is the raw log — CLAUDE.md is the curated summary.
   doing structural work (chunking discipline, asset routing). Run
   `npm run build` and diff sizes before deleting any input/output
   config.
+
+## 2026-05-06 — Two-bug-deep dead-write masking a dead-read in saved views
+
+- Saving a view captured `dofColorPop: curDof.colorPop` (curDof has no
+  `colorPop` field — it's `sceneColorPop` + `focusColorPop` since the
+  DoF split). So every save persisted `dofColorPop: undefined`.
+- Restoring a view wrote `colorPop: view.dofColorPop ?? prev.colorPop`
+  back onto the dofAtom — but the atom has no `colorPop` either, so the
+  write went into the void.
+- Both halves were broken. Because the dead write stored undefined and
+  the dead read produced undefined, no test ever caught the silent loss
+  of a real user setting (the saturation knob on saved views).
+- Mechanism: when a field gets renamed or split, the round-trip looks
+  fine if save and restore are *consistently* wrong on the same name.
+  The bug only surfaces when one side gets fixed and the other doesn't,
+  which is rare during a refactor.
+- Fix in src/pages/editor/hooks/useSavedViews.js: persist
+  dofSceneColorPop + dofFocusColorPop explicitly, keep dofColorPop as
+  a backwards-compat alias for older readers + the legacy session
+  migration, restore the split pair (with fallback to the legacy field
+  for old saves on disk). Two regression tests in
+  __tests__/useSavedViews.test.js pin the round trip end to end.
+- General rule: when you split or rename a field, search the codebase
+  for *both* the old and new names on save AND restore paths — not just
+  one side. A test that round-trips through (save x → load → assert x)
+  catches the matched-pair version of this bug; a test that only loads
+  a fixture catches the dead-read; you need both to catch the
+  matched-bug case.
