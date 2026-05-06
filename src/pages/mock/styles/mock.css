@@ -1101,6 +1101,13 @@ body.mock-mounted #poster-preview {
 body.mock-mounted.preview-open .mock-cluster {
   z-index: 500;
 }
+/* Keep the wordmark visible above the preview backdrop — Phase 2.7
+ * placed it at z-index: 1, which puts it under the preview modal
+ * along with everything else. Lift it alongside the clusters so the
+ * brand mark stays put when the user opens the preview. */
+body.mock-mounted.preview-open .mock-wordmark {
+  z-index: 500;
+}
 body.mock-mounted.preview-open .mock-frame-overlay {
   display: none;
 }
