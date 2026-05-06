@@ -10,9 +10,10 @@ import {
 } from '../utils/galleryDb'
 
 // Gallery data layer. Hydrates galleryEntriesAtom from IndexedDB on mount and
-// exposes add/delete/refresh. Also listens to the legacy window events
-// (gallery-add, gallery-delete, gallery-download-all) so sidebar/modal/queue
-// code that still speaks the prototype's event channel keeps working.
+// exposes add/delete/refresh. Also listens to window events (gallery-add,
+// gallery-remove, gallery-toggle-public, gallery-download-all) so the queue
+// + gallery card + community page can interact with the gallery without
+// holding a hook reference.
 //
 // Ports:
 //   - openGalleryDB      prototypes/poster-v3-ui.jsx:2008  (via galleryDb util)
@@ -108,15 +109,11 @@ export default function useGalleryData() {
       if (id != null) setPublic(id, !!isPublic)
     }
     window.addEventListener('gallery-add', onAdd)
-    window.addEventListener('gallery-delete', onDelete)
-    // 'gallery-remove' alias — the gallery card per-item delete dispatches
-    // this name (Phase 2.5). Same shape as gallery-delete; keep both wired.
     window.addEventListener('gallery-remove', onDelete)
     window.addEventListener('gallery-toggle-public', onTogglePublic)
     window.addEventListener('gallery-download-all', onDownloadAll)
     return () => {
       window.removeEventListener('gallery-add', onAdd)
-      window.removeEventListener('gallery-delete', onDelete)
       window.removeEventListener('gallery-remove', onDelete)
       window.removeEventListener('gallery-toggle-public', onTogglePublic)
       window.removeEventListener('gallery-download-all', onDownloadAll)

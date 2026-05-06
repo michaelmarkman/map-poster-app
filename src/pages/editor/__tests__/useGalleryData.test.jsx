@@ -156,7 +156,7 @@ describe('useGalleryData', () => {
   })
 
   it('cleans up window listeners on unmount', () => {
-    const types = ['gallery-add', 'gallery-delete', 'gallery-remove', 'gallery-toggle-public', 'gallery-download-all']
+    const types = ['gallery-add', 'gallery-remove', 'gallery-toggle-public', 'gallery-download-all']
     const counts = Object.fromEntries(types.map((t) => [t, { added: 0, removed: 0 }]))
     const realAdd = window.addEventListener
     const realRemove = window.removeEventListener
