@@ -39,12 +39,27 @@ export function AuthProvider({ children }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) loadProfile(session.user.id)
-      setLoading(false)
-    })
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) loadProfile(session.user.id)
+        setLoading(false)
+      })
+      .catch((err) => {
+        // Defensive: getSession is documented to return { error } rather
+        // than throw, but mis-configured envs (bad VITE_SUPABASE_URL),
+        // unrefreshable expired tokens, and other JS-internal edge cases
+        // can still bubble out. Without a catch the .then never fires,
+        // setLoading(false) never runs, and ProtectedRoute on /profile +
+        // /gallery shows a perpetual spinner. Treat the failure as
+        // "no session" — the user can still use the app as a guest, sign
+        // in, etc.
+        console.error('[auth] getSession failed:', err)
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
