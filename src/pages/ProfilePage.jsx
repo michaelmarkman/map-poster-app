@@ -112,6 +112,16 @@ export default function ProfilePage() {
   const { profile, user, updateProfile, uploadAvatar } = useAuth()
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [bio, setBio] = useState(profile?.bio || '')
+
+  // Profile loads async after AuthContext mounts. If this page rendered
+  // before loadProfile resolved, displayName/bio initialized to '' and
+  // stayed there forever — the Edit form would show empty inputs even
+  // though profile had a name. Sync on profile change so the form
+  // tracks the source of truth.
+  useEffect(() => {
+    if (profile?.display_name != null) setDisplayName(profile.display_name)
+    if (profile?.bio != null) setBio(profile.bio)
+  }, [profile?.display_name, profile?.bio])
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -189,9 +199,26 @@ export default function ProfilePage() {
     e.preventDefault()
     setError('')
     setSuccess('')
+    // Basic client-side validation. Without these the user could save
+    // a 10000-char display_name that breaks the Navbar layout, or an
+    // empty-string display_name that renders as nothing in the
+    // dropdown header.
+    const trimmedName = displayName.trim()
+    if (!trimmedName) {
+      setError('Display name is required.')
+      return
+    }
+    if (trimmedName.length > 50) {
+      setError('Display name is too long — keep it under 50 characters.')
+      return
+    }
+    if (bio.length > 500) {
+      setError('Bio is too long — keep it under 500 characters.')
+      return
+    }
     setLoading(true)
     try {
-      await updateProfile({ display_name: displayName, bio })
+      await updateProfile({ display_name: trimmedName, bio })
       setSuccess('Profile updated')
       setEditing(false)
     } catch (err) {
