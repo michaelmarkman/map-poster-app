@@ -28,6 +28,7 @@ import {
   getRenderCount,
   incrementRenderCount,
 } from '../../../lib/renderCount'
+import { fireToast } from '../../../lib/toast'
 
 // Queue hook — port of the export queue wiring from prototypes/poster-v3-ui.jsx
 // (lines 1997-2425). The prototype kept `exportQueue` as a module-scoped
@@ -562,9 +563,7 @@ export default function useQueue() {
           // Surface the gate reason via the shared toast channel rather
           // than window.alert (the rest of the app moved to toasts when
           // ToastHost shipped).
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: { type: 'error', message: gate.reason },
-          }))
+          fireToast('error', gate.reason)
           return
         }
       }
@@ -648,9 +647,7 @@ export default function useQueue() {
           // Surface the gate reason via the shared toast channel rather
           // than window.alert (the rest of the app moved to toasts when
           // ToastHost shipped).
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: { type: 'error', message: gate.reason },
-          }))
+          fireToast('error', gate.reason)
           return
         }
       }

@@ -7,6 +7,7 @@ import {
 } from '../atoms/scene'
 import { reverseGeocodeName } from '../../../lib/geocode'
 import { canSaveAnotherView } from '../../../lib/entitlements'
+import { fireToast } from '../../../lib/toast'
 import { snapshotCanvas } from '../utils/export'
 
 // Capture a small thumbnail for the saved view at the moment of save.
@@ -68,14 +69,6 @@ function uuid() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   } catch (e) {}
   return 'v-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
-}
-
-// Fire a toast event — no toast renderer in src yet, so this is a no-op
-// until one is added. Decoupled channel matches the prototype's convention.
-function fireToast(type, message) {
-  try {
-    window.dispatchEvent(new CustomEvent('toast', { detail: { type, message } }))
-  } catch (e) {}
 }
 
 // Request current camera state from Scene via the get-camera event.

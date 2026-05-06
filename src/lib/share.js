@@ -8,6 +8,8 @@
 // silent UX bug was caught in an earlier round; this helper pins the
 // replacement flow so the implementation can't drift between callers.
 
+import { fireToast } from './toast'
+
 const VEDUTE_DOMAIN = 'vedute.com'
 
 // Build the social caption for an entry. Pure — no side effects.
@@ -38,13 +40,9 @@ export async function shareEntry(entry) {
     link.href = entry.dataUrl
     link.click()
   }
-  window.dispatchEvent(new CustomEvent('toast', {
-    detail: {
-      type: 'success',
-      message: captionCopied
-        ? 'Caption copied · image downloading'
-        : 'Image downloading',
-    },
-  }))
+  fireToast(
+    'success',
+    captionCopied ? 'Caption copied · image downloading' : 'Image downloading',
+  )
   return { captionCopied }
 }

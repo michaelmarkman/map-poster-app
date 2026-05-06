@@ -3,6 +3,7 @@ import { useAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { friendlyError } from '../lib/errors'
+import { fireToast } from '../lib/toast'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
 import { aiApiKeyAtom } from './editor/atoms/sidebar'
@@ -153,8 +154,6 @@ export default function ProfilePage() {
   const handleUpgrade = async () => {
     // TODO Phase 6.2 — POST to /api/stripe-checkout and redirect to the
     // returned session URL. Today the endpoint returns 501.
-    const toast = (type, message) =>
-      window.dispatchEvent(new CustomEvent('toast', { detail: { type, message } }))
     try {
       const r = await fetch('/api/stripe-checkout', { method: 'POST' })
       const data = await r.json().catch(() => ({}))
@@ -162,9 +161,9 @@ export default function ProfilePage() {
         window.location.href = data.url
         return
       }
-      toast('info', data?.message || 'Upgrade not yet available.')
+      fireToast('info', data?.message || 'Upgrade not yet available.')
     } catch {
-      toast('error', 'Upgrade endpoint unreachable.')
+      fireToast('error', 'Upgrade endpoint unreachable.')
     }
   }
 

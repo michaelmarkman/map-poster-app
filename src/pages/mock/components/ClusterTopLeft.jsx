@@ -12,6 +12,7 @@ import {
 import { textFieldsAtom } from '../../editor/atoms/ui'
 import { savedViewsAtom } from '../../editor/atoms/sidebar'
 import { dispatchFlyTo } from '../../editor/scene/events'
+import { fireToast } from '../../../lib/toast'
 import { getSunTimes } from '../../editor/utils/sun'
 import { geocodeSearch } from '../../../lib/geocode'
 
@@ -45,9 +46,7 @@ export default function ClusterTopLeft() {
     if (!trimmed) return
     const result = await geocodeSearch(trimmed)
     if (!result) {
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: { type: 'error', message: 'Location not found' },
-      }))
+      fireToast('error', 'Location not found')
       return
     }
     const { lat, lng, displayName: name } = result
