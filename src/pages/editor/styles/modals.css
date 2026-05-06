@@ -765,34 +765,37 @@
   }
   .pp-close {
     position: absolute;
-    top: 22px; right: 22px;
+    top: var(--s-7); right: var(--s-7);
     z-index: 2;
     width: 38px; height: 38px;
-    border-radius: 8px;
-    background: rgba(20,19,23,0.72);
-    backdrop-filter: blur(20px);
-    border: 0.5px solid var(--panel-border);
+    border-radius: var(--r-md);
+    background: var(--panel-strong);
+    -webkit-backdrop-filter: blur(var(--blur-pill));
+            backdrop-filter: blur(var(--blur-pill));
+    border: 1px solid var(--panel-border);
     color: var(--ink-soft);
-    font-size: 18px;
+    font-size: var(--t-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: background var(--d-fast) var(--ease-out),
+                color var(--d-fast) var(--ease-out);
     font-family: inherit;
   }
-  .pp-close:hover { background: rgba(30,29,33,0.85); color: var(--ink); }
+  .pp-close:hover { background: var(--panel-deep); color: var(--ink); }
   .pp-hint {
     position: absolute;
-    bottom: 28px;
+    bottom: var(--s-8);
     left: 50%;
     transform: translateX(-50%);
-    font-size: 9px;
+    font-size: var(--t-xs);
     color: var(--ink-dim);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     pointer-events: none;
     opacity: 0.55;
+    font-family: var(--mono);
   }
   .pp-scene {
     perspective: 1200px;
