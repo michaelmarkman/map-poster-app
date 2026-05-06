@@ -35,6 +35,63 @@ export async function geocodeSearch(query) {
   }
 }
 
+// Places autocomplete: query string -> [{ description, placeId? }]. When
+// `api/places.js` is wired up to Google Places, this hits the proxy first
+// for autocomplete-quality predictions. Until then (or when the proxy is
+// disabled / quota-blown), falls back to Nominatim's search endpoint, which
+// returns enough variety to feel like predictions.
+//
+// Returns at most `limit` results (default 5). Empty array on any miss.
+export async function searchPlaces(query, { limit = 5 } = {}) {
+  const trimmed = (query || '').trim()
+  if (!trimmed) return []
+  // Try the server proxy first. If the proxy returns 501 / fallback:true,
+  // we drop into the Nominatim path silently.
+  try {
+    const r = await fetch('/api/places', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: trimmed, limit }),
+    })
+    if (r.ok) {
+      const data = await r.json()
+      if (Array.isArray(data?.predictions) && data.predictions.length) {
+        return data.predictions.slice(0, limit).map((p) => ({
+          description: p.description || p.mainText || trimmed,
+          placeId: p.placeId || null,
+          mainText: p.mainText || null,
+          secondaryText: p.secondaryText || null,
+        }))
+      }
+    }
+    // Non-2xx OR { fallback: true } -> drop through to Nominatim
+  } catch {
+    // network blip; fall through
+  }
+  try {
+    const r = await fetch(
+      `${NOMINATIM}/search?q=${encodeURIComponent(trimmed)}&format=json&limit=${limit}`,
+      { headers: { 'User-Agent': USER_AGENT } },
+    )
+    if (!r.ok) return []
+    const results = await r.json()
+    if (!Array.isArray(results)) return []
+    return results.slice(0, limit).map((row) => ({
+      description: row.display_name || trimmed,
+      placeId: null,
+      mainText: typeof row.display_name === 'string' ? row.display_name.split(',')[0].trim() : null,
+      secondaryText:
+        typeof row.display_name === 'string'
+          ? row.display_name.split(',').slice(1).join(',').trim()
+          : null,
+      lat: +row.lat,
+      lng: +row.lon,
+    }))
+  } catch {
+    return []
+  }
+}
+
 // Reverse geocode: lat/lng -> a short, human-friendly place label, or null
 // on miss. Picks the most specific neighbourhood-level segment available
 // before falling back to the first comma-separated segment of display_name.
