@@ -514,6 +514,29 @@ describe('useSavedViews', () => {
     expect(result.current[0].name).toBe('New name')
   })
 
+  it('rename-view truncates names longer than 60 chars', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Old',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    const huge = 'a'.repeat(200)
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: huge },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toHaveLength(60)
+  })
+
   it('rename-view ignores empty / whitespace-only names', async () => {
     vi.useFakeTimers()
     const existing = [{

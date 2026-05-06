@@ -391,11 +391,15 @@ export default function useSavedViews() {
       commitViews(next)
     }
 
-    // Rename: detail = { id, name }
+    // Rename: detail = { id, name }. Names cap at 60 chars — long enough
+    // for "Manhattan Bridge sunrise · golden hour" but short enough that
+    // the SavedViewsPanel row doesn't overflow. Beyond this, the
+    // input-side rename UI would need its own length-capped textarea
+    // anyway; truncate here as defense-in-depth.
     const onRename = (e) => {
       const detail = e?.detail
       if (!detail?.id || typeof detail.name !== 'string') return
-      const trimmed = detail.name.trim()
+      const trimmed = detail.name.trim().slice(0, 60)
       if (!trimmed) return
       const next = stateRef.current.views.map((v) =>
         v.id === detail.id ? { ...v, name: trimmed } : v,
