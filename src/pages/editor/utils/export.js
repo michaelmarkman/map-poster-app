@@ -77,6 +77,52 @@ export function snapshotCanvas(resolution = 2) {
   }
 }
 
+// Phase 6 — bake a small "vedute" wordmark into the bottom-right of an
+// image data URL. Async because it goes through a temporary <img> load.
+// Returns the original URL on failure so the export pipeline doesn't
+// silently drop the user's render. Free-tier consumers call this; pro/
+// BYOK callers skip the wrapper entirely.
+//
+// Render at ~3% of image height in a refined serif (Fraunces with system
+// fallback) so the mark reads as editorial signature, not as a tag.
+export function applyWatermark(dataUrl) {
+  if (!dataUrl) return Promise.resolve(dataUrl)
+  return new Promise((resolve) => {
+    try {
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const out = document.createElement('canvas')
+          out.width = img.naturalWidth
+          out.height = img.naturalHeight
+          const ctx = out.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const fontPx = Math.max(12, Math.round(img.naturalHeight * 0.018))
+          const padX = Math.round(fontPx * 1.4)
+          const padY = Math.round(fontPx * 1.1)
+          ctx.font = `500 ${fontPx}px Fraunces, "Iowan Old Style", Georgia, serif`
+          ctx.textBaseline = 'alphabetic'
+          ctx.textAlign = 'right'
+          // Subtle: cream over a soft dark drop-shadow so it survives any
+          // background. We don't want the mark to dominate.
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+          ctx.shadowBlur = Math.max(2, fontPx * 0.2)
+          ctx.shadowOffsetY = 1
+          ctx.fillStyle = 'rgba(232, 220, 192, 0.85)'
+          ctx.fillText('vedute', img.naturalWidth - padX, img.naturalHeight - padY)
+          resolve(out.toDataURL('image/png'))
+        } catch {
+          resolve(dataUrl)
+        }
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    } catch {
+      resolve(dataUrl)
+    }
+  })
+}
+
 // Trigger a browser download for an in-memory dataURL.
 export function downloadDataUrl(dataUrl, filename) {
   if (!dataUrl) return

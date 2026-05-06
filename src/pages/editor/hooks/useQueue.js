@@ -12,10 +12,19 @@ import {
 } from '../atoms/sidebar'
 import { dofAtom } from '../atoms/scene'
 import {
+  applyWatermark,
   buildFilename,
   downloadDataUrl,
   snapshotCanvas,
 } from '../utils/export'
+import {
+  canSubmitRender,
+  shouldShowWatermark,
+} from '../../../lib/entitlements'
+import {
+  getRenderCount,
+  incrementRenderCount,
+} from '../../../lib/renderCount'
 
 // Queue hook — port of the export queue wiring from prototypes/poster-v3-ui.jsx
 // (lines 1997-2425). The prototype kept `exportQueue` as a module-scoped
@@ -338,12 +347,12 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        // Auto-download every completed job, including batched ones. The
-        // queue runs single-concurrency, so even a 28-style batch trickles
-        // downloads out one-by-one as each render finishes (minutes
-        // apart) — no risk of a download-spam burst.
-        downloadDataUrl(snapshotUrl, fname)
-        dispatchGalleryAdd(job.label, fname, snapshotUrl, {
+        // Phase 6 — apply free-tier watermark (no-op for BYOK / future Pro).
+        const finalUrl = shouldShowWatermark({ profile: null, byokKey: job.apiKey })
+          ? await applyWatermark(snapshotUrl)
+          : snapshotUrl
+        downloadDataUrl(finalUrl, fname)
+        dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
@@ -353,7 +362,7 @@ export default function useQueue() {
           status: 'done',
           statusText: 'Done',
           progress: 100,
-          resultUrl: snapshotUrl,
+          resultUrl: finalUrl,
         })
         return
       }
@@ -375,9 +384,12 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        // See raw-export branch — auto-download all jobs, batched or not.
-        downloadDataUrl(aiResult, fname)
-        dispatchGalleryAdd(job.label, fname, aiResult, {
+        // Phase 6 — apply free-tier watermark.
+        const finalUrl = shouldShowWatermark({ profile: null, byokKey: job.apiKey })
+          ? await applyWatermark(aiResult)
+          : aiResult
+        downloadDataUrl(finalUrl, fname)
+        dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
@@ -387,8 +399,11 @@ export default function useQueue() {
           status: 'done',
           statusText: 'Done',
           progress: 100,
-          resultUrl: aiResult,
+          resultUrl: finalUrl,
         })
+        // Phase 6.1 — bump the per-month render counter on a successful
+        // AI render, IF the user isn't on BYOK. Failed renders don't count.
+        if (!job.apiKey) incrementRenderCount(1)
       } catch (err) {
         clearInterval(pulse)
         updateJob(job.id, {
@@ -489,12 +504,20 @@ export default function useQueue() {
     // ─── Event handlers ─────────────────────────────────────────
 
     async function onQuickDownload() {
-      const dataUrl = snapshotCanvas(settingsRef.current.resolution)
-      if (!dataUrl) return
+      const raw = snapshotCanvas(settingsRef.current.resolution)
+      if (!raw) return
       const fname = buildFilename('raw', {
         resolution: settingsRef.current.resolution,
         location: getLocation(),
       })
+      // Phase 6 — quick downloads also get the free-tier watermark
+      // (BYOK still bypasses).
+      const dataUrl = shouldShowWatermark({
+        profile: null,
+        byokKey: settingsRef.current.aiKey,
+      })
+        ? await applyWatermark(raw)
+        : raw
       downloadDataUrl(dataUrl, fname)
       // Capture the current camera view so the gallery entry can power
       // 'Jump to view' later. Without this, quick-download entries have
@@ -514,10 +537,29 @@ export default function useQueue() {
       const overridePreset = Object.hasOwn(detail, 'preset') ? detail.preset : undefined
       const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
 
-      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
+      const s = settingsRef.current
+
+      // Entitlement gate (Phase 6.1). Only AI submissions count toward
+      // the per-month limit; raw exports stay free. BYOK bypasses the
+      // gate entirely. profile is null today (no Supabase tier flag);
+      // entitlements treats null as 'free' tier.
+      const presetIsAi = overridePreset === undefined ? !!s.aiPreset : (overridePreset !== null)
+      const wouldUseAi = !!s.aiEnhance && presetIsAi
+      if (wouldUseAi) {
+        const gate = canSubmitRender({
+          profile: null,
+          count: getRenderCount(),
+          byokKey: s.aiKey,
+        })
+        if (!gate.ok) {
+          try { window.alert(gate.reason) } catch {}
+          return
+        }
+      }
+
+      const rawSnapshot = snapshotCanvas(s.resolution)
       if (!rawSnapshot) return
 
-      const s = settingsRef.current
       const location = getLocation()
       const view = await captureCurrentView()
 
@@ -582,10 +624,25 @@ export default function useQueue() {
       const batchId = detail.batchId || ('batch-' + Date.now())
       const batchLabel = detail.batchLabel || `${presetKeys.length} styles`
 
-      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
-      if (!rawSnapshot) return
-
       const s = settingsRef.current
+
+      // Entitlement gate (Phase 6.1). Each AI preset in the batch counts
+      // as one render against the limit. Raw (preset === null) stays free.
+      const aiCount = presetKeys.filter((k) => k !== null).length
+      if (aiCount > 0) {
+        const gate = canSubmitRender({
+          profile: null,
+          count: getRenderCount() + aiCount - 1,
+          byokKey: s.aiKey,
+        })
+        if (!gate.ok) {
+          try { window.alert(gate.reason) } catch {}
+          return
+        }
+      }
+
+      const rawSnapshot = snapshotCanvas(s.resolution)
+      if (!rawSnapshot) return
       const location = getLocation()
       const view = await captureCurrentView()
 

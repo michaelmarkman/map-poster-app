@@ -176,8 +176,24 @@ function GalleryCard({ item, onOpen }) {
     link.href = item.dataUrl
     link.click()
   }
-  const handleShare = (e) => {
+  const handleShare = async (e) => {
     e.stopPropagation()
+    // Phase 7.3 — bake a pre-formatted caption into the clipboard so the
+    // user can paste it directly into Twitter / IG / etc. We don't post
+    // automatically (the design choice was: download + manual share).
+    const place = item.location?.split(',')[0]?.trim() || 'Somewhere'
+    const caption = `${place}. Made with Vedute — vedute.com`
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(caption)
+      }
+    } catch {}
+    // Trigger a download alongside the clipboard copy. Twitter / IG don't
+    // accept image URLs for paste, so the user needs the file.
+    const link = document.createElement('a')
+    link.download = item.filename + '.png'
+    link.href = item.dataUrl
+    link.click()
     window.dispatchEvent(new CustomEvent('open-share', { detail: { item } }))
   }
   const handleDelete = (e) => {
