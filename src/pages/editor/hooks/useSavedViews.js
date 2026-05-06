@@ -103,9 +103,34 @@ function requestCameraState() {
 // buildSavedViewFromCapture output, aside from a UUID `id` and (since
 // Phase 1.3) no `graphicsJSON` field — the graphics editor is gone.
 //
+// Color-pop history: the prototype carried a single `dofColorPop` field
+// because the shader only had one knob. After the DoF split into
+// sceneColorPop (boost everywhere) + focusColorPop (boost on top, in the
+// focal area), saved views started persisting both as
+// dofSceneColorPop / dofFocusColorPop. We still write `dofColorPop`
+// (set to focusColorPop) so older readers + the legacy session migration
+// keep working, but the new fields are authoritative on restore.
+//
 // Old views in localStorage may still carry `graphicsJSON`; we preserve
 // that field on round-trip but no longer write or apply it.
-function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorPop }, { name = 'View', fromGalleryId = null, thumbnail = null } = {}) {
+function buildSavedView(
+  {
+    camera,
+    tod,
+    focalUV,
+    dofTightness,
+    dofBlur,
+    dofSceneColorPop,
+    dofFocusColorPop,
+    dofColorPop,
+  },
+  { name = 'View', fromGalleryId = null, thumbnail = null } = {},
+) {
+  // Prefer the explicit pair when provided; fall back to the legacy
+  // single-value field so callers passing a pre-split saved view through
+  // (e.g. lightbox-save-view from a gallery entry) don't drop data.
+  const scene = dofSceneColorPop ?? 0
+  const focus = dofFocusColorPop ?? dofColorPop ?? 0
   return {
     id: uuid(),
     fromGalleryId,
@@ -115,7 +140,11 @@ function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorP
     focalUV: [...(focalUV || [0.5, 0.5])],
     dofTightness,
     dofBlur,
-    dofColorPop,
+    dofSceneColorPop: scene,
+    dofFocusColorPop: focus,
+    // Legacy alias — single-value readers see the focus value (the closest
+    // analog to the prototype's old colorPop).
+    dofColorPop: focus,
     thumbnail: thumbnail || undefined,
   }
 }
@@ -288,7 +317,8 @@ export default function useSavedViews() {
           focalUV: curDof.focalUV,
           dofTightness: curDof.tightness,
           dofBlur: curDof.blur,
-          dofColorPop: curDof.colorPop,
+          dofSceneColorPop: curDof.sceneColorPop,
+          dofFocusColorPop: curDof.focusColorPop,
         },
         { name: initialName, thumbnail },
       )
@@ -334,7 +364,11 @@ export default function useSavedViews() {
         focalUV: Array.isArray(view.focalUV) ? [...view.focalUV] : prev.focalUV,
         tightness: view.dofTightness ?? prev.tightness,
         blur: view.dofBlur ?? prev.blur,
-        colorPop: view.dofColorPop ?? prev.colorPop,
+        // Prefer the split pair; fall back to the legacy single value for
+        // older saves that predate the sceneColorPop / focusColorPop split.
+        sceneColorPop: view.dofSceneColorPop ?? prev.sceneColorPop,
+        focusColorPop:
+          view.dofFocusColorPop ?? view.dofColorPop ?? prev.focusColorPop,
       }))
 
       // Camera: dispatch a restore-view event with the full view detail. Scene
@@ -403,6 +437,9 @@ export default function useSavedViews() {
           focalUV: entry.view.focalUV,
           dofTightness: entry.view.dofTightness,
           dofBlur: entry.view.dofBlur,
+          dofSceneColorPop: entry.view.dofSceneColorPop,
+          dofFocusColorPop: entry.view.dofFocusColorPop,
+          // Legacy fallback — old saves only had this one field.
           dofColorPop: entry.view.dofColorPop,
         },
         { name: entry.label || 'View', fromGalleryId: entry.id ?? null },
@@ -426,7 +463,11 @@ export default function useSavedViews() {
         focalUV: Array.isArray(entry.view.focalUV) ? [...entry.view.focalUV] : prev.focalUV,
         tightness: entry.view.dofTightness ?? prev.tightness,
         blur: entry.view.dofBlur ?? prev.blur,
-        colorPop: entry.view.dofColorPop ?? prev.colorPop,
+        // Prefer the split pair; fall back to legacy single-value field.
+        sceneColorPop:
+          entry.view.dofSceneColorPop ?? prev.sceneColorPop,
+        focusColorPop:
+          entry.view.dofFocusColorPop ?? entry.view.dofColorPop ?? prev.focusColorPop,
       }))
       // Restore camera. Scene accepts either the bare camera object or a
       // wrapped { camera } detail — pass whatever shape we have.

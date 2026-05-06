@@ -100,6 +100,10 @@ describe('useSavedViews', () => {
     expect(typeof v.tod).toBe('number')
     expect('dofTightness' in v).toBe(true)
     expect('dofBlur' in v).toBe(true)
+    // Both halves of the post-split color-pop knob plus the legacy alias
+    // — older readers (and the legacy session migration) keep working.
+    expect('dofSceneColorPop' in v).toBe(true)
+    expect('dofFocusColorPop' in v).toBe(true)
     expect('dofColorPop' in v).toBe(true)
     // Auto-derived name contains degree symbol from coord formatter.
     expect(v.name).toContain('\u00b0')
@@ -271,11 +275,16 @@ describe('useSavedViews', () => {
     detach()
   })
 
-  it('lightbox-jump-view restores tod + the full DoF (focalUV, tightness, blur, colorPop)', async () => {
+  it('lightbox-jump-view restores tod + the full DoF (focalUV, tightness, blur, color-pop)', async () => {
     // Bug guard: an earlier version skipped focalUV and dofColorPop on
     // jump, so a render produced with a specific focus point + saturated
     // colors lost both when the user clicked Jump-to-view. The regular
     // load-view path applies all four; the lightbox bridge must too.
+    //
+    // The colorPop assertion also catches a separate bug: dof.colorPop
+    // doesn't exist on the atom (it was split into sceneColorPop +
+    // focusColorPop). The restore must map legacy `dofColorPop` onto
+    // `focusColorPop` so old saves still apply.
     renderHook(() => useSavedViews())
     await act(async () => {
       window.dispatchEvent(new CustomEvent('lightbox-jump-view', {
@@ -298,7 +307,40 @@ describe('useSavedViews', () => {
     expect(result.current.focalUV).toEqual([0.21, 0.79])
     expect(result.current.tightness).toBe(35)
     expect(result.current.blur).toBe(80)
-    expect(result.current.colorPop).toBe(95)
+    // Legacy single-value field maps to focusColorPop (the closest
+    // analog to the prototype's old colorPop).
+    expect(result.current.focusColorPop).toBe(95)
+  })
+
+  it('lightbox-jump-view honors the new dofSceneColorPop / dofFocusColorPop pair', async () => {
+    // New saves carry both fields after the DoF-color-pop split. They
+    // should take precedence over the legacy single-value field on
+    // restore.
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-jump-view', {
+        detail: {
+          id: 'g-2',
+          label: 'Paris',
+          view: {
+            camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 12,
+            focalUV: [0.5, 0.5],
+            dofTightness: 70,
+            dofBlur: 25,
+            dofSceneColorPop: 33,
+            dofFocusColorPop: 77,
+            // Legacy alias would pull a different value — make sure
+            // it's ignored when the explicit pair is present.
+            dofColorPop: 11,
+          },
+        },
+      }))
+    })
+
+    const { result } = renderHook(() => useAtomValue(dofAtom))
+    expect(result.current.sceneColorPop).toBe(33)
+    expect(result.current.focusColorPop).toBe(77)
   })
 
   it('lightbox-save-view also gates on the free-tier entitlement', async () => {
