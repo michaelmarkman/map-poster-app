@@ -17,7 +17,12 @@ import {
   aspectRatioAtom,
   textFieldsAtom,
 } from '../atoms/ui'
-import { savedViewMarkersOnAtom } from '../atoms/sidebar'
+import {
+  aiCleanArtifactsAtom,
+  aiPromptAtom,
+  exportResolutionAtom,
+  savedViewMarkersOnAtom,
+} from '../atoms/sidebar'
 
 const SESSION_KEY = 'vedute_session'
 
@@ -231,6 +236,45 @@ describe('useSessionPersistence', () => {
     window.dispatchEvent(new CustomEvent('save-session'))
     const parsed = JSON.parse(storage.api.getItem(SESSION_KEY))
     expect(parsed.ui.savedViewMarkersOn).toBe(true)
+  })
+
+  it('persists aiCleanArtifacts across reload', () => {
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { aiCleanArtifacts: false } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(aiCleanArtifactsAtom))
+    expect(result.current).toBe(false)
+    window.dispatchEvent(new CustomEvent('save-session'))
+    const parsed = JSON.parse(storage.api.getItem(SESSION_KEY))
+    expect(parsed.ui.aiCleanArtifacts).toBe(false)
+  })
+
+  it('persists exportResolution and validates against the safe-list', () => {
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { exportResolution: 4 } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(exportResolutionAtom))
+    expect(result.current).toBe(4)
+  })
+
+  it('rejects an out-of-range exportResolution from a corrupt blob', () => {
+    // 99× isn't in [1, 2, 3, 4, 6] — restore should NOT apply it
+    // (otherwise the slider could end up in a tier-violation state).
+    // Atoms persist across tests in this file (Jotai's default store)
+    // so we just check the corrupt value didn't take effect, rather
+    // than asserting the default — the previous-test value is whatever.
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { exportResolution: 99 } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(exportResolutionAtom))
+    expect(result.current).not.toBe(99)
+  })
+
+  it('persists aiPrompt (custom prompt textarea content) across reload', () => {
+    storage.api.setItem(
+      SESSION_KEY,
+      JSON.stringify({ ui: { aiPrompt: 'A neon-soaked rainy night, cinematic.' } }),
+    )
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(aiPromptAtom))
+    expect(result.current).toBe('A neon-soaked rainy night, cinematic.')
   })
 
   it('does not throw on corrupt localStorage', () => {
