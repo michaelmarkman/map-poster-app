@@ -686,6 +686,27 @@ export default function useQueue() {
       queueRef.current = queueRef.current.filter((j) => j.id !== id)
     }
 
+    // Reorder — move a pending job up or down by one slot. Detail:
+    // { id, direction: 'up' | 'down' }. Active/done jobs stay in place
+    // (reorder mid-flight would be confusing). Pending-only because that's
+    // the only window where the user actually has scheduling control.
+    function onReorder(e) {
+      const id = e?.detail?.id
+      const dir = e?.detail?.direction
+      if (id == null || (dir !== 'up' && dir !== 'down')) return
+      setQueue((cur) => {
+        const idx = cur.findIndex((j) => j.id === id)
+        if (idx < 0 || cur[idx].status !== 'pending') return cur
+        const target = dir === 'up' ? idx - 1 : idx + 1
+        if (target < 0 || target >= cur.length) return cur
+        if (cur[target].status !== 'pending') return cur
+        const next = [...cur]
+        ;[next[idx], next[target]] = [next[target], next[idx]]
+        queueRef.current = next
+        return next
+      })
+    }
+
     // Retry — reset a failed job back to pending and kick the queue.
     // Only `error` jobs are eligible; pending/active/done are no-ops.
     function onRetry(e) {
@@ -745,6 +766,7 @@ export default function useQueue() {
     window.addEventListener('clear-queue', onClearAll)
     window.addEventListener('queue-remove', onRemove)
     window.addEventListener('queue-retry', onRetry)
+    window.addEventListener('queue-reorder', onReorder)
     window.addEventListener('batch-export', onBatchExport)
 
     return () => {
@@ -757,6 +779,7 @@ export default function useQueue() {
       window.removeEventListener('clear-queue', onClearAll)
       window.removeEventListener('queue-remove', onRemove)
       window.removeEventListener('queue-retry', onRetry)
+      window.removeEventListener('queue-reorder', onReorder)
       window.removeEventListener('batch-export', onBatchExport)
     }
   }, [setQueue])

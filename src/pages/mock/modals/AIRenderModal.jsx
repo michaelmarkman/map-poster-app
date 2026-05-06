@@ -318,6 +318,7 @@ export default function AIRenderModal() {
 
   const removeJob = (id) => fire('queue-remove', { id })
   const retryJob = (id) => fire('queue-retry', { id })
+  const reorderJob = (id, direction) => fire('queue-reorder', { id, direction })
 
   const openQueueJob = (job) => {
     if (job.status !== 'done') return
@@ -662,7 +663,21 @@ export default function AIRenderModal() {
                               ) : null}
                               <div className="rs-qactions">
                                 {job.status === 'pending' && (
-                                  <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="rs-qact"
+                                      onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'up') }}
+                                      title="Move earlier in queue"
+                                    >↑</button>
+                                    <button
+                                      type="button"
+                                      className="rs-qact"
+                                      onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'down') }}
+                                      title="Move later in queue"
+                                    >↓</button>
+                                    <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  </>
                                 )}
                                 {job.status === 'active' && (
                                   <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Stop</button>
