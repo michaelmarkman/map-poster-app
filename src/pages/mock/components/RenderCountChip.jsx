@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { aiApiKeyAtom } from '../../editor/atoms/sidebar'
 import { getTierLimits } from '../../../lib/entitlements'
@@ -36,9 +37,19 @@ export default function RenderCountChip() {
 
   const remaining = Math.max(0, monthly - count)
   const dim = remaining === 0
+  // Flush pending session-persistence save before SPA nav. The
+  // persistence hook's 500ms debounce won't fire on its own when we
+  // navigate within the SPA (no beforeunload / pagehide), so without
+  // this the user could lose 0–500ms of recent changes by clicking
+  // the chip quickly. save-session listener exists in
+  // useSessionPersistence; fires writeNow() synchronously.
+  const flushOnClick = () => {
+    try { window.dispatchEvent(new Event('save-session')) } catch {}
+  }
   return (
-    <a
-      href="/profile"
+    <Link
+      to="/profile"
+      onClick={flushOnClick}
       className={`mock-rc-chip${dim ? ' is-empty' : ''}`}
       title={
         remaining === 0
@@ -47,6 +58,6 @@ export default function RenderCountChip() {
       }
     >
       {remaining}/{monthly}
-    </a>
+    </Link>
   )
 }

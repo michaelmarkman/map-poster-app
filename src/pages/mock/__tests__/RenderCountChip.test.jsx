@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import RenderCountChip from '../components/RenderCountChip'
 import { aiApiKeyAtom } from '../../editor/atoms/sidebar'
@@ -13,9 +14,11 @@ function renderWith({ aiKey = '', renderCount = 0, profile = null } = {}) {
   const store = createStore()
   store.set(aiApiKeyAtom, aiKey)
   return render(
-    <Provider store={store}>
-      <RenderCountChip />
-    </Provider>,
+    <MemoryRouter>
+      <Provider store={store}>
+        <RenderCountChip />
+      </Provider>
+    </MemoryRouter>,
   )
 }
 
