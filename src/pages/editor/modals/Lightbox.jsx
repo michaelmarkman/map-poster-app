@@ -257,6 +257,7 @@ export default function Lightbox() {
         onClick={onPrevClick}
         disabled={!canPrev}
         style={{ visibility: canPrev ? 'visible' : 'hidden' }}
+        aria-label="Previous render"
       >
         ‹
       </button>
@@ -267,6 +268,7 @@ export default function Lightbox() {
         onClick={onNextClick}
         disabled={!canNext}
         style={{ visibility: canNext ? 'visible' : 'hidden' }}
+        aria-label="Next render"
       >
         ›
       </button>
@@ -275,6 +277,7 @@ export default function Lightbox() {
         id="lb-close"
         type="button"
         onClick={onCloseClick}
+        aria-label="Close lightbox"
       >
         ×
       </button>

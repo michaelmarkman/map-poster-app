@@ -123,6 +123,7 @@ export default function GalleryModal() {
               className="modal-close"
               id="gallery-close"
               onClick={close}
+              aria-label="Close gallery"
             >
               ×
             </button>
