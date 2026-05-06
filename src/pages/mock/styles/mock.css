@@ -112,8 +112,21 @@ body.mock-mounted #canvas-container::before {
 }
 .mock-cluster > * { pointer-events: auto; }
 .mock-cluster--top-left   { top: 18px; left: 18px; }
-.mock-cluster--top-mid    { top: 18px; left: 50%; transform: translateX(-50%); gap: 6px; }
 .mock-cluster--top-right  { top: 18px; right: 18px; gap: 6px; }
+
+/* Top-center wordmark — non-interactive (click-through to canvas). The
+ * SVG carries its own drop shadow so it stays legible over bright sky. */
+.mock-wordmark {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 28px;
+  width: auto;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
 .mock-cluster--bottom-left  { bottom: 18px; left: 18px; }
 .mock-cluster--bottom-mid   { bottom: 18px; left: 50%; transform: translateX(-50%); }
 .mock-cluster--bottom-right { bottom: 18px; right: 18px; }
@@ -1312,7 +1325,6 @@ body.mock-mounted #poster-preview .pp-scene {
   }
   /* More breathing room between clusters + between pills in a cluster. */
   .mock-cluster { gap: 12px; }
-  .mock-cluster--top-mid,
   .mock-cluster--top-right { gap: 8px; }
   .mock-cluster-pair { gap: 8px; }
 
@@ -1419,16 +1431,9 @@ body.mock-mounted #poster-preview .pp-scene {
     align-items: flex-end;
     gap: 6px;
   }
-  /* Move the top-mid drag pills into the upper-LEFT below the search +
-   * saved row. This keeps the right column (DoF / Clouds / Sign-in)
-   * free of horizontal competition. */
-  .mock-cluster--top-mid {
-    top: calc(64px + env(safe-area-inset-top, 0px));
-    left: calc(10px + env(safe-area-inset-left, 0px));
-    right: auto;
-    transform: none;
-    gap: 6px;
-  }
+  /* (top-mid cluster retired in Phase 2.7; the focal-length / TOD
+   * scrubbers moved into the top-right ReadoutPill, and the wordmark
+   * lives at the top-center as a non-interactive overlay.) */
   /* Bottom row: bottom-left (aspect + tools) and bottom-right (Gallery)
    * share the real bottom of the viewport. bottom-mid (Capture|Render)
    * gets lifted into a SECOND row above them — on a 390px phone the
@@ -1535,8 +1540,6 @@ body.mock-mounted #poster-preview .pp-scene {
   .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] .mock-pill-label {
     font-size: 11px;
   }
-  /* DragPill labels (FOV / time) — abbreviate to keep the pill compact. */
-  .mock-cluster--top-mid .mock-pill { padding: 10px 12px; }
 }
 
 /* ═══════ Onboarding card (Phase 4.2) ═══════ */

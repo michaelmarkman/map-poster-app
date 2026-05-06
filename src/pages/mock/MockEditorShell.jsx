@@ -12,7 +12,6 @@ import useQueue from '../editor/hooks/useQueue'
 import useMockKeyboardShortcuts from './hooks/useMockKeyboardShortcuts'
 import { aspectRatioAtom, fillModeAtom } from '../editor/atoms/ui'
 import ClusterTopLeft from './components/ClusterTopLeft'
-import ClusterTopMid from './components/ClusterTopMid'
 import ClusterTopRight from './components/ClusterTopRight'
 import ClusterBottomLeft from './components/ClusterBottomLeft'
 import ClusterBottomMid from './components/ClusterBottomMid'
@@ -127,8 +126,18 @@ export default function MockEditorShell() {
 
       <FrameOverlay />
 
+      {/* Top-center wordmark — non-interactive overlay so it doesn't
+       * intercept canvas clicks (click-to-focus, orbit). The SVG itself
+       * carries a built-in soft drop-shadow so it stays legible over
+       * bright sky / sunlit terrain without an extra treatment. */}
+      <img
+        src="/wordmark.svg"
+        alt="Vedute"
+        className="mock-wordmark"
+        aria-hidden="true"
+      />
+
       <ClusterTopLeft />
-      <ClusterTopMid />
       <ClusterTopRight />
       <ClusterBottomLeft />
       <ClusterBottomMid />
