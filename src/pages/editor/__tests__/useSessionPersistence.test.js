@@ -16,7 +16,6 @@ import {
 import {
   fillModeAtom,
   aspectRatioAtom,
-  textOverlayAtom,
   textFieldsAtom,
 } from '../atoms/ui'
 import { savedViewMarkersOnAtom } from '../atoms/sidebar'
@@ -67,7 +66,6 @@ describe('useSessionPersistence', () => {
       ui: {
         fillMode: true,
         aspectRatio: 1.5,
-        textOverlay: false,
         textFields: { title: 'SF', subtitle: 'Mission', coords: '37.76° N, 122.42° W' },
         mapStyle: 'noir',
         todUnlocked: true,
@@ -90,7 +88,6 @@ describe('useSessionPersistence', () => {
       todUnlocked: useAtomValue(todUnlockedAtom),
       fillMode: useAtomValue(fillModeAtom),
       aspectRatio: useAtomValue(aspectRatioAtom),
-      textOverlay: useAtomValue(textOverlayAtom),
       textFields: useAtomValue(textFieldsAtom),
     }))
     const { result } = read
@@ -114,7 +111,6 @@ describe('useSessionPersistence', () => {
     expect(result.current.todUnlocked).toBe(true)
     expect(result.current.fillMode).toBe(true)
     expect(result.current.aspectRatio).toBe(1.5)
-    expect(result.current.textOverlay).toBe(false)
     expect(result.current.textFields.title).toBe('SF')
   })
 

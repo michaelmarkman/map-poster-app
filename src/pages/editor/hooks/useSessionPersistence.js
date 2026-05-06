@@ -16,7 +16,6 @@ import {
 import {
   fillModeAtom,
   aspectRatioAtom,
-  textOverlayAtom,
   textFieldsAtom,
   cameraReadoutAtom,
 } from '../atoms/ui'
@@ -76,7 +75,6 @@ export default function useSessionPersistence() {
   const setTodUnlocked = useSetAtom(todUnlockedAtom)
   const setFillMode = useSetAtom(fillModeAtom)
   const setAspectRatio = useSetAtom(aspectRatioAtom)
-  const setTextOverlay = useSetAtom(textOverlayAtom)
   const setTextFields = useSetAtom(textFieldsAtom)
   const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
   const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
@@ -96,7 +94,6 @@ export default function useSessionPersistence() {
   const todUnlocked = useAtomValue(todUnlockedAtom)
   const fillMode = useAtomValue(fillModeAtom)
   const aspectRatio = useAtomValue(aspectRatioAtom)
-  const textOverlay = useAtomValue(textOverlayAtom)
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
   const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
@@ -111,7 +108,7 @@ export default function useSessionPersistence() {
   useEffect(() => {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-      clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
+      clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio,
       textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
     }
   })
@@ -180,7 +177,6 @@ export default function useSessionPersistence() {
           const n = parseFloat(u.aspectRatio)
           if (!isNaN(n)) setAspectRatio(n)
         }
-        if ('textOverlay' in u) setTextOverlay(!!u.textOverlay)
         if (u.textFields) setTextFields(mergeObj(latest.current.textFields, u.textFields))
         if (u.mapStyle) setMapStyle(u.mapStyle)
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
@@ -239,7 +235,6 @@ export default function useSessionPersistence() {
       ui: {
         fillMode: !!v.fillMode,
         aspectRatio: v.aspectRatio,
-        textOverlay: !!v.textOverlay,
         textFields: { ...v.textFields },
         mapStyle: v.mapStyle,
         todUnlocked: !!v.todUnlocked,
@@ -290,7 +285,7 @@ export default function useSessionPersistence() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-    clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
+    clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio,
     textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
   ])
 

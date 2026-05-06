@@ -3,12 +3,15 @@ import { atom } from 'jotai'
 // UI atoms — read/written by /app's pill clusters, overlays, and modals.
 // Scene components generally don't touch these.
 //
-// (sidebarCollapsedAtom went with the sidebar editor in Phase 1.2.)
+// (sidebarCollapsedAtom went with the sidebar editor in Phase 1.2.
+//  textOverlayAtom — the show/hide toggle — went the same way; the
+//  TextOverlay component it gated was sidebar-only. textFields stays
+//  because useQueue reads textFields.title to populate gallery
+//  entries' location field.)
 export const fillModeAtom = atom(false)
 // 4:3 default matches the prototype HTML's initial --ratio (1.333) and the
 // default-active size-btn in the sidebar.
 export const aspectRatioAtom = atom(1.333)
-export const textOverlayAtom = atom(true)
 export const textFieldsAtom = atom({
   title: 'East Village',
   subtitle: '250 1st Avenue',
