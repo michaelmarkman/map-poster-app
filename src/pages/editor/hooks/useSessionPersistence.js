@@ -20,6 +20,7 @@ import {
 } from '../atoms/ui'
 import {
   aiCleanArtifactsAtom,
+  aiPromptAtom,
   defaultSavedViewIdAtom,
   exportResolutionAtom,
   onboardedAtom,
@@ -81,6 +82,7 @@ export default function useSessionPersistence() {
   const setOnboarded = useSetAtom(onboardedAtom)
   const setAiCleanArtifacts = useSetAtom(aiCleanArtifactsAtom)
   const setExportResolution = useSetAtom(exportResolutionAtom)
+  const setAiPrompt = useSetAtom(aiPromptAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -102,6 +104,7 @@ export default function useSessionPersistence() {
   const onboarded = useAtomValue(onboardedAtom)
   const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
   const exportResolution = useAtomValue(exportResolutionAtom)
+  const aiPrompt = useAtomValue(aiPromptAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -113,7 +116,7 @@ export default function useSessionPersistence() {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, todUnlocked, fillMode, aspectRatio,
       textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
-      aiCleanArtifacts, exportResolution,
+      aiCleanArtifacts, exportResolution, aiPrompt,
     }
   })
 
@@ -200,6 +203,9 @@ export default function useSessionPersistence() {
         if (typeof u.exportResolution === 'number' && [1, 2, 3, 4, 6].includes(u.exportResolution)) {
           setExportResolution(u.exportResolution)
         }
+        if (typeof u.aiPrompt === 'string') {
+          setAiPrompt(u.aiPrompt)
+        }
       }
 
       // Camera is rehydrated directly by Scene's useLayoutEffect reading
@@ -251,6 +257,7 @@ export default function useSessionPersistence() {
         onboarded: !!v.onboarded,
         aiCleanArtifacts: !!v.aiCleanArtifacts,
         exportResolution: v.exportResolution,
+        aiPrompt: typeof v.aiPrompt === 'string' ? v.aiPrompt : undefined,
       },
       timestamp: Date.now(),
     }
@@ -297,7 +304,7 @@ export default function useSessionPersistence() {
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, todUnlocked, fillMode, aspectRatio,
     textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
-    aiCleanArtifacts, exportResolution,
+    aiCleanArtifacts, exportResolution, aiPrompt,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture
