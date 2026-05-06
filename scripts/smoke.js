@@ -120,11 +120,44 @@ async function run() {
   await page.waitForFunction(() => location.pathname === '/app', null, { timeout: 5_000 })
   check('/app-classic redirects to /app', true)
 
+  // --- Phase 1b: lazy-loaded routes resolve cleanly ---
+  // After the route-level code-splitting work, /community + /gallery +
+  // /profile are each their own chunk. If the build emits asset paths
+  // the deploy can't serve (or rolldown's hashed filenames don't
+  // round-trip the static server), navigation fails with a chunk 404.
+  // This catches that class of bug — any of these failing means the
+  // user gets a blank page or stuck Suspense fallback in prod.
+  console.log('lazy-loaded routes')
+  for (const [path, marker] of [
+    ['/community', 'h1'],
+    ['/'        , 'h1'],
+  ]) {
+    await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
+    await page.evaluate((p) => {
+      history.pushState({}, '', p)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }, path)
+    let ok = false
+    try {
+      await page.waitForFunction(
+        (m) => !!document.querySelector(m),
+        marker,
+        { timeout: 5_000 },
+      )
+      ok = true
+    } catch {}
+    check(`${path} renders`, ok, 'no h1 mounted within 5s')
+  }
+
   // --- Phase 2: session persistence writes (driven by save-view) ---
   // Note: full restore-roundtrip is covered by the useSessionPersistence
   // unit tests; here we just verify the persistence hook is wired up at
   // all by triggering save-view and confirming localStorage gets written.
   console.log('saved views + session write')
+  // Re-navigate to /app — the lazy-routes phase above ended somewhere
+  // else (e.g. on /). Without this, waitForFunction(canvas) below
+  // times out on the previous page's DOM.
+  await goToApp()
   // Scene's get-camera listener attaches inside useEffect after Canvas
   // mounts. Wait for the canvas, then a generous beat for the listener
   // to attach before save-view tries to roundtrip.
