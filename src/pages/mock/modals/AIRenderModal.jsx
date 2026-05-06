@@ -15,7 +15,7 @@ import '../styles/mock-render-sheet.css'
 
 // ─── Style catalogue ──────────────────────────────────────────────────
 // Keys match what useQueue / aiPresetAtom expect (don't change them).
-// `file` is the slug used for `/style-photos/mapposter-${file}-2x-…png`
+// `file` is the slug used for `/style-photos/vedute-${file}-2x-…png`
 // preview images that ship in `public/style-photos/`. `sub` is the small
 // ALL-CAPS subtitle on each card.
 const PRESET_CATS = [
@@ -107,7 +107,7 @@ const FILE_TS = {
   'ukiyo-e-print':    '20260422-1713',
   'blueprint':        '20260422-1713',
 }
-const photoFor = (file) => `/style-photos/mapposter-${file}-2x-${FILE_TS[file] || '20260422-1705'}.png`
+const photoFor = (file) => `/style-photos/vedute-${file}-2x-${FILE_TS[file] || '20260422-1705'}.png`
 const labelByKey = (key) => {
   if (key === RAW_KEY) return 'Raw export'
   if (key === CUSTOM_KEY) return 'Custom prompt'
