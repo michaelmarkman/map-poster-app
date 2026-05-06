@@ -103,15 +103,7 @@ export function syncCameraToUI(camera, setReadout) {
   } catch (e) {}
 }
 
-// Dispatch camera-set event with desired tilt/heading/alt. Falls back to the
-// last synced values so a single-axis change keeps the other two stable.
-export function dispatchCameraSet(partial) {
-  if (_suppressSliderInput) return
-  window.dispatchEvent(new CustomEvent('camera-set', {
-    detail: {
-      tilt: partial.tilt ?? _currentTilt,
-      heading: partial.heading ?? _currentHeading,
-      altitude: partial.altitude ?? _currentAlt,
-    },
-  }))
-}
+// (dispatchCameraSet was removed alongside the sidebar editor in Phase 1.2.
+// The pill UI doesn't have tilt/heading/alt sliders; if those come back,
+// the helper can come back with them — sliderToAlt / altToSlider above
+// stay around as the math half of that future surface.)

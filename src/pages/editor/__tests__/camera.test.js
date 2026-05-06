@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { Vector3 } from 'three'
 import { Geodetic } from '@takram/three-geospatial'
 import {
@@ -6,7 +6,6 @@ import {
   altToSlider,
   intersectEarthSphere,
   clampCameraAltitude,
-  dispatchCameraSet,
 } from '../utils/camera'
 
 const ALT_MIN = 100
@@ -149,35 +148,3 @@ describe('clampCameraAltitude', () => {
   })
 })
 
-describe('dispatchCameraSet', () => {
-  const received = []
-  function handler(e) { received.push(e.detail) }
-
-  afterEach(() => {
-    window.removeEventListener('camera-set', handler)
-    received.length = 0
-  })
-
-  it('fires a camera-set CustomEvent', () => {
-    window.addEventListener('camera-set', handler)
-    dispatchCameraSet({ tilt: 45 })
-    expect(received).toHaveLength(1)
-  })
-
-  it('fills missing axes with defaults from module-local sync state', () => {
-    window.addEventListener('camera-set', handler)
-    dispatchCameraSet({ tilt: 45 })
-    const detail = received[0]
-    expect(detail.tilt).toBe(45)
-    // heading/altitude come from defaults (_currentHeading=20, _currentAlt=700)
-    // since no syncCameraToUI has run.
-    expect(typeof detail.heading).toBe('number')
-    expect(typeof detail.altitude).toBe('number')
-  })
-
-  it('passes through all three axes when provided', () => {
-    window.addEventListener('camera-set', handler)
-    dispatchCameraSet({ tilt: 10, heading: 180, altitude: 3000 })
-    expect(received[0]).toEqual({ tilt: 10, heading: 180, altitude: 3000 })
-  })
-})
