@@ -174,10 +174,18 @@ export default function useSessionPersistence() {
       if (data.ui) {
         const u = data.ui
         if ('fillMode' in u) setFillMode(!!u.fillMode)
-        // Also mirror to body class immediately — CanvasSection normally owns
-        // this but it may not be mounted when restore fires on first render.
+        // Mirror to body class IMMEDIATELY (in this useLayoutEffect, before
+        // the first paint) so a restored fillMode=true session doesn't flash
+        // the un-filled chrome for a frame before MockEditorShell's
+        // useAspectSync catches up. The class name MUST match what
+        // useAspectSync uses ('mock-fill-mode'); the legacy editor's
+        // 'fill-mode' class targeted the sidebar shell's #main and stuck
+        // around forever once set, since the new shell's toggle never
+        // touched it.
         if ('fillMode' in u) {
-          try { document.body.classList.toggle('fill-mode', !!u.fillMode) } catch (e) {}
+          try {
+            document.body.classList.toggle('mock-fill-mode', !!u.fillMode)
+          } catch (e) {}
         }
         if (typeof u.aspectRatio === 'number') setAspectRatio(u.aspectRatio)
         else if (typeof u.aspectRatio === 'string') {
