@@ -85,7 +85,18 @@ export function AuthProvider({ children }) {
   }
 
   async function resetPassword(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    // Tell Supabase to put the post-click redirect at /reset-password,
+    // where ResetPasswordPage takes over to set a new password. Without
+    // this, the email link drops the user on the site root with a token
+    // in the hash and no UI to consume it.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) throw error
+  }
+
+  async function updatePassword(password) {
+    const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
   }
 
@@ -126,6 +137,7 @@ export function AuthProvider({ children }) {
     signUp,
     signOut,
     resetPassword,
+    updatePassword,
     updateProfile,
     uploadAvatar,
   }
