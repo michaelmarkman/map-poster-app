@@ -129,8 +129,10 @@ async function run() {
   // user gets a blank page or stuck Suspense fallback in prod.
   console.log('lazy-loaded routes')
   for (const [path, marker] of [
-    ['/community', 'h1'],
-    ['/'        , 'h1'],
+    ['/community',       'h1'],
+    ['/',                'h1'],
+    ['/reset-password',  'h1'],   // eager auth route — verifies no
+    //                              regression in the auth-page chunk
   ]) {
     await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
     await page.evaluate((p) => {
@@ -181,6 +183,19 @@ async function run() {
     Array.isArray(sessionBlob?.camera?.position) && sessionBlob.camera.position.length === 3,
     `camera=${JSON.stringify(sessionBlob?.camera || null).slice(0, 200)}`,
   )
+
+  // --- Phase 3: static-asset sanity ---
+  // Catches builds where public/ assets aren't actually copied into
+  // dist-deploy (the favicon move two iterations ago, the OG image
+  // path used by the social-unfurl meta tag, etc.).
+  console.log('static assets')
+  for (const [path, label] of [
+    ['/favicon.svg', 'favicon.svg ships'],
+    ['/style-photos/vedute-realistic-2x-20260422-1705.png', 'OG image (vedute-realistic) ships'],
+  ]) {
+    const ok = await fetch(`http://127.0.0.1:${PORT}${path}`).then(r => r.status === 200).catch(() => false)
+    check(label, ok, `GET ${path} did not return 200`)
+  }
 
   // --- Phase 4: style bundle sanity ---
   console.log('styles')
