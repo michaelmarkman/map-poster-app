@@ -12,13 +12,14 @@
 // Idempotent: running it twice is a no-op. Safe under partial migrations
 // (e.g., user closes the tab mid-rewrite) — the next boot finishes the job.
 //
-// Skipped keys (will be removed in upcoming phases anyway):
+// Skipped keys (intentional — the features they backed are gone):
 //   - mapposter_saved_graphics      (graphics editor removal, §1.3)
 //   - mapposter3d_sidebar_collapsed (sidebar route deletion, §1.2)
 //
-// Deferred:
-//   - mapposter_gallery (IndexedDB) — IDB rename is hairy and the gallery
-//     gets a redesign in §2.5; will migrate alongside that work.
+// IndexedDB:
+//   - mapposter_gallery → vedute_gallery — the IDB rename runs lazily on
+//     first gallery read (src/pages/editor/utils/galleryDb.js). Different
+//     mechanism because IDB renames aren't atomic.
 
 const KEY_MAP = {
   mapposter3d_poster_v2_session: 'vedute_session',
