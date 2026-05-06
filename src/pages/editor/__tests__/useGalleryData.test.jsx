@@ -155,6 +155,42 @@ describe('useGalleryData', () => {
     expect(store.get(galleryEntriesAtom)[0].isPublic).toBe(true)
   })
 
+  it('gallery-download-all staggers anchor.click() so browsers do not throttle', async () => {
+    // Regression: previously the loop fired every anchor synchronously in
+    // a forEach. Chrome silently drops everything past ~10 rapid anchor
+    // downloads. Stagger via setTimeout(150ms) so all of them land.
+    vi.useFakeTimers()
+    try {
+      const store = withStore()
+      renderHook(() => useGalleryData(), { wrapper: wrapper(store) })
+      const clicks = []
+      const realCreate = document.createElement.bind(document)
+      const spy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+        if (tag !== 'a') return realCreate(tag)
+        const el = realCreate('a')
+        el.click = () => clicks.push(el.href)
+        return el
+      })
+      const items = [
+        { filename: 'a', dataUrl: 'data:a' },
+        { filename: 'b', dataUrl: 'data:b' },
+        { filename: 'c', dataUrl: 'data:c' },
+      ]
+      window.dispatchEvent(
+        new CustomEvent('gallery-download-all', { detail: { gallery: items } }),
+      )
+      // Synchronously, no clicks should have fired yet — they're on a timer.
+      expect(clicks).toHaveLength(0)
+      // After advancing the fake clock past the last scheduled tick (3 items
+      // x 150ms = 450ms), all three should have fired in order.
+      vi.advanceTimersByTime(500)
+      expect(clicks).toEqual(['data:a', 'data:b', 'data:c'])
+      spy.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('cleans up window listeners on unmount', () => {
     const types = ['gallery-add', 'gallery-remove', 'gallery-toggle-public', 'gallery-download-all']
     const counts = Object.fromEntries(types.map((t) => [t, { added: 0, removed: 0 }]))

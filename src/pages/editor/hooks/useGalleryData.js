@@ -91,11 +91,19 @@ export default function useGalleryData() {
       const list = e?.detail?.gallery
       const entries = Array.isArray(list) ? list : null
       const run = (items) => {
-        items.forEach((item) => {
-          const link = document.createElement('a')
-          link.download = (item.filename || 'image') + '.png'
-          link.href = item.dataUrl
-          link.click()
+        // Browsers throttle anchor.click() downloads when they fire in a
+        // tight loop — Chrome silently drops everything after ~10 rapid
+        // anchors, Firefox shows a permission prompt. Stagger with a
+        // small delay (~150ms) so all the downloads land. Even at 50
+        // entries that's only ~7.5s total, perfectly acceptable for a
+        // 'Download all' button.
+        items.forEach((item, i) => {
+          setTimeout(() => {
+            const link = document.createElement('a')
+            link.download = (item.filename || 'image') + '.png'
+            link.href = item.dataUrl
+            link.click()
+          }, i * 150)
         })
       }
       if (entries) {
