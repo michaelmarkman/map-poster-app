@@ -568,6 +568,17 @@
 
 /* Custom-prompt card — same look as Raw, but expands a prompt input below. */
 .mock-render-sheet .rs-custom { margin-top: 14px; }
+/* Multi-line custom prompt (Phase 5.2). Vertical resize allowed; layout
+   doesn't jump while the user types because we set a sensible min-height. */
+.mock-render-sheet .rs-custom-textarea {
+  min-height: 88px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  white-space: pre-wrap;
+}
 .mock-render-sheet .rs-input {
   width: 100%;
   background: var(--rs-surface-1);

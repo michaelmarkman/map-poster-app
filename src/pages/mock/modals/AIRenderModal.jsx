@@ -164,7 +164,6 @@ export default function AIRenderModal() {
   // useEffect / useMemo. That's the bug that bit us last time around.
   const [pane, setPane] = useState('styles') // 'styles' | 'queue'
   const [selected, setSelected] = useState(() => new Set())
-  const [includeGraphics, setIncludeGraphics] = useState(true)
   const [exportStatus, setExportStatus] = useState('')
   // Tick once a second so the Developing/Just-now timers update without
   // requiring a queue mutation to re-render.
@@ -269,12 +268,12 @@ export default function AIRenderModal() {
       // list (no batch-group header).
       const key = keys[0]
       if (key === RAW_KEY) {
-        fire('add-to-queue', { preset: null, includeGraphics })
+        fire('add-to-queue', { preset: null })
       } else if (key === CUSTOM_KEY) {
-        fire('add-to-queue', { preset: 'custom', includeGraphics, prompt: aiPrompt })
+        fire('add-to-queue', { preset: 'custom', prompt: aiPrompt })
       } else {
         setAiPreset(key)
-        fire('add-to-queue', { preset: key, includeGraphics, prompt: aiPrompt })
+        fire('add-to-queue', { preset: key, prompt: aiPrompt })
       }
     } else {
       // Multi-style — fire ONE batch event so the queue hook snapshots
@@ -287,7 +286,6 @@ export default function AIRenderModal() {
       const presets = keys.map((k) => (k === RAW_KEY ? null : k))
       fire('add-batch-to-queue', {
         presets,
-        includeGraphics,
         prompt: aiPrompt,
         batchLabel: `${keys.length} styles`,
       })
@@ -467,10 +465,12 @@ export default function AIRenderModal() {
                   </div>
                 </button>
                 {isCustomSelected && (
-                  <input
-                    className="rs-input rs-custom"
-                    type="text"
-                    placeholder="A neon-soaked rainy night in Tokyo…"
+                  <textarea
+                    className="rs-input rs-custom rs-custom-textarea"
+                    placeholder={
+                      'Describe the look. Examples:\n  • A neon-soaked rainy night in Tokyo, cinematic.\n  • Watercolor with hand-drawn ink outlines, off-white paper.\n  • Golden-hour aerial photograph, slight tilt-shift.'
+                    }
+                    rows={4}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                   />
@@ -525,17 +525,9 @@ export default function AIRenderModal() {
                 </div>
               ))}
 
-              {/* Include-graphics + cleanup toggles */}
+              {/* Mesh-cleanup toggle (the include-graphics toggle was
+                  retired with the graphics editor in Phase 1.3). */}
               <div className="rs-section">
-                <div className="rs-toggle-row">
-                  <span>Include graphics in export</span>
-                  <button
-                    type="button"
-                    className={`rs-toggle${includeGraphics ? ' is-on' : ''}`}
-                    onClick={() => setIncludeGraphics((v) => !v)}
-                    aria-pressed={includeGraphics}
-                  />
-                </div>
                 <div className="rs-toggle-row" title="Tells the AI to clean up jagged building corners and faceted rooftops from the 3D source mesh. Turn off to keep the polygon-faceted look (e.g. for low-poly art renders).">
                   <span>Clean up mesh artifacts</span>
                   <button
