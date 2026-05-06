@@ -245,11 +245,31 @@ async function callGemini(snapshotDataUrl, prompt, apiKey) {
   const headers = { 'Content-Type': 'application/json' }
   const body = apiKey ? { ...payload, apiKey } : payload
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  })
+  // 90-second hard ceiling on the request. Gemini image generation
+  // typically returns in 6-15s. Without a timeout, an upstream Gemini
+  // outage or a stalled connection leaves the request hanging
+  // indefinitely — the queue UI keeps spinning, the progress-pulse
+  // setInterval keeps firing, and the user has no way to recover
+  // without a page reload. AbortController + 90s timeout means a
+  // hung request fails as a normal job error and the user can retry.
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90_000)
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err?.name === 'AbortError') {
+      throw new Error('Render timed out (90s) — try again')
+    }
+    throw err
+  }
+  clearTimeout(timeoutId)
   if (!res.ok) {
     let msg = `API error ${res.status}`
     try { msg = (await res.json()).error?.message?.slice(0, 80) || msg } catch (e) {}
