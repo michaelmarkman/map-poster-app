@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
+
+// AccountChip pulls AuthContext + useNavigate. None of that matters for
+// these layout-focused tests; stub it so we don't need to mount the
+// full provider chain.
+vi.mock('../components/AccountChip', () => ({
+  default: () => null,
+}))
+
 import ClusterTopLeft from '../components/ClusterTopLeft'
 import { savedViewsAtom } from '../../editor/atoms/sidebar'
 import {
@@ -53,15 +61,15 @@ describe('ClusterTopLeft', () => {
         { id: 'b', name: 'View B' },
       ],
     })
-    // The pill label reads `Saved · 2` when there are saved views.
-    expect(screen.getByText(/Saved/)).toBeDefined()
+    // The pill label reads `Views · 2` when there are saved views.
+    expect(screen.getByText(/Views/)).toBeDefined()
     expect(screen.getByText(/·\s*2/)).toBeDefined()
   })
 
-  it('renders just "Saved" when there are no saved views (no count)', () => {
+  it('renders just "Views" when there are no saved views (no count)', () => {
     renderWith({ savedViews: [] })
-    const label = screen.getByText(/Saved/)
-    expect(label.textContent).toBe('Saved')
+    const label = screen.getByText(/Views/)
+    expect(label.textContent).toBe('Views')
   })
 
   it('search miss dispatches a toast event (no alert call)', async () => {

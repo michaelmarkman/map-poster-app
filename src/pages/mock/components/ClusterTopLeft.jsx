@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAtom, useSetAtom, useAtomValue } from 'jotai'
+import AccountChip from './AccountChip'
 import PopoverPill from './PopoverPill'
 import SavedViewsPanel from './SavedViewsPanel'
 import { SearchIcon, PinIcon } from './icons'
@@ -74,6 +75,17 @@ export default function ClusterTopLeft() {
 
   return (
     <div className="mock-cluster mock-cluster--top-left">
+      <AccountChip />
+
+      <PopoverPill
+        icon={<PinIcon />}
+        label={`Views${savedViews.length ? ` · ${savedViews.length}` : ''}`}
+        align="left"
+        panelClassName="mock-popover--saved svp-panel"
+      >
+        {({ close }) => <SavedViewsPanel onClose={close} />}
+      </PopoverPill>
+
       <PopoverPill
         icon={<SearchIcon />}
         label=""
@@ -100,15 +112,6 @@ export default function ClusterTopLeft() {
             }}
           />
         )}
-      </PopoverPill>
-
-      <PopoverPill
-        icon={<PinIcon />}
-        label={`Saved${savedViews.length ? ` · ${savedViews.length}` : ''}`}
-        align="left"
-        panelClassName="mock-popover--saved svp-panel"
-      >
-        {({ close }) => <SavedViewsPanel onClose={close} />}
       </PopoverPill>
     </div>
   )
