@@ -56,7 +56,7 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthLayout title="Create account" subtitle="Start building beautiful map posters">
+    <AuthLayout title="Create account" subtitle="Aerial city posters, made from 3D maps">
       <style>{`@keyframes shake { 0%, 100% { transform: translateX(0) } 20%, 60% { transform: translateX(-6px) } 40%, 80% { transform: translateX(6px) } } .auth-error.shake { animation: shake 0.4s ease }`}</style>
       <form onSubmit={handleSubmit}>
         <AuthInput
