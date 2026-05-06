@@ -886,27 +886,11 @@ body.mock-mounted #canvas-container::before {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ═══════ Editor mode ═══════
- * When the Fabric editor is active, hide scene-control clusters (top
- * three + the aspect picker) and the frame overlay so the canvas reads
- * as a clean composition surface for text + graphics. Bottom-row pills
- * stay so the user can exit, preview, and export. */
-.mock-cluster--top-left,
-.mock-cluster--top-mid,
-.mock-cluster--top-right {
-  transition: opacity 0.22s ease-out;
-}
-body.mock-editor-active .mock-cluster--top-left,
-body.mock-editor-active .mock-cluster--top-mid,
-body.mock-editor-active .mock-cluster--top-right {
-  opacity: 0;
-  pointer-events: none;
-  transition-duration: 0.18s;
-}
-/* (Phase 1.3 dropped the graphics editor — the Fabric .canvas-container,
+/* (Phase 1.3 dropped the graphics editor. The Fabric .canvas-container,
  * .mock-render-backdrop, .mock-graphics-hidden body class, #editor-toolbar,
- * and .ed-btn / .ed-sep that lived here all referenced DOM that no longer
- * exists. Removed wholesale.) */
+ * .ed-btn / .ed-sep, and the body.mock-editor-active hide-clusters rules
+ * that lived here all referenced DOM that no longer exists. Removed
+ * wholesale.) */
 
 /* ═══════ Poster Preview takeover ═══════ */
 body.mock-mounted #poster-preview {
