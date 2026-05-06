@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import {
   defaultSavedViewIdAtom,
-  hoveredSavedViewIdAtom,
   savedViewsAtom,
 } from '../../editor/atoms/sidebar'
 import { dispatchFlyTo } from '../../editor/scene/events'
@@ -13,8 +12,7 @@ const PRESETS = presetData.presets || []
 // Phase 2.3 — saved views revamp.
 //
 // Image-led list with thumbnail, inline rename, up/down reorder, delete,
-// "set as default" toggle. Hovering a row publishes the view's id to
-// hoveredSavedViewIdAtom so the in-scene marker can highlight in sync.
+// "set as default" toggle.
 //
 // Drag-to-reorder is deferred — adding @dnd-kit just for this is heavy.
 // Up/down arrow buttons cover the use case until we have other drag-y UI.
@@ -24,7 +22,6 @@ function fire(name, detail) {
 }
 
 function ViewRow({ view, index, total, isDefault, onClose }) {
-  const setHoveredId = useSetAtom(hoveredSavedViewIdAtom)
   const [editing, setEditing] = useState(false)
   const [draftName, setDraftName] = useState(view.name || '')
 
@@ -37,11 +34,7 @@ function ViewRow({ view, index, total, isDefault, onClose }) {
   }
 
   return (
-    <li
-      className="svp-row"
-      onPointerEnter={() => setHoveredId(view.id)}
-      onPointerLeave={() => setHoveredId((cur) => (cur === view.id ? null : cur))}
-    >
+    <li className="svp-row">
       <button
         type="button"
         className="svp-row-main"

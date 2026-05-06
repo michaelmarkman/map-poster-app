@@ -21,7 +21,6 @@ import {
   aiCleanArtifactsAtom,
   aiPromptAtom,
   exportResolutionAtom,
-  savedViewMarkersOnAtom,
 } from '../atoms/sidebar'
 
 const SESSION_KEY = 'vedute_session'
@@ -234,20 +233,8 @@ describe('useSessionPersistence', () => {
     }
   })
 
-  it('persists savedViewMarkersOn across reload', () => {
-    // Seed storage with the field set to true, mount hook, expect atom restored.
-    const saved = { ui: { savedViewMarkersOn: true } }
-    storage.api.setItem(SESSION_KEY, JSON.stringify(saved))
-    renderHook(() => useSessionPersistence())
-    const { result } = renderHook(() => useAtomValue(savedViewMarkersOnAtom))
-    expect(result.current).toBe(true)
-
-    // And the save side: triggering save-session should write the field into
-    // the persisted blob so a future mount can pick it up.
-    window.dispatchEvent(new CustomEvent('save-session'))
-    const parsed = JSON.parse(storage.api.getItem(SESSION_KEY))
-    expect(parsed.ui.savedViewMarkersOn).toBe(true)
-  })
+  // (savedViewMarkersOn persistence test retired with the marker layer in
+  // the Phase 2.7 cluster redesign.)
 
   it('persists aiCleanArtifacts across reload', () => {
     storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { aiCleanArtifacts: false } }))

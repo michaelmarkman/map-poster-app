@@ -25,16 +25,10 @@ export const aiApiKeyAtom = atom('') // Gemini — stored locally only
 // want the mesh-faithful look (e.g. low-poly art renders).
 export const aiCleanArtifactsAtom = atom(true)
 
-// Toggles the in-scene layer of camera markers for saved views — see
-// docs/superpowers/specs/2026-04-30-saved-view-camera-markers-design.md.
-// Off by default; persists across sessions via useSessionPersistence.
-export const savedViewMarkersOnAtom = atom(false)
-
-// Currently-hovered saved view marker id (or null). Lives at module scope
-// so the in-Canvas markers (which detect hover via R3F pointer events) can
-// signal the out-of-Canvas tooltip overlay (which renders the actual
-// HTML). Don't persist — purely transient.
-export const hoveredSavedViewIdAtom = atom(null)
+// (savedViewMarkersOnAtom + hoveredSavedViewIdAtom retired with the
+// in-scene marker layer in the Phase 2.7 cluster redesign — see plan
+// "Vedute — UI Consolidation Pass". The defaultSavedViewIdAtom below
+// stays; it drives the cold-load auto-restore.)
 
 // Saved view id to load on first visit (or after a fresh page load when
 // no session blob exists yet). Persisted via useSessionPersistence so the

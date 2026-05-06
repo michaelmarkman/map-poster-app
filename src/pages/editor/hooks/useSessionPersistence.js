@@ -24,7 +24,6 @@ import {
   defaultSavedViewIdAtom,
   exportResolutionAtom,
   onboardedAtom,
-  savedViewMarkersOnAtom,
 } from '../atoms/sidebar'
 
 const SESSION_KEY = 'vedute_session'
@@ -77,7 +76,6 @@ export default function useSessionPersistence() {
   const setFillMode = useSetAtom(fillModeAtom)
   const setAspectRatio = useSetAtom(aspectRatioAtom)
   const setTextFields = useSetAtom(textFieldsAtom)
-  const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
   const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
   const setOnboarded = useSetAtom(onboardedAtom)
   const setAiCleanArtifacts = useSetAtom(aiCleanArtifactsAtom)
@@ -99,7 +97,6 @@ export default function useSessionPersistence() {
   const aspectRatio = useAtomValue(aspectRatioAtom)
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
-  const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
   const defaultSavedViewId = useAtomValue(defaultSavedViewIdAtom)
   const onboarded = useAtomValue(onboardedAtom)
   const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
@@ -115,7 +112,7 @@ export default function useSessionPersistence() {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
       clouds, dof, todUnlocked, fillMode, aspectRatio,
-      textFields, cameraReadout, savedViewMarkersOn, defaultSavedViewId, onboarded,
+      textFields, cameraReadout, defaultSavedViewId, onboarded,
       aiCleanArtifacts, exportResolution, aiPrompt,
     }
   })
@@ -213,11 +210,8 @@ export default function useSessionPersistence() {
         }
         if (u.textFields) setTextFields(mergeObj(latest.current.textFields, u.textFields))
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
-        // Guard with typeof check so old session blobs that pre-date this
-        // field don't overwrite the default with `undefined`.
-        if (typeof u.savedViewMarkersOn === 'boolean') {
-          setSavedViewMarkersOn(u.savedViewMarkersOn)
-        }
+        // (savedViewMarkersOn was retired in the Phase 2.7 cluster
+        // redesign; saved values for it are silently ignored.)
         if (typeof u.defaultSavedViewId === 'string' || u.defaultSavedViewId === null) {
           setDefaultSavedViewId(u.defaultSavedViewId)
         }
@@ -279,7 +273,6 @@ export default function useSessionPersistence() {
         aspectRatio: v.aspectRatio,
         textFields: { ...v.textFields },
         todUnlocked: !!v.todUnlocked,
-        savedViewMarkersOn: !!v.savedViewMarkersOn,
         defaultSavedViewId: v.defaultSavedViewId ?? null,
         onboarded: !!v.onboarded,
         aiCleanArtifacts: !!v.aiCleanArtifacts,
@@ -330,7 +323,7 @@ export default function useSessionPersistence() {
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
     clouds, dof, todUnlocked, fillMode, aspectRatio,
-    textFields, savedViewMarkersOn, defaultSavedViewId, onboarded,
+    textFields, defaultSavedViewId, onboarded,
     aiCleanArtifacts, exportResolution, aiPrompt,
   ])
 

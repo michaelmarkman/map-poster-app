@@ -4,7 +4,6 @@ import { Provider, createStore } from 'jotai'
 import SavedViewsPanel from '../components/SavedViewsPanel'
 import {
   defaultSavedViewIdAtom,
-  hoveredSavedViewIdAtom,
   savedViewsAtom,
 } from '../../editor/atoms/sidebar'
 
@@ -17,7 +16,6 @@ function renderWith({ views = sampleViews, defaultId = null } = {}) {
   const store = createStore()
   store.set(savedViewsAtom, views)
   store.set(defaultSavedViewIdAtom, defaultId)
-  store.set(hoveredSavedViewIdAtom, null)
   return render(
     <Provider store={store}>
       <SavedViewsPanel />

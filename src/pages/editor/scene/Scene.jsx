@@ -33,15 +33,12 @@ import {
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
-import SavedViewMarkers from './SavedViewMarkers'
 import { sceneRef, useSceneRefSync } from './stateRef'
 import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
 import { getDateFromHour } from '../utils/sun'
 
-// Earth radius for the fly-to arc bow (Phase 3.3). Same value as
-// SavedViewMarkers' EARTH_RADIUS_M; not extracted to a shared constant
-// because both are clearly self-contained in their scope.
+// Earth radius for the fly-to arc bow (Phase 3.3).
 const EARTH_RADIUS_M_FLY = 6378137
 
 // Builds a "no-op" stand-in for the cloud-shadow cascade that AerialPerspect-
@@ -819,7 +816,6 @@ export default function Scene() {
       <CtrlOrbit />
       <ClickToFocus />
       <SubjectListener />
-      <SavedViewMarkers />
 
       <PostProcessing composerRef={composerRef} dofRef={dofRef}>
         <Clouds
