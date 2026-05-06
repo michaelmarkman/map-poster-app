@@ -229,9 +229,9 @@ export default function ClusterTopRight() {
       <GuestSignInChip />
       <HoverPopoverPill
         icon={<ApertureIcon />}
-        label={`DoF: ${dof.on ? 'ON' : 'OFF'}`}
-        active={dof.on}
-        onToggle={() => setDof({ ...dof, on: !dof.on })}
+        label={`DoF: ${dof.aperture > 0 ? 'ON' : 'OFF'}`}
+        active={dof.aperture > 0}
+        onToggle={() => setDof({ ...dof, aperture: dof.aperture > 0 ? 0 : 4.5 })}
       >
         <MockToggleRow
           label="Tilt-shift"
@@ -246,14 +246,14 @@ export default function ClusterTopRight() {
       </HoverPopoverPill>
       <HoverPopoverPill
         icon={<CloudIcon />}
-        label={`Clouds: ${clouds.on ? 'ON' : 'OFF'}`}
-        active={clouds.on}
-        onToggle={() => setClouds({ ...clouds, on: !clouds.on })}
+        label={`Clouds: ${clouds.coverage > 0 ? 'ON' : 'OFF'}`}
+        active={clouds.coverage > 0}
+        onToggle={() => setClouds({ ...clouds, coverage: clouds.coverage > 0 ? 0 : 0.2 })}
         alwaysShowPopover
       >
         <div
-          className={`mock-controls-group${clouds.on ? '' : ' is-disabled'}`}
-          aria-disabled={!clouds.on}
+          className={`mock-controls-group${clouds.coverage > 0 ? '' : ' is-disabled'}`}
+          aria-disabled={!(clouds.coverage > 0)}
         >
           <MockSlider
             label="Coverage"

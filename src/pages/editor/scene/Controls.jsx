@@ -108,8 +108,10 @@ function FovListener() {
       camera.updateProjectionMatrix()
 
       // Adjust DoF tightness to match focal length (longer lens = shallower
-      // DoF). Writes through the atom so the sidebar slider updates.
-      if (sceneRef.dof.on) {
+      // DoF). Only relevant in /dof-lab's legacy tightness/blur path —
+      // /app uses aperture-CoC so this write is ignored. Skip when DoF is
+      // off entirely (aperture===0).
+      if (sceneRef.dof.aperture > 0) {
         const focalScale = Math.sqrt(mm / 41)
         const newTightness = Math.round(Math.min(100, Math.max(50, 55 + 20 * focalScale)))
         setDof((d) => ({ ...d, tightness: newTightness }))

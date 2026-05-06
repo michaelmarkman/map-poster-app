@@ -112,42 +112,143 @@ function SubjectListener() {
   return null
 }
 
-// Phase 3.1 — let Ctrl/⌘ + drag trigger orbit. The 3d-tiles-renderer
-// GlobeControls hardcodes `e.shiftKey` as the orbit modifier
-// (EnvironmentControls.js around line 400). Rather than fork the library,
-// we install a capture-phase pointerdown listener that runs BEFORE
-// GlobeControls and rewrites shiftKey on the event instance via
-// Object.defineProperty when ctrlKey is held (or metaKey on macOS).
-// The override persists for the rest of the dispatch chain so when
-// GlobeControls reads e.shiftKey it sees true. shiftKey already works
-// on its own — we just give users a second modifier.
-function CtrlAsShift() {
+// Phase 3.1 + follow-up — Ctrl/⌘ + drag = orbit. We do this ourselves
+// instead of delegating to GlobeControls because EnvironmentControls
+// (its base class) bails on pointerdown when:
+//   1. The pointer ray is too horizontal (DRAG_PLANE_THRESHOLD = 0.05),
+//      which happens whenever the user is tilted near-flat / looking at
+//      the horizon / sky.
+//   2. The raycast misses geometry — no pivot, no orbit.
+// Both cases match real user intent ("I want to spin around what I'm
+// looking at") perfectly fine; the library just refuses. So we install
+// a capture-phase pointer handler, intercept Ctrl/Meta-drag before it
+// reaches GlobeControls, and orbit around either the geometry hit or
+// (if the ray misses) a synthetic pivot N meters ahead of the camera
+// along its forward direction. Shift-drag still goes to GlobeControls
+// unchanged — its built-in pivot logic is fine when there IS a hit.
+function CtrlOrbit() {
   const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
   useEffect(() => {
     const canvas = gl.domElement
-    const intercept = (e) => {
-      // metaKey === ⌘ on macOS. Both ctrl and meta are common "modifier"
-      // expectations across platforms; either should orbit.
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
-        try {
-          Object.defineProperty(e, 'shiftKey', { value: true, configurable: true })
-        } catch {
-          // Some events seal the property; nothing we can do.
-        }
+    const ray = new RaycasterClass()
+    const ndc = new Vector2()
+    const pivot = new Vector3()
+    const tmpForward = new Vector3()
+    const tmpUp = new Vector3()
+    const tmpRight = new Vector3()
+    const yawQ = new Quaternion()
+    const pitchQ = new Quaternion()
+    const offset = new Vector3()
+
+    const SENS_X = 0.005 // rad/px for yaw (around world up)
+    const SENS_Y = 0.005 // rad/px for pitch (around camera right)
+
+    let active = false
+    let pointerId = null
+    let lastX = 0
+    let lastY = 0
+
+    // Per-platform modifier check. `metaKey` == ⌘ on macOS, Windows
+    // key on Win/Linux. Most users on macOS reach for ⌘ first.
+    const isOrbitDrag = (e) =>
+      (e.ctrlKey || e.metaKey) && !e.shiftKey && e.button === 0 && e.pointerType === 'mouse'
+
+    const setPivotForRay = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect()
+      ndc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      ray.setFromCamera(ndc, camera)
+      const hits = ray.intersectObjects(scene.children, true)
+      if (hits.length > 0) {
+        pivot.copy(hits[0].point)
+        return
       }
+      // No hit (looking at sky, off-globe, etc.) — synthesize a pivot
+      // ahead of the camera along the click ray. Distance scales with
+      // altitude so the orbit feels equally responsive at street level
+      // and high altitude. Floor at 100m.
+      const alt = Math.max(100, camera.position.length() - 6378137 /* ECEF radius */)
+      const D = Math.max(100, alt * 1.5)
+      pivot.copy(camera.position).addScaledVector(ray.ray.direction, D)
     }
-    // Capture phase, all three pointer events. GlobeControls listens on
-    // the same canvas in capture phase too; we register first so we win.
+
+    const onDown = (e) => {
+      if (!isOrbitDrag(e)) return
+      setPivotForRay(e.clientX, e.clientY)
+      active = true
+      pointerId = e.pointerId
+      lastX = e.clientX
+      lastY = e.clientY
+      try {
+        canvas.setPointerCapture(e.pointerId)
+      } catch {}
+      // Block GlobeControls from also seeing this.
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+    }
+
+    const onMove = (e) => {
+      if (!active || e.pointerId !== pointerId) return
+      const dx = e.clientX - lastX
+      const dy = e.clientY - lastY
+      lastX = e.clientX
+      lastY = e.clientY
+
+      // World up at the pivot (ellipsoid normal). On a sphere world
+      // this is the normalized pivot vector.
+      tmpUp.copy(pivot).normalize()
+      // Camera forward direction (pivot might be behind us if synthetic
+      // and at low forward distance; the cross with up still gives a
+      // valid right axis).
+      camera.getWorldDirection(tmpForward)
+      tmpRight.crossVectors(tmpForward, tmpUp).normalize()
+
+      yawQ.setFromAxisAngle(tmpUp, -dx * SENS_X)
+      pitchQ.setFromAxisAngle(tmpRight, -dy * SENS_Y)
+
+      // Rotate camera position around pivot.
+      offset.copy(camera.position).sub(pivot)
+      offset.applyQuaternion(yawQ).applyQuaternion(pitchQ)
+      camera.position.copy(pivot).add(offset)
+
+      // Re-aim the camera at the pivot so orbit feels like "spin around
+      // this point". Preserve the up axis as the local ellipsoid normal
+      // at the new camera position so the horizon stays level.
+      camera.up.copy(camera.position).normalize()
+      camera.lookAt(pivot)
+
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const onUp = (e) => {
+      if (!active || e.pointerId !== pointerId) return
+      active = false
+      pointerId = null
+      try {
+        canvas.releasePointerCapture(e.pointerId)
+      } catch {}
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
     const opts = { capture: true }
-    canvas.addEventListener('pointerdown', intercept, opts)
-    canvas.addEventListener('pointermove', intercept, opts)
-    canvas.addEventListener('pointerup', intercept, opts)
+    canvas.addEventListener('pointerdown', onDown, opts)
+    canvas.addEventListener('pointermove', onMove, opts)
+    canvas.addEventListener('pointerup', onUp, opts)
+    canvas.addEventListener('pointercancel', onUp, opts)
     return () => {
-      canvas.removeEventListener('pointerdown', intercept, opts)
-      canvas.removeEventListener('pointermove', intercept, opts)
-      canvas.removeEventListener('pointerup', intercept, opts)
+      canvas.removeEventListener('pointerdown', onDown, opts)
+      canvas.removeEventListener('pointermove', onMove, opts)
+      canvas.removeEventListener('pointerup', onUp, opts)
+      canvas.removeEventListener('pointercancel', onUp, opts)
     }
-  }, [gl])
+  }, [gl, camera, scene])
   return null
 }
 
@@ -167,7 +268,7 @@ function ClickToFocus() {
     const tapThreshold = coarse ? 14 : 8
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
-      if (!downPos || !sceneRef.dof.on) return
+      if (!downPos || sceneRef.dof.aperture <= 0) return
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
@@ -539,7 +640,9 @@ export default function Scene() {
     const clouds = cloudsRef.current
     window._cloudsRef = clouds
     if (clouds) {
-      clouds.coverage = sceneRef.clouds.on ? sceneRef.clouds.coverage : 0
+      // coverage===0 disables clouds entirely (the cluster pill writes
+      // 0 at its slider's OFF detent).
+      clouds.coverage = sceneRef.clouds.coverage || 0
       const spd = sceneRef.clouds.paused ? 0 : sceneRef.clouds.speed * 0.001
       clouds.localWeatherVelocity.set(spd, 0)
     }
@@ -599,7 +702,11 @@ export default function Scene() {
       //     meaningful when DoF is on (no focal plane otherwise).
       // The shader clamps sceneColorPop + focusAmount*focusColorPop to 1.
       fx.uniforms.get('sceneColorPop').value = (sceneRef.dof.sceneColorPop ?? 0) / 100
-      if (!sceneRef.dof.on) {
+      // aperture===0 disables DoF (the cluster pill writes 0 at its
+      // OFF detent). The on/off boolean was removed from the atom
+      // shape; aperture is the single source of truth.
+      const dofOff = !sceneRef.dof.aperture
+      if (dofOff) {
         fx.uniforms.get('focusColorPop').value = 0
         fx.uniforms.get('maxBlur').value = 0
       } else {
@@ -694,9 +801,22 @@ export default function Scene() {
   return (
     <Atmosphere ref={atmosphereRef} correctAltitude>
       <Globe>
-        <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
+        {/* adjustHeight: GlobeControls auto-pushes the camera back above
+         * terrain when an orbit / drag arc would clip it under. The
+         * prototype shipped with this off, which let the user dip into
+         * the ground at flat pitch — orbit around a building swings the
+         * camera below the base. Re-enabled here. cameraRadius bumps
+         * the minimum hover above the tile mesh from the default 1m to
+         * 4m so the lift isn't visible as a sudden jolt the moment you
+         * skim a rooftop. */}
+        <GlobeControls
+          enableDamping
+          adjustHeight
+          cameraRadius={4}
+          maxAltitude={Math.PI * 0.55}
+        />
       </Globe>
-      <CtrlAsShift />
+      <CtrlOrbit />
       <ClickToFocus />
       <SubjectListener />
       <SavedViewMarkers />

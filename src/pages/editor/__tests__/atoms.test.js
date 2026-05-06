@@ -30,10 +30,17 @@ describe('timeOfDayAtom', () => {
 })
 
 describe('dofAtom', () => {
-  it('default has on: true', async () => {
+  it("doesn't carry an `on` boolean — aperture is the source of truth", async () => {
     const { dofAtom } = await import('../atoms/scene')
     const s = createStore()
-    expect(s.get(dofAtom).on).toBe(true)
+    const dof = s.get(dofAtom)
+    expect('on' in dof).toBe(false)
+  })
+
+  it('default aperture is 4.5 (DoF on; aperture===0 would be off)', async () => {
+    const { dofAtom } = await import('../atoms/scene')
+    const s = createStore()
+    expect(s.get(dofAtom).aperture).toBe(4.5)
   })
 
   it('default focalUV is [0.5, 0.5]', async () => {
@@ -41,27 +48,33 @@ describe('dofAtom', () => {
     const s = createStore()
     expect(s.get(dofAtom).focalUV).toEqual([0.5, 0.5])
   })
+
+  it('default sceneColorPop and focusColorPop are both 25', async () => {
+    const { dofAtom } = await import('../atoms/scene')
+    const s = createStore()
+    const dof = s.get(dofAtom)
+    expect(dof.sceneColorPop).toBe(25)
+    expect(dof.focusColorPop).toBe(25)
+  })
 })
 
-describe('cloudsAtom (desktop)', () => {
-  it('default coverage is 0.2 when matchMedia reports desktop', async () => {
+describe('cloudsAtom', () => {
+  it('default coverage is 0.2', async () => {
+    const { cloudsAtom } = await import('../atoms/scene')
+    const s = createStore()
+    expect(s.get(cloudsAtom).coverage).toBe(0.2)
+  })
+
+  it("doesn't carry an `on` boolean — coverage===0 disables clouds", async () => {
     const { cloudsAtom } = await import('../atoms/scene')
     const s = createStore()
     const clouds = s.get(cloudsAtom)
-    expect(clouds.coverage).toBe(0.2)
+    expect('on' in clouds).toBe(false)
   })
 
-  it('enables shadows on desktop', async () => {
+  it('not paused by default', async () => {
     const { cloudsAtom } = await import('../atoms/scene')
     const s = createStore()
-    expect(s.get(cloudsAtom).shadows).toBe(true)
-  })
-
-  it('has on: true and not paused by default', async () => {
-    const { cloudsAtom } = await import('../atoms/scene')
-    const s = createStore()
-    const clouds = s.get(cloudsAtom)
-    expect(clouds.on).toBe(true)
-    expect(clouds.paused).toBe(false)
+    expect(s.get(cloudsAtom).paused).toBe(false)
   })
 })

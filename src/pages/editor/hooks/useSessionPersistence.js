@@ -150,8 +150,6 @@ export default function useSessionPersistence() {
           // a single `colorPop` + a boolean `globalPop`. Map forward:
           //   globalPop=true  → sceneColorPop=colorPop, focusColorPop=0
           //   globalPop=false → sceneColorPop=0, focusColorPop=colorPop
-          // Once migrated, drop the old keys so they don't leak into the
-          // atom shape (mergeObj would otherwise carry them along).
           if (!('sceneColorPop' in saved) && typeof saved.colorPop === 'number') {
             if (saved.globalPop) {
               saved.sceneColorPop = saved.colorPop
@@ -163,9 +161,30 @@ export default function useSessionPersistence() {
           }
           delete saved.colorPop
           delete saved.globalPop
+          // The 2.7 cluster redesign drops `dof.on` in favor of "aperture
+          // is the single source of truth"; the OFF detent of the cluster
+          // pill writes aperture=0. Map old `dof.on=false` sessions onto
+          // aperture=0 so the visual stays "DoF off" through the upgrade.
+          // Also force useApertureCoC=true since the new cluster only
+          // writes to aperture.
+          if (saved.on === false) {
+            saved.aperture = 0
+          }
+          delete saved.on
+          if (typeof saved.useApertureCoC !== 'boolean') {
+            saved.useApertureCoC = true
+          }
           setDof(mergeObj(latest.current.dof, saved))
         }
-        if (s.clouds) setClouds(mergeObj(latest.current.clouds, s.clouds))
+        if (s.clouds) {
+          const saved = { ...s.clouds }
+          // Same shape change for clouds: `clouds.on=false` → coverage=0.
+          if (saved.on === false) {
+            saved.coverage = 0
+          }
+          delete saved.on
+          setClouds(mergeObj(latest.current.clouds, saved))
+        }
         if (s.bloom) setBloom(mergeObj(latest.current.bloom, s.bloom))
         if (s.ssao) setSsao(mergeObj(latest.current.ssao, s.ssao))
         if (s.vignette) setVignette(mergeObj(latest.current.vignette, s.vignette))

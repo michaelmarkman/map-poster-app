@@ -108,7 +108,15 @@ describe('useSessionPersistence', () => {
     // Legacy keys stripped after migration.
     expect('colorPop' in result.current.dof).toBe(false)
     expect('globalPop' in result.current.dof).toBe(false)
-    expect(result.current.clouds.coverage).toBe(0.5)
+    // Phase 2.7 migration: legacy `dof.on=false` → aperture=0, drops the
+    // `on` field. The cluster pill now reads aperture as the source of
+    // truth for DoF on/off.
+    expect(result.current.dof.aperture).toBe(0)
+    expect('on' in result.current.dof).toBe(false)
+    // Same for clouds: saved `clouds.on=false` → coverage=0 (overrides
+    // the saved 0.5). User had explicitly disabled clouds; we honor that.
+    expect(result.current.clouds.coverage).toBe(0)
+    expect('on' in result.current.clouds).toBe(false)
     expect(result.current.todUnlocked).toBe(true)
     expect(result.current.fillMode).toBe(true)
     expect(result.current.aspectRatio).toBe(1.5)

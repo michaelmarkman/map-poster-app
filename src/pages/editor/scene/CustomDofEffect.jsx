@@ -330,8 +330,8 @@ export class CustomDofEffect extends Effect {
         ['focalPoint', new Uniform(new Vector2(0.5, 0.5))],
         ['depthRange', new Uniform(1.5)],
         ['maxBlur', new Uniform(20)],
-        ['sceneColorPop', new Uniform(0.0)],
-        ['focusColorPop', new Uniform(0.6)],
+        ['sceneColorPop', new Uniform(0.25)],
+        ['focusColorPop', new Uniform(0.25)],
         // DoF-lab Phase 2 — 0 = narrow/crisp (legacy feel), 1 = wide/creamy.
         ['bokehShape', new Uniform(0)],
         // Highlight bokeh strength. Default 4 matches the original
