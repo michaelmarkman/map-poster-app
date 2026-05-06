@@ -130,13 +130,19 @@ When adding a new event: **test both sides of the contract in `__tests__/integra
 
 ## Deployment
 
-Vercel auto-deploys on push to `main`. Rewrites in `vercel.json`:
-- `/` → `/src/index.html` (Vedute landing — `src/pages/LandingPage.jsx`).
-  The legacy `/prototypes/index.html` is still reachable directly but
-  is no longer wired to `/` — it had stale "MapPoster" brand on it.
-- `/app`, `/app/*` → `/src/index.html` (pill editor)
-- `/app-classic`, `/app-classic/*` → `/src/index.html` (sidebar editor — redirects to /app)
-- `/mock`, `/mock/*` → `/src/index.html` (React redirects to /app)
-- `/*.html` → their matching prototype pages
+Vercel auto-deploys on push to `main`. Rewrites in `vercel.json` —
+every customer-facing path maps to `/src/index.html`:
 
-React routes like `/login`, `/signup`, `/community`, `/profile`, `/gallery` are NOT rewritten in `vercel.json`. They work in dev via the SPA-fallback middleware in `vite.config.js` but deep-linking them in prod will 404. Add them to `vercel.json` if needed.
+- `/` → React `LandingPage` (Vedute hero — was rewritten to the legacy
+  `/prototypes/index.html` MapPoster page until Phase 1).
+- `/app`, `/app/*` → pill editor.
+- `/app-classic`, `/mock` → React Router redirects to `/app` (legacy
+  bookmarks).
+- `/login`, `/signup`, `/forgot-password`, `/reset-password` — auth flow.
+- `/community`, `/gallery`, `/profile` — protected routes (gallery/profile
+  bounce guests to /login).
+
+Customer URL aliases for the prototype HTML (e.g. `/poster-v3-ui.html`
+→ `/prototypes/poster-v3-ui.html`) were dropped. The prototypes still
+exist under `/prototypes/` for direct access but are blocked by
+`robots.txt` and don't ship as build inputs (see `vite.deploy.config.js`).
