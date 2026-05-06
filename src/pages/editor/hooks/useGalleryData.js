@@ -5,6 +5,7 @@ import {
   loadGalleryEntries,
   deleteGalleryEntry,
   saveGalleryEntry,
+  updateGalleryEntry,
   buildGalleryItem,
 } from '../utils/galleryDb'
 
@@ -43,6 +44,18 @@ export default function useGalleryData() {
     async (id) => {
       setEntries((cur) => cur.filter((e) => e.id !== id))
       await deleteGalleryEntry(id)
+    },
+    [setEntries],
+  )
+
+  // Phase 7.2 — toggle the local is_public flag. Survives the Supabase
+  // swap unchanged: server side just gets the same boolean update.
+  const setPublic = useCallback(
+    async (id, isPublic) => {
+      setEntries((cur) =>
+        cur.map((e) => (e.id === id ? { ...e, isPublic: !!isPublic } : e)),
+      )
+      await updateGalleryEntry(id, { isPublic: !!isPublic })
     },
     [setEntries],
   )
@@ -90,19 +103,25 @@ export default function useGalleryData() {
         loadGalleryEntries().then(run)
       }
     }
+    const onTogglePublic = (e) => {
+      const { id, isPublic } = e?.detail || {}
+      if (id != null) setPublic(id, !!isPublic)
+    }
     window.addEventListener('gallery-add', onAdd)
     window.addEventListener('gallery-delete', onDelete)
     // 'gallery-remove' alias — the gallery card per-item delete dispatches
     // this name (Phase 2.5). Same shape as gallery-delete; keep both wired.
     window.addEventListener('gallery-remove', onDelete)
+    window.addEventListener('gallery-toggle-public', onTogglePublic)
     window.addEventListener('gallery-download-all', onDownloadAll)
     return () => {
       window.removeEventListener('gallery-add', onAdd)
       window.removeEventListener('gallery-delete', onDelete)
       window.removeEventListener('gallery-remove', onDelete)
+      window.removeEventListener('gallery-toggle-public', onTogglePublic)
       window.removeEventListener('gallery-download-all', onDownloadAll)
     }
-  }, [addEntry, deleteEntry])
+  }, [addEntry, deleteEntry, setPublic])
 
-  return { addEntry, deleteEntry, refresh }
+  return { addEntry, deleteEntry, setPublic, refresh }
 }

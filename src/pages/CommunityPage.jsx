@@ -78,9 +78,31 @@ export default function CommunityPage() {
 
   useEffect(() => {
     loadGalleryEntries()
-      .then((items) => setEntries(items.slice().reverse()))
+      .then((items) => {
+        // Phase 7.2 — filter to public-only. Today the flag is local; once
+        // Supabase ships, this swaps to a server-side WHERE is_public=true.
+        const pub = items.filter((it) => it.isPublic)
+        setEntries(pub.slice().reverse())
+      })
       .finally(() => setLoading(false))
   }, [])
+
+  // Phase 7.2 — clicking a card with a saved view restores the camera in
+  // the editor. Without a view (e.g. quick-download entries that didn't
+  // capture one), fall back to opening the editor at default state.
+  const openInEditor = (entry) => {
+    if (entry.view) {
+      // Stash the restore intent in sessionStorage and navigate. The editor
+      // picks it up on mount and dispatches restore-view once Scene is up.
+      try {
+        sessionStorage.setItem(
+          'vedute_pending_restore',
+          JSON.stringify(entry.view),
+        )
+      } catch {}
+    }
+    window.location.href = '/app'
+  }
 
   return (
     <div style={s.page}>
@@ -101,22 +123,28 @@ export default function CommunityPage() {
           You're seeing your local gallery here. Public sharing arrives with the next release.
         </div>
 
-        {loading ? null : entries.length === 0 ? (
+        {loading ? (
           <div style={s.empty}>
-            <div style={s.emptyTitle}>Nothing here yet</div>
+            <div style={s.emptyBody}>Loading…</div>
+          </div>
+        ) : entries.length === 0 ? (
+          <div style={s.empty}>
+            <div style={s.emptyTitle}>Nothing public yet</div>
             <div style={s.emptyBody}>
-              Render a poster in the editor — your finished pieces will land here
-              and (once public sharing ships) appear in the community feed.
+              Render a poster in the editor and toggle the Public badge on its
+              gallery card. Public posters land here.
             </div>
             <Link to="/app" style={s.emptyCta}>Open the editor →</Link>
           </div>
         ) : (
           <div style={s.grid}>
             {entries.map((item) => (
-              <Link
+              <button
                 key={item.id}
-                to="/gallery"
-                style={{ ...s.card, textDecoration: 'none', color: 'inherit' }}
+                type="button"
+                onClick={() => openInEditor(item)}
+                style={{ ...s.card, textDecoration: 'none', color: 'inherit', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}
+                title={item.view ? 'Open this view in the editor' : 'Open the editor'}
               >
                 <img src={item.dataUrl} alt={item.label} style={s.cardImg} />
                 <div style={s.cardBody}>
@@ -125,7 +153,7 @@ export default function CommunityPage() {
                     {item.location || '—'} · {formatTime(item.time)}
                   </div>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         )}

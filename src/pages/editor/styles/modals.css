@@ -469,12 +469,22 @@
     color: #14100a;
     border-color: var(--accent);
   }
-  /* Action button positions: Delete (right-most), Download, Share, in
-     that order from far-right to nearer-center.
-     Phase 2.5 added Delete; Share + Download are pre-existing. */
+  /* Action button positions: Delete (right-most), Download, Public,
+     Share, in that order from far-right to nearer-center.
+     Phase 7.2 added the public toggle; Phase 2.5 added Delete. */
   .gallery-card .gc-dl-share {
-    right: 69px;
+    right: 100px;
     font-size: 11px;
+  }
+  .gallery-card .gc-dl-public {
+    right: 69px;
+    font-size: 12px;
+  }
+  .gallery-card .gc-dl-public.is-on {
+    background: var(--accent);
+    color: var(--ink-deepest);
+    border-color: var(--accent);
+    opacity: 1;
   }
   .gallery-card .gc-dl-download {
     right: 38px;
@@ -483,6 +493,20 @@
     /* Stays at right: 7px from the base .gc-dl rule. */
     font-size: 14px;
     line-height: 1;
+  }
+  .gallery-card .gc-public-badge {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    z-index: 1;
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: var(--ink-deepest);
+    font: 600 9px/1 var(--body);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    pointer-events: none;
   }
   .gallery-card .gc-dl-delete:hover {
     background: var(--red);

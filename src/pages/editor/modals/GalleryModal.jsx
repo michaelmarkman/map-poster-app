@@ -201,11 +201,29 @@ function GalleryCard({ item, onOpen }) {
     if (!confirm(`Delete "${item.label}"?`)) return
     window.dispatchEvent(new CustomEvent('gallery-remove', { detail: { id: item.id } }))
   }
+  const handleTogglePublic = (e) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('gallery-toggle-public', {
+      detail: { id: item.id, isPublic: !item.isPublic },
+    }))
+  }
   return (
     <div className="gallery-card" onClick={onOpen}>
       <img src={item.dataUrl} alt={item.label} />
+      {item.isPublic && (
+        <div className="gc-public-badge" title="Visible on the community page">
+          Public
+        </div>
+      )}
       <div className="gc-dl gc-dl-share" title="Share to Community" onClick={handleShare}>
         {'\u2191'}
+      </div>
+      <div
+        className={`gc-dl gc-dl-public${item.isPublic ? ' is-on' : ''}`}
+        title={item.isPublic ? 'Make private' : 'Publish to Community'}
+        onClick={handleTogglePublic}
+      >
+        {item.isPublic ? '\u25c9' : '\u25cb'}
       </div>
       <div className="gc-dl gc-dl-download" title="Download" onClick={handleDownload}>
         {'\u2193'}

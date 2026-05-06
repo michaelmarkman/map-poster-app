@@ -41,6 +41,26 @@ function useAspectSync() {
   }, [aspectRatio, fillMode])
 }
 
+// Phase 7.2 — when navigated to from the community page with a saved view
+// stashed in sessionStorage, dispatch restore-view once the canvas is up.
+// Cleared after one consumption so reloads don't repeat it.
+function usePendingRestore() {
+  useEffect(() => {
+    let raw
+    try { raw = sessionStorage.getItem('vedute_pending_restore') } catch { raw = null }
+    if (!raw) return
+    try { sessionStorage.removeItem('vedute_pending_restore') } catch {}
+    let view
+    try { view = JSON.parse(raw) } catch { return }
+    // Defer past Scene's mount + listener attach. Same delay as
+    // useSavedViews's default-view auto-load (Phase 4.3).
+    const t = setTimeout(() => {
+      try { window.dispatchEvent(new CustomEvent('restore-view', { detail: view })) } catch {}
+    }, 600)
+    return () => clearTimeout(t)
+  }, [])
+}
+
 // ESC peels back UI layers toward fill-screen. Modals + popovers consume
 // ESC before this fires (their own listeners win), so this only handles
 // the "no chrome should be visible" reach.
@@ -82,6 +102,7 @@ export default function MockEditorShell() {
   useAspectSync()
   useMockEscape()
   useMockKeyboardShortcuts()
+  usePendingRestore()
 
   return (
     <div className="mock-root editor-root">

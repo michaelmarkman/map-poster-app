@@ -45,10 +45,34 @@ export async function loadGalleryEntries() {
         // the overlay later.
         baseImage: r.baseImage || null,
         graphicsJSON: r.graphicsJSON || null,
+        // Phase 7.2 — public-flag (default false). When Supabase
+        // gallery_entries lands, this maps to is_public; today the flag
+        // is local-only and just drives the community page filter.
+        isPublic: !!r.isPublic,
       }))
       .sort((a, b) => a.time - b.time)
   } catch (e) {
     return []
+  }
+}
+
+// Patch a single field on an existing entry. Used by the public-toggle
+// in the gallery card; survives the Supabase migration as long as the
+// caller keeps the field name in sync with the server schema.
+export async function updateGalleryEntry(id, patch) {
+  try {
+    const db = await openGalleryDB()
+    const tx = db.transaction(GALLERY_STORE, 'readwrite')
+    const store = tx.objectStore(GALLERY_STORE)
+    const cur = await new Promise((resolve) => {
+      const req = store.get(id)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(null)
+    })
+    if (!cur) return
+    store.put({ ...cur, ...patch })
+  } catch (e) {
+    console.warn('[gallery] IndexedDB update failed:', e)
   }
 }
 
@@ -77,6 +101,7 @@ export async function saveGalleryEntry(item) {
       view: item.view || null,
       baseImage: item.baseImage || null,
       graphicsJSON: item.graphicsJSON || null,
+      isPublic: !!item.isPublic,
     })
   } catch (e) {
     console.warn('[gallery] IndexedDB save failed:', e)
