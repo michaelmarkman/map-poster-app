@@ -6,7 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute'
 import ToastHost from './components/ToastHost'
 import useGalleryData from './pages/editor/hooks/useGalleryData'
 import AppLayout from './components/layout/AppLayout'
-import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -103,19 +102,23 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Full-screen editor — no navbar; owns the whole viewport.
-             * /app          → Vedute editor (the only editor as of Phase 1.2)
-             * /app-classic  → 301 to /app (sidebar editor was removed)
-             * /mock         → historical alias, also redirects to /app */}
-            <Route
-              path="/app"
-              element={
-                <ProtectedRoute guestAllowed>
-                  <Suspense fallback={<EditorLoading />}>
-                    <MockEditorPage />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
+             * Mounted at BOTH `/` and `/app` so vedute.app/ opens the
+             * editor directly (no marketing landing page) while every
+             * existing /app link / bookmark keeps working unchanged.
+             * /app-classic + /mock are 301-style redirects for old URLs. */}
+            {[ '/', '/app' ].map((path) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <ProtectedRoute guestAllowed>
+                    <Suspense fallback={<EditorLoading />}>
+                      <MockEditorPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+            ))}
             {import.meta.env.DEV && DofLabPage && (
               <Route
                 path="/dof-lab"
@@ -133,7 +136,6 @@ export default function App() {
 
             {/* Pages with navbar */}
             <Route element={<AppLayout />}>
-              <Route path="/" element={<LandingPage />} />
               <Route
                 path="/community"
                 element={

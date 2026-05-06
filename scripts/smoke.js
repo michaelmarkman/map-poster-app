@@ -130,7 +130,10 @@ async function run() {
   console.log('lazy-loaded routes')
   for (const [path, marker] of [
     ['/community',       'h1'],
-    ['/',                'h1'],
+    // / now opens the editor (landing page retired). Look for the
+    // editor's frame overlay rather than an h1 — the editor doesn't
+    // render one.
+    ['/',                '.mock-frame-border'],
     ['/reset-password',  'h1'],   // eager auth route — verifies no
     //                              regression in the auth-page chunk
   ]) {
@@ -151,18 +154,21 @@ async function run() {
     check(`${path} renders`, ok, 'no h1 mounted within 5s')
   }
 
-  // Brand-text guard. The landing page's <h1> must read 'Vedute' — locks
-  // the Phase 1.1 rebrand at the production-build level. Unit tests cover
-  // the source, this covers the prod bundle (catches a future minify /
-  // tree-shake / SSR step that might mangle the literal).
+  // Brand guard. The wordmark SVG must ship on /. Locks the Phase 1.1
+  // rebrand + Phase 2.7 wordmark migration at the production-build level
+  // (catches a future asset-pipeline change that drops the file from the
+  // build output).
   await page.goto(`http://127.0.0.1:${PORT}/src/index.html`)
   await page.evaluate(() => {
     history.pushState({}, '', '/')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
-  await page.waitForFunction(() => !!document.querySelector('h1'), null, { timeout: 5_000 })
-  const heroText = await page.evaluate(() => document.querySelector('h1')?.textContent?.trim())
-  check('landing hero reads "Vedute"', heroText === 'Vedute', `got: "${heroText}"`)
+  await page.waitForFunction(
+    () => !!document.querySelector('img[alt="Vedute"], .mock-wordmark'),
+    null,
+    { timeout: 5_000 },
+  )
+  check('wordmark SVG mounts on /', true)
 
   // --- Phase 2: session persistence writes (driven by save-view) ---
   // Note: full restore-roundtrip is covered by the useSessionPersistence
