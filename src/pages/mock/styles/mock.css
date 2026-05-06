@@ -1667,3 +1667,44 @@ body.mock-mounted #poster-preview .pp-scene {
   background: var(--bg-hover);
   color: var(--ink);
 }
+
+/* ═══════ Toast stack ═══════ */
+.vd-toasts {
+  position: fixed;
+  bottom: var(--s-9);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  pointer-events: none;
+}
+.vd-toast {
+  pointer-events: auto;
+  background: var(--panel-deep);
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(150%);
+          backdrop-filter: blur(var(--blur-pill)) saturate(150%);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-pill);
+  padding: var(--s-4) var(--s-7);
+  color: var(--ink);
+  font: 500 var(--t-sm)/1.2 var(--body);
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: var(--shadow-md);
+  animation: vd-toast-in var(--d-base) var(--ease-emphasized);
+  max-width: 90vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vd-toast--success { border-color: rgba(107, 155, 110, 0.5); color: var(--green); }
+.vd-toast--error { border-color: rgba(196, 90, 90, 0.5); color: var(--red); }
+.vd-toast--info { border-color: var(--accent-soft); color: var(--accent); }
+.vd-toast:hover { background: var(--bg-hover); }
+@keyframes vd-toast-in {
+  from { opacity: 0; transform: translateY(var(--s-5)); }
+  to { opacity: 1; transform: translateY(0); }
+}
