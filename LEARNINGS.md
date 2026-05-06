@@ -621,6 +621,50 @@ file is the raw log — CLAUDE.md is the curated summary.
   delete a top-level mount. The dispatchers stay; the receivers
   silently disappear; the data flow looks intact in code but isn't.
 
+## 2026-05-06 — BYOK watermark exploit (entitlements doc/impl mismatch)
+
+- Bug: `shouldShowWatermark({ byokKey })` returned false for any
+  truthy byokKey, including a free-tier user. So any free user could
+  paste any string into the BYOK input and launder their way out of
+  the free-tier watermark on every export.
+- Mechanism: when entitlements.js was written, the comment at the
+  top of the file said "Resolution + watermark gates still apply
+  [for BYOK] (those are Vedute's product, not the model's)" — the
+  intent was BYOK skips render-counting (since Vedute isn't paying
+  for the API call) but watermark/resolution still apply. The
+  implementation had `if (byokKey) return false` in
+  shouldShowWatermark anyway. The unit test asserted the wrong
+  behavior, so the regression was locked in.
+- Fix (src/lib/entitlements.js): drop byokKey from the watermark
+  signature entirely. Update all three call sites in useQueue
+  (raw branch, AI-render branch, quick-download). Update the test
+  to assert the corrected behavior.
+- General rule: when the docstring contradicts the implementation,
+  one of them is wrong. Don't assume the test pinned the right one
+  — read the design intent from the doc comment FIRST, then check
+  what the code actually does, and fix whichever is inconsistent.
+
+## 2026-05-06 — Lightbox Share button opening a non-existent modal
+
+- Bug: clicking Share in the Lightbox dispatched a `lightbox-share`
+  window event nobody listened to, set `modalsAtom.share = true`
+  for a ShareModal that was never built, and visually did nothing.
+  The user got zero feedback.
+- Mechanism: same class as the silent-fireToast issue from earlier
+  this session. A ShareModal was scaffolded in atoms (modals.share,
+  shareDraftAtom) but the component was never actually written, so
+  flipping the boolean had no consumer. Lightbox kept calling the
+  scaffolding as if it were live.
+- Fix (src/pages/editor/modals/Lightbox.jsx): replaced the modal
+  flip with the same flow the gallery-card Share button uses —
+  copy a pre-formatted caption to the clipboard, trigger the file
+  download, and toast on success. Dropped the dead `share` slot
+  and shareDraftAtom from atoms/modals.js.
+- General rule: scaffolded atoms / modal slots without consumers
+  are silent UI bugs waiting to happen. When you scaffold a future
+  modal, leave a TODO that fails loudly (a toast + "Not implemented
+  yet") rather than silently flipping a boolean that nothing reads.
+
 ## 2026-05-06 — API-stub pattern for endpoints we can't ship without external keys
 
 - Phases 3.2 (Google Places), 5.1 (server upscaling), and 6.2 (Stripe)
