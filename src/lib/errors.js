@@ -19,6 +19,10 @@ const messageMap = {
   // Reset-password / verify-email link expired.
   'Token has expired': 'That link has expired. Request a new one and try again.',
   'Email link is invalid or has expired': 'That link has expired. Request a new one and try again.',
+  // AuthContext throws this when supabase wasn't configured at boot.
+  // Surfaced verbatim because the original message is already readable
+  // and tells the operator exactly which env vars to set.
+  'Auth is unavailable': 'Auth is unavailable — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.',
 }
 
 export function friendlyError(err) {

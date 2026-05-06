@@ -95,13 +95,27 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  // All auth methods below assume a configured supabase client. If env
+  // vars are missing in dev / a misconfigured deploy, surface a clear
+  // error instead of letting `null.auth.*` raise a cryptic TypeError
+  // that friendlyError can't translate.
+  function requireSupabase() {
+    if (!supabase) {
+      throw new Error(
+        'Auth is unavailable — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.',
+      )
+    }
+  }
+
   async function signIn(email, password) {
+    requireSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     return data
   }
 
   async function signUp(email, password, username) {
+    requireSupabase()
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -121,6 +135,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    if (!supabase) return
     try {
       await supabase.auth.signOut()
     } catch (err) {
@@ -129,6 +144,7 @@ export function AuthProvider({ children }) {
   }
 
   async function resetPassword(email) {
+    requireSupabase()
     // Tell Supabase to put the post-click redirect at /reset-password,
     // where ResetPasswordPage takes over to set a new password. Without
     // this, the email link drops the user on the site root with a token
@@ -140,11 +156,13 @@ export function AuthProvider({ children }) {
   }
 
   async function updatePassword(password) {
+    requireSupabase()
     const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
   }
 
   async function updateProfile(updates) {
+    requireSupabase()
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
@@ -157,6 +175,7 @@ export function AuthProvider({ children }) {
   }
 
   async function uploadAvatar(file) {
+    requireSupabase()
     // Defensive validation lives in src/lib/avatarValidation.js so the
     // type+size+MIME-extension checks can be unit-tested without spinning
     // the AuthProvider up. validateAvatarFile throws on rejection and
