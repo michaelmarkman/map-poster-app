@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useSetAtom, useAtom } from 'jotai'
+import { useSetAtom } from 'jotai'
 import { fillModeAtom } from '../../editor/atoms/ui'
 import { modalsAtom } from '../../editor/atoms/modals'
 
@@ -20,7 +20,10 @@ import { modalsAtom } from '../../editor/atoms/modals'
 // stays focused on the action shortcuts.
 export default function useMockKeyboardShortcuts() {
   const setModals = useSetAtom(modalsAtom)
-  const [fillMode, setFillMode] = useAtom(fillModeAtom)
+  // Functional setter only — we never read fillMode here, so destructuring
+  // [fillMode, setFillMode] from useAtom would force the effect to
+  // re-attach on every toggle. useSetAtom keeps the listener attached once.
+  const setFillMode = useSetAtom(fillModeAtom)
   useEffect(() => {
     const onKey = (e) => {
       // Ignore when typing.
@@ -58,5 +61,5 @@ export default function useMockKeyboardShortcuts() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setModals, fillMode, setFillMode])
+  }, [setModals, setFillMode])
 }
