@@ -6,6 +6,12 @@ vi.mock('../editor/utils/galleryDb', () => ({
   loadGalleryEntries: vi.fn(),
 }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual, useNavigate: () => mockNavigate }
+})
+
 import CommunityPage from '../CommunityPage'
 import { loadGalleryEntries } from '../editor/utils/galleryDb'
 
@@ -31,6 +37,7 @@ const baseEntry = {
 describe('CommunityPage', () => {
   beforeEach(() => {
     loadGalleryEntries.mockReset()
+    mockNavigate.mockReset()
     sessionStorage.clear()
   })
   afterEach(() => {
@@ -78,41 +85,26 @@ describe('CommunityPage', () => {
   })
 
   it('clicking a card with a view stashes pending-restore + navigates', async () => {
-    // jsdom blocks navigation assignment; intercept window.location.href.
-    const original = Object.getOwnPropertyDescriptor(window, 'location')
-    delete window.location
-    window.location = { href: '' }
-    try {
-      const view = { camera: { px: 1, py: 2, pz: 3 } }
-      loadGalleryEntries.mockResolvedValueOnce([
-        { ...baseEntry, view },
-      ])
-      renderPage()
-      await waitFor(() => expect(screen.getByText('Manhattan')).toBeDefined())
-      fireEvent.click(screen.getByRole('button', { name: /Manhattan/ }))
-      const stashed = sessionStorage.getItem('vedute_pending_restore')
-      expect(JSON.parse(stashed)).toEqual(view)
-      expect(window.location.href).toBe('/app')
-    } finally {
-      Object.defineProperty(window, 'location', original)
-    }
+    const view = { camera: { px: 1, py: 2, pz: 3 } }
+    loadGalleryEntries.mockResolvedValueOnce([
+      { ...baseEntry, view },
+    ])
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Manhattan')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /Manhattan/ }))
+    const stashed = sessionStorage.getItem('vedute_pending_restore')
+    expect(JSON.parse(stashed)).toEqual(view)
+    expect(mockNavigate).toHaveBeenCalledWith('/app')
   })
 
   it('clicking a card with no view navigates without stashing', async () => {
-    const original = Object.getOwnPropertyDescriptor(window, 'location')
-    delete window.location
-    window.location = { href: '' }
-    try {
-      loadGalleryEntries.mockResolvedValueOnce([
-        { ...baseEntry, view: null },
-      ])
-      renderPage()
-      await waitFor(() => expect(screen.getByText('Manhattan')).toBeDefined())
-      fireEvent.click(screen.getByRole('button', { name: /Manhattan/ }))
-      expect(sessionStorage.getItem('vedute_pending_restore')).toBe(null)
-      expect(window.location.href).toBe('/app')
-    } finally {
-      Object.defineProperty(window, 'location', original)
-    }
+    loadGalleryEntries.mockResolvedValueOnce([
+      { ...baseEntry, view: null },
+    ])
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Manhattan')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /Manhattan/ }))
+    expect(sessionStorage.getItem('vedute_pending_restore')).toBe(null)
+    expect(mockNavigate).toHaveBeenCalledWith('/app')
   })
 })

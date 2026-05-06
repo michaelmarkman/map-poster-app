@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { loadGalleryEntries } from './editor/utils/galleryDb'
 
 // Phase 7.2 — community page substance.
@@ -73,6 +73,7 @@ const s = {
 }
 
 export default function CommunityPage() {
+  const navigate = useNavigate()
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -90,6 +91,8 @@ export default function CommunityPage() {
   // Phase 7.2 — clicking a card with a saved view restores the camera in
   // the editor. Without a view (e.g. quick-download entries that didn't
   // capture one), fall back to opening the editor at default state.
+  // SPA navigation reuses the already-loaded auth + gallery atoms; a
+  // hard window.location reload would re-download the editor JS chunk.
   const openInEditor = (entry) => {
     if (entry.view) {
       // Stash the restore intent in sessionStorage and navigate. The editor
@@ -101,7 +104,7 @@ export default function CommunityPage() {
         )
       } catch {}
     }
-    window.location.href = '/app'
+    navigate('/app')
   }
 
   return (
