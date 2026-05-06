@@ -39,6 +39,11 @@ import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
 import { getDateFromHour } from '../utils/sun'
 
+// Earth radius for the fly-to arc bow (Phase 3.3). Same value as
+// SavedViewMarkers' EARTH_RADIUS_M; not extracted to a shared constant
+// because both are clearly self-contained in their scope.
+const EARTH_RADIUS_M_FLY = 6378137
+
 // Builds a "no-op" stand-in for the cloud-shadow cascade that AerialPerspect-
 // ive reads during lit-pixel evaluation. Returns a Proxy that transparently
 // forwards every field (cascadeCount, mapSize, intervals, matrices,
@@ -278,6 +283,14 @@ export default function Scene() {
 
   // Fly-to animation from location search. A ref holds the in-flight tween
   // so useFrame can step it; when done we clear the ref.
+  //
+  // Phase 3.3 polish:
+  //   - Duration scales with distance: short city-scale hops stay snappy
+  //     (~1.5s) while cross-continent / cross-globe hops take ~5s and feel
+  //     like travel, not teleportation.
+  //   - Long hops arc through a higher altitude peak so the camera reads
+  //     as "lifting off and descending" rather than burrowing through the
+  //     globe. Below ~50km the arc is suppressed; the simple lerp is fine.
   const flyRef = useRef(null)
   useEffect(() => {
     const handler = (e) => {
@@ -289,11 +302,22 @@ export default function Scene() {
         new Geodetic(radians(lng), radians(lat)).toECEF(),
         endPos, endQuat, endUp,
       )
+      const startPos = camera.position.clone()
+      const dist = startPos.distanceTo(endPos)
+      // Distance-aware duration. log scaling so 100km and 10000km feel
+      // proportionally different, not 100x apart. Clamped 1.5s..5s.
+      const duration = Math.min(5, Math.max(1.5, 1 + Math.log10(Math.max(1, dist / 1000))))
+      // Arc altitude: 0 (no arc) for short hops, max 1.0 (Earth-radius
+      // worth of bow) for cross-globe.
+      const arc = Math.min(1, Math.max(0, (dist - 50_000) / 5_000_000))
       flyRef.current = {
-        startPos: camera.position.clone(),
+        startPos,
         startQuat: camera.quaternion.clone(),
         startUp: camera.up.clone(),
-        endPos, endQuat, endUp, progress: 0,
+        endPos, endQuat, endUp,
+        progress: 0,
+        duration,
+        arc,
       }
     }
     window.addEventListener('fly-to', handler)
@@ -402,13 +426,25 @@ export default function Scene() {
   const setCameraReadout = useSetAtom(cameraReadoutAtom)
 
   useFrame(({ gl }, delta) => {
-    // Step fly-to tween (smoothstep ease, 2s duration).
+    // Step fly-to tween. Smoothstep ease, distance-aware duration, and
+    // (for long hops) an altitude arc so the camera lifts off + descends
+    // instead of cutting straight through the globe.
     const fly = flyRef.current
     if (fly && fly.progress < 1) {
-      fly.progress = Math.min(1, fly.progress + delta / 2)
+      fly.progress = Math.min(1, fly.progress + delta / fly.duration)
       const t = fly.progress
       const s = t * t * (3 - 2 * t)
       camera.position.lerpVectors(fly.startPos, fly.endPos, s)
+      if (fly.arc > 0) {
+        // Push the midpoint outward radially. Bow peaks at s=0.5 with a
+        // sin curve so the lift is symmetric. arc=1 lifts an Earth radius;
+        // typical cross-continent hops use ~0.3.
+        const bow = Math.sin(s * Math.PI) * fly.arc * EARTH_RADIUS_M_FLY
+        if (bow > 0) {
+          const radial = camera.position.clone().normalize()
+          camera.position.addScaledVector(radial, bow)
+        }
+      }
       camera.quaternion.slerpQuaternions(fly.startQuat, fly.endQuat, s)
       camera.up.lerpVectors(fly.startUp, fly.endUp, s)
       if (fly.progress >= 1) flyRef.current = null
