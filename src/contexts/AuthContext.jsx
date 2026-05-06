@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { setActiveProfile } from '../lib/entitlements'
 import { validateAvatarFile } from '../lib/avatarValidation'
@@ -10,6 +10,12 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Tracks the most-recently-requested profile so concurrent loads don't
+  // race. Without this, a slow loadProfile('A') resolving after the user
+  // signed out / switched to B would clobber the correct (B / null) state
+  // with A's stale row. Each load captures the current epoch + bails on
+  // resolve if a newer request has started.
+  const profileEpochRef = useRef(0)
 
   // Phase 6 — keep the entitlements module-bridge in sync with the live
   // profile so non-React callers (useQueue, useSavedViews) read fresh tier
@@ -20,16 +26,29 @@ export function AuthProvider({ children }) {
   }, [profile])
 
   async function loadProfile(userId) {
+    const myEpoch = ++profileEpochRef.current
     try {
       const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
+      // A newer auth event already kicked off another loadProfile (or
+      // explicitly cleared the profile). Drop this stale result.
+      if (myEpoch !== profileEpochRef.current) return
       setProfile(data)
     } catch {
+      if (myEpoch !== profileEpochRef.current) return
       setProfile(null)
     }
+  }
+
+  function clearProfile() {
+    // Bump the epoch so any in-flight loadProfile's resolve becomes a
+    // no-op. Otherwise a slow-resolving fetch from the prior session
+    // would re-populate profile after we explicitly cleared it.
+    profileEpochRef.current++
+    setProfile(null)
   }
 
   useEffect(() => {
@@ -68,7 +87,7 @@ export function AuthProvider({ children }) {
       if (session?.user) {
         loadProfile(session.user.id)
       } else {
-        setProfile(null)
+        clearProfile()
       }
       setLoading(false)
     })
