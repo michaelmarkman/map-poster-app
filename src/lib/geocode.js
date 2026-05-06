@@ -1,10 +1,18 @@
-// Single source of truth for geocoding in Vedute. Today: Nominatim
-// (OpenStreetMap). The plan in docs (§3.2) is to swap the implementation
-// for Google Places later — keep all geocoding behind these two functions
-// so that's a one-file change.
+// Single source of truth for geocoding in Vedute.
 //
-// Both helpers fail silently (return null / never throw) so callers can
-// fall back to coord-based naming or just skip the result.
+// Primary: the /api/places server proxy (Google Places API New) for
+// autocomplete + place-details lookup. The proxy keeps the API key off
+// the client bundle and groups requests under a session token for
+// billing.
+//
+// Fallback: Nominatim (OpenStreetMap) for both forward geocoding and
+// reverse geocoding. Used when (a) the proxy returns { fallback: true }
+// (no key configured / quota / upstream error), or (b) the network call
+// fails. The fallback is silent; callers see one prediction list shape
+// either way.
+//
+// All helpers fail silently (return null / [] / never throw) so callers
+// can fall back to coord-based naming or just skip the result.
 
 const USER_AGENT = 'Vedute/1.0'
 const NOMINATIM = 'https://nominatim.openstreetmap.org'
@@ -23,11 +31,44 @@ function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
 
 // Forward geocode: query string -> { lat, lng, displayName } or null.
 //
-// Returns the top result; callers wanting "did you mean..." disambiguation
-// should query Nominatim directly until we move to a proper Places autocomplete.
+// Tries the Places proxy first (autocomplete top result + resolve);
+// falls back to Nominatim on { fallback: true }, non-2xx, or network
+// failure. Callers that want a "did you mean" picker should use
+// searchPlaces() + resolvePlace() directly to drive a real dropdown.
 export async function geocodeSearch(query) {
   const trimmed = (query || '').trim()
   if (!trimmed) return null
+  // Reuse searchPlaces so the proxy + fallback path stays single-source
+  // of truth. Then resolve the top placeId — Nominatim predictions
+  // already carry lat/lng inline, so no resolve call needed.
+  const predictions = await searchPlaces(trimmed, { limit: 1 })
+  const top = predictions?.[0]
+  if (top) {
+    if (Number.isFinite(top.lat) && Number.isFinite(top.lng)) {
+      return {
+        lat: top.lat,
+        lng: top.lng,
+        displayName: top.description || top.mainText || null,
+      }
+    }
+    if (top.placeId) {
+      const resolved = await resolvePlace(top.placeId)
+      if (resolved) {
+        return {
+          lat: resolved.lat,
+          lng: resolved.lng,
+          displayName:
+            top.description ||
+            resolved.displayName ||
+            resolved.formattedAddress ||
+            null,
+        }
+      }
+    }
+  }
+  // Last-ditch direct Nominatim fetch (in case searchPlaces both proxy
+  // AND fallback returned nothing, which shouldn't happen but is cheap
+  // insurance).
   try {
     const r = await fetchWithTimeout(
       `${NOMINATIM}/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`,
@@ -35,35 +76,57 @@ export async function geocodeSearch(query) {
     )
     if (!r.ok) return null
     const results = await r.json()
-    const top = results?.[0]
-    if (!top) return null
+    const row = results?.[0]
+    if (!row) return null
     return {
-      lat: +top.lat,
-      lng: +top.lon,
-      displayName: top.display_name || null,
+      lat: +row.lat,
+      lng: +row.lon,
+      displayName: row.display_name || null,
     }
   } catch {
     return null
   }
 }
 
-// Places autocomplete: query string -> [{ description, placeId? }]. When
-// `api/places.js` is wired up to Google Places, this hits the proxy first
-// for autocomplete-quality predictions. Until then (or when the proxy is
-// disabled / quota-blown), falls back to Nominatim's search endpoint, which
-// returns enough variety to feel like predictions.
+// Mint a Places session token. Same string passes through every
+// autocomplete request of one typing-stream and the matching
+// resolvePlace() call so Google bills it as ONE session instead of
+// N+1 individual charges. Callers manage the lifetime: create on
+// first keystroke, reuse for all subsequent keystrokes, discard
+// after a place is picked (or the popover closes without a pick).
+export function newSessionToken() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)
+}
+
+// Places autocomplete: query -> [{ description, placeId, mainText, secondaryText, lat?, lng? }].
+// Hits the /api/places proxy first; on { fallback: true } / non-2xx /
+// network error, falls back to Nominatim. Predictions from the proxy
+// have a placeId (used by resolvePlace); Nominatim predictions carry
+// lat/lng inline since they don't need a separate resolve step.
+//
+// Optional: pass `sessionToken` (one per typing session) and
+// `bias: { lat, lng, radiusMeters }` to nudge results toward the
+// active map view.
 //
 // Returns at most `limit` results (default 5). Empty array on any miss.
-export async function searchPlaces(query, { limit = 5 } = {}) {
+export async function searchPlaces(query, { limit = 5, sessionToken, bias } = {}) {
   const trimmed = (query || '').trim()
   if (!trimmed) return []
-  // Try the server proxy first. If the proxy returns 501 / fallback:true,
-  // we drop into the Nominatim path silently.
   try {
-    const r = await fetchWithTimeout('/api/places', {
+    const body = { q: trimmed, limit }
+    if (sessionToken) body.sessionToken = sessionToken
+    if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lng)) {
+      body.lat = bias.lat
+      body.lng = bias.lng
+      if (Number.isFinite(bias.radiusMeters)) body.radiusMeters = bias.radiusMeters
+    }
+    const r = await fetchWithTimeout('/api/places?action=autocomplete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: trimmed, limit }),
+      body: JSON.stringify(body),
     })
     if (r.ok) {
       const data = await r.json()
@@ -75,6 +138,7 @@ export async function searchPlaces(query, { limit = 5 } = {}) {
           secondaryText: p.secondaryText || null,
         }))
       }
+      if (Array.isArray(data?.predictions)) return [] // valid empty
     }
     // Non-2xx OR { fallback: true } -> drop through to Nominatim
   } catch {
@@ -101,6 +165,39 @@ export async function searchPlaces(query, { limit = 5 } = {}) {
     }))
   } catch {
     return []
+  }
+}
+
+// Resolve a Places-API placeId to coordinates + display info. Used after
+// the user picks a prediction from the autocomplete dropdown. Pass the
+// same sessionToken as the autocomplete calls so Google bundles the
+// billing.
+//
+// Returns { lat, lng, displayName, formattedAddress } or null on miss.
+//
+// Predictions that already carry inline lat/lng (Nominatim fallback)
+// don't need this — callers can use those directly.
+export async function resolvePlace(placeId, { sessionToken } = {}) {
+  if (!placeId || typeof placeId !== 'string') return null
+  try {
+    const body = { placeId }
+    if (sessionToken) body.sessionToken = sessionToken
+    const r = await fetchWithTimeout('/api/places?action=resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!r.ok) return null
+    const data = await r.json()
+    if (!Number.isFinite(data?.lat) || !Number.isFinite(data?.lng)) return null
+    return {
+      lat: data.lat,
+      lng: data.lng,
+      displayName: data.displayName || null,
+      formattedAddress: data.formattedAddress || null,
+    }
+  } catch {
+    return null
   }
 }
 

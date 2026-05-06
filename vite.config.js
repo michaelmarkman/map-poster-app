@@ -6,27 +6,32 @@ import { resolve } from 'path'
 // Dev-only middleware that forwards /api/gemini to the serverless handler at api/gemini.js.
 // In production (Vercel) the /api/* file-based routing handles this automatically, but the
 // Vite dev server has no such routing — so we mount the same handler here for parity.
+function mountApiHandler(server, basePath) {
+  server.middlewares.use(basePath, async (req, res) => {
+    try {
+      const mod = await server.ssrLoadModule(basePath + '.js')
+      const handler = mod.default
+      // server.middlewares strips the matched path prefix — restore it so the
+      // handler's `new URL(req.url, ...)` can see the ?model=... querystring.
+      const rawUrl = req.originalUrl || req.url || ''
+      req.url = rawUrl.startsWith(basePath) ? rawUrl : basePath + rawUrl
+      await handler(req, res)
+    } catch (e) {
+      console.error(`[${basePath}] middleware error:`, e)
+      if (!res.headersSent) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+      }
+      res.end(JSON.stringify({ error: 'middleware error', detail: String(e?.message || e) }))
+    }
+  })
+}
+
 const apiMiddleware = {
   name: 'api-middleware',
   configureServer(server) {
-    server.middlewares.use('/api/gemini', async (req, res) => {
-      try {
-        const mod = await server.ssrLoadModule('/api/gemini.js')
-        const handler = mod.default
-        // server.middlewares strips the matched path prefix — restore it so the
-        // handler's `new URL(req.url, ...)` can see the ?model=... querystring.
-        const rawUrl = req.originalUrl || req.url || ''
-        req.url = rawUrl.startsWith('/api/gemini') ? rawUrl : '/api/gemini' + rawUrl
-        await handler(req, res)
-      } catch (e) {
-        console.error('[api/gemini] middleware error:', e)
-        if (!res.headersSent) {
-          res.statusCode = 500
-          res.setHeader('Content-Type', 'application/json')
-        }
-        res.end(JSON.stringify({ error: 'middleware error', detail: String(e?.message || e) }))
-      }
-    })
+    mountApiHandler(server, '/api/gemini')
+    mountApiHandler(server, '/api/places')
   }
 }
 

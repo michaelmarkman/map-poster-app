@@ -9,6 +9,16 @@ vi.mock('../components/AccountChip', () => ({
   default: () => null,
 }))
 
+// Mock the geocode module so we can control responses without hitting
+// /api/places or Nominatim. The cluster now drives an autocomplete
+// dropdown via searchPlaces + resolvePlace; we stub both.
+vi.mock('../../../lib/geocode', () => ({
+  searchPlaces: vi.fn(),
+  resolvePlace: vi.fn(),
+  newSessionToken: vi.fn(() => 'sess-test'),
+}))
+import { searchPlaces, resolvePlace } from '../../../lib/geocode'
+
 import ClusterTopLeft from '../components/ClusterTopLeft'
 import { savedViewsAtom } from '../../editor/atoms/sidebar'
 import {
@@ -17,12 +27,6 @@ import {
   timeOfDayAtom,
 } from '../../editor/atoms/scene'
 import { textFieldsAtom } from '../../editor/atoms/ui'
-
-// Mock the geocode module so we can control responses without hitting Nominatim.
-vi.mock('../../../lib/geocode', () => ({
-  geocodeSearch: vi.fn(),
-}))
-import { geocodeSearch } from '../../../lib/geocode'
 
 function renderWith({ savedViews = [] } = {}) {
   const store = createStore()
@@ -40,15 +44,20 @@ function renderWith({ savedViews = [] } = {}) {
   }
 }
 
-function openPopover(buttonLabelMatch) {
-  // PopoverPill opens on click of the inner Pill button.
-  const trigger = screen.getByLabelText(buttonLabelMatch)
-  fireEvent.click(trigger)
+function openSearchPopover() {
+  fireEvent.click(screen.getByLabelText(/Search location/))
+}
+
+async function typeQuery(input, value) {
+  fireEvent.change(input, { target: { value } })
+  // searchPlaces fires after the 200ms keystroke debounce.
+  await waitFor(() => expect(searchPlaces).toHaveBeenCalled())
 }
 
 describe('ClusterTopLeft', () => {
   beforeEach(() => {
-    geocodeSearch.mockReset()
+    searchPlaces.mockReset()
+    resolvePlace.mockReset()
   })
   afterEach(() => {
     vi.clearAllMocks()
@@ -61,7 +70,6 @@ describe('ClusterTopLeft', () => {
         { id: 'b', name: 'View B' },
       ],
     })
-    // The pill label reads `Views · 2` when there are saved views.
     expect(screen.getByText(/Views/)).toBeDefined()
     expect(screen.getByText(/·\s*2/)).toBeDefined()
   })
@@ -72,92 +80,102 @@ describe('ClusterTopLeft', () => {
     expect(label.textContent).toBe('Views')
   })
 
-  it('search miss dispatches a toast event (no alert call)', async () => {
-    geocodeSearch.mockResolvedValueOnce(null)
-    const events = []
-    const onToast = (e) => events.push(e.detail)
-    window.addEventListener('toast', onToast)
-
+  it('typing fires searchPlaces with sessionToken + bias from current camera', async () => {
+    searchPlaces.mockResolvedValue([])
     renderWith()
-    openPopover(/Search location/)
+    openSearchPopover()
     const input = screen.getByPlaceholderText('Search a place…')
-    fireEvent.change(input, { target: { value: 'asdfqwerty' } })
-    await act(async () => {
-      fireEvent.keyDown(input, { key: 'Enter' })
-    })
-
-    await waitFor(() => expect(events.length).toBeGreaterThan(0))
-    window.removeEventListener('toast', onToast)
-    expect(events[0]).toMatchObject({ type: 'error', message: 'Location not found' })
+    await typeQuery(input, 'tokyo')
+    const [q, opts] = searchPlaces.mock.calls.at(-1)
+    expect(q).toBe('tokyo')
+    expect(opts.sessionToken).toBe('sess-test')
+    expect(opts.bias).toMatchObject({ lat: 40.73, lng: -73.98 })
   })
 
-  it('search hit dispatches fly-to with the resolved coords', async () => {
-    geocodeSearch.mockResolvedValueOnce({
+  it('renders predictions in a dropdown listbox', async () => {
+    searchPlaces.mockResolvedValue([
+      { description: 'Tokyo, Japan', mainText: 'Tokyo', secondaryText: 'Japan', placeId: 'p1' },
+      { description: 'Tokyo Tower, Tokyo, Japan', mainText: 'Tokyo Tower', secondaryText: 'Tokyo, Japan', placeId: 'p2' },
+    ])
+    renderWith()
+    openSearchPopover()
+    const input = screen.getByPlaceholderText('Search a place…')
+    await typeQuery(input, 'tokyo')
+    await waitFor(() => {
+      expect(screen.getAllByRole('option')).toHaveLength(2)
+    })
+    expect(screen.getByText('Tokyo')).toBeDefined()
+    expect(screen.getByText('Tokyo Tower')).toBeDefined()
+  })
+
+  it('Enter on a Google prediction resolves it then dispatches fly-to', async () => {
+    searchPlaces.mockResolvedValue([
+      { description: 'Paris, France', mainText: 'Paris', secondaryText: 'France', placeId: 'p1' },
+    ])
+    resolvePlace.mockResolvedValue({
       lat: 48.8566,
       lng: 2.3522,
-      displayName: 'Paris, Île-de-France, France',
+      displayName: 'Paris',
+      formattedAddress: 'Paris, France',
     })
-    const events = []
-    const onFly = (e) => events.push(e.detail)
+    const flies = []
+    const onFly = (e) => flies.push(e.detail)
     window.addEventListener('fly-to', onFly)
 
     renderWith()
-    openPopover(/Search location/)
+    openSearchPopover()
     const input = screen.getByPlaceholderText('Search a place…')
-    fireEvent.change(input, { target: { value: 'paris' } })
+    await typeQuery(input, 'paris')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' })
     })
-
-    await waitFor(() => expect(events.length).toBeGreaterThan(0))
+    await waitFor(() => expect(flies.length).toBeGreaterThan(0))
     window.removeEventListener('fly-to', onFly)
-    expect(events[0].lat).toBeCloseTo(48.8566, 3)
-    expect(events[0].lng).toBeCloseTo(2.3522, 3)
+    expect(resolvePlace).toHaveBeenCalledWith('p1', { sessionToken: 'sess-test' })
+    expect(flies[0].lat).toBeCloseTo(48.8566, 3)
+    expect(flies[0].lng).toBeCloseTo(2.3522, 3)
   })
 
-  it('search hit emits location-changed with shortName + coordStr', async () => {
-    geocodeSearch.mockResolvedValueOnce({
-      lat: 35.6762,
-      lng: 139.6503,
-      displayName: 'Tokyo, Japan',
-    })
-    const events = []
-    const onLoc = (e) => events.push(e.detail)
-    window.addEventListener('location-changed', onLoc)
+  it('Nominatim fallback predictions skip resolvePlace (use inline lat/lng)', async () => {
+    // searchPlaces' fallback shape carries lat/lng inline + null placeId.
+    searchPlaces.mockResolvedValue([
+      { description: 'Rio, Brazil', mainText: 'Rio', secondaryText: 'Brazil', placeId: null, lat: -22.9, lng: -43.2 },
+    ])
+    const flies = []
+    window.addEventListener('fly-to', (e) => flies.push(e.detail))
 
     renderWith()
-    openPopover(/Search location/)
+    openSearchPopover()
     const input = screen.getByPlaceholderText('Search a place…')
-    fireEvent.change(input, { target: { value: 'tokyo' } })
+    await typeQuery(input, 'rio')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' })
     })
-
-    await waitFor(() => expect(events.length).toBeGreaterThan(0))
-    window.removeEventListener('location-changed', onLoc)
-    const [{ shortName, coordStr, lat, lng, fullName }] = events
-    expect(shortName).toBe('Tokyo')
-    expect(coordStr).toMatch(/35\.6762° N, 139\.6503° E/)
-    expect(lat).toBeCloseTo(35.6762, 3)
-    expect(lng).toBeCloseTo(139.6503, 3)
-    expect(fullName).toBe('Tokyo, Japan')
+    await waitFor(() => expect(flies.length).toBeGreaterThan(0))
+    expect(resolvePlace).not.toHaveBeenCalled()
+    expect(flies[0].lat).toBeCloseTo(-22.9, 1)
   })
 
-  it('search hit also writes title + coords into textFieldsAtom', async () => {
-    geocodeSearch.mockResolvedValueOnce({
+  it('Enter on a resolved place writes title + coords into textFieldsAtom', async () => {
+    searchPlaces.mockResolvedValue([
+      { description: 'Rio de Janeiro, Brazil', mainText: 'Rio de Janeiro', secondaryText: 'Brazil', placeId: 'p1' },
+    ])
+    resolvePlace.mockResolvedValue({
       lat: -22.9068,
       lng: -43.1729,
-      displayName: 'Rio de Janeiro, Brazil',
+      displayName: 'Rio de Janeiro',
+      formattedAddress: 'Rio de Janeiro, Brazil',
     })
-
     const { store } = renderWith()
-    openPopover(/Search location/)
+    openSearchPopover()
     const input = screen.getByPlaceholderText('Search a place…')
-    fireEvent.change(input, { target: { value: 'rio' } })
+    await typeQuery(input, 'rio')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' })
     })
-
     await waitFor(() => {
       const fields = store.get(textFieldsAtom)
       expect(fields.title).toBe('Rio de Janeiro')
@@ -166,20 +184,47 @@ describe('ClusterTopLeft', () => {
     expect(fields.coords).toMatch(/22\.9068° S, 43\.1729° W/)
   })
 
-  it('empty / whitespace search is a no-op (no fly-to, no toast)', async () => {
-    const flies = []
-    const toasts = []
-    window.addEventListener('fly-to', (e) => flies.push(e))
-    window.addEventListener('toast', (e) => toasts.push(e))
+  it('ArrowDown / ArrowUp move highlight; Enter commits the highlighted prediction', async () => {
+    searchPlaces.mockResolvedValue([
+      { description: 'A', mainText: 'A', secondaryText: '', placeId: 'pA' },
+      { description: 'B', mainText: 'B', secondaryText: '', placeId: 'pB' },
+      { description: 'C', mainText: 'C', secondaryText: '', placeId: 'pC' },
+    ])
+    resolvePlace.mockResolvedValue({ lat: 1, lng: 2, displayName: 'B' })
 
     renderWith()
-    openPopover(/Search location/)
+    openSearchPopover()
+    const input = screen.getByPlaceholderText('Search a place…')
+    await typeQuery(input, 'q')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(3))
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+    })
+    await waitFor(() => expect(resolvePlace).toHaveBeenCalled())
+    expect(resolvePlace.mock.calls[0][0]).toBe('pB')
+  })
+
+  it('Escape closes the popover without firing fly-to', async () => {
+    searchPlaces.mockResolvedValue([])
+    const flies = []
+    window.addEventListener('fly-to', (e) => flies.push(e))
+    renderWith()
+    openSearchPopover()
+    const input = screen.getByPlaceholderText('Search a place…')
+    fireEvent.change(input, { target: { value: 'foo' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(flies).toHaveLength(0)
+  })
+
+  it('empty / whitespace input never calls searchPlaces', async () => {
+    renderWith()
+    openSearchPopover()
     const input = screen.getByPlaceholderText('Search a place…')
     fireEvent.change(input, { target: { value: '   ' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    expect(geocodeSearch).not.toHaveBeenCalled()
-    expect(flies).toHaveLength(0)
-    expect(toasts).toHaveLength(0)
+    // Wait long enough for the debounce.
+    await new Promise((r) => setTimeout(r, 250))
+    expect(searchPlaces).not.toHaveBeenCalled()
   })
 })

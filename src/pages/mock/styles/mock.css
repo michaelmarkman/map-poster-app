@@ -483,6 +483,58 @@ body.mock-mounted #canvas-container::before {
 .mock-input:focus { border-color: rgba(200, 184, 151, 0.5); }
 .mock-input--block { display: block; margin-bottom: 8px; }
 
+/* ═══════ Search popover predictions (Phase 3.2 — Google Places) ═══════ */
+.mock-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mock-search-predictions {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.mock-search-prediction {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  user-select: none;
+  transition: background 0.08s ease;
+}
+.mock-search-prediction.is-active {
+  background: rgba(200, 184, 151, 0.12);
+}
+.mock-search-prediction:hover {
+  background: rgba(200, 184, 151, 0.18);
+}
+.mock-search-prediction-main {
+  font-size: 13px;
+  color: #e8dcc0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-search-prediction-secondary {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-search-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 8px 0;
+}
+
 .mock-empty {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.45);

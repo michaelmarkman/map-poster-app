@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { geocodeSearch, reverseGeocodeName, searchPlaces } from '../geocode'
+import {
+  geocodeSearch,
+  newSessionToken,
+  resolvePlace,
+  reverseGeocodeName,
+  searchPlaces,
+} from '../geocode'
 
 const ORIG_FETCH = global.fetch
 
@@ -18,39 +24,67 @@ describe('geocodeSearch', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('returns the top result on success', async () => {
+  it('uses Places proxy when it returns a placeId, then resolves it', async () => {
+    // Phase 3.2: geocodeSearch goes through searchPlaces → top placeId
+    // → resolvePlace. Two fetch calls: one autocomplete + one resolve.
     global.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => [{ lat: '40.7128', lon: '-74.006', display_name: 'New York, NY, USA' }],
+      json: async () => ({
+        predictions: [
+          { description: 'New York, NY, USA', placeId: 'p1', mainText: 'New York', secondaryText: 'NY, USA' },
+        ],
+      }),
+    })
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        placeId: 'p1', lat: 40.7128, lng: -74.006,
+        displayName: 'New York', formattedAddress: 'New York, NY, USA',
+      }),
     })
     const r = await geocodeSearch('new york')
-    expect(r).toEqual({ lat: 40.7128, lng: -74.006, displayName: 'New York, NY, USA' })
-    expect(global.fetch).toHaveBeenCalledOnce()
+    expect(r).toEqual({
+      lat: 40.7128,
+      lng: -74.006,
+      displayName: 'New York, NY, USA',
+    })
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/places?action=autocomplete')
+    expect(global.fetch.mock.calls[1][0]).toBe('/api/places?action=resolve')
   })
 
-  it('returns null on empty result array', async () => {
+  it('uses inline lat/lng when the prediction is from Nominatim fallback', async () => {
+    // searchPlaces' Nominatim fallback returns lat/lng inline. Skip the
+    // resolve call entirely.
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ fallback: true }),
+    })
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [{ lat: '48.85', lon: '2.35', display_name: 'Paris, France' }],
+    })
+    const r = await geocodeSearch('paris')
+    expect(r).toMatchObject({ lat: 48.85, lng: 2.35 })
+    expect(global.fetch).toHaveBeenCalledTimes(2) // proxy + nominatim only
+  })
+
+  it('returns null when both Places and Nominatim find nothing', async () => {
+    // Proxy returns empty predictions
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ predictions: [] }),
+    })
+    // Last-ditch Nominatim direct search returns empty
     global.fetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
     expect(await geocodeSearch('asdfqwerty')).toBe(null)
   })
 
-  it('returns null on non-OK response', async () => {
-    global.fetch.mockResolvedValueOnce({ ok: false, json: async () => [] })
-    expect(await geocodeSearch('foo')).toBe(null)
-  })
-
   it('returns null on fetch failure (never throws)', async () => {
     global.fetch.mockRejectedValueOnce(new Error('network'))
+    global.fetch.mockRejectedValueOnce(new Error('also down'))
+    global.fetch.mockRejectedValueOnce(new Error('still down'))
     expect(await geocodeSearch('foo')).toBe(null)
-  })
-
-  it('sends a Vedute User-Agent header', async () => {
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [{ lat: '0', lon: '0', display_name: 'x' }],
-    })
-    await geocodeSearch('x')
-    const opts = global.fetch.mock.calls[0][1]
-    expect(opts.headers['User-Agent']).toMatch(/Vedute/)
   })
 })
 
@@ -119,7 +153,23 @@ describe('searchPlaces', () => {
     expect(r).toHaveLength(1)
     expect(r[0]).toMatchObject({ description: 'New York, NY, USA', placeId: 'p1' })
     expect(global.fetch).toHaveBeenCalledOnce()
-    expect(global.fetch.mock.calls[0][0]).toBe('/api/places')
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/places?action=autocomplete')
+  })
+
+  it('forwards sessionToken + bias to the proxy when provided', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ predictions: [] }),
+    })
+    await searchPlaces('x', {
+      sessionToken: 'sess-abc',
+      bias: { lat: 35.6, lng: 139.7, radiusMeters: 10000 },
+    })
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(body.sessionToken).toBe('sess-abc')
+    expect(body.lat).toBe(35.6)
+    expect(body.lng).toBe(139.7)
+    expect(body.radiusMeters).toBe(10000)
   })
 
   it('falls back to Nominatim when /api/places returns 501 / fallback:true', async () => {
@@ -161,5 +211,61 @@ describe('searchPlaces', () => {
     })
     const r = await searchPlaces('q', { limit: 3 })
     expect(r).toHaveLength(3)
+  })
+})
+
+describe('resolvePlace', () => {
+  it('returns null for empty / invalid placeId', async () => {
+    expect(await resolvePlace('')).toBe(null)
+    expect(await resolvePlace(null)).toBe(null)
+    expect(await resolvePlace(undefined)).toBe(null)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('hits /api/places?action=resolve and returns lat/lng + names', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        placeId: 'ChIJxyz', lat: 35.6762, lng: 139.6503,
+        displayName: 'Tokyo', formattedAddress: 'Tokyo, Japan',
+      }),
+    })
+    const r = await resolvePlace('ChIJxyz', { sessionToken: 'sess-1' })
+    expect(r).toEqual({
+      lat: 35.6762,
+      lng: 139.6503,
+      displayName: 'Tokyo',
+      formattedAddress: 'Tokyo, Japan',
+    })
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/places?action=resolve')
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(body.placeId).toBe('ChIJxyz')
+    expect(body.sessionToken).toBe('sess-1')
+  })
+
+  it('returns null on non-ok / network error / no location', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, json: async () => ({}) })
+    expect(await resolvePlace('p1')).toBe(null)
+    global.fetch.mockRejectedValueOnce(new Error('boom'))
+    expect(await resolvePlace('p1')).toBe(null)
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ displayName: 'no coords' }),
+    })
+    expect(await resolvePlace('p1')).toBe(null)
+  })
+})
+
+describe('newSessionToken', () => {
+  it('returns a non-empty string', () => {
+    const t = newSessionToken()
+    expect(typeof t).toBe('string')
+    expect(t.length).toBeGreaterThan(0)
+  })
+
+  it('returns distinct tokens on each call', () => {
+    const a = newSessionToken()
+    const b = newSessionToken()
+    expect(a).not.toBe(b)
   })
 })
