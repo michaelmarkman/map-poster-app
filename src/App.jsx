@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import ToastHost from './components/ToastHost'
 import AppLayout from './components/layout/AppLayout'
@@ -30,25 +31,33 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 // chunk + CSS, ~46KB combined) from production builds. Plain
 // runtime-gated routes still ship the chunk file because the closure
 // keeps the import reference reachable.
-const DofLabPage = import.meta.env.DEV
-  ? lazy(() => import('./pages/dof-lab/DofLabPage'))
-  : null
+const DofLabPage = import.meta.env.DEV ? lazy(() => import('./pages/dof-lab/DofLabPage')) : null
 
 // Editor's loading state matches its dark glass aesthetic — a black
 // viewport with a faint cream pulse. Anything brighter is jarring on a
 // route the user took to land on a 3D scene.
 function EditorLoading() {
   return (
-    <div style={{
-      width: '100vw', height: '100vh',
-      background: '#09090b',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{
-        width: 8, height: 8, borderRadius: '50%',
-        background: '#c8b897', opacity: 0.6,
-        animation: 'vd-pulse 1.4s ease-in-out infinite',
-      }} />
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: '#09090b',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: '#c8b897',
+          opacity: 0.6,
+          animation: 'vd-pulse 1.4s ease-in-out infinite',
+        }}
+      />
       <style>{`@keyframes vd-pulse {
         0%, 100% { opacity: 0.2; transform: scale(0.8); }
         50%      { opacity: 0.8; transform: scale(1.3); }
@@ -66,69 +75,83 @@ function PageLoading() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        {/* App-wide toast host. Single mount so /profile, /community,
-         *  and the editor all share one renderer. */}
-        <ToastHost />
-        <Routes>
-          {/* Auth pages — no navbar */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          {/* App-wide toast host. Single mount so /profile, /community,
+           *  and the editor all share one renderer. */}
+          <ToastHost />
+          <Routes>
+            {/* Auth pages — no navbar */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Full-screen editor — no navbar; owns the whole viewport.
-           * /app          → Vedute editor (the only editor as of Phase 1.2)
-           * /app-classic  → 301 to /app (sidebar editor was removed)
-           * /mock         → historical alias, also redirects to /app */}
-          <Route
-            path="/app"
-            element={
-              <ProtectedRoute guestAllowed>
-                <Suspense fallback={<EditorLoading />}><MockEditorPage /></Suspense>
-              </ProtectedRoute>
-            }
-          />
-          {import.meta.env.DEV && DofLabPage && (
+            {/* Full-screen editor — no navbar; owns the whole viewport.
+             * /app          → Vedute editor (the only editor as of Phase 1.2)
+             * /app-classic  → 301 to /app (sidebar editor was removed)
+             * /mock         → historical alias, also redirects to /app */}
             <Route
-              path="/dof-lab"
+              path="/app"
               element={
                 <ProtectedRoute guestAllowed>
-                  <Suspense fallback={<EditorLoading />}><DofLabPage /></Suspense>
+                  <Suspense fallback={<EditorLoading />}>
+                    <MockEditorPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
-          )}
-          <Route path="/app-classic" element={<Navigate to="/app" replace />} />
-          <Route path="/mock" element={<Navigate to="/app" replace />} />
+            {import.meta.env.DEV && DofLabPage && (
+              <Route
+                path="/dof-lab"
+                element={
+                  <ProtectedRoute guestAllowed>
+                    <Suspense fallback={<EditorLoading />}>
+                      <DofLabPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+            )}
+            <Route path="/app-classic" element={<Navigate to="/app" replace />} />
+            <Route path="/mock" element={<Navigate to="/app" replace />} />
 
-          {/* Pages with navbar */}
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route
-              path="/community"
-              element={<Suspense fallback={<PageLoading />}><CommunityPage /></Suspense>}
-            />
-            <Route
-              path="/gallery"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<PageLoading />}><GalleryPage /></Suspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<PageLoading />}><ProfilePage /></Suspense>
-                </ProtectedRoute>
-              }
-            />
-          </Route>
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+            {/* Pages with navbar */}
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route
+                path="/community"
+                element={
+                  <Suspense fallback={<PageLoading />}>
+                    <CommunityPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/gallery"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoading />}>
+                      <GalleryPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoading />}>
+                      <ProfilePage />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
