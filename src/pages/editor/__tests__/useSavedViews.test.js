@@ -3,6 +3,7 @@ import { renderHook, act } from '@testing-library/react'
 import { useAtomValue } from 'jotai'
 import useSavedViews from '../hooks/useSavedViews'
 import { savedViewsAtom } from '../atoms/sidebar'
+import { dofAtom } from '../atoms/scene'
 
 const VIEWS_KEY = 'vedute_views'
 
@@ -268,6 +269,36 @@ describe('useSavedViews', () => {
     expect(result.current.find((v) => v.name === 'Newest')).toBeUndefined()
 
     detach()
+  })
+
+  it('lightbox-jump-view restores tod + the full DoF (focalUV, tightness, blur, colorPop)', async () => {
+    // Bug guard: an earlier version skipped focalUV and dofColorPop on
+    // jump, so a render produced with a specific focus point + saturated
+    // colors lost both when the user clicked Jump-to-view. The regular
+    // load-view path applies all four; the lightbox bridge must too.
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-jump-view', {
+        detail: {
+          id: 'g-1',
+          label: 'Tokyo',
+          view: {
+            camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 18,
+            focalUV: [0.21, 0.79],
+            dofTightness: 35,
+            dofBlur: 80,
+            dofColorPop: 95,
+          },
+        },
+      }))
+    })
+
+    const { result } = renderHook(() => useAtomValue(dofAtom))
+    expect(result.current.focalUV).toEqual([0.21, 0.79])
+    expect(result.current.tightness).toBe(35)
+    expect(result.current.blur).toBe(80)
+    expect(result.current.colorPop).toBe(95)
   })
 
   it('lightbox-save-view also gates on the free-tier entitlement', async () => {

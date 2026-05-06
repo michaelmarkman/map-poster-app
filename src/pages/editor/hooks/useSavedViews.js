@@ -424,14 +424,17 @@ export default function useSavedViews() {
       const entry = e?.detail
       if (!entry?.view) return
       // Apply tod / dof if the entry captured them, else leave current.
+      // Mirrors the regular load-view path (above) — both color-pop AND
+      // focalUV need to come along, otherwise jumping to a saved render
+      // loses its focus point and looks wrong.
       if (typeof entry.view.tod === 'number') setTimeOfDay(entry.view.tod)
-      if (entry.view.dofTightness != null || entry.view.dofBlur != null) {
-        setDof((prev) => ({
-          ...prev,
-          tightness: entry.view.dofTightness ?? prev.tightness,
-          blur: entry.view.dofBlur ?? prev.blur,
-        }))
-      }
+      setDof((prev) => ({
+        ...prev,
+        focalUV: Array.isArray(entry.view.focalUV) ? [...entry.view.focalUV] : prev.focalUV,
+        tightness: entry.view.dofTightness ?? prev.tightness,
+        blur: entry.view.dofBlur ?? prev.blur,
+        colorPop: entry.view.dofColorPop ?? prev.colorPop,
+      }))
       // Restore camera. Scene accepts either the bare camera object or a
       // wrapped { camera } detail — pass whatever shape we have.
       try {
