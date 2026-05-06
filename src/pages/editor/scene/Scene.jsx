@@ -228,7 +228,7 @@ export default function Scene() {
     const isFiniteArray = (a, n) =>
       Array.isArray(a) && a.length === n && a.every((x) => Number.isFinite(x))
     try {
-      const raw = localStorage.getItem('mapposter3d_poster_v2_session')
+      const raw = localStorage.getItem('vedute_session')
       if (raw) {
         const s = JSON.parse(raw)
         const c = s?.camera
@@ -272,7 +272,7 @@ export default function Scene() {
       camera.position, camera.quaternion, camera.up,
     )
     if (typeof window !== 'undefined') {
-      const raw = (() => { try { return localStorage.getItem('mapposter3d_poster_v2_session') } catch { return null } })()
+      const raw = (() => { try { return localStorage.getItem('vedute_session') } catch { return null } })()
       window.__sessionRestore = raw ? 'fallback:session-present-but-incomplete' : 'fallback:no-session'
     }
   }, [camera])

@@ -31,10 +31,10 @@ export default async function handler(req, res) {
     return
   }
 
-  const title = post.title || 'MapPoster Creation'
-  const desc = post.description || `A 3D map poster of ${post.location_name || 'a beautiful location'}`
+  const title = post.title || 'Vedute creation'
+  const desc = post.description || `An aerial poster of ${post.location_name || 'a beautiful location'}`
   const image = post.image_url || ''
-  const author = post.profiles?.display_name || post.profiles?.username || 'MapPoster'
+  const author = post.profiles?.display_name || post.profiles?.username || 'Vedute'
   const canonicalUrl = `https://${req.headers.host}/community.html?post=${postId}`
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${esc(title)} by ${esc(author)} — MapPoster</title>
+  <title>${esc(title)} by ${esc(author)} — Vedute</title>
   <meta name="description" content="${esc(desc)}">
   <meta property="og:type" content="article">
   <meta property="og:title" content="${esc(title)}">

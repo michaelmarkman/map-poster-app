@@ -1,4 +1,6 @@
 {
+  "name": "vedute",
+  "description": "Aerial city posters, made from 3D maps.",
   "type": "module",
   "engines": {
     "node": ">=20"

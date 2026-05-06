@@ -22,7 +22,7 @@ import {
 } from '../atoms/ui'
 import { savedViewMarkersOnAtom } from '../atoms/sidebar'
 
-const SESSION_KEY = 'mapposter3d_poster_v2_session'
+const SESSION_KEY = 'vedute_session'
 const DEBOUNCE_MS = 500
 
 // Module-local camera reference, populated by Scene via registerCamera().

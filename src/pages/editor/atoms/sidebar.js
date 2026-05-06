@@ -48,7 +48,7 @@ export const hoveredSavedViewIdAtom = atom(null)
 export const exportResolutionAtom = atom(2)
 
 // Saved views — array of { id, name, session }. Backed by localStorage key
-// `mapposter3d_v2_views`; useSavedViews hook owns read/write.
+// `vedute_views`; useSavedViews hook owns read/write.
 export const savedViewsAtom = atom([])
 
 // Queue entries — {id, status, resolution, startedAt, preset, result?}.

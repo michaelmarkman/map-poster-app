@@ -18,7 +18,7 @@ import { useEffect } from 'react'
 
 const DB_NAME = 'timeMachine'
 const STORE_NAME = 'timeMachineSets'
-const CURRENT_SET_KEY = 'mapposter3d_tm_current_set'
+const CURRENT_SET_KEY = 'vedute_tm_current_set'
 
 // Decades rendered by Time Machine. Mirrors prototypes/poster-v3-ui.jsx and
 // the modal's own DECADES constant.

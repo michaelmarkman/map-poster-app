@@ -64,7 +64,7 @@ export const mapStyleAtom = atom('default')
 
 // Time-of-day unlock — when off, the slider clamps to sunrise/sunset at the
 // current latitude; when on, the user can drag into deep night. Persists via
-// localStorage key `mapposter3d_tod_unlocked`.
+// localStorage key `vedute_tod_unlock`.
 export const todUnlockedAtom = atom(false)
 
 export { IS_MOBILE }

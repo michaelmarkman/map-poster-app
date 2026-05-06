@@ -83,7 +83,7 @@ const PRESET_CATS = [
   },
 ]
 
-const LS_GEMINI_KEY = 'mapposter3d_gemini_key'
+const LS_GEMINI_KEY = 'vedute_gemini_key'
 
 // Tiny helper — the prototype uses window.dispatchEvent for every cross-
 // component handoff. Keeping that channel so Phase 5 hooks can pick up the

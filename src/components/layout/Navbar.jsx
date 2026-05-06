@@ -111,7 +111,7 @@ export default function Navbar() {
       `}</style>
       <nav style={s.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link to="/" style={s.logo}>MapPoster</Link>
+          <Link to="/" style={s.logo}>Vedute</Link>
           <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {navLinks}
           </div>

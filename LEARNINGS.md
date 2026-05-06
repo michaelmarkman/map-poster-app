@@ -514,3 +514,23 @@ file is the raw log — CLAUDE.md is the curated summary.
   matters is which reconciler is mounted in the React fiber path.
   Use the host renderer's own bridge (drei `<Html>`) or render the
   HTML from a sibling of the custom-renderer root.
+
+## 2026-05-05 — Vedute rebrand: localStorage migration must guard against clobber
+
+- Task: rename all `mapposter3d_*` / `mapposter_*` localStorage keys
+  to `vedute_*` as part of the Vedute rebrand. Naïve migration:
+  `setItem(newKey, getItem(oldKey)); removeItem(oldKey)`.
+- Subtle bug to avoid: a user can have BOTH the new and old keys
+  populated simultaneously. Sequence: open the app under the new
+  build (writes `vedute_session`), then open an old still-cached
+  tab still holding `mapposter3d_poster_v2_session`. If the
+  migration unconditionally writes `getItem(oldKey)` to `newKey`,
+  it silently overwrites the fresh `vedute_session` with the
+  stale legacy one — losing the user's recent state.
+- Fix (src/lib/migrations.js): only write the new key if it's
+  null. Migration becomes "promote stale → new IF new is empty;
+  otherwise just delete the stale". Idempotent and crash-safe
+  under partial migrations.
+- General rule: localStorage key migrations are append-only
+  unless you can prove the new key is unset. Always guard with
+  `getItem(newKey) === null` before the write.

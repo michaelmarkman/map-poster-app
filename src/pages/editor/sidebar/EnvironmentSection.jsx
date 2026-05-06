@@ -15,7 +15,7 @@ import { dispatchFlyTo } from '../scene/events'
 import { getSunTimes } from '../utils/sun'
 
 // localStorage key — matches prototype `poster-v3-ui.jsx:404`.
-const TOD_UNLOCK_KEY = 'mapposter3d_tod_unlock'
+const TOD_UNLOCK_KEY = 'vedute_tod_unlock'
 
 // Map styles — mirrored from prototype `poster-v3-ui.jsx:3321-3331`. Labels
 // and dot colours must line up with the static HTML grid; `filter` is applied
@@ -71,7 +71,7 @@ export default function EnvironmentSection() {
       if (stored !== todUnlocked) setTodUnlocked(stored)
     } catch (e) {}
     try {
-      const storedStyle = localStorage.getItem('mapposter_map_style')
+      const storedStyle = localStorage.getItem('vedute_map_style')
       if (storedStyle && MAP_STYLES[storedStyle]) setMapStyle(storedStyle)
     } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,7 +82,7 @@ export default function EnvironmentSection() {
   useEffect(() => {
     const el = document.getElementById('canvas-container')
     if (el) el.style.filter = (MAP_STYLES[mapStyle] || MAP_STYLES.default).filter
-    try { localStorage.setItem('mapposter_map_style', mapStyle) } catch (e) {}
+    try { localStorage.setItem('vedute_map_style', mapStyle) } catch (e) {}
   }, [mapStyle])
 
   // Slider bounds — recomputed whenever latitude or unlock changes. When
@@ -106,7 +106,7 @@ export default function EnvironmentSection() {
 
     fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'MapPoster/1.0' } }
+      { headers: { 'User-Agent': 'Vedute/1.0' } }
     )
       .then((r) => r.json())
       .then((results) => {

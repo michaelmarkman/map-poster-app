@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai'
 import useSavedViews from '../hooks/useSavedViews'
 import { savedViewsAtom } from '../atoms/sidebar'
 
-const VIEWS_KEY = 'mapposter3d_v2_views'
+const VIEWS_KEY = 'vedute_views'
 
 function installMemoryStorage() {
   const store = new Map()

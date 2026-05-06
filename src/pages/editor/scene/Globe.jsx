@@ -12,7 +12,7 @@ import {
 import { dracoLoader } from '../utils/three'
 
 // Google 3D Tiles — client-side OK; do NOT use for Gemini.
-const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
+const API_KEY = localStorage.getItem('vedute_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
 
 // Applies creased normals to every mesh in a loaded tile. Photogrammetry
 // tiles ship with vertex normals that result in overly smooth surfaces —

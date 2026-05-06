@@ -167,7 +167,7 @@ export default function LandingPage() {
       </div>
 
       <footer style={s.footer}>
-        MapPoster — Beautiful maps, framed your way
+        Vedute — aerial city posters, made from 3D maps
       </footer>
     </div>
   )

@@ -141,7 +141,7 @@ async function run() {
     await new Promise(r => setTimeout(r, 1100))
   })
 
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('mapposter3d_poster_v2_session') || 'null'))
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('vedute_session') || 'null'))
   check('session saves to localStorage', !!saved, 'session key missing')
   check('TOD=18 saved', saved?.state?.timeOfDay === 18, saved?.state?.timeOfDay)
   check('clouds off saved', saved?.state?.clouds?.on === false, saved?.state?.clouds?.on)
@@ -182,11 +182,11 @@ async function run() {
   }, null, { timeout: 30_000 })
   await page.evaluate(async () => {
     await new Promise(r => setTimeout(r, 1000))
-    localStorage.removeItem('mapposter3d_v2_views')
+    localStorage.removeItem('vedute_views')
     window.dispatchEvent(new CustomEvent('save-view'))
     await new Promise(r => setTimeout(r, 800))
   })
-  const views = await page.evaluate(() => JSON.parse(localStorage.getItem('mapposter3d_v2_views') || '[]'))
+  const views = await page.evaluate(() => JSON.parse(localStorage.getItem('vedute_views') || '[]'))
   check('save-view persists a view', views.length === 1, `count=${views.length}`)
   check('saved view has camera', !!views[0]?.camera, JSON.stringify(views[0] || {}).slice(0, 80))
   check('saved view has auto-derived coord name', /°[NS]\s+\d+\.\d+°[EW]/.test(views[0]?.name || ''), views[0]?.name)

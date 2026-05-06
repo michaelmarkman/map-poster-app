@@ -70,7 +70,7 @@ const PRESET_CATS = [
 
 const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
-const LS_GEMINI_KEY = 'mapposter3d_gemini_key'
+const LS_GEMINI_KEY = 'vedute_gemini_key'
 
 // Filename timestamps copied from the prototype's manifest. They're sequential
 // from a single export run; if you re-render the previews you'll need to

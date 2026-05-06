@@ -61,7 +61,7 @@ const PRESET_CATS = [
   },
 ]
 const CUSTOM_KEY = 'custom'
-const LS_GEMINI_KEY = 'mapposter3d_gemini_key'
+const LS_GEMINI_KEY = 'vedute_gemini_key'
 
 function fire(name, detail) {
   window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))

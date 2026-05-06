@@ -1,6 +1,8 @@
-# map-poster-app
+# Vedute
 
-3D map poster editor. Pick a location on Google 3D Tiles, tune time of day, clouds, depth-of-field, camera angle, and map style; export a framed poster.
+Aerial city posters, made from 3D maps. Pick a location on Google 3D Tiles, tune time of day, clouds, depth-of-field, camera angle, and map style; render a framed poster.
+
+Named for the 18th-century Italian art genre of detailed urban view paintings (Canaletto, Bellotto, Guardi).
 
 ![Editor](docs/editor-screenshot.png)
 

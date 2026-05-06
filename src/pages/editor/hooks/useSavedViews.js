@@ -17,7 +17,7 @@ import {
 // The only shape drift is `id` — prototype used Date.now(), we use UUID.
 // Old numeric ids still match via strict equality on load/delete lookups.
 
-const VIEWS_KEY = 'mapposter3d_v2_views'
+const VIEWS_KEY = 'vedute_views'
 const MAX_VIEWS = 20
 const WRITE_THROTTLE_MS = 100
 const CAMERA_REPLY_TIMEOUT_MS = 500
@@ -146,7 +146,7 @@ async function reverseGeocodeName(lat, lng) {
   try {
     const r = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
-      { headers: { 'User-Agent': 'MapPoster/1.0' } },
+      { headers: { 'User-Agent': 'Vedute/1.0' } },
     )
     if (!r.ok) return null
     const data = await r.json()

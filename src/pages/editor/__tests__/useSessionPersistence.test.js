@@ -21,7 +21,7 @@ import {
 } from '../atoms/ui'
 import { savedViewMarkersOnAtom } from '../atoms/sidebar'
 
-const SESSION_KEY = 'mapposter3d_poster_v2_session'
+const SESSION_KEY = 'vedute_session'
 
 // A fake localStorage we can inspect between renders. jsdom provides one, but
 // controlling it directly keeps tests deterministic across suites.
