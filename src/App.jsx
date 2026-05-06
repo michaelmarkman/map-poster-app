@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -8,10 +9,16 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import MockEditorPage from './pages/mock/MockEditorPage'
-import DofLabPage from './pages/dof-lab/DofLabPage'
 import GalleryPage from './pages/GalleryPage'
 import CommunityPage from './pages/CommunityPage'
 import ProfilePage from './pages/ProfilePage'
+
+// /dof-lab is the internal DoF-tuning sandbox — its own copies of every
+// cluster + an aperture-coc dof variant. Not customer-facing. We keep it
+// in the codebase for ongoing tuning work but lazy-import it so it doesn't
+// bloat the main app chunk, and dev-gate the route so prod doesn't surface
+// it at all.
+const DofLabPage = lazy(() => import('./pages/dof-lab/DofLabPage'))
 
 export default function App() {
   return (
@@ -31,7 +38,16 @@ export default function App() {
            * /app-classic  → 301 to /app (sidebar editor was removed)
            * /mock         → historical alias, also redirects to /app */}
           <Route path="/app" element={<ProtectedRoute guestAllowed><MockEditorPage /></ProtectedRoute>} />
-          <Route path="/dof-lab" element={<ProtectedRoute guestAllowed><DofLabPage /></ProtectedRoute>} />
+          {import.meta.env.DEV && (
+            <Route
+              path="/dof-lab"
+              element={
+                <ProtectedRoute guestAllowed>
+                  <Suspense fallback={null}><DofLabPage /></Suspense>
+                </ProtectedRoute>
+              }
+            />
+          )}
           <Route path="/app-classic" element={<Navigate to="/app" replace />} />
           <Route path="/mock" element={<Navigate to="/app" replace />} />
 
