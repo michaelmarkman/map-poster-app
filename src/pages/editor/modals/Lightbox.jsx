@@ -367,7 +367,7 @@ export default function Lightbox() {
               aria-label={`Jump to ${e.label || 'poster'} ${i + 1} of ${total}`}
               aria-current={i === index ? 'true' : undefined}
             >
-              <img src={e.dataUrl} alt="" />
+              <img src={e.dataUrl} alt="" draggable={false} />
             </button>
           ))}
         </div>

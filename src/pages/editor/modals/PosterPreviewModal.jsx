@@ -205,7 +205,15 @@ export default function PosterPreviewModal() {
       >
         <div className="pp-frame" id="pp-frame" ref={frameRef}>
           <div className="pp-mat">
-            {imageSrc && <img className="pp-image" id="pp-image" src={imageSrc} alt={label} />}
+            {imageSrc && (
+              <img
+                className="pp-image"
+                id="pp-image"
+                src={imageSrc}
+                alt={label || 'Poster preview'}
+                draggable={false}
+              />
+            )}
           </div>
           <div className="pp-label" id="pp-label">{label}</div>
         </div>
