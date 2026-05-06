@@ -15,7 +15,9 @@ import { getRenderCount } from '../../../lib/renderCount'
 //   - window focus (catches state changes from another tab)
 export default function RenderCountChip() {
   const aiKey = useAtomValue(aiApiKeyAtom)
-  const limits = getTierLimits(null)
+  // Read from the active-profile bridge — getTierLimits() with no arg
+  // resolves to the live profile's tier (Phase 6 plumbing).
+  const limits = getTierLimits()
   const monthly = limits.rendersPerMonth
   const [count, setCount] = useState(() => getRenderCount())
 
