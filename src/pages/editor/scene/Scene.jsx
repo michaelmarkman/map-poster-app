@@ -112,6 +112,45 @@ function SubjectListener() {
   return null
 }
 
+// Phase 3.1 — let Ctrl/⌘ + drag trigger orbit. The 3d-tiles-renderer
+// GlobeControls hardcodes `e.shiftKey` as the orbit modifier
+// (EnvironmentControls.js around line 400). Rather than fork the library,
+// we install a capture-phase pointerdown listener that runs BEFORE
+// GlobeControls and rewrites shiftKey on the event instance via
+// Object.defineProperty when ctrlKey is held (or metaKey on macOS).
+// The override persists for the rest of the dispatch chain so when
+// GlobeControls reads e.shiftKey it sees true. shiftKey already works
+// on its own — we just give users a second modifier.
+function CtrlAsShift() {
+  const gl = useThree((s) => s.gl)
+  useEffect(() => {
+    const canvas = gl.domElement
+    const intercept = (e) => {
+      // metaKey === ⌘ on macOS. Both ctrl and meta are common "modifier"
+      // expectations across platforms; either should orbit.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        try {
+          Object.defineProperty(e, 'shiftKey', { value: true, configurable: true })
+        } catch {
+          // Some events seal the property; nothing we can do.
+        }
+      }
+    }
+    // Capture phase, all three pointer events. GlobeControls listens on
+    // the same canvas in capture phase too; we register first so we win.
+    const opts = { capture: true }
+    canvas.addEventListener('pointerdown', intercept, opts)
+    canvas.addEventListener('pointermove', intercept, opts)
+    canvas.addEventListener('pointerup', intercept, opts)
+    return () => {
+      canvas.removeEventListener('pointerdown', intercept, opts)
+      canvas.removeEventListener('pointermove', intercept, opts)
+      canvas.removeEventListener('pointerup', intercept, opts)
+    }
+  }, [gl])
+  return null
+}
+
 // Click-to-focus — tap anywhere on the canvas to update the DoF focal point.
 // Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
 function ClickToFocus() {
@@ -637,6 +676,7 @@ export default function Scene() {
       <Globe>
         <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
       </Globe>
+      <CtrlAsShift />
       <ClickToFocus />
       <SubjectListener />
       <SavedViewMarkers />
