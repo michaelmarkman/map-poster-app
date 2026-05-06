@@ -34,12 +34,14 @@ function captureThumbnail() {
 // Old numeric ids still match via strict equality on load/delete lookups.
 
 const VIEWS_KEY = 'vedute_views'
-// Defensive cap to keep localStorage from blowing up if something weird
-// happens (storage corruption, an entitlement check skipped, etc). The
-// real per-tier limits live in src/lib/entitlements.js (`maxSavedViews`)
-// and gate save submissions before we get here. Pro is "unlimited" up
-// to this hard ceiling.
-const MAX_VIEWS = 200
+// Defensive ceiling against localStorage exhaustion. The real per-tier
+// limit lives in src/lib/entitlements.js (`maxSavedViews`) and gates
+// save submissions upstream. This cap exists because each saved view
+// stores a ~150KB thumbnail; at 50 views that's ~7.5MB which already
+// pushes most browsers' 5–10MB localStorage budget. Pro is nominally
+// "unlimited" but practically capped here. If we move to IndexedDB
+// for thumbnails (or move them off-device entirely), this can lift.
+const MAX_VIEWS = 50
 const WRITE_THROTTLE_MS = 100
 const CAMERA_REPLY_TIMEOUT_MS = 500
 
