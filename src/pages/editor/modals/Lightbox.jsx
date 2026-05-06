@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { modalsAtom, lightboxEntryAtom, shareDraftAtom } from '../atoms/modals'
+import { useAtom, useAtomValue } from 'jotai'
+import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
 
 // Ported from prototypes/poster-v3-ui.html (lines 2691-2709) and the handlers
 // around poster-v3-ui.jsx:2767-2998. The prototype used a global `gallery`
@@ -9,7 +9,6 @@ import { modalsAtom, lightboxEntryAtom, shareDraftAtom } from '../atoms/modals'
 export default function Lightbox() {
   const [modals, setModals] = useAtom(modalsAtom)
   const entryFromAtom = useAtomValue(lightboxEntryAtom)
-  const setShareDraft = useSetAtom(shareDraftAtom)
 
   // Local list of entries + current index. Populated either by the
   // 'open-lightbox' event (preferred — supplies the full list so prev/next
@@ -187,17 +186,37 @@ export default function Lightbox() {
   // Action handlers. Each dispatches a window event so the editor-level
   // handlers (still to be wired) can observe and act, and updates atoms
   // where that's the agreed-on data flow.
-  const onShare = (e) => {
+  const onShare = async (e) => {
     e.stopPropagation()
     if (!entry) return
-    window.dispatchEvent(new CustomEvent('lightbox-share', { detail: entry }))
-    setShareDraft({
-      title: '',
-      description: '',
-      location: '',
-      entryId: entry.id ?? null,
-    })
-    setModals(m => ({ ...m, share: true }))
+    // Same flow as the gallery-card Share button (Phase 7.3): copy a
+    // pre-formatted caption to the clipboard, trigger the file download,
+    // and toast so the user knows it worked. The modals.share +
+    // shareDraftAtom path was scaffolded but never actually wired to a
+    // visible modal, so clicking Share used to be invisible.
+    const place = (entry.location?.split(',')[0] || '').trim() || 'Somewhere'
+    const caption = `${place}. Made with Vedute — vedute.com`
+    let captionCopied = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(caption)
+        captionCopied = true
+      }
+    } catch {}
+    if (entry.dataUrl) {
+      const link = document.createElement('a')
+      link.download = (entry.filename || entry.label || 'vedute') + '.png'
+      link.href = entry.dataUrl
+      link.click()
+    }
+    window.dispatchEvent(new CustomEvent('toast', {
+      detail: {
+        type: 'success',
+        message: captionCopied
+          ? 'Caption copied · image downloading'
+          : 'Image downloading',
+      },
+    }))
   }
 
   const onJumpView = (e) => {
