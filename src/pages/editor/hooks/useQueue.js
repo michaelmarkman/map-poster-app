@@ -619,7 +619,6 @@ export default function useQueue() {
         })
       }
 
-      try { window.__openQueueDropdown?.() } catch (e) {}
       processQueue()
     }
 
@@ -699,7 +698,6 @@ export default function useQueue() {
         }
       }
 
-      try { window.__openQueueDropdown?.() } catch (e) {}
       processQueue()
     }
 
@@ -730,7 +728,6 @@ export default function useQueue() {
           batchLabel,
         })
       }
-      try { window.__openQueueDropdown?.() } catch (e) {}
       processQueue()
     }
 
