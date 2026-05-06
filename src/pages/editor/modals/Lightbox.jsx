@@ -318,22 +318,6 @@ export default function Lightbox() {
         >
           Preview as poster
         </button>
-        {/* TODO: overflow menu is populated imperatively in the prototype —
-            on narrow viewports Share / Jump to view / Save view get moved
-            into .lb-more-menu. Left empty here; will be wired in a later
-            phase when the responsive JS is ported. */}
-        <div className="lb-more" id="lb-more" style={{ display: 'none' }}>
-          <button
-            className="lb-more-btn"
-            id="lb-more-btn"
-            type="button"
-            aria-label="More actions"
-            aria-expanded="false"
-          >
-            ⋯
-          </button>
-          <div className="lb-more-menu" id="lb-more-menu"></div>
-        </div>
         <button
           className="gallery-btn accent lb-download"
           id="lb-download"
