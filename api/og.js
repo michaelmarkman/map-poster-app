@@ -19,13 +19,28 @@ export default async function handler(req, res) {
     return
   }
 
-  const { data: post, error } = await supabase
-    .from('community_posts')
-    .select('title, description, image_url, location_name, profiles(display_name, username)')
-    .eq('id', postId)
-    .single()
-
-  if (error || !post) {
+  let post
+  try {
+    const result = await supabase
+      .from('community_posts')
+      .select('title, description, image_url, location_name, profiles(display_name, username)')
+      .eq('id', postId)
+      .single()
+    if (result.error) {
+      res.statusCode = 404
+      res.end('Post not found')
+      return
+    }
+    post = result.data
+  } catch (e) {
+    // Supabase throws on network failure / missing config; degrade to
+    // a 503 rather than a 500 stack-trace leak so a misconfigured
+    // deployment doesn't expose internals to social crawlers.
+    res.statusCode = 503
+    res.end('Service unavailable')
+    return
+  }
+  if (!post) {
     res.statusCode = 404
     res.end('Post not found')
     return
