@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAtom } from 'jotai'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import AuthInput from '../components/auth/AuthInput'
 import AuthButton from '../components/auth/AuthButton'
 import { aiApiKeyAtom } from './editor/atoms/sidebar'
 import { getTier, getTierLimits } from '../lib/entitlements'
 import { getRenderCount } from '../lib/renderCount'
+import { loadGalleryEntries } from './editor/utils/galleryDb'
 
 const s = {
   page: {
@@ -71,6 +73,33 @@ const s = {
   byokHint: {
     fontSize: 12, color: '#8a8780', marginTop: 8, lineHeight: 1.4,
   },
+  postersGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+    gap: 8,
+  },
+  posterCard: {
+    aspectRatio: '4 / 3',
+    borderRadius: 6,
+    overflow: 'hidden',
+    background: '#0c0a08',
+    border: '1px solid rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+    padding: 0,
+    display: 'block',
+    fontFamily: 'inherit',
+  },
+  posterImg: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  postersEmpty: {
+    fontSize: 13, color: '#8a8780', textAlign: 'center', padding: '24px 0',
+  },
+  upgradeBtn: {
+    marginTop: 12, padding: '10px 18px',
+    background: '#c8b897', color: '#0c0a08',
+    border: 'none', borderRadius: 8,
+    fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
 }
 
 // Phase 7.1 — when localStorage holds the BYOK key (set from the AI render
@@ -91,6 +120,7 @@ export default function ProfilePage() {
 
   const [aiKey, setAiKey] = useAtom(aiApiKeyAtom)
   const [renderCount, setRenderCount] = useState(0)
+  const [posters, setPosters] = useState([])
   useEffect(() => {
     setRenderCount(getRenderCount())
     // Refresh on focus so the count updates after the user renders something
@@ -99,6 +129,31 @@ export default function ProfilePage() {
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
+
+  // Load the user's local gallery for the My posters grid. (Once Phase 7.1
+  // wires Supabase gallery_entries, swap loadGalleryEntries for a server
+  // query keyed on auth.uid().)
+  useEffect(() => {
+    loadGalleryEntries().then((items) => {
+      setPosters(items.slice().reverse())
+    })
+  }, [])
+
+  const handleUpgrade = async () => {
+    // TODO Phase 6.2 — POST to /api/stripe-checkout and redirect to the
+    // returned session URL. Today the endpoint returns 501.
+    try {
+      const r = await fetch('/api/stripe-checkout', { method: 'POST' })
+      const data = await r.json().catch(() => ({}))
+      if (data?.url) {
+        window.location.href = data.url
+        return
+      }
+      alert(data?.message || 'Upgrade not yet available.')
+    } catch {
+      alert('Upgrade endpoint unreachable.')
+    }
+  }
 
   // Hydrate the BYOK atom from localStorage on mount (mirrors AI render modal
   // behavior) so the input shows whatever the user already set there.
@@ -271,12 +326,18 @@ export default function ProfilePage() {
               : `${renderCount} of ${monthly} AI renders used this month${aiKey ? ' (BYOK bypasses this limit)' : ''}`}
           </div>
           {tier !== 'pro' && (
-            <div style={{ ...s.byokHint, marginTop: 16 }}>
-              {/* TODO Phase 6.2: link to Stripe Checkout once price IDs are set up.
-                 See docs/superpowers/plans/2026-05-06-monetization-handoff.md */}
-              Upgrade to Pro coming soon. Or set your own Gemini key below to
-              skip the limit.
-            </div>
+            <>
+              <div style={{ ...s.byokHint, marginTop: 16 }}>
+                Or set your own Gemini key below to skip the limit entirely.
+              </div>
+              <button
+                type="button"
+                style={s.upgradeBtn}
+                onClick={handleUpgrade}
+              >
+                Upgrade to Pro
+              </button>
+            </>
           )}
         </div>
 
@@ -303,6 +364,28 @@ export default function ProfilePage() {
               Get a key →
             </a>
           </div>
+        </div>
+
+        <div style={s.sectionLabel}>My posters</div>
+        <div style={s.card}>
+          {posters.length === 0 ? (
+            <div style={s.postersEmpty}>
+              Renders you produce in the editor will land here.
+            </div>
+          ) : (
+            <div style={s.postersGrid}>
+              {posters.slice(0, 12).map((p) => (
+                <Link
+                  key={p.id}
+                  to="/gallery"
+                  style={s.posterCard}
+                  title={p.label}
+                >
+                  <img src={p.dataUrl} alt={p.label} style={s.posterImg} />
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

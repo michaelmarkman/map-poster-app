@@ -259,10 +259,8 @@ export default function useSavedViews() {
         : null
 
       // Phase 6 entitlement gate. Free tier capped at 5 saved views.
-      if (!canSaveAnotherView({
-        profile: null,
-        currentCount: stateRef.current.views.length,
-      })) {
+      // profile is read from the active-profile bridge in entitlements.
+      if (!canSaveAnotherView({ currentCount: stateRef.current.views.length })) {
         fireToast(
           'error',
           'Free tier saves up to 5 views. Delete one or upgrade to Pro.',

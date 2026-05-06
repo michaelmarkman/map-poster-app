@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { setActiveProfile } from '../lib/entitlements'
 
 const AuthContext = createContext(null)
 
@@ -8,6 +9,14 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Phase 6 — keep the entitlements module-bridge in sync with the live
+  // profile so non-React callers (useQueue, useSavedViews) read fresh tier
+  // info on every render-submit. When Phase 6.2 lands and Stripe webhooks
+  // start populating profile.tier, every gate auto-picks it up.
+  useEffect(() => {
+    setActiveProfile(profile)
+  }, [profile])
 
   async function loadProfile(userId) {
     try {

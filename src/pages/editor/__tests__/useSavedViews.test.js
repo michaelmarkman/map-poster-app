@@ -269,4 +269,107 @@ describe('useSavedViews', () => {
 
     detach()
   })
+
+  it('rename-view event updates the view name', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Old name',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: 'New name' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toBe('New name')
+  })
+
+  it('rename-view ignores empty / whitespace-only names', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Keep me',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: '   ' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toBe('Keep me')
+  })
+
+  it('reorder-view swaps adjacent entries up/down', async () => {
+    vi.useFakeTimers()
+    const existing = ['a', 'b', 'c'].map((id) => ({
+      id, name: id,
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'up' },
+      }))
+      await Promise.resolve()
+    })
+
+    let result = renderHook(() => useAtomValue(savedViewsAtom)).result
+    expect(result.current.map((v) => v.id)).toEqual(['b', 'a', 'c'])
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'down' },
+      }))
+      await Promise.resolve()
+    })
+
+    result = renderHook(() => useAtomValue(savedViewsAtom)).result
+    expect(result.current.map((v) => v.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('reorder-view at the boundaries is a no-op', async () => {
+    vi.useFakeTimers()
+    const existing = ['a', 'b'].map((id) => ({
+      id, name: id,
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      // First entry can't go up
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'a', direction: 'up' },
+      }))
+      // Last entry can't go down
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'down' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current.map((v) => v.id)).toEqual(['a', 'b'])
+  })
 })

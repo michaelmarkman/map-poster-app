@@ -291,8 +291,8 @@ export default function useQueue() {
   // 4× selected before the entitlements layer landed (or after a downgrade)
   // doesn't keep rendering at 4×. UI gating disables the disallowed buttons;
   // this is the safety net at submission time.
-  const tierMax = getTierLimits(null).maxResolutionMultiplier
-  const clampedResolution = canUseResolution({ profile: null, multiplier: resolution })
+  const tierMax = getTierLimits().maxResolutionMultiplier
+  const clampedResolution = canUseResolution({ multiplier: resolution })
     ? resolution
     : tierMax
   settingsRef.current = {
@@ -358,7 +358,7 @@ export default function useQueue() {
           location: job.location,
         })
         // Phase 6 — apply free-tier watermark (no-op for BYOK / future Pro).
-        const finalUrl = shouldShowWatermark({ profile: null, byokKey: job.apiKey })
+        const finalUrl = shouldShowWatermark({ byokKey: job.apiKey })
           ? await applyWatermark(snapshotUrl)
           : snapshotUrl
         downloadDataUrl(finalUrl, fname)
@@ -395,7 +395,7 @@ export default function useQueue() {
           location: job.location,
         })
         // Phase 6 — apply free-tier watermark.
-        const finalUrl = shouldShowWatermark({ profile: null, byokKey: job.apiKey })
+        const finalUrl = shouldShowWatermark({ byokKey: job.apiKey })
           ? await applyWatermark(aiResult)
           : aiResult
         downloadDataUrl(finalUrl, fname)
@@ -523,7 +523,7 @@ export default function useQueue() {
       // Phase 6 — quick downloads also get the free-tier watermark
       // (BYOK still bypasses).
       const dataUrl = shouldShowWatermark({
-        profile: null,
+        // profile: undefined → entitlements reads from the active profile bridge
         byokKey: settingsRef.current.aiKey,
       })
         ? await applyWatermark(raw)
@@ -557,7 +557,7 @@ export default function useQueue() {
       const wouldUseAi = !!s.aiEnhance && presetIsAi
       if (wouldUseAi) {
         const gate = canSubmitRender({
-          profile: null,
+          // profile: undefined → entitlements reads from the active profile bridge
           count: getRenderCount(),
           byokKey: s.aiKey,
         })
@@ -641,7 +641,7 @@ export default function useQueue() {
       const aiCount = presetKeys.filter((k) => k !== null).length
       if (aiCount > 0) {
         const gate = canSubmitRender({
-          profile: null,
+          // profile: undefined → entitlements reads from the active profile bridge
           count: getRenderCount() + aiCount - 1,
           byokKey: s.aiKey,
         })

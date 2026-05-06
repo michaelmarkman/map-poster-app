@@ -402,7 +402,7 @@ export default function AIRenderModal() {
                 <div className="rs-section-head">Resolution</div>
                 <div className="rs-resgroup">
                   {[1, 2, 3, 4].map((mult) => {
-                    const allowed = canUseResolution({ profile: null, multiplier: mult })
+                    const allowed = canUseResolution({ multiplier: mult })
                     return (
                       <button
                         key={mult}
