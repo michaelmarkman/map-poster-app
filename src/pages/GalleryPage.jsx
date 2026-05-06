@@ -94,15 +94,25 @@ export default function GalleryPage() {
     })
   }, [])
 
-  // Listen for gallery-remove dispatched by useGalleryData when a card is
-  // deleted from anywhere; refresh our local view.
+  // Listen for gallery-remove + gallery-add and refresh our local view.
+  // A 3-style render batch fires 3 gallery-add events in rapid succession
+  // (each runJob completion dispatches one) — without the debounce, that
+  // means 3 IDB reads in ~2s, with the 2nd and 3rd showing stale data
+  // for the items still settling. 200ms gives the batch room to land
+  // before we re-read.
   useEffect(() => {
+    let timer = null
     const refresh = () => {
-      loadGalleryEntries().then((items) => setEntries(items.slice().reverse()))
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        loadGalleryEntries().then((items) => setEntries(items.slice().reverse()))
+      }, 200)
     }
     window.addEventListener('gallery-remove', refresh)
     window.addEventListener('gallery-add', refresh)
     return () => {
+      if (timer) clearTimeout(timer)
       window.removeEventListener('gallery-remove', refresh)
       window.removeEventListener('gallery-add', refresh)
     }
