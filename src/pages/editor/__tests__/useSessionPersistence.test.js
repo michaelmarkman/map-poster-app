@@ -135,10 +135,13 @@ describe('useSessionPersistence', () => {
   })
 
   it('mirrors fillMode to body class on restore', () => {
+    // Persistence sets `mock-fill-mode` (the class /app's MockEditorShell
+    // uses); the legacy `fill-mode` class went with /app-classic.
     const saved = { ui: { fillMode: true } }
     storage.api.setItem(SESSION_KEY, JSON.stringify(saved))
     renderHook(() => useSessionPersistence())
-    expect(document.body.classList.contains('fill-mode')).toBe(true)
+    expect(document.body.classList.contains('mock-fill-mode')).toBe(true)
+    expect(document.body.classList.contains('fill-mode')).toBe(false)
   })
 
   it('dispatches fov-change when a saved camera is present', async () => {
