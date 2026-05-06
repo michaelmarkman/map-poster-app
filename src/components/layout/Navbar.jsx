@@ -49,17 +49,6 @@ const s = {
   },
 }
 
-function NavLink({ href, to, children }) {
-  const shared = {
-    ...s.navLink,
-    onMouseEnter: undefined,
-  }
-  if (href) {
-    return <a href={href} style={s.navLink}>{children}</a>
-  }
-  return <Link to={to} style={s.navLink}>{children}</Link>
-}
-
 export default function Navbar() {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
@@ -92,10 +81,17 @@ export default function Navbar() {
     navigate('/')
   }
 
+  // Phase 1.2 follow-up — the desktop nav links used to point at static
+  // prototype HTML pages (`/prototypes/poster-v3-ui.html`,
+  // `/prototypes/community.html`) from before the React migration. The
+  // actual product is at `/app` and `/community` now; the prototype
+  // pages are still served (vercel.json) but they're frozen reference
+  // implementations, not what we want to send users to from Vedute's
+  // own navbar.
   const navLinks = (
     <>
-      <a href="/prototypes/poster-v3-ui.html" style={s.navLink}>Create</a>
-      <a href="/prototypes/community.html" style={s.navLink}>Community</a>
+      <Link to="/app" style={s.navLink}>Create</Link>
+      <Link to="/community" style={s.navLink}>Community</Link>
     </>
   )
 
@@ -170,8 +166,8 @@ export default function Navbar() {
           zIndex: 99, padding: '24px',
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
-          <a href="/prototypes/poster-v3-ui.html" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }}>Create</a>
-          <a href="/prototypes/community.html" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }}>Community</a>
+          <Link to="/app" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Create</Link>
+          <Link to="/community" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Community</Link>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '8px 0' }} />
           {user ? (
             <>
