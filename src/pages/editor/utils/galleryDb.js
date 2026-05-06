@@ -1,12 +1,14 @@
 // IndexedDB helpers for the gallery. Full-res PNGs live here so we don't
 // blow out localStorage. Lifted from prototypes/poster-v3-ui.jsx.
 
-const GALLERY_DB = 'mapposter_gallery'
+const GALLERY_DB = 'vedute_gallery'
+const LEGACY_GALLERY_DB = 'mapposter_gallery'
 const GALLERY_STORE = 'images'
 
-function openGalleryDB() {
+// Open the new vedute DB, creating the object store on first run.
+function openDB(name) {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(GALLERY_DB, 1)
+    const req = indexedDB.open(name, 1)
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(GALLERY_STORE)) {
@@ -16,6 +18,86 @@ function openGalleryDB() {
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
   })
+}
+
+// IDB rename can't be atomic — the migration copies entries from the old
+// DB to the new one, then deletes the old. Idempotent: runs once per
+// session via the cached promise. If the legacy DB is empty / missing,
+// the work is essentially free.
+let migrationPromise = null
+async function migrateLegacyGallery() {
+  if (typeof indexedDB === 'undefined') return
+  // Fast path: if the new DB already has any rows, the migration ran
+  // (or the user only ever used the new build) — skip the legacy probe.
+  try {
+    const newDb = await openDB(GALLERY_DB)
+    const newRows = await new Promise((resolve) => {
+      const tx = newDb.transaction(GALLERY_STORE, 'readonly')
+      const req = tx.objectStore(GALLERY_STORE).count()
+      req.onsuccess = () => resolve(req.result || 0)
+      req.onerror = () => resolve(0)
+    })
+    newDb.close()
+    if (newRows > 0) {
+      await deleteLegacyDB()
+      return
+    }
+  } catch {
+    // Continue to the legacy probe even if the new DB read failed.
+  }
+  // Read everything out of the legacy DB.
+  let legacyRows = []
+  try {
+    const oldDb = await openDB(LEGACY_GALLERY_DB)
+    legacyRows = await new Promise((resolve) => {
+      const tx = oldDb.transaction(GALLERY_STORE, 'readonly')
+      const req = tx.objectStore(GALLERY_STORE).getAll()
+      req.onsuccess = () => resolve(req.result || [])
+      req.onerror = () => resolve([])
+    })
+    oldDb.close()
+  } catch {
+    return
+  }
+  if (legacyRows.length === 0) {
+    await deleteLegacyDB()
+    return
+  }
+  // Copy into the new DB.
+  try {
+    const newDb = await openDB(GALLERY_DB)
+    await new Promise((resolve) => {
+      const tx = newDb.transaction(GALLERY_STORE, 'readwrite')
+      const store = tx.objectStore(GALLERY_STORE)
+      for (const row of legacyRows) store.put(row)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    })
+    newDb.close()
+  } catch (e) {
+    console.warn('[gallery] migration write failed:', e)
+    return
+  }
+  await deleteLegacyDB()
+}
+
+function deleteLegacyDB() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.deleteDatabase(LEGACY_GALLERY_DB)
+      req.onsuccess = () => resolve()
+      req.onerror = () => resolve()
+      req.onblocked = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
+function openGalleryDB() {
+  if (!migrationPromise) migrationPromise = migrateLegacyGallery()
+  return migrationPromise.then(() => openDB(GALLERY_DB))
 }
 
 // Returns entries sorted oldest-first; callers that want newest-first should reverse.
