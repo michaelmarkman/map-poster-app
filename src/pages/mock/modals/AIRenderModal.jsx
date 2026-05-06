@@ -360,6 +360,7 @@ export default function AIRenderModal() {
         className="mock-render-sheet"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Render"
       >
         {/* ─── Head: title + Styles/Queue tabs ───────────────────────── */}

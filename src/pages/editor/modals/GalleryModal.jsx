@@ -84,7 +84,13 @@ export default function GalleryModal() {
   const count = gallery.length
 
   return (
-    <div className="modal open" id="gallery-overlay">
+    <div
+      className="modal open"
+      id="gallery-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Gallery"
+    >
       <div className="modal-panel xwide">
         <div className="modal-header gallery-header">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>

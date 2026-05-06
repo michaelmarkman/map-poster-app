@@ -245,6 +245,9 @@ export default function Lightbox() {
       id="lightbox"
       ref={rootRef}
       className="open"
+      role="dialog"
+      aria-modal="true"
+      aria-label={label ? `Render: ${label}` : 'Render preview'}
       onClick={onBackdropClick}
     >
       <button

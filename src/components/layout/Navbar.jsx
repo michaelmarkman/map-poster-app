@@ -61,7 +61,10 @@ export default function Navbar() {
       if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false)
     }
     function onKey(e) {
-      if (e.key === 'Escape') setDropOpen(false)
+      if (e.key === 'Escape') {
+        setDropOpen(false)
+        setMobileOpen(false)
+      }
     }
     document.addEventListener('mousedown', close)
     document.addEventListener('keydown', onKey)
@@ -162,10 +165,13 @@ export default function Navbar() {
 
           {/* Mobile hamburger */}
           <button
+            type="button"
             className="nav-hamburger"
             style={s.hamburger}
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Menu"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="nav-mobile-drawer"
           >
             {mobileOpen ? '✕' : '☰'}
           </button>
@@ -174,12 +180,16 @@ export default function Navbar() {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div style={{
-          position: 'fixed', top: 56, left: 0, right: 0, bottom: 0,
-          background: 'rgba(9,9,11,0.97)', backdropFilter: 'blur(12px)',
-          zIndex: 99, padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: 4,
-        }}>
+        <div
+          id="nav-mobile-drawer"
+          role="menu"
+          style={{
+            position: 'fixed', top: 56, left: 0, right: 0, bottom: 0,
+            background: 'rgba(9,9,11,0.97)', backdropFilter: 'blur(12px)',
+            zIndex: 99, padding: '24px',
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}
+        >
           <Link to="/app" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Create</Link>
           <Link to="/community" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Community</Link>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '8px 0' }} />

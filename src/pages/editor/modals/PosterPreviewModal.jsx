@@ -185,7 +185,14 @@ export default function PosterPreviewModal() {
   }, [open])
 
   return (
-    <div id="poster-preview" className={open ? 'open' : ''}>
+    <div
+      id="poster-preview"
+      className={open ? 'open' : ''}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Poster preview"
+      aria-hidden={!open}
+    >
       <div className="pp-wall"></div>
       {/* No in-modal close button — the floating toggle in the top-right
           (PosterPreviewToggle) and the P keyboard shortcut are the ways
