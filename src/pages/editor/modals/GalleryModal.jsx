@@ -202,30 +202,69 @@ function GalleryCard({ item, onOpen }) {
       detail: { id: item.id, isPublic: !item.isPublic },
     }))
   }
+  // Keyboard support for the card itself: Enter / Space opens the
+  // lightbox the same way a click does. The card stays a <div role=button>
+  // (not a real <button>) because the action chips inside are buttons of
+  // their own, and nested <button>s aren't valid HTML.
+  const onCardKey = (e) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen?.()
+    }
+  }
   return (
-    <div className="gallery-card" onClick={onOpen}>
+    <div
+      className="gallery-card"
+      onClick={onOpen}
+      onKeyDown={onCardKey}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open render: ${item.label}`}
+    >
       <img src={item.dataUrl} alt={item.label} />
       {item.isPublic && (
         <div className="gc-public-badge" title="Visible on the community page">
           Public
         </div>
       )}
-      <div className="gc-dl gc-dl-share" title="Share to Community" onClick={handleShare}>
+      <button
+        type="button"
+        className="gc-dl gc-dl-share"
+        title="Share to Community"
+        aria-label="Share to Community"
+        onClick={handleShare}
+      >
         {'\u2191'}
-      </div>
-      <div
+      </button>
+      <button
+        type="button"
         className={`gc-dl gc-dl-public${item.isPublic ? ' is-on' : ''}`}
         title={item.isPublic ? 'Make private' : 'Publish to Community'}
+        aria-label={item.isPublic ? 'Make private' : 'Publish to Community'}
+        aria-pressed={item.isPublic}
         onClick={handleTogglePublic}
       >
         {item.isPublic ? '\u25c9' : '\u25cb'}
-      </div>
-      <div className="gc-dl gc-dl-download" title="Download" onClick={handleDownload}>
+      </button>
+      <button
+        type="button"
+        className="gc-dl gc-dl-download"
+        title="Download"
+        aria-label="Download"
+        onClick={handleDownload}
+      >
         {'\u2193'}
-      </div>
-      <div className="gc-dl gc-dl-delete" title="Delete" onClick={handleDelete}>
+      </button>
+      <button
+        type="button"
+        className="gc-dl gc-dl-delete"
+        title="Delete"
+        aria-label="Delete render"
+        onClick={handleDelete}
+      >
         {'\u00d7'}
-      </div>
+      </button>
       <div className="gc-info">
         <span className="gc-label">{item.label}</span>
         <span className="gc-time">{formatTime(item.time)}</span>
@@ -236,8 +275,21 @@ function GalleryCard({ item, onOpen }) {
 
 function BatchCard({ entry, onOpen }) {
   const previews = entry.items.slice(0, 4)
+  const onKey = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen?.()
+    }
+  }
   return (
-    <div className="gallery-card gallery-batch" onClick={onOpen}>
+    <div
+      className="gallery-card gallery-batch"
+      onClick={onOpen}
+      onKeyDown={onKey}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open batch: ${entry.label} (${entry.items.length} styles)`}
+    >
       <div className="gc-mosaic">
         {previews.map(({ item }) => (
           <img key={item.id} src={item.dataUrl} alt={item.label} />
