@@ -152,15 +152,25 @@ body:not([data-intro-phase]) .mock-wordmark {
   position: fixed;
   inset: 0;
   z-index: 600;            /* above modals (200) + .mock-wordmark (500) */
-  background: rgba(0, 0, 0, 0.85);
+  /* Fully opaque at start — masks the WebGL canvas init flicker, the
+   * dark→tile-stream pop-in, and Three.js's first render frame so the
+   * intro stages itself instead of the load. The overlay steps down
+   * through the later phases (see consolidate / reveal / settle
+   * overrides below). */
+  background: rgba(0, 0, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   transition: background 600ms ease;
 }
-/* Reveal phase: lighten the backdrop slightly so the corner clusters
- * underneath start reading through. */
+/* Consolidate: lighten slightly so the city ghosts in before the
+ * corner clusters reveal. */
+body[data-intro-phase="consolidate"] .intro-overlay {
+  background: rgba(0, 0, 0, 0.85);
+}
+/* Reveal phase: lighten the backdrop further so the corner clusters
+ * underneath start reading through clearly. */
 body[data-intro-phase="reveal"] .intro-overlay {
   background: rgba(0, 0, 0, 0.7);
 }

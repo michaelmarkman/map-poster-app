@@ -27,13 +27,13 @@ import { introDoneAtom } from '../../editor/atoms/sidebar'
 // drives the cluster opacity transitions so the corner clusters
 // themselves don't have to know about the intro.
 
-// Phase timeline — total ~9.5s without skip.
+// Phase timeline — total ~7.5s without skip.
 const TIMING = {
   // Time the wordmark stays alone before the typewriter starts.
   wordmarkHold: 600,
   // Per-character interval for the definition typewriter. ~165 chars
-  // total → ~3.5s typing duration at 22ms/char.
-  typeChar: 22,
+  // total → ~1.6s typing duration at 10ms/char.
+  typeChar: 10,
   // Hold the full sentence on screen before consolidating.
   fullSentenceHold: 1100,
   // Definition fade-out duration (consolidate phase).
