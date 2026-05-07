@@ -13,9 +13,11 @@ const s = {
     fontFamily: "'Inter', system-ui, sans-serif",
   },
   logo: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 18, fontWeight: 400, color: accent,
-    textDecoration: 'none', fontStyle: 'italic',
+    display: 'inline-flex', alignItems: 'center',
+    textDecoration: 'none', height: 24,
+  },
+  logoImg: {
+    height: 24, width: 'auto', display: 'block',
   },
   navLink: {
     color: '#8a8780', textDecoration: 'none', fontSize: 13,
@@ -49,17 +51,6 @@ const s = {
   },
 }
 
-function NavLink({ href, to, children }) {
-  const shared = {
-    ...s.navLink,
-    onMouseEnter: undefined,
-  }
-  if (href) {
-    return <a href={href} style={s.navLink}>{children}</a>
-  }
-  return <Link to={to} style={s.navLink}>{children}</Link>
-}
-
 export default function Navbar() {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
@@ -71,8 +62,18 @@ export default function Navbar() {
     function close(e) {
       if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false)
     }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        setDropOpen(false)
+        setMobileOpen(false)
+      }
+    }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   // Close mobile menu on resize to desktop
@@ -92,10 +93,17 @@ export default function Navbar() {
     navigate('/')
   }
 
+  // Phase 1.2 follow-up — the desktop nav links used to point at static
+  // prototype HTML pages (`/prototypes/poster-v3-ui.html`,
+  // `/prototypes/community.html`) from before the React migration. The
+  // actual product is at `/app` and `/community` now; the prototype
+  // pages are still served (vercel.json) but they're frozen reference
+  // implementations, not what we want to send users to from Vedute's
+  // own navbar.
   const navLinks = (
     <>
-      <a href="/prototypes/poster-v3-ui.html" style={s.navLink}>Create</a>
-      <a href="/prototypes/community.html" style={s.navLink}>Community</a>
+      <Link to="/app" style={s.navLink}>Create</Link>
+      <Link to="/community" style={s.navLink}>Community</Link>
     </>
   )
 
@@ -111,7 +119,9 @@ export default function Navbar() {
       `}</style>
       <nav style={s.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link to="/" style={s.logo}>MapPoster</Link>
+          <Link to="/" style={s.logo} aria-label="Vedute home">
+            <img src="/wordmark.svg" alt="Vedute" style={s.logoImg} />
+          </Link>
           <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {navLinks}
           </div>
@@ -120,11 +130,18 @@ export default function Navbar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {user ? (
             <div ref={dropRef} style={{ position: 'relative' }}>
-              <div style={s.avatar} onClick={() => setDropOpen(!dropOpen)}>
+              <button
+                type="button"
+                style={{ ...s.avatar, padding: 0 }}
+                onClick={() => setDropOpen(!dropOpen)}
+                aria-haspopup="menu"
+                aria-expanded={dropOpen}
+                aria-label="Account menu"
+              >
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : initials}
-              </div>
+              </button>
               {dropOpen && (
                 <div style={s.dropdown}>
                   <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -152,10 +169,13 @@ export default function Navbar() {
 
           {/* Mobile hamburger */}
           <button
+            type="button"
             className="nav-hamburger"
             style={s.hamburger}
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Menu"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="nav-mobile-drawer"
           >
             {mobileOpen ? '✕' : '☰'}
           </button>
@@ -164,14 +184,18 @@ export default function Navbar() {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div style={{
-          position: 'fixed', top: 56, left: 0, right: 0, bottom: 0,
-          background: 'rgba(9,9,11,0.97)', backdropFilter: 'blur(12px)',
-          zIndex: 99, padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: 4,
-        }}>
-          <a href="/prototypes/poster-v3-ui.html" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }}>Create</a>
-          <a href="/prototypes/community.html" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }}>Community</a>
+        <div
+          id="nav-mobile-drawer"
+          role="menu"
+          style={{
+            position: 'fixed', top: 56, left: 0, right: 0, bottom: 0,
+            background: 'rgba(9,9,11,0.97)', backdropFilter: 'blur(12px)',
+            zIndex: 99, padding: '24px',
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}
+        >
+          <Link to="/app" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Create</Link>
+          <Link to="/community" style={{ ...s.navLink, fontSize: 16, padding: '12px 0' }} onClick={() => setMobileOpen(false)}>Community</Link>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '8px 0' }} />
           {user ? (
             <>

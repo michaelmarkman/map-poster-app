@@ -26,29 +26,21 @@ export const sceneRef = {
   ssao: { on: false },
   vignette: { on: false },
   clouds: {
-    on: true,
-    coverage: IS_MOBILE ? 0.18 : 0.2,
+    coverage: 0.2,
     shadows: !IS_MOBILE,
     paused: false,
     speed: 1,
   },
   dof: {
-    on: true,
     focalUV: [0.5, 0.5],
     tightness: 70,
     blur: 25,
-    sceneColorPop: 0,
-    focusColorPop: 60,
-    // DoF-lab additions — default to "off / legacy" so /app behavior
-    // is untouched. See docs/superpowers/specs/2026-04-21-dof-lab-design.md
-    useApertureCoC: false,
-    aperture: 4,            // f-stop; lab UI range f/1.4 – f/16
-    highlightBokeh: true,   // weight bright samples in blur kernel as bokeh balls
+    sceneColorPop: 25,
+    focusColorPop: 25,
+    useApertureCoC: true,
+    aperture: 4.5,           // f-stop; aperture===0 disables DoF
+    highlightBokeh: true,
   },
-  // Set by useGraphicEditor when the Fabric editor is on. Scene input
-  // handlers (click-to-focus, WASD fly, scroll-wheel dolly) read this and
-  // bail out so the editor owns pointer/keyboard input exclusively.
-  editorActive: false,
 }
 
 // Subscribes to every scene atom via useAtomValue and copies the current

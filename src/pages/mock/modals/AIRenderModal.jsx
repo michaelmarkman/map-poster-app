@@ -10,11 +10,12 @@ import {
   queueAtom,
 } from '../../editor/atoms/sidebar'
 import { galleryEntriesAtom } from '../../editor/atoms/gallery'
+import { canUseResolution } from '../../../lib/entitlements'
 import '../styles/mock-render-sheet.css'
 
 // ─── Style catalogue ──────────────────────────────────────────────────
 // Keys match what useQueue / aiPresetAtom expect (don't change them).
-// `file` is the slug used for `/style-photos/mapposter-${file}-2x-…png`
+// `file` is the slug used for `/style-photos/vedute-${file}-2x-…png`
 // preview images that ship in `public/style-photos/`. `sub` is the small
 // ALL-CAPS subtitle on each card.
 const PRESET_CATS = [
@@ -70,7 +71,7 @@ const PRESET_CATS = [
 
 const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
-const LS_GEMINI_KEY = 'mapposter3d_gemini_key'
+const LS_GEMINI_KEY = 'vedute_gemini_key'
 
 // Filename timestamps copied from the prototype's manifest. They're sequential
 // from a single export run; if you re-render the previews you'll need to
@@ -106,7 +107,7 @@ const FILE_TS = {
   'ukiyo-e-print':    '20260422-1713',
   'blueprint':        '20260422-1713',
 }
-const photoFor = (file) => `/style-photos/mapposter-${file}-2x-${FILE_TS[file] || '20260422-1705'}.png`
+const photoFor = (file) => `/style-photos/vedute-${file}-2x-${FILE_TS[file] || '20260422-1705'}.png`
 const labelByKey = (key) => {
   if (key === RAW_KEY) return 'Raw export'
   if (key === CUSTOM_KEY) return 'Custom prompt'
@@ -164,7 +165,6 @@ export default function AIRenderModal() {
   // useEffect / useMemo. That's the bug that bit us last time around.
   const [pane, setPane] = useState('styles') // 'styles' | 'queue'
   const [selected, setSelected] = useState(() => new Set())
-  const [includeGraphics, setIncludeGraphics] = useState(true)
   const [exportStatus, setExportStatus] = useState('')
   // Tick once a second so the Developing/Just-now timers update without
   // requiring a queue mutation to re-render.
@@ -196,6 +196,18 @@ export default function AIRenderModal() {
     const id = setInterval(() => setTick((n) => n + 1), 1000)
     return () => clearInterval(id)
   }, [open, queue])
+
+  // Esc closes — matches GalleryModal + Lightbox so all three modals
+  // share the same dismissal contract. Only attaches while open so we
+  // don't compete with other listeners when the sheet is closed.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setModals((m) => ({ ...m, aiRender: false }))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, setModals])
 
   const allPresetKeys = useMemo(
     () => PRESET_CATS.flatMap((c) => c.presets.map((p) => p.key)),
@@ -269,12 +281,12 @@ export default function AIRenderModal() {
       // list (no batch-group header).
       const key = keys[0]
       if (key === RAW_KEY) {
-        fire('add-to-queue', { preset: null, includeGraphics })
+        fire('add-to-queue', { preset: null })
       } else if (key === CUSTOM_KEY) {
-        fire('add-to-queue', { preset: 'custom', includeGraphics, prompt: aiPrompt })
+        fire('add-to-queue', { preset: 'custom', prompt: aiPrompt })
       } else {
         setAiPreset(key)
-        fire('add-to-queue', { preset: key, includeGraphics, prompt: aiPrompt })
+        fire('add-to-queue', { preset: key, prompt: aiPrompt })
       }
     } else {
       // Multi-style — fire ONE batch event so the queue hook snapshots
@@ -287,7 +299,6 @@ export default function AIRenderModal() {
       const presets = keys.map((k) => (k === RAW_KEY ? null : k))
       fire('add-batch-to-queue', {
         presets,
-        includeGraphics,
         prompt: aiPrompt,
         batchLabel: `${keys.length} styles`,
       })
@@ -318,6 +329,7 @@ export default function AIRenderModal() {
 
   const removeJob = (id) => fire('queue-remove', { id })
   const retryJob = (id) => fire('queue-retry', { id })
+  const reorderJob = (id, direction) => fire('queue-reorder', { id, direction })
 
   const openQueueJob = (job) => {
     if (job.status !== 'done') return
@@ -348,6 +360,7 @@ export default function AIRenderModal() {
         className="mock-render-sheet"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Render"
       >
         {/* ─── Head: title + Styles/Queue tabs ───────────────────────── */}
@@ -392,20 +405,30 @@ export default function AIRenderModal() {
         {pane === 'styles' && (
           <div className="rs-pane is-active">
             <div className="rs-body">
-              {/* Resolution selector */}
+              {/* Resolution selector — Phase 6 entitlement-gated.
+                  Free tier caps at 2×; Pro goes to 6× (we expose 1×–4×
+                  here, the 6× rung lives behind the pro-tier upscale
+                  flow which Phase 5.1 will deliver). BYOK does NOT
+                  bypass resolution — that's Vedute's product, not
+                  the model's. */}
               <div className="rs-section">
                 <div className="rs-section-head">Resolution</div>
                 <div className="rs-resgroup">
-                  {[1, 2, 3, 4].map((mult) => (
-                    <button
-                      key={mult}
-                      type="button"
-                      className={`rs-res-btn${exportRes === mult ? ' is-active' : ''}`}
-                      onClick={() => setExportRes(mult)}
-                    >
-                      {mult}×
-                    </button>
-                  ))}
+                  {[1, 2, 3, 4].map((mult) => {
+                    const allowed = canUseResolution({ multiplier: mult })
+                    return (
+                      <button
+                        key={mult}
+                        type="button"
+                        className={`rs-res-btn${exportRes === mult ? ' is-active' : ''}${allowed ? '' : ' is-locked'}`}
+                        onClick={() => allowed && setExportRes(mult)}
+                        disabled={!allowed}
+                        title={allowed ? '' : 'Free tier caps at 2× — upgrade to Pro for higher resolution'}
+                      >
+                        {mult}×{allowed ? '' : ' 🔒'}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -416,10 +439,16 @@ export default function AIRenderModal() {
                   <span className="rs-chip-placeholder">Tap a style below to stage it</span>
                 ) : (
                   Array.from(selected).map((key) => (
-                    <span key={key} className="rs-chip" onClick={() => togglePreset(key)}>
+                    <button
+                      key={key}
+                      type="button"
+                      className="rs-chip"
+                      onClick={() => togglePreset(key)}
+                      aria-label={`Unstage ${labelByKey(key)}`}
+                    >
                       {labelByKey(key)}
-                      <span className="rs-chip-x">×</span>
-                    </span>
+                      <span className="rs-chip-x" aria-hidden="true">×</span>
+                    </button>
                   ))
                 )}
               </div>
@@ -434,14 +463,15 @@ export default function AIRenderModal() {
                   type="button"
                   className={`rs-raw${isRawSelected ? ' is-active' : ''}`}
                   onClick={() => togglePreset(RAW_KEY)}
+                  aria-pressed={isRawSelected}
                 >
                   <div className="rs-raw-photo">
                     <img src={photoFor('raw')} alt="Raw / original scene" loading="lazy" />
-                    <div className="rs-raw-check" />
+                    <div className="rs-raw-check" aria-hidden="true" />
                   </div>
                   <div className="rs-raw-body">
                     <div className="rs-raw-title">Raw export</div>
-                    <div className="rs-raw-desc">No AI stylization — ships exactly what's on your canvas.</div>
+                    <div className="rs-raw-desc">No AI stylization — ships exactly what&rsquo;s on your canvas.</div>
                   </div>
                 </button>
               </div>
@@ -456,9 +486,10 @@ export default function AIRenderModal() {
                   type="button"
                   className={`rs-raw${isCustomSelected ? ' is-active' : ''}`}
                   onClick={() => togglePreset(CUSTOM_KEY)}
+                  aria-pressed={isCustomSelected}
                 >
                   <div className="rs-raw-photo" style={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)' }}>
-                    <div className="rs-raw-check" />
+                    <div className="rs-raw-check" aria-hidden="true" />
                   </div>
                   <div className="rs-raw-body">
                     <div className="rs-raw-title">Custom prompt</div>
@@ -466,10 +497,17 @@ export default function AIRenderModal() {
                   </div>
                 </button>
                 {isCustomSelected && (
-                  <input
-                    className="rs-input rs-custom"
-                    type="text"
-                    placeholder="A neon-soaked rainy night in Tokyo…"
+                  <textarea
+                    className="rs-input rs-custom rs-custom-textarea"
+                    placeholder={
+                      'Describe the look. Examples:\n  • A neon-soaked rainy night in Tokyo, cinematic.\n  • Watercolor with hand-drawn ink outlines, off-white paper.\n  • Golden-hour aerial photograph, slight tilt-shift.'
+                    }
+                    rows={4}
+                    // Plenty of headroom for natural-language style
+                    // descriptions; stops a runaway paste from sending
+                    // megabytes of prompt to Gemini and racking up
+                    // token costs (or hitting Gemini's input cap).
+                    maxLength={2000}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                   />
@@ -486,6 +524,9 @@ export default function AIRenderModal() {
                   className="rs-input rs-provider"
                   type="password"
                   placeholder="API key (optional)"
+                  // Gemini keys are ~40 chars; cap well above that so
+                  // a paste of garbage doesn't end up in localStorage.
+                  maxLength={200}
                   value={aiKey}
                   autoComplete="off"
                   onChange={handleKeyChange}
@@ -508,10 +549,11 @@ export default function AIRenderModal() {
                           type="button"
                           className={`rs-card${on ? ' is-active' : ''}`}
                           onClick={() => togglePreset(p.key)}
+                          aria-pressed={on}
                         >
                           <div className="rs-card-photo">
                             <img src={photoFor(p.file)} alt={p.label} loading="lazy" />
-                            <div className="rs-card-check" />
+                            <div className="rs-card-check" aria-hidden="true" />
                           </div>
                           <div className="rs-card-body">
                             <div className="rs-card-label">{p.label}</div>
@@ -524,17 +566,9 @@ export default function AIRenderModal() {
                 </div>
               ))}
 
-              {/* Include-graphics + cleanup toggles */}
+              {/* Mesh-cleanup toggle (the include-graphics toggle was
+                  retired with the graphics editor in Phase 1.3). */}
               <div className="rs-section">
-                <div className="rs-toggle-row">
-                  <span>Include graphics in export</span>
-                  <button
-                    type="button"
-                    className={`rs-toggle${includeGraphics ? ' is-on' : ''}`}
-                    onClick={() => setIncludeGraphics((v) => !v)}
-                    aria-pressed={includeGraphics}
-                  />
-                </div>
                 <div className="rs-toggle-row" title="Tells the AI to clean up jagged building corners and faceted rooftops from the 3D source mesh. Turn off to keep the polygon-faceted look (e.g. for low-poly art renders).">
                   <span>Clean up mesh artifacts</span>
                   <button
@@ -662,7 +696,23 @@ export default function AIRenderModal() {
                               ) : null}
                               <div className="rs-qactions">
                                 {job.status === 'pending' && (
-                                  <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="rs-qact"
+                                      onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'up') }}
+                                      title="Move earlier in queue"
+                                      aria-label="Move earlier in queue"
+                                    >↑</button>
+                                    <button
+                                      type="button"
+                                      className="rs-qact"
+                                      onClick={(e) => { e.stopPropagation(); reorderJob(job.id, 'down') }}
+                                      title="Move later in queue"
+                                      aria-label="Move later in queue"
+                                    >↓</button>
+                                    <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Remove</button>
+                                  </>
                                 )}
                                 {job.status === 'active' && (
                                   <button type="button" className="rs-qact is-danger" onClick={(e) => { e.stopPropagation(); removeJob(job.id) }}>Stop</button>

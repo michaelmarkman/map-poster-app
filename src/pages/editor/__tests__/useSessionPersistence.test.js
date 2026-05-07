@@ -10,18 +10,20 @@ import {
   bloomAtom,
   dofAtom,
   cloudsAtom,
-  mapStyleAtom,
   todUnlockedAtom,
 } from '../atoms/scene'
 import {
   fillModeAtom,
   aspectRatioAtom,
-  textOverlayAtom,
   textFieldsAtom,
 } from '../atoms/ui'
-import { savedViewMarkersOnAtom } from '../atoms/sidebar'
+import {
+  aiCleanArtifactsAtom,
+  aiPromptAtom,
+  exportResolutionAtom,
+} from '../atoms/sidebar'
 
-const SESSION_KEY = 'mapposter3d_poster_v2_session'
+const SESSION_KEY = 'vedute_session'
 
 // A fake localStorage we can inspect between renders. jsdom provides one, but
 // controlling it directly keeps tests deterministic across suites.
@@ -67,9 +69,7 @@ describe('useSessionPersistence', () => {
       ui: {
         fillMode: true,
         aspectRatio: 1.5,
-        textOverlay: false,
         textFields: { title: 'SF', subtitle: 'Mission', coords: '37.76° N, 122.42° W' },
-        mapStyle: 'noir',
         todUnlocked: true,
       },
       timestamp: 1700000000000,
@@ -86,11 +86,9 @@ describe('useSessionPersistence', () => {
       bloom: useAtomValue(bloomAtom),
       dof: useAtomValue(dofAtom),
       clouds: useAtomValue(cloudsAtom),
-      mapStyle: useAtomValue(mapStyleAtom),
       todUnlocked: useAtomValue(todUnlockedAtom),
       fillMode: useAtomValue(fillModeAtom),
       aspectRatio: useAtomValue(aspectRatioAtom),
-      textOverlay: useAtomValue(textOverlayAtom),
       textFields: useAtomValue(textFieldsAtom),
     }))
     const { result } = read
@@ -109,12 +107,18 @@ describe('useSessionPersistence', () => {
     // Legacy keys stripped after migration.
     expect('colorPop' in result.current.dof).toBe(false)
     expect('globalPop' in result.current.dof).toBe(false)
-    expect(result.current.clouds.coverage).toBe(0.5)
-    expect(result.current.mapStyle).toBe('noir')
+    // Phase 2.7 migration: legacy `dof.on=false` → aperture=0, drops the
+    // `on` field. The cluster pill now reads aperture as the source of
+    // truth for DoF on/off.
+    expect(result.current.dof.aperture).toBe(0)
+    expect('on' in result.current.dof).toBe(false)
+    // Same for clouds: saved `clouds.on=false` → coverage=0 (overrides
+    // the saved 0.5). User had explicitly disabled clouds; we honor that.
+    expect(result.current.clouds.coverage).toBe(0)
+    expect('on' in result.current.clouds).toBe(false)
     expect(result.current.todUnlocked).toBe(true)
     expect(result.current.fillMode).toBe(true)
     expect(result.current.aspectRatio).toBe(1.5)
-    expect(result.current.textOverlay).toBe(false)
     expect(result.current.textFields.title).toBe('SF')
   })
 
@@ -138,10 +142,13 @@ describe('useSessionPersistence', () => {
   })
 
   it('mirrors fillMode to body class on restore', () => {
+    // Persistence sets `mock-fill-mode` (the class /app's MockEditorShell
+    // uses); the legacy `fill-mode` class went with /app-classic.
     const saved = { ui: { fillMode: true } }
     storage.api.setItem(SESSION_KEY, JSON.stringify(saved))
     renderHook(() => useSessionPersistence())
-    expect(document.body.classList.contains('fill-mode')).toBe(true)
+    expect(document.body.classList.contains('mock-fill-mode')).toBe(true)
+    expect(document.body.classList.contains('fill-mode')).toBe(false)
   })
 
   it('dispatches fov-change when a saved camera is present', async () => {
@@ -199,19 +206,73 @@ describe('useSessionPersistence', () => {
     registerCamera(null)
   })
 
-  it('persists savedViewMarkersOn across reload', () => {
-    // Seed storage with the field set to true, mount hook, expect atom restored.
-    const saved = { ui: { savedViewMarkersOn: true } }
-    storage.api.setItem(SESSION_KEY, JSON.stringify(saved))
-    renderHook(() => useSessionPersistence())
-    const { result } = renderHook(() => useAtomValue(savedViewMarkersOnAtom))
-    expect(result.current).toBe(true)
+  it('registerCamera fires camera-set the first time it gets a non-null camera', () => {
+    // Race fix from a prior commit: persistence's debounced save can
+    // fire BEFORE Scene's useLayoutEffect calls registerCamera. The
+    // result was a session blob without position/quaternion/up. Solution:
+    // when registerCamera transitions null → camera, dispatch camera-set
+    // so the persistence hook reschedules its save with _camera ready.
+    // Test pins that synthetic dispatch.
+    registerCamera(null) // start clean
+    const events = []
+    const handler = () => events.push('camera-set')
+    window.addEventListener('camera-set', handler)
+    try {
+      registerCamera({ position: { x: 0, y: 0, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 }, up: { x: 0, y: 1, z: 0 } })
+      expect(events).toEqual(['camera-set'])
+      // Subsequent calls should NOT re-fire (we only nudge the first
+      // null → real transition).
+      registerCamera({ position: { x: 1, y: 1, z: 1 }, quaternion: { x: 0, y: 0, z: 0, w: 1 }, up: { x: 0, y: 1, z: 0 } })
+      expect(events).toEqual(['camera-set'])
+      // Resetting to null does NOT fire (we only fire on the rising edge).
+      registerCamera(null)
+      expect(events).toEqual(['camera-set'])
+    } finally {
+      window.removeEventListener('camera-set', handler)
+      registerCamera(null)
+    }
+  })
 
-    // And the save side: triggering save-session should write the field into
-    // the persisted blob so a future mount can pick it up.
+  // (savedViewMarkersOn persistence test retired with the marker layer in
+  // the Phase 2.7 cluster redesign.)
+
+  it('persists aiCleanArtifacts across reload', () => {
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { aiCleanArtifacts: false } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(aiCleanArtifactsAtom))
+    expect(result.current).toBe(false)
     window.dispatchEvent(new CustomEvent('save-session'))
     const parsed = JSON.parse(storage.api.getItem(SESSION_KEY))
-    expect(parsed.ui.savedViewMarkersOn).toBe(true)
+    expect(parsed.ui.aiCleanArtifacts).toBe(false)
+  })
+
+  it('persists exportResolution and validates against the safe-list', () => {
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { exportResolution: 4 } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(exportResolutionAtom))
+    expect(result.current).toBe(4)
+  })
+
+  it('rejects an out-of-range exportResolution from a corrupt blob', () => {
+    // 99× isn't in [1, 2, 3, 4, 6] — restore should NOT apply it
+    // (otherwise the slider could end up in a tier-violation state).
+    // Atoms persist across tests in this file (Jotai's default store)
+    // so we just check the corrupt value didn't take effect, rather
+    // than asserting the default — the previous-test value is whatever.
+    storage.api.setItem(SESSION_KEY, JSON.stringify({ ui: { exportResolution: 99 } }))
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(exportResolutionAtom))
+    expect(result.current).not.toBe(99)
+  })
+
+  it('persists aiPrompt (custom prompt textarea content) across reload', () => {
+    storage.api.setItem(
+      SESSION_KEY,
+      JSON.stringify({ ui: { aiPrompt: 'A neon-soaked rainy night, cinematic.' } }),
+    )
+    renderHook(() => useSessionPersistence())
+    const { result } = renderHook(() => useAtomValue(aiPromptAtom))
+    expect(result.current).toBe('A neon-soaked rainy night, cinematic.')
   })
 
   it('does not throw on corrupt localStorage', () => {

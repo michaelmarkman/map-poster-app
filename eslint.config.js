@@ -61,6 +61,17 @@ export default [
             'sunLight',
             'skyLight',
             'qualityPreset',
+            // Bare R3F props that ride directly on <group>, <mesh>,
+            // <primitive>, materials, etc. ESLint can't resolve these
+            // without a Three.js-aware parser.
+            'position',
+            'rotation',
+            'quaternion',
+            'scale',
+            'userData',
+            'toneMapped',
+            'transparent',
+            'opacity',
           ],
         },
       ],

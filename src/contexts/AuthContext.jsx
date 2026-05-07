@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { setActiveProfile } from '../lib/entitlements'
+import { validateAvatarFile } from '../lib/avatarValidation'
 
 const AuthContext = createContext(null)
 
@@ -8,18 +10,45 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Tracks the most-recently-requested profile so concurrent loads don't
+  // race. Without this, a slow loadProfile('A') resolving after the user
+  // signed out / switched to B would clobber the correct (B / null) state
+  // with A's stale row. Each load captures the current epoch + bails on
+  // resolve if a newer request has started.
+  const profileEpochRef = useRef(0)
+
+  // Phase 6 — keep the entitlements module-bridge in sync with the live
+  // profile so non-React callers (useQueue, useSavedViews) read fresh tier
+  // info on every render-submit. When Phase 6.2 lands and Stripe webhooks
+  // start populating profile.tier, every gate auto-picks it up.
+  useEffect(() => {
+    setActiveProfile(profile)
+  }, [profile])
 
   async function loadProfile(userId) {
+    const myEpoch = ++profileEpochRef.current
     try {
       const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
+      // A newer auth event already kicked off another loadProfile (or
+      // explicitly cleared the profile). Drop this stale result.
+      if (myEpoch !== profileEpochRef.current) return
       setProfile(data)
     } catch {
+      if (myEpoch !== profileEpochRef.current) return
       setProfile(null)
     }
+  }
+
+  function clearProfile() {
+    // Bump the epoch so any in-flight loadProfile's resolve becomes a
+    // no-op. Otherwise a slow-resolving fetch from the prior session
+    // would re-populate profile after we explicitly cleared it.
+    profileEpochRef.current++
+    setProfile(null)
   }
 
   useEffect(() => {
@@ -30,12 +59,27 @@ export function AuthProvider({ children }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) loadProfile(session.user.id)
-      setLoading(false)
-    })
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) loadProfile(session.user.id)
+        setLoading(false)
+      })
+      .catch((err) => {
+        // Defensive: getSession is documented to return { error } rather
+        // than throw, but mis-configured envs (bad VITE_SUPABASE_URL),
+        // unrefreshable expired tokens, and other JS-internal edge cases
+        // can still bubble out. Without a catch the .then never fires,
+        // setLoading(false) never runs, and ProtectedRoute on /profile +
+        // /gallery shows a perpetual spinner. Treat the failure as
+        // "no session" — the user can still use the app as a guest, sign
+        // in, etc.
+        console.error('[auth] getSession failed:', err)
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
@@ -43,7 +87,7 @@ export function AuthProvider({ children }) {
       if (session?.user) {
         loadProfile(session.user.id)
       } else {
-        setProfile(null)
+        clearProfile()
       }
       setLoading(false)
     })
@@ -51,23 +95,47 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  // All auth methods below assume a configured supabase client. If env
+  // vars are missing in dev / a misconfigured deploy, surface a clear
+  // error instead of letting `null.auth.*` raise a cryptic TypeError
+  // that friendlyError can't translate.
+  function requireSupabase() {
+    if (!supabase) {
+      throw new Error(
+        'Auth is unavailable — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.',
+      )
+    }
+  }
+
   async function signIn(email, password) {
+    requireSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     return data
   }
 
   async function signUp(email, password, username) {
+    requireSupabase()
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username } },
+      options: {
+        data: { username },
+        // Land confirmed users straight in the editor. Without a
+        // redirectTo, Supabase points the confirmation link at the
+        // site root, which leaves a #access_token=… hash sitting
+        // in the URL bar with no UI consuming it. /app already
+        // handles guest-mode flow and gracefully transitions to
+        // logged-in once the AuthContext picks up the new session.
+        emailRedirectTo: `${window.location.origin}/app`,
+      },
     })
     if (error) throw error
     return data
   }
 
   async function signOut() {
+    if (!supabase) return
     try {
       await supabase.auth.signOut()
     } catch (err) {
@@ -76,11 +144,25 @@ export function AuthProvider({ children }) {
   }
 
   async function resetPassword(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    requireSupabase()
+    // Tell Supabase to put the post-click redirect at /reset-password,
+    // where ResetPasswordPage takes over to set a new password. Without
+    // this, the email link drops the user on the site root with a token
+    // in the hash and no UI to consume it.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) throw error
+  }
+
+  async function updatePassword(password) {
+    requireSupabase()
+    const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
   }
 
   async function updateProfile(updates) {
+    requireSupabase()
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
@@ -93,11 +175,16 @@ export function AuthProvider({ children }) {
   }
 
   async function uploadAvatar(file) {
-    const ext = file.name.split('.').pop()
+    requireSupabase()
+    // Defensive validation lives in src/lib/avatarValidation.js so the
+    // type+size+MIME-extension checks can be unit-tested without spinning
+    // the AuthProvider up. validateAvatarFile throws on rejection and
+    // returns the canonical extension to write into the storage path.
+    const ext = validateAvatarFile(file)
     const path = `${user.id}/avatar.${ext}`
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true })
+      .upload(path, file, { upsert: true, contentType: file.type })
     if (uploadError) throw uploadError
 
     const { data: { publicUrl } } = supabase.storage
@@ -117,6 +204,7 @@ export function AuthProvider({ children }) {
     signUp,
     signOut,
     resetPassword,
+    updatePassword,
     updateProfile,
     uploadAvatar,
   }

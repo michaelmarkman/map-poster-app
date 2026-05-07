@@ -112,8 +112,165 @@ body.mock-mounted #canvas-container::before {
 }
 .mock-cluster > * { pointer-events: auto; }
 .mock-cluster--top-left   { top: 18px; left: 18px; }
-.mock-cluster--top-mid    { top: 18px; left: 50%; transform: translateX(-50%); gap: 6px; }
 .mock-cluster--top-right  { top: 18px; right: 18px; gap: 6px; }
+
+/* Top-center wordmark — non-interactive (click-through to canvas). The
+ * SVG carries its own drop shadow so it stays legible over bright sky.
+ * z-index 500 keeps it above poster-preview / gallery / AI-render
+ * modals so the brand mark stays put when any of those open. */
+.mock-wordmark {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 28px;
+  width: auto;
+  pointer-events: none;
+  user-select: none;
+  z-index: 500;
+}
+/* Hidden during the intro until the settle phase — the intro renders
+ * its own larger centered wordmark and animates it; once the intro
+ * finishes, the persistent .mock-wordmark fades back in at the top. */
+body[data-intro-phase] .mock-wordmark {
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+body[data-intro-phase="settle"] .mock-wordmark,
+body:not([data-intro-phase]) .mock-wordmark {
+  opacity: 1;
+}
+
+/* ═══════ Intro sequence (Phase 2.7 follow-up) ═══════
+ * Full-screen overlay that runs on every page load:
+ *   wordmark → typewriter definition → consolidate → reveal corners →
+ *   settle (wordmark moves to top, overlay fades).
+ * The corner clusters themselves stay rendered the whole time; the
+ * overlay just sits on top of them with a darkening backdrop. Clusters
+ * fade in one-by-one driven by body[data-intro-revealed]. */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;            /* above modals (200) + .mock-wordmark (500) */
+  /* Fully opaque at start — masks the WebGL canvas init flicker, the
+   * dark→tile-stream pop-in, and Three.js's first render frame so the
+   * intro stages itself instead of the load. The overlay steps down
+   * through the later phases (see consolidate / reveal / settle
+   * overrides below). */
+  background: rgba(0, 0, 0, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: background 600ms ease;
+}
+/* Consolidate: lighten slightly so the city ghosts in before the
+ * corner clusters reveal. */
+body[data-intro-phase="consolidate"] .intro-overlay {
+  background: rgba(0, 0, 0, 0.85);
+}
+/* Reveal phase: lighten the backdrop further so the corner clusters
+ * underneath start reading through clearly. */
+body[data-intro-phase="reveal"] .intro-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+/* Settle: drain the overlay completely. */
+.intro-overlay.is-settling {
+  background: rgba(0, 0, 0, 0);
+  transition: background 800ms ease;
+}
+
+/* Centered wordmark + (during typing/hold) the definition typewriter
+ * inline beside it. Crimson Text was the family in the Figma mock —
+ * the index.html font stack already includes it. */
+.intro-wordmark {
+  max-width: 657px;
+  padding: 0 24px;
+  text-align: center;
+  font: 400 39px/40px 'Crimson Text', Georgia, serif;
+  color: rgba(255, 255, 255, 0.86);
+  opacity: 0;
+  animation: intro-wordmark-in 600ms ease-out forwards;
+  transition:
+    transform 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    font-size 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    line-height 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    max-width 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    opacity 800ms ease;
+}
+@keyframes intro-wordmark-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.intro-wordmark-mark {
+  color: #fff;
+}
+/* Definition fades in as a block, opacity 0 → 1 over ~500ms during
+ * the 'typing' phase, then fades out during 'consolidate'. The
+ * keyframes-driven approach (vs. a transition) lets us define both
+ * directions cleanly without needing two separate phase classes. */
+.intro-wordmark-def {
+  color: #a5a5a5;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+body[data-intro-phase="typing"] .intro-wordmark-def,
+body[data-intro-phase="hold"] .intro-wordmark-def {
+  opacity: 1;
+}
+body[data-intro-phase="consolidate"] .intro-wordmark-def {
+  opacity: 0;
+}
+
+/* Settle: shrink the wordmark down to the persistent top-center size
+ * and translate it to its home position (top: 24px, height: 28px). The
+ * overlay's flex centering becomes the start position; we override it
+ * with a translate to the top of the viewport. */
+.intro-overlay.is-settling .intro-wordmark {
+  font-size: 24px;
+  line-height: 28px;
+  transform: translateY(calc(-50vh + 38px));  /* 24px top + ~14px to center on the 28px-tall mark */
+  opacity: 0;
+}
+
+/* Cluster fade-in during reveal phase. Each cluster reads
+ * body[data-intro-revealed] (a counter 0..5) and its own ordinal in
+ * the reveal sequence. Clusters are normally at opacity 1; the intro
+ * forces them to 0 during the early phases and brings them up one at
+ * a time during reveal. */
+body[data-intro-phase] .mock-cluster {
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+/* Once any cluster has been revealed, the corresponding cluster's
+ * opacity flips to 1. The selectors are explicit — CSS attr() can't
+ * compute "if N >= my-ordinal" directly, but explicit per-step rules
+ * are cheap and obvious. */
+body[data-intro-revealed="1"] .mock-cluster--top-left,
+body[data-intro-revealed="2"] .mock-cluster--top-left,
+body[data-intro-revealed="3"] .mock-cluster--top-left,
+body[data-intro-revealed="4"] .mock-cluster--top-left,
+body[data-intro-revealed="5"] .mock-cluster--top-left,
+body[data-intro-phase="settle"] .mock-cluster--top-left { opacity: 1; }
+
+body[data-intro-revealed="2"] .mock-cluster--top-right,
+body[data-intro-revealed="3"] .mock-cluster--top-right,
+body[data-intro-revealed="4"] .mock-cluster--top-right,
+body[data-intro-revealed="5"] .mock-cluster--top-right,
+body[data-intro-phase="settle"] .mock-cluster--top-right { opacity: 1; }
+
+body[data-intro-revealed="3"] .mock-cluster--bottom-left,
+body[data-intro-revealed="4"] .mock-cluster--bottom-left,
+body[data-intro-revealed="5"] .mock-cluster--bottom-left,
+body[data-intro-phase="settle"] .mock-cluster--bottom-left { opacity: 1; }
+
+body[data-intro-revealed="4"] .mock-cluster--bottom-mid,
+body[data-intro-revealed="5"] .mock-cluster--bottom-mid,
+body[data-intro-phase="settle"] .mock-cluster--bottom-mid { opacity: 1; }
+
+body[data-intro-revealed="5"] .mock-cluster--bottom-right,
+body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
+
 .mock-cluster--bottom-left  { bottom: 18px; left: 18px; }
 .mock-cluster--bottom-mid   { bottom: 18px; left: 50%; transform: translateX(-50%); }
 .mock-cluster--bottom-right { bottom: 18px; right: 18px; }
@@ -224,6 +381,143 @@ body.mock-mounted #canvas-container::before {
   font-variant-numeric: tabular-nums;
 }
 
+/* ═══════ Account chip (avatar + dropdown) ═══════ */
+.mock-account-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.mock-account-chip {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(232, 220, 192, 0.96);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.mock-account-chip:hover {
+  background: rgba(28, 28, 32, 0.82);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.mock-account-chip.is-active {
+  background: rgba(200, 184, 151, 0.14);
+  border-color: rgba(200, 184, 151, 0.42);
+}
+.mock-account-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mock-account-initial {
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: rgba(200, 184, 151, 0.95);
+}
+.mock-account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  padding: 4px 0;
+  background: rgba(15, 15, 18, 0.96);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+}
+.mock-account-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.mock-account-name {
+  font: 13px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #e8dcc0;
+}
+.mock-account-email {
+  margin-top: 2px;
+  font: 11px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #5a5750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.mock-account-item {
+  display: block;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  text-decoration: none;
+  font: 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #e8dcc0;
+  cursor: pointer;
+}
+.mock-account-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.mock-account-item--accent {
+  color: rgba(200, 184, 151, 0.95);
+}
+.mock-account-item--danger {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e55353;
+}
+
+/* ═══════ Multi-segment readout pill ═══════ */
+/* One glass surface housing N drag-scrubber segments separated by hairline
+ * dividers. Used in the top-right cluster: focal | aperture | TOD | clouds.
+ * Each segment is its own button with its own pointer-capture lifecycle. */
+.mock-readout-pill {
+  display: inline-flex;
+  align-items: stretch;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  user-select: none;
+  white-space: nowrap;
+  touch-action: none;
+}
+.mock-readout-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font: 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  cursor: ew-resize;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mock-readout-segment:hover {
+  background: rgba(28, 28, 32, 0.5);
+  color: #fff;
+}
+.mock-readout-segment.is-dragging {
+  background: rgba(40, 40, 46, 0.9);
+  color: #fff;
+}
+.mock-readout-segment.has-divider {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 /* ═══════ Popovers ═══════ */
 .mock-popover {
   position: absolute;
@@ -332,6 +626,58 @@ body.mock-mounted #canvas-container::before {
 }
 .mock-input:focus { border-color: rgba(200, 184, 151, 0.5); }
 .mock-input--block { display: block; margin-bottom: 8px; }
+
+/* ═══════ Search popover predictions (Phase 3.2 — Google Places) ═══════ */
+.mock-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mock-search-predictions {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.mock-search-prediction {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  user-select: none;
+  transition: background 0.08s ease;
+}
+.mock-search-prediction.is-active {
+  background: rgba(200, 184, 151, 0.12);
+}
+.mock-search-prediction:hover {
+  background: rgba(200, 184, 151, 0.18);
+}
+.mock-search-prediction-main {
+  font-size: 13px;
+  color: #e8dcc0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-search-prediction-secondary {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-search-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 8px 0;
+}
 
 .mock-empty {
   font-size: 11px;
@@ -447,51 +793,355 @@ body.mock-mounted #canvas-container::before {
 }
 .mock-saved-del:hover { color: rgba(255, 200, 200, 0.85); }
 
-/* ═══════ Aspect popover ═══════ */
-.mock-aspect-grid { display: flex; flex-direction: column; gap: 6px; }
+/* ═══════ Aspect popover (Phase 2.2 redesign) ═══════ */
+.mock-aspect-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 220px;
+}
 .mock-aspect-label {
-  font-size: 10px;
+  font-size: var(--t-xs);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-top: var(--s-2);
 }
 .mock-aspect-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  gap: var(--s-2);
 }
 .mock-aspect-btn {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font: 11px/1 inherit;
-  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  font: 500 var(--t-xs)/1 var(--body);
+  padding: var(--s-3) 0;
   cursor: pointer;
   font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
 }
-.mock-aspect-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.mock-aspect-btn:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
 .mock-aspect-btn.is-active {
-  background: rgba(200, 184, 151, 0.14);
-  border-color: rgba(200, 184, 151, 0.42);
-  color: rgba(232, 220, 192, 0.96);
+  background: var(--accent-soft);
+  border-color: var(--accent-dim);
+  color: var(--accent);
 }
-.mock-aspect-fill {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font: 11px/1 inherit;
-  padding: 8px 0;
+.mock-aspect-btn-label {
+  font-feature-settings: 'tnum';
+}
+
+/* Tiny rectangle preview of the chosen aspect inside each button. */
+.mock-ratio-glyph {
+  display: block;
+  background: var(--ink-ghost);
+  border-radius: 1px;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.mock-aspect-btn.is-active .mock-ratio-glyph,
+.mock-aspect-fill-row.is-active .mock-ratio-glyph {
+  background: var(--accent);
+}
+.mock-ratio-glyph--fill {
+  width: 22px;
+  height: 14px;
+  border: 1px dashed var(--ink-dim);
+  background: transparent;
+}
+.mock-aspect-fill-row.is-active .mock-ratio-glyph--fill {
+  border-color: var(--accent);
+}
+
+/* "Fill" row sits at the top of the popover as a wide button. */
+.mock-aspect-fill-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  font: 500 var(--t-sm)/1 var(--body);
+  padding: var(--s-4) var(--s-5);
   cursor: pointer;
-  margin-top: 4px;
   font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
 }
-.mock-aspect-fill:hover { background: rgba(255, 255, 255, 0.06); }
-.mock-aspect-fill.is-active {
-  background: rgba(200, 184, 151, 0.14);
-  border-color: rgba(200, 184, 151, 0.42);
-  color: rgba(232, 220, 192, 0.96);
+.mock-aspect-fill-row:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.mock-aspect-fill-row.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.mock-aspect-fill-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Custom W:H input row. */
+.mock-aspect-custom {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+.mock-aspect-custom-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font: 500 var(--t-sm)/1 var(--body);
+  padding: var(--s-3) var(--s-4);
+  -moz-appearance: textfield;
+}
+.mock-aspect-custom-input::-webkit-outer-spin-button,
+.mock-aspect-custom-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.mock-aspect-custom-input:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+.mock-aspect-custom-sep {
+  color: var(--ink-soft);
+  font: 500 var(--t-base)/1 var(--body);
+}
+.mock-aspect-custom-apply {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--accent);
+  font: 600 var(--t-sm)/1 var(--body);
+  padding: var(--s-3) var(--s-5);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.mock-aspect-custom-apply:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--ink-deepest);
+}
+.mock-aspect-custom-apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mock-aspect-custom-current {
+  font: 500 var(--t-xs)/1 var(--body);
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-top: var(--s-2);
+}
+
+/* ═══════ Saved views panel (Phase 2.3) ═══════ */
+.svp-panel { width: 320px; max-width: 90vw; }
+.svp { display: flex; flex-direction: column; gap: var(--s-3); }
+.svp-empty {
+  text-align: center;
+  padding: var(--s-7) var(--s-4);
+  color: var(--ink-soft);
+}
+.svp-empty-text {
+  font: 500 var(--t-sm)/1.2 var(--body);
+  margin-bottom: var(--s-3);
+}
+.svp-empty-hint {
+  font: 400 var(--t-xs)/1.4 var(--body);
+  color: var(--ink-dim);
+}
+.svp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: 360px;
+  overflow-y: auto;
+}
+.svp-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out);
+}
+.svp-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-soft);
+}
+.svp-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.svp-thumb {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--ink-whisper);
+  border: 1px solid var(--panel-border);
+  display: block;
+}
+.svp-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.svp-thumb-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(135deg,
+      rgba(200, 184, 151, 0.12) 0%,
+      rgba(200, 184, 151, 0.04) 50%,
+      rgba(200, 184, 151, 0.12) 100%);
+}
+.svp-name {
+  font: 500 var(--t-sm)/1.3 var(--body);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.svp-rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-deep);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font: 500 var(--t-sm)/1 var(--body);
+  padding: var(--s-2) var(--s-3);
+}
+.svp-rename:focus { outline: none; border-color: var(--accent); }
+.svp-actions {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+}
+.svp-action {
+  background: transparent;
+  border: 0;
+  color: var(--ink-soft);
+  font: 500 var(--t-base)/1 var(--body);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: background var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
+}
+.svp-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.svp-action.is-active {
+  color: var(--accent);
+}
+.svp-action--danger:hover:not(:disabled) {
+  color: var(--red);
+  background: rgba(196, 90, 90, 0.12);
+}
+.svp-action:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.svp-save {
+  margin-top: var(--s-2);
+}
+
+/* Tour list — preset 'cool views' that ship with the app. (Phase 4.1) */
+.svp-tour {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s-4);
+  margin-top: var(--s-2);
+}
+.svp-tour-label {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-bottom: var(--s-3);
+}
+.svp-tour-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.svp-tour-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out);
+}
+.svp-tour-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-soft);
+}
+.svp-tour-name {
+  font: 500 var(--t-sm)/1.2 var(--body);
+  color: var(--ink);
+}
+.svp-tour-sub {
+  font: 400 var(--t-xs)/1.2 var(--body);
+  color: var(--ink-dim);
 }
 
 /* ═══════ Slider rows used in hover popovers ═══════ */
@@ -582,94 +1232,11 @@ body.mock-mounted #canvas-container::before {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ═══════ Editor mode ═══════
- * When the Fabric editor is active, hide scene-control clusters (top
- * three + the aspect picker) and the frame overlay so the canvas reads
- * as a clean composition surface for text + graphics. Bottom-row pills
- * stay so the user can exit, preview, and export. */
-.mock-cluster--top-left,
-.mock-cluster--top-mid,
-.mock-cluster--top-right {
-  transition: opacity 0.22s ease-out;
-}
-body.mock-editor-active .mock-cluster--top-left,
-body.mock-editor-active .mock-cluster--top-mid,
-body.mock-editor-active .mock-cluster--top-right {
-  opacity: 0;
-  pointer-events: none;
-  transition-duration: 0.18s;
-}
-/* Editor mode keeps the frame overlay AND the aspect pill visible so the
- * user can see + change poster bounds. The Fabric canvas is repositioned
- * to match those bounds via the useFabricFrameSync hook in MockEditorShell. */
-
-/* Fill mode — no poster, so hide any Fabric graphics drawn earlier so they
- * don't float over the unframed canvas. Switching back to an aspect ratio
- * unhides them in their original positions. */
-body.mock-fill-mode #canvas-container > .canvas-container {
-  display: none;
-}
-
-/* Render backdrop — covers the WebGL canvas with a saved render so the user
- * can edit graphics on top of that fixed image. Sized + positioned to match
- * the frame; sits above WebGL (z:5) and below the Fabric canvas wrapper
- * (which graphics.css gives z:15). */
-.mock-render-backdrop {
-  position: absolute;
-  z-index: 5;
-  top: var(--mock-backdrop-top, 0);
-  left: var(--mock-backdrop-left, 0);
-  width: var(--mock-backdrop-w, 100%);
-  height: var(--mock-backdrop-h, 100%);
-  object-fit: cover;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* User-triggered graphics hide (via the eye-icon pill in bottom-left).
- * Same mechanism as fill-mode hide — opacity instead of display:none so
- * a future "click-through to canvas" doesn't change. */
-body.mock-graphics-hidden #canvas-container > .canvas-container {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ═══════ Fabric editor toolbar — top placement in /mock ═══════
- * Default in graphics.css is bottom-center. /mock moves it to the top of
- * the viewport so it doesn't compete with the bottom split-pill cluster,
- * and restyles the buttons to feel consistent with the rest of /mock's
- * glass pills. */
-body.mock-mounted #editor-toolbar {
-  top: 18px;
-  bottom: auto;
-  background: rgba(20, 20, 22, 0.72);
-  border-color: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  padding: 6px 10px;
-  gap: 2px;
-  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.55);
-}
-body.mock-mounted .ed-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  color: rgba(255, 255, 255, 0.78);
-}
-body.mock-mounted .ed-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-body.mock-mounted .ed-btn svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.6;
-  display: block;
-}
-body.mock-mounted .ed-sep {
-  height: 18px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 6px;
-}
+/* (Phase 1.3 dropped the graphics editor. The Fabric .canvas-container,
+ * .mock-render-backdrop, .mock-graphics-hidden body class, #editor-toolbar,
+ * .ed-btn / .ed-sep, and the body.mock-editor-active hide-clusters rules
+ * that lived here all referenced DOM that no longer exists. Removed
+ * wholesale.) */
 
 /* ═══════ Poster Preview takeover ═══════ */
 body.mock-mounted #poster-preview {
@@ -678,6 +1245,9 @@ body.mock-mounted #poster-preview {
 body.mock-mounted.preview-open .mock-cluster {
   z-index: 500;
 }
+/* (z-index lift for the wordmark in preview-open mode is no longer
+ * needed — the base .mock-wordmark z-index is 500, which is already
+ * above #poster-preview at 200.) */
 body.mock-mounted.preview-open .mock-frame-overlay {
   display: none;
 }
@@ -954,7 +1524,6 @@ body.mock-mounted #poster-preview .pp-scene {
   }
   /* More breathing room between clusters + between pills in a cluster. */
   .mock-cluster { gap: 12px; }
-  .mock-cluster--top-mid,
   .mock-cluster--top-right { gap: 8px; }
   .mock-cluster-pair { gap: 8px; }
 
@@ -1061,16 +1630,9 @@ body.mock-mounted #poster-preview .pp-scene {
     align-items: flex-end;
     gap: 6px;
   }
-  /* Move the top-mid drag pills into the upper-LEFT below the search +
-   * saved row. This keeps the right column (DoF / Clouds / Sign-in)
-   * free of horizontal competition. */
-  .mock-cluster--top-mid {
-    top: calc(64px + env(safe-area-inset-top, 0px));
-    left: calc(10px + env(safe-area-inset-left, 0px));
-    right: auto;
-    transform: none;
-    gap: 6px;
-  }
+  /* (top-mid cluster retired in Phase 2.7; the focal-length / TOD
+   * scrubbers moved into the top-right ReadoutPill, and the wordmark
+   * lives at the top-center as a non-interactive overlay.) */
   /* Bottom row: bottom-left (aspect + tools) and bottom-right (Gallery)
    * share the real bottom of the viewport. bottom-mid (Capture|Render)
    * gets lifted into a SECOND row above them — on a 390px phone the
@@ -1177,6 +1739,190 @@ body.mock-mounted #poster-preview .pp-scene {
   .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] .mock-pill-label {
     font-size: 11px;
   }
-  /* DragPill labels (FOV / time) — abbreviate to keep the pill compact. */
-  .mock-cluster--top-mid .mock-pill { padding: 10px 12px; }
 }
+
+/* ═══════ Onboarding card (Phase 4.2) ═══════ */
+.vd-onboard {
+  position: fixed;
+  bottom: var(--s-9);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-onboarding);
+  background: var(--panel-deep);
+  -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(160%);
+          backdrop-filter: blur(var(--blur-modal)) saturate(160%);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--r-lg);
+  padding: var(--s-7) var(--s-8);
+  width: min(420px, calc(100vw - var(--s-7) * 2));
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+  font-family: var(--body);
+  animation: vd-onboard-rise var(--d-slow) var(--ease-emphasized);
+}
+@keyframes vd-onboard-rise {
+  from { opacity: 0; transform: translate(-50%, var(--s-6)); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.vd-onboard-close {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  background: transparent;
+  border: 0;
+  color: var(--ink-soft);
+  font: 400 var(--t-lg)/1 var(--body);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+.vd-onboard-close:hover { background: var(--bg-hover); color: var(--ink); }
+.vd-onboard-title {
+  font: 600 var(--t-xl)/1.1 var(--serif);
+  color: var(--accent);
+  margin-bottom: var(--s-3);
+  letter-spacing: 0.01em;
+}
+.vd-onboard-body {
+  font: 400 var(--t-base)/1.5 var(--body);
+  color: var(--ink-soft);
+  margin-bottom: var(--s-6);
+}
+.vd-onboard-hints {
+  list-style: none;
+  margin: 0 0 var(--s-7) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.vd-onboard-hints li {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: var(--s-5);
+  font: 400 var(--t-sm)/1.4 var(--body);
+}
+.vd-onboard-key {
+  font: 500 var(--t-xs)/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  text-align: center;
+  color: var(--accent);
+}
+.vd-onboard-text {
+  color: var(--ink-soft);
+}
+.vd-onboard-cta {
+  width: 100%;
+  background: var(--accent);
+  color: var(--ink-deepest);
+  border: 0;
+  border-radius: var(--r-md);
+  padding: var(--s-5) var(--s-6);
+  font: 600 var(--t-sm)/1 var(--body);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--d-fast) var(--ease-out);
+}
+.vd-onboard-cta:hover {
+  background: #d8c8a7;
+}
+
+/* ═══════ Render-count chip (Phase 6.1) ═══════ */
+.mock-rc-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(140%);
+          backdrop-filter: blur(var(--blur-pill)) saturate(140%);
+  border: 1px solid var(--panel-border);
+  color: var(--ink-soft);
+  font: 500 var(--t-xs)/1 var(--mono);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  font-feature-settings: 'tnum';
+  cursor: pointer;
+  transition: background var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out),
+              border-color var(--d-fast) var(--ease-out);
+}
+.mock-rc-chip:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+.mock-rc-chip.is-empty {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+/* ═══════ Help popover (Phase 4.2 follow-up) ═══════ */
+.mock-popover--help { width: 280px; }
+.vd-help { display: flex; flex-direction: column; gap: var(--s-4); }
+.vd-help-title {
+  font: 500 var(--t-xs)/1 var(--body);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  margin-bottom: var(--s-2);
+}
+.vd-help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.vd-help-list li {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: var(--s-3);
+  font: 400 var(--t-xs)/1.4 var(--body);
+}
+.vd-help-keys { display: flex; align-items: center; gap: var(--s-1); flex-wrap: wrap; }
+.vd-help-key {
+  font: 500 10px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--bg-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: var(--accent);
+}
+.vd-help-plus { color: var(--ink-dim); font-size: var(--t-xs); }
+.vd-help-action { color: var(--ink-soft); font-size: var(--t-xs); }
+.vd-help-replay {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  font: 500 var(--t-xs)/1 var(--body);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: var(--s-2);
+  transition: background var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out);
+}
+.vd-help-replay:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* Toast stack styles live in src/components/ToastHost.css now (mounted
+ * once at the App level so /profile + /community + editor all share). */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { modalsAtom, lightboxEntryAtom, shareDraftAtom } from '../atoms/modals'
+import { useAtom, useAtomValue } from 'jotai'
+import { modalsAtom, lightboxEntryAtom } from '../atoms/modals'
+import { shareEntry } from '../../../lib/share'
 
 // Ported from prototypes/poster-v3-ui.html (lines 2691-2709) and the handlers
 // around poster-v3-ui.jsx:2767-2998. The prototype used a global `gallery`
@@ -9,7 +10,6 @@ import { modalsAtom, lightboxEntryAtom, shareDraftAtom } from '../atoms/modals'
 export default function Lightbox() {
   const [modals, setModals] = useAtom(modalsAtom)
   const entryFromAtom = useAtomValue(lightboxEntryAtom)
-  const setShareDraft = useSetAtom(shareDraftAtom)
 
   // Local list of entries + current index. Populated either by the
   // 'open-lightbox' event (preferred — supplies the full list so prev/next
@@ -187,17 +187,14 @@ export default function Lightbox() {
   // Action handlers. Each dispatches a window event so the editor-level
   // handlers (still to be wired) can observe and act, and updates atoms
   // where that's the agreed-on data flow.
-  const onShare = (e) => {
+  const onShare = async (e) => {
     e.stopPropagation()
     if (!entry) return
-    window.dispatchEvent(new CustomEvent('lightbox-share', { detail: entry }))
-    setShareDraft({
-      title: '',
-      description: '',
-      location: '',
-      entryId: entry.id ?? null,
-    })
-    setModals(m => ({ ...m, share: true }))
+    // Same flow as the gallery-card Share button (Phase 7.3) —
+    // both route through src/lib/share.js so behavior stays in lockstep.
+    // The modals.share + shareDraftAtom scaffolding from before this
+    // helper used to silently flip a flag with no consumer.
+    await shareEntry(entry)
   }
 
   const onJumpView = (e) => {
@@ -213,15 +210,6 @@ export default function Lightbox() {
     e.stopPropagation()
     if (!entry) return
     window.dispatchEvent(new CustomEvent('lightbox-save-view', { detail: entry }))
-  }
-
-  const onEditGraphics = (e) => {
-    e.stopPropagation()
-    if (!entry) return
-    // /mock listens for this and loads the entry's baseImage as a backdrop +
-    // hydrates Fabric from entry.graphicsJSON. /app currently no-ops it.
-    window.dispatchEvent(new CustomEvent('edit-graphics-request', { detail: entry }))
-    setModals(m => ({ ...m, lightbox: false, gallery: false }))
   }
 
   const onPreviewAsPoster = (e) => {
@@ -257,6 +245,9 @@ export default function Lightbox() {
       id="lightbox"
       ref={rootRef}
       className="open"
+      role="dialog"
+      aria-modal="true"
+      aria-label={label ? `Render: ${label}` : 'Render preview'}
       onClick={onBackdropClick}
     >
       <button
@@ -266,6 +257,7 @@ export default function Lightbox() {
         onClick={onPrevClick}
         disabled={!canPrev}
         style={{ visibility: canPrev ? 'visible' : 'hidden' }}
+        aria-label="Previous render"
       >
         ‹
       </button>
@@ -276,6 +268,7 @@ export default function Lightbox() {
         onClick={onNextClick}
         disabled={!canNext}
         style={{ visibility: canNext ? 'visible' : 'hidden' }}
+        aria-label="Next render"
       >
         ›
       </button>
@@ -284,6 +277,7 @@ export default function Lightbox() {
         id="lb-close"
         type="button"
         onClick={onCloseClick}
+        aria-label="Close lightbox"
       >
         ×
       </button>
@@ -331,31 +325,6 @@ export default function Lightbox() {
           Preview as poster
         </button>
         <button
-          className="gallery-btn lb-download"
-          id="lb-edit-graphics"
-          type="button"
-          onClick={onEditGraphics}
-          title="Open this render and edit the text + graphics on top of it"
-        >
-          Edit graphics
-        </button>
-        {/* TODO: overflow menu is populated imperatively in the prototype —
-            on narrow viewports Share / Jump to view / Save view get moved
-            into .lb-more-menu. Left empty here; will be wired in a later
-            phase when the responsive JS is ported. */}
-        <div className="lb-more" id="lb-more" style={{ display: 'none' }}>
-          <button
-            className="lb-more-btn"
-            id="lb-more-btn"
-            type="button"
-            aria-label="More actions"
-            aria-expanded="false"
-          >
-            ⋯
-          </button>
-          <div className="lb-more-menu" id="lb-more-menu"></div>
-        </div>
-        <button
           className="gallery-btn accent lb-download"
           id="lb-download"
           type="button"
@@ -369,7 +338,11 @@ export default function Lightbox() {
         id="lb-img"
         ref={imgRef}
         src={entry?.dataUrl || undefined}
-        alt={label}
+        alt={label || 'Render'}
+        // Browsers default img to draggable=true, which intercepts the
+        // touch carousel's gesture and lets the user drag the image OUT
+        // of the modal as a file. Off entirely.
+        draggable={false}
         style={{
           transform: dragDx ? `translateX(${dragDx}px)` : undefined,
           // Snap back smoothly once the finger lifts; while dragging we
@@ -394,7 +367,7 @@ export default function Lightbox() {
               aria-label={`Jump to ${e.label || 'poster'} ${i + 1} of ${total}`}
               aria-current={i === index ? 'true' : undefined}
             >
-              <img src={e.dataUrl} alt="" />
+              <img src={e.dataUrl} alt="" draggable={false} />
             </button>
           ))}
         </div>

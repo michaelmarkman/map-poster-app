@@ -3,8 +3,9 @@ import { renderHook, act } from '@testing-library/react'
 import { useAtomValue } from 'jotai'
 import useSavedViews from '../hooks/useSavedViews'
 import { savedViewsAtom } from '../atoms/sidebar'
+import { dofAtom } from '../atoms/scene'
 
-const VIEWS_KEY = 'mapposter3d_v2_views'
+const VIEWS_KEY = 'vedute_views'
 
 function installMemoryStorage() {
   const store = new Map()
@@ -99,6 +100,10 @@ describe('useSavedViews', () => {
     expect(typeof v.tod).toBe('number')
     expect('dofTightness' in v).toBe(true)
     expect('dofBlur' in v).toBe(true)
+    // Both halves of the post-split color-pop knob plus the legacy alias
+    // — older readers (and the legacy session migration) keep working.
+    expect('dofSceneColorPop' in v).toBe(true)
+    expect('dofFocusColorPop' in v).toBe(true)
     expect('dofColorPop' in v).toBe(true)
     // Auto-derived name contains degree symbol from coord formatter.
     expect(v.name).toContain('\u00b0')
@@ -109,6 +114,101 @@ describe('useSavedViews', () => {
     expect(persisted).toHaveLength(1)
     expect(persisted[0].name).toBe(v.name)
 
+    detach()
+  })
+
+  it('save-view soon after location-changed uses the picked name verbatim', async () => {
+    // Phase 3.2 follow-up. ClusterTopLeft dispatches `location-changed`
+    // with shortName + lat/lng when the user commits a search prediction.
+    // If the user then saves the view shortly after AND the camera is
+    // still near that location, useSavedViews skips reverse-geocoding
+    // entirely and uses the picked name as the saved-view name.
+    vi.useFakeTimers()
+    // ECEF for lat=0, lng=0 is (R, 0, 0) where R = earth radius.
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    // Mimic ClusterTopLeft dispatching after a successful search.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: {
+          lat: 0, lng: 0,
+          shortName: 'Null Island',
+          fullName: 'Null Island, Atlantic Ocean',
+          coordStr: '0.0000° N, 0.0000° E',
+        },
+      }))
+    })
+
+    // Save shortly after.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    expect(result.current[0].name).toBe('Null Island')
+    detach()
+  })
+
+  it('save-view long after location-changed (TTL expired) falls back to coord-based name', async () => {
+    vi.useFakeTimers()
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: { lat: 0, lng: 0, shortName: 'Null Island' },
+      }))
+    })
+
+    // Advance clock past the 60s TTL.
+    await act(async () => { vi.advanceTimersByTime(61_000) })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    // TTL expired → coord-derived name (contains the degree symbol).
+    expect(result.current[0].name).toContain('°')
+    expect(result.current[0].name).not.toBe('Null Island')
+    detach()
+  })
+
+  it('save-view far from the picked location does NOT use the picked name', async () => {
+    vi.useFakeTimers()
+    // Camera at ECEF for lat=0, lng=0.
+    const cam = { px: 6378137, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 60 }
+    const detach = attachFakeCameraResponder(cam)
+
+    renderHook(() => useSavedViews())
+
+    // Pick a location very far from the camera (Tokyo-ish).
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('location-changed', {
+        detail: { lat: 35.6762, lng: 139.6503, shortName: 'Tokyo' },
+      }))
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('save-view'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current).toHaveLength(1)
+    expect(result.current[0].name).not.toBe('Tokyo')
     detach()
   })
 
@@ -233,9 +333,14 @@ describe('useSavedViews', () => {
     detach()
   })
 
-  it('caps saved views at 20 entries (unshift + trim)', async () => {
+  it('blocks saves once the free-tier entitlement cap is hit', async () => {
+    // Phase 6.1 — free-tier saved-view cap is 5. After 5 entries, the
+    // gate fires before requestCameraState so the existing list isn't
+    // touched. (The ancient MAX_VIEWS=20 trim is now downstream of the
+    // entitlement check; it only kicks in if a future Pro tier adds
+    // headroom and the user hits it.)
     vi.useFakeTimers()
-    const existing = Array.from({ length: 20 }, (_, i) => ({
+    const existing = Array.from({ length: 5 }, (_, i) => ({
       id: 'old-' + i,
       name: 'View ' + i,
       camera: { px: i, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
@@ -258,11 +363,353 @@ describe('useSavedViews', () => {
     })
 
     const { result } = renderHook(() => useAtomValue(savedViewsAtom))
-    expect(result.current).toHaveLength(20)
-    expect(result.current[0].name).toBe('Newest')
-    // Oldest entry dropped (old-19 was at index 19, now bumped off).
-    expect(result.current.find((v) => v.id === 'old-19')).toBeUndefined()
+    // List untouched: still 5, still the originals, no 'Newest' appended.
+    expect(result.current).toHaveLength(5)
+    expect(result.current.find((v) => v.name === 'Newest')).toBeUndefined()
 
     detach()
+  })
+
+  it('lightbox-jump-view restores tod + the full DoF (focalUV, tightness, blur, color-pop)', async () => {
+    // Bug guard: an earlier version skipped focalUV and dofColorPop on
+    // jump, so a render produced with a specific focus point + saturated
+    // colors lost both when the user clicked Jump-to-view. The regular
+    // load-view path applies all four; the lightbox bridge must too.
+    //
+    // The colorPop assertion also catches a separate bug: dof.colorPop
+    // doesn't exist on the atom (it was split into sceneColorPop +
+    // focusColorPop). The restore must map legacy `dofColorPop` onto
+    // `focusColorPop` so old saves still apply.
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-jump-view', {
+        detail: {
+          id: 'g-1',
+          label: 'Tokyo',
+          view: {
+            camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 18,
+            focalUV: [0.21, 0.79],
+            dofTightness: 35,
+            dofBlur: 80,
+            dofColorPop: 95,
+          },
+        },
+      }))
+    })
+
+    const { result } = renderHook(() => useAtomValue(dofAtom))
+    expect(result.current.focalUV).toEqual([0.21, 0.79])
+    expect(result.current.tightness).toBe(35)
+    expect(result.current.blur).toBe(80)
+    // Legacy single-value field maps to focusColorPop (the closest
+    // analog to the prototype's old colorPop).
+    expect(result.current.focusColorPop).toBe(95)
+  })
+
+  it('lightbox-jump-view honors the new dofSceneColorPop / dofFocusColorPop pair', async () => {
+    // New saves carry both fields after the DoF-color-pop split. They
+    // should take precedence over the legacy single-value field on
+    // restore.
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-jump-view', {
+        detail: {
+          id: 'g-2',
+          label: 'Paris',
+          view: {
+            camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 12,
+            focalUV: [0.5, 0.5],
+            dofTightness: 70,
+            dofBlur: 25,
+            dofSceneColorPop: 33,
+            dofFocusColorPop: 77,
+            // Legacy alias would pull a different value — make sure
+            // it's ignored when the explicit pair is present.
+            dofColorPop: 11,
+          },
+        },
+      }))
+    })
+
+    const { result } = renderHook(() => useAtomValue(dofAtom))
+    expect(result.current.sceneColorPop).toBe(33)
+    expect(result.current.focusColorPop).toBe(77)
+  })
+
+  it('lightbox-save-view also gates on the free-tier entitlement', async () => {
+    // Same entitlement gate as `save-view` — without this, a free user
+    // could click "Save view" inside the lightbox to bypass the 5-view
+    // cap. The lightbox path took entry.view directly so it skipped the
+    // requestCameraState step where the gate originally lived.
+    vi.useFakeTimers()
+    const existing = Array.from({ length: 5 }, (_, i) => ({
+      id: 'old-' + i,
+      name: 'View ' + i,
+      camera: { px: i, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12,
+      focalUV: [0.5, 0.5],
+      dofTightness: 70,
+      dofBlur: 25,
+      dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('lightbox-save-view', {
+        detail: {
+          id: 'gallery-entry-1',
+          label: 'From gallery',
+          view: {
+            camera: { px: 9, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 50 },
+            tod: 14,
+            focalUV: [0.5, 0.5],
+            dofTightness: 70,
+            dofBlur: 25,
+            dofColorPop: 60,
+          },
+        },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    // List untouched — gate fired, "From gallery" never landed.
+    expect(result.current).toHaveLength(5)
+    expect(result.current.find((v) => v.name === 'From gallery')).toBeUndefined()
+  })
+
+  describe('Phase 4.3 default-view auto-load', () => {
+    it('dispatches restore-view for the default view on cold load', async () => {
+      vi.useFakeTimers()
+      const view = {
+        id: 'default-1',
+        name: 'My default',
+        camera: { px: 1, py: 2, pz: 3, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+        tod: 12,
+        focalUV: [0.5, 0.5],
+        dofTightness: 70,
+        dofBlur: 25,
+        dofColorPop: 60,
+      }
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([view]))
+      // Session has no camera position (cold load) but knows the default id.
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: 'default-1' }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      // 600ms defer for Scene mount.
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(1)
+      expect(restores[0].id).toBe('default-1')
+    })
+
+    it('does NOT auto-load when the session already has a camera position', () => {
+      vi.useFakeTimers()
+      const view = {
+        id: 'default-1',
+        name: 'My default',
+        camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+        tod: 12,
+        focalUV: [0.5, 0.5],
+        dofTightness: 70,
+        dofBlur: 25,
+        dofColorPop: 60,
+      }
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([view]))
+      // Session already has a camera position from a prior session — that
+      // takes precedence over the default-view auto-load.
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({
+          ui: { defaultSavedViewId: 'default-1' },
+          camera: { position: [1, 2, 3] },
+        }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+
+    it('is a no-op when defaultSavedViewId is null', () => {
+      vi.useFakeTimers()
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([]))
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: null }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+
+    it('is a no-op when the default id points to a deleted view', () => {
+      vi.useFakeTimers()
+      // The user marked a view as default, then deleted it. Don't crash;
+      // don't dispatch.
+      storage.api.setItem(VIEWS_KEY, JSON.stringify([
+        { id: 'still-here', name: 'Other' },
+      ]))
+      storage.api.setItem(
+        'vedute_session',
+        JSON.stringify({ ui: { defaultSavedViewId: 'gone' }, camera: {} }),
+      )
+      const restores = []
+      const onRestore = (e) => restores.push(e.detail)
+      window.addEventListener('restore-view', onRestore)
+
+      renderHook(() => useSavedViews())
+      vi.advanceTimersByTime(800)
+
+      window.removeEventListener('restore-view', onRestore)
+      expect(restores).toHaveLength(0)
+    })
+  })
+
+  it('rename-view event updates the view name', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Old name',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: 'New name' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toBe('New name')
+  })
+
+  it('rename-view truncates names longer than 60 chars', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Old',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    const huge = 'a'.repeat(200)
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: huge },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toHaveLength(60)
+  })
+
+  it('rename-view ignores empty / whitespace-only names', async () => {
+    vi.useFakeTimers()
+    const existing = [{
+      id: 'v1', name: 'Keep me',
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }]
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('rename-view', {
+        detail: { id: 'v1', name: '   ' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current[0].name).toBe('Keep me')
+  })
+
+  it('reorder-view swaps adjacent entries up/down', async () => {
+    vi.useFakeTimers()
+    const existing = ['a', 'b', 'c'].map((id) => ({
+      id, name: id,
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'up' },
+      }))
+      await Promise.resolve()
+    })
+
+    let result = renderHook(() => useAtomValue(savedViewsAtom)).result
+    expect(result.current.map((v) => v.id)).toEqual(['b', 'a', 'c'])
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'down' },
+      }))
+      await Promise.resolve()
+    })
+
+    result = renderHook(() => useAtomValue(savedViewsAtom)).result
+    expect(result.current.map((v) => v.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('reorder-view at the boundaries is a no-op', async () => {
+    vi.useFakeTimers()
+    const existing = ['a', 'b'].map((id) => ({
+      id, name: id,
+      camera: { px: 0, py: 0, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1, fov: 45 },
+      tod: 12, focalUV: [0.5, 0.5],
+      dofTightness: 70, dofBlur: 25, dofColorPop: 60,
+    }))
+    storage.api.setItem(VIEWS_KEY, JSON.stringify(existing))
+
+    renderHook(() => useSavedViews())
+    await act(async () => {
+      // First entry can't go up
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'a', direction: 'up' },
+      }))
+      // Last entry can't go down
+      window.dispatchEvent(new CustomEvent('reorder-view', {
+        detail: { id: 'b', direction: 'down' },
+      }))
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useAtomValue(savedViewsAtom))
+    expect(result.current.map((v) => v.id)).toEqual(['a', 'b'])
   })
 })

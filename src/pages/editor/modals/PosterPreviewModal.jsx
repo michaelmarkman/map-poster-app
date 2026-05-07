@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { modalsAtom } from '../atoms/modals'
 import { aspectRatioAtom, fillModeAtom } from '../atoms/ui'
-import { snapshotCanvas, composite } from '../utils/export'
+import { snapshotCanvas } from '../utils/export'
 
-// Snapshot + composite the Fabric overlay onto the result. composite is
-// async only when there's actual overlay content; sync passthrough
-// otherwise. We always treat the return as a promise to keep the call
-// site simple.
-async function snapshotWithGraphics(resolution = 2) {
-  const raw = snapshotCanvas(resolution)
-  if (!raw) return ''
-  return (await composite(raw, { includeGraphics: true })) || raw
+// Snapshot the live canvas. (Was previously a "snapshot + composite Fabric
+// overlay" wrapper; the graphics editor was removed in Phase 1.3.)
+function snapshotWithGraphics(resolution = 2) {
+  return snapshotCanvas(resolution) || ''
 }
 
 // 3D Poster Preview modal. Ported from prototypes/poster-v3-ui.{html,jsx}.
@@ -63,10 +59,10 @@ export default function PosterPreviewModal() {
   // when nothing is passed, we snapshot the live canvas on open. Explicit
   // imageSrc still wins (that's how the Lightbox previews a gallery entry).
   useEffect(() => {
-    const onOpen = async (e) => {
+    const onOpen = (e) => {
       const detail = e?.detail || {}
       if (detail.imageSrc) setImageSrc(detail.imageSrc)
-      else setImageSrc(await snapshotWithGraphics(2))
+      else setImageSrc(snapshotWithGraphics(2))
       setLabel(detail.label || '')
       rotRef.current = { x: -5, y: 15 }
       setModals((m) => ({ ...m, posterPreview: true }))
@@ -82,9 +78,8 @@ export default function PosterPreviewModal() {
   useEffect(() => {
     if (!open) return
     if (!imageSrc) {
-      snapshotWithGraphics(2).then((snap) => {
-        if (snap) setImageSrc(snap)
-      })
+      const snap = snapshotWithGraphics(2)
+      if (snap) setImageSrc(snap)
     }
     rotRef.current = { x: -5, y: 15 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,7 +185,14 @@ export default function PosterPreviewModal() {
   }, [open])
 
   return (
-    <div id="poster-preview" className={open ? 'open' : ''}>
+    <div
+      id="poster-preview"
+      className={open ? 'open' : ''}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Poster preview"
+      aria-hidden={!open}
+    >
       <div className="pp-wall"></div>
       {/* No in-modal close button — the floating toggle in the top-right
           (PosterPreviewToggle) and the P keyboard shortcut are the ways
@@ -203,7 +205,15 @@ export default function PosterPreviewModal() {
       >
         <div className="pp-frame" id="pp-frame" ref={frameRef}>
           <div className="pp-mat">
-            {imageSrc && <img className="pp-image" id="pp-image" src={imageSrc} alt={label} />}
+            {imageSrc && (
+              <img
+                className="pp-image"
+                id="pp-image"
+                src={imageSrc}
+                alt={label || 'Poster preview'}
+                draggable={false}
+              />
+            )}
           </div>
           <div className="pp-label" id="pp-label">{label}</div>
         </div>

@@ -48,7 +48,7 @@ export default function ClusterTopLeft() {
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`,
-        { headers: { 'User-Agent': 'MapPoster/1.0' } },
+        { headers: { 'User-Agent': 'Vedute/1.0' } },
       )
       const results = await r.json()
       if (!results?.length) {

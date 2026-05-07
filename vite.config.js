@@ -6,40 +6,48 @@ import { resolve } from 'path'
 // Dev-only middleware that forwards /api/gemini to the serverless handler at api/gemini.js.
 // In production (Vercel) the /api/* file-based routing handles this automatically, but the
 // Vite dev server has no such routing — so we mount the same handler here for parity.
+function mountApiHandler(server, basePath) {
+  server.middlewares.use(basePath, async (req, res) => {
+    try {
+      const mod = await server.ssrLoadModule(basePath + '.js')
+      const handler = mod.default
+      // server.middlewares strips the matched path prefix — restore it so the
+      // handler's `new URL(req.url, ...)` can see the ?model=... querystring.
+      const rawUrl = req.originalUrl || req.url || ''
+      req.url = rawUrl.startsWith(basePath) ? rawUrl : basePath + rawUrl
+      await handler(req, res)
+    } catch (e) {
+      console.error(`[${basePath}] middleware error:`, e)
+      if (!res.headersSent) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+      }
+      res.end(JSON.stringify({ error: 'middleware error', detail: String(e?.message || e) }))
+    }
+  })
+}
+
 const apiMiddleware = {
   name: 'api-middleware',
   configureServer(server) {
-    server.middlewares.use('/api/gemini', async (req, res) => {
-      try {
-        const mod = await server.ssrLoadModule('/api/gemini.js')
-        const handler = mod.default
-        // server.middlewares strips the matched path prefix — restore it so the
-        // handler's `new URL(req.url, ...)` can see the ?model=... querystring.
-        const rawUrl = req.originalUrl || req.url || ''
-        req.url = rawUrl.startsWith('/api/gemini') ? rawUrl : '/api/gemini' + rawUrl
-        await handler(req, res)
-      } catch (e) {
-        console.error('[api/gemini] middleware error:', e)
-        if (!res.headersSent) {
-          res.statusCode = 500
-          res.setHeader('Content-Type', 'application/json')
-        }
-        res.end(JSON.stringify({ error: 'middleware error', detail: String(e?.message || e) }))
-      }
-    })
+    mountApiHandler(server, '/api/gemini')
+    mountApiHandler(server, '/api/places')
   }
 }
 
 // Dev-only middleware: React Router client-side paths (`/`, `/app`, `/gallery`,
-// `/community`, `/profile`, `/login`, `/signup`, `/forgot-password`) must fall
-// through to `src/index.html` so the SPA can boot. `/prototypes/*` and
-// `/api/*` and `/src/*` and static asset requests are left alone.
+// `/community`, `/profile`, `/login`, `/signup`, `/forgot-password`,
+// `/reset-password`) must fall through to `src/index.html` so the SPA can
+// boot. `/prototypes/*` and `/api/*` and `/src/*` and static asset requests
+// are left alone.
 const spaFallback = {
   name: 'spa-fallback',
   configureServer(server) {
     const SPA_ROUTES = new Set([
+      // /app-classic is a 301 redirect handled by React Router (Phase 1.2),
+      // but we still need to fallback the bare path so React boots.
       '/', '/app', '/app-classic', '/mock', '/dof-lab', '/gallery', '/community', '/profile',
-      '/login', '/signup', '/forgot-password',
+      '/login', '/signup', '/forgot-password', '/reset-password',
     ])
     server.middlewares.use(async (req, res, next) => {
       const url = req.url || '/'

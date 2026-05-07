@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   timeOfDayAtom,
@@ -10,19 +10,23 @@ import {
   vignetteAtom,
   cloudsAtom,
   dofAtom,
-  mapStyleAtom,
   todUnlockedAtom,
 } from '../atoms/scene'
 import {
   fillModeAtom,
   aspectRatioAtom,
-  textOverlayAtom,
   textFieldsAtom,
   cameraReadoutAtom,
 } from '../atoms/ui'
-import { savedViewMarkersOnAtom } from '../atoms/sidebar'
+import {
+  aiCleanArtifactsAtom,
+  aiPromptAtom,
+  defaultSavedViewIdAtom,
+  exportResolutionAtom,
+  onboardedAtom,
+} from '../atoms/sidebar'
 
-const SESSION_KEY = 'mapposter3d_poster_v2_session'
+const SESSION_KEY = 'vedute_session'
 const DEBOUNCE_MS = 500
 
 // Module-local camera reference, populated by Scene via registerCamera().
@@ -30,7 +34,16 @@ const DEBOUNCE_MS = 500
 let _camera = null
 
 export function registerCamera(camera) {
+  const wasNull = _camera === null
   _camera = camera
+  // Race: persistence's first debounced save can fire before Scene's
+  // useLayoutEffect runs registerCamera. The save then writes a session
+  // blob with camera={tilt,heading,altitude,fovMm} from cameraReadout
+  // but no position/quaternion/up. Nudge a save the first time the
+  // camera registers so the next blob has the full ECEF.
+  if (wasNull && camera) {
+    try { window.dispatchEvent(new Event('camera-set')) } catch {}
+  }
 }
 
 // Black-canvas heal: if a previous session saved with tod outside the safe
@@ -59,13 +72,15 @@ export default function useSessionPersistence() {
   const setVignette = useSetAtom(vignetteAtom)
   const setClouds = useSetAtom(cloudsAtom)
   const setDof = useSetAtom(dofAtom)
-  const setMapStyle = useSetAtom(mapStyleAtom)
   const setTodUnlocked = useSetAtom(todUnlockedAtom)
   const setFillMode = useSetAtom(fillModeAtom)
   const setAspectRatio = useSetAtom(aspectRatioAtom)
-  const setTextOverlay = useSetAtom(textOverlayAtom)
   const setTextFields = useSetAtom(textFieldsAtom)
-  const setSavedViewMarkersOn = useSetAtom(savedViewMarkersOnAtom)
+  const setDefaultSavedViewId = useSetAtom(defaultSavedViewIdAtom)
+  const setOnboarded = useSetAtom(onboardedAtom)
+  const setAiCleanArtifacts = useSetAtom(aiCleanArtifactsAtom)
+  const setExportResolution = useSetAtom(exportResolutionAtom)
+  const setAiPrompt = useSetAtom(aiPromptAtom)
 
   // Atom values (subscribed so we know when to save).
   const timeOfDay = useAtomValue(timeOfDayAtom)
@@ -77,14 +92,16 @@ export default function useSessionPersistence() {
   const vignette = useAtomValue(vignetteAtom)
   const clouds = useAtomValue(cloudsAtom)
   const dof = useAtomValue(dofAtom)
-  const mapStyle = useAtomValue(mapStyleAtom)
   const todUnlocked = useAtomValue(todUnlockedAtom)
   const fillMode = useAtomValue(fillModeAtom)
   const aspectRatio = useAtomValue(aspectRatioAtom)
-  const textOverlay = useAtomValue(textOverlayAtom)
   const textFields = useAtomValue(textFieldsAtom)
   const cameraReadout = useAtomValue(cameraReadoutAtom)
-  const savedViewMarkersOn = useAtomValue(savedViewMarkersOnAtom)
+  const defaultSavedViewId = useAtomValue(defaultSavedViewIdAtom)
+  const onboarded = useAtomValue(onboardedAtom)
+  const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
+  const exportResolution = useAtomValue(exportResolutionAtom)
+  const aiPrompt = useAtomValue(aiPromptAtom)
 
   // Latest-value ref — updated inside an effect (NOT during render) so
   // React's concurrent features can't drop the write if a render bails.
@@ -94,15 +111,23 @@ export default function useSessionPersistence() {
   useEffect(() => {
     latest.current = {
       timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-      clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-      textFields, cameraReadout, savedViewMarkersOn,
+      clouds, dof, todUnlocked, fillMode, aspectRatio,
+      textFields, cameraReadout, defaultSavedViewId, onboarded,
+      aiCleanArtifacts, exportResolution, aiPrompt,
     }
   })
 
   // Restore — runs once on mount. Guarded by a ref so StrictMode's double
   // invocation doesn't overwrite freshly-set atoms with stale storage twice.
+  // useLayoutEffect (not useEffect) so all the setAtom calls below batch
+  // and re-render synchronously BEFORE the browser paints. With useEffect
+  // there was a visible flash on cold load: OnboardingCard rendering
+  // briefly with the default `onboarded=false` even for users who'd
+  // already dismissed it, fillMode flipping, etc. Same applies to the
+  // body class toggles below — they need to be in sync with the first
+  // paint, not the second.
   const restored = useRef(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (restored.current) return
     restored.current = true
     try {
@@ -122,8 +147,6 @@ export default function useSessionPersistence() {
           // a single `colorPop` + a boolean `globalPop`. Map forward:
           //   globalPop=true  → sceneColorPop=colorPop, focusColorPop=0
           //   globalPop=false → sceneColorPop=0, focusColorPop=colorPop
-          // Once migrated, drop the old keys so they don't leak into the
-          // atom shape (mergeObj would otherwise carry them along).
           if (!('sceneColorPop' in saved) && typeof saved.colorPop === 'number') {
             if (saved.globalPop) {
               saved.sceneColorPop = saved.colorPop
@@ -135,9 +158,30 @@ export default function useSessionPersistence() {
           }
           delete saved.colorPop
           delete saved.globalPop
+          // The 2.7 cluster redesign drops `dof.on` in favor of "aperture
+          // is the single source of truth"; the OFF detent of the cluster
+          // pill writes aperture=0. Map old `dof.on=false` sessions onto
+          // aperture=0 so the visual stays "DoF off" through the upgrade.
+          // Also force useApertureCoC=true since the new cluster only
+          // writes to aperture.
+          if (saved.on === false) {
+            saved.aperture = 0
+          }
+          delete saved.on
+          if (typeof saved.useApertureCoC !== 'boolean') {
+            saved.useApertureCoC = true
+          }
           setDof(mergeObj(latest.current.dof, saved))
         }
-        if (s.clouds) setClouds(mergeObj(latest.current.clouds, s.clouds))
+        if (s.clouds) {
+          const saved = { ...s.clouds }
+          // Same shape change for clouds: `clouds.on=false` → coverage=0.
+          if (saved.on === false) {
+            saved.coverage = 0
+          }
+          delete saved.on
+          setClouds(mergeObj(latest.current.clouds, saved))
+        }
         if (s.bloom) setBloom(mergeObj(latest.current.bloom, s.bloom))
         if (s.ssao) setSsao(mergeObj(latest.current.ssao, s.ssao))
         if (s.vignette) setVignette(mergeObj(latest.current.vignette, s.vignette))
@@ -146,24 +190,42 @@ export default function useSessionPersistence() {
       if (data.ui) {
         const u = data.ui
         if ('fillMode' in u) setFillMode(!!u.fillMode)
-        // Also mirror to body class immediately — CanvasSection normally owns
-        // this but it may not be mounted when restore fires on first render.
+        // Mirror to body class IMMEDIATELY (in this useLayoutEffect, before
+        // the first paint) so a restored fillMode=true session doesn't flash
+        // the un-filled chrome for a frame before MockEditorShell's
+        // useAspectSync catches up. The class name MUST match what
+        // useAspectSync uses ('mock-fill-mode'); the legacy editor's
+        // 'fill-mode' class targeted the sidebar shell's #main and stuck
+        // around forever once set, since the new shell's toggle never
+        // touched it.
         if ('fillMode' in u) {
-          try { document.body.classList.toggle('fill-mode', !!u.fillMode) } catch (e) {}
+          try {
+            document.body.classList.toggle('mock-fill-mode', !!u.fillMode)
+          } catch (e) {}
         }
         if (typeof u.aspectRatio === 'number') setAspectRatio(u.aspectRatio)
         else if (typeof u.aspectRatio === 'string') {
           const n = parseFloat(u.aspectRatio)
           if (!isNaN(n)) setAspectRatio(n)
         }
-        if ('textOverlay' in u) setTextOverlay(!!u.textOverlay)
         if (u.textFields) setTextFields(mergeObj(latest.current.textFields, u.textFields))
-        if (u.mapStyle) setMapStyle(u.mapStyle)
         if ('todUnlocked' in u) setTodUnlocked(!!u.todUnlocked)
-        // Guard with typeof check so old session blobs that pre-date this
-        // field don't overwrite the default with `undefined`.
-        if (typeof u.savedViewMarkersOn === 'boolean') {
-          setSavedViewMarkersOn(u.savedViewMarkersOn)
+        // (savedViewMarkersOn was retired in the Phase 2.7 cluster
+        // redesign; saved values for it are silently ignored.)
+        if (typeof u.defaultSavedViewId === 'string' || u.defaultSavedViewId === null) {
+          setDefaultSavedViewId(u.defaultSavedViewId)
+        }
+        if (typeof u.onboarded === 'boolean') {
+          setOnboarded(u.onboarded)
+        }
+        if (typeof u.aiCleanArtifacts === 'boolean') {
+          setAiCleanArtifacts(u.aiCleanArtifacts)
+        }
+        if (typeof u.exportResolution === 'number' && [1, 2, 3, 4, 6].includes(u.exportResolution)) {
+          setExportResolution(u.exportResolution)
+        }
+        if (typeof u.aiPrompt === 'string') {
+          setAiPrompt(u.aiPrompt)
         }
       }
 
@@ -209,11 +271,13 @@ export default function useSessionPersistence() {
       ui: {
         fillMode: !!v.fillMode,
         aspectRatio: v.aspectRatio,
-        textOverlay: !!v.textOverlay,
         textFields: { ...v.textFields },
-        mapStyle: v.mapStyle,
         todUnlocked: !!v.todUnlocked,
-        savedViewMarkersOn: !!v.savedViewMarkersOn,
+        defaultSavedViewId: v.defaultSavedViewId ?? null,
+        onboarded: !!v.onboarded,
+        aiCleanArtifacts: !!v.aiCleanArtifacts,
+        exportResolution: v.exportResolution,
+        aiPrompt: typeof v.aiPrompt === 'string' ? v.aiPrompt : undefined,
       },
       timestamp: Date.now(),
     }
@@ -258,8 +322,9 @@ export default function useSessionPersistence() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timeOfDay, latitude, longitude, sunRotation, bloom, ssao, vignette,
-    clouds, dof, mapStyle, todUnlocked, fillMode, aspectRatio, textOverlay,
-    textFields, savedViewMarkersOn,
+    clouds, dof, todUnlocked, fillMode, aspectRatio,
+    textFields, defaultSavedViewId, onboarded,
+    aiCleanArtifacts, exportResolution, aiPrompt,
   ])
 
   // Save on camera movement too — debounced so a drag-to-orbit gesture
@@ -315,14 +380,19 @@ export default function useSessionPersistence() {
   // even if the user closes the tab mid-debounce.
   useEffect(() => {
     const onFlush = () => { if (restored.current) writeNow() }
+    // visibilitychange fires when the tab is hidden (mobile lock, tab
+    // switch, etc.) — flush so we don't lose state on backgrounding.
+    // Hoisted so we can actually remove it on cleanup; the previous
+    // anonymous form leaked one listener per mount cycle (StrictMode +
+    // HMR + tests).
+    const onVis = () => { if (document.visibilityState === 'hidden') onFlush() }
     window.addEventListener('beforeunload', onFlush)
     window.addEventListener('pagehide', onFlush)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') onFlush()
-    })
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       window.removeEventListener('beforeunload', onFlush)
       window.removeEventListener('pagehide', onFlush)
+      document.removeEventListener('visibilitychange', onVis)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

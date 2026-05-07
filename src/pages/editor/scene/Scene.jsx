@@ -33,11 +33,13 @@ import {
 
 import Globe from './Globe'
 import PostProcessing from './PostProcessing'
-import SavedViewMarkers from './SavedViewMarkers'
 import { sceneRef, useSceneRefSync } from './stateRef'
 import { EXPOSURE, _sunZenith } from '../utils/three'
 import { clampCameraAltitude, syncCameraToUI } from '../utils/camera'
 import { getDateFromHour } from '../utils/sun'
+
+// Earth radius for the fly-to arc bow (Phase 3.3).
+const EARTH_RADIUS_M_FLY = 6378137
 
 // Builds a "no-op" stand-in for the cloud-shadow cascade that AerialPerspect-
 // ive reads during lit-pixel evaluation. Returns a Proxy that transparently
@@ -107,6 +109,146 @@ function SubjectListener() {
   return null
 }
 
+// Phase 3.1 + follow-up — Ctrl/⌘ + drag = orbit. We do this ourselves
+// instead of delegating to GlobeControls because EnvironmentControls
+// (its base class) bails on pointerdown when:
+//   1. The pointer ray is too horizontal (DRAG_PLANE_THRESHOLD = 0.05),
+//      which happens whenever the user is tilted near-flat / looking at
+//      the horizon / sky.
+//   2. The raycast misses geometry — no pivot, no orbit.
+// Both cases match real user intent ("I want to spin around what I'm
+// looking at") perfectly fine; the library just refuses. So we install
+// a capture-phase pointer handler, intercept Ctrl/Meta-drag before it
+// reaches GlobeControls, and orbit around either the geometry hit or
+// (if the ray misses) a synthetic pivot N meters ahead of the camera
+// along its forward direction. Shift-drag still goes to GlobeControls
+// unchanged — its built-in pivot logic is fine when there IS a hit.
+function CtrlOrbit() {
+  const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
+  useEffect(() => {
+    const canvas = gl.domElement
+    const ray = new RaycasterClass()
+    const ndc = new Vector2()
+    const pivot = new Vector3()
+    const tmpForward = new Vector3()
+    const tmpUp = new Vector3()
+    const tmpRight = new Vector3()
+    const yawQ = new Quaternion()
+    const pitchQ = new Quaternion()
+    const offset = new Vector3()
+
+    const SENS_X = 0.005 // rad/px for yaw (around world up)
+    const SENS_Y = 0.005 // rad/px for pitch (around camera right)
+
+    let active = false
+    let pointerId = null
+    let lastX = 0
+    let lastY = 0
+
+    // Per-platform modifier check. `metaKey` == ⌘ on macOS, Windows
+    // key on Win/Linux. Most users on macOS reach for ⌘ first.
+    const isOrbitDrag = (e) =>
+      (e.ctrlKey || e.metaKey) && !e.shiftKey && e.button === 0 && e.pointerType === 'mouse'
+
+    const setPivotForRay = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect()
+      ndc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      ray.setFromCamera(ndc, camera)
+      const hits = ray.intersectObjects(scene.children, true)
+      if (hits.length > 0) {
+        pivot.copy(hits[0].point)
+        return
+      }
+      // No hit (looking at sky, off-globe, etc.) — synthesize a pivot
+      // ahead of the camera along the click ray. Distance scales with
+      // altitude so the orbit feels equally responsive at street level
+      // and high altitude. Floor at 100m.
+      const alt = Math.max(100, camera.position.length() - 6378137 /* ECEF radius */)
+      const D = Math.max(100, alt * 1.5)
+      pivot.copy(camera.position).addScaledVector(ray.ray.direction, D)
+    }
+
+    const onDown = (e) => {
+      if (!isOrbitDrag(e)) return
+      setPivotForRay(e.clientX, e.clientY)
+      active = true
+      pointerId = e.pointerId
+      lastX = e.clientX
+      lastY = e.clientY
+      try {
+        canvas.setPointerCapture(e.pointerId)
+      } catch {}
+      // Block GlobeControls from also seeing this.
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+    }
+
+    const onMove = (e) => {
+      if (!active || e.pointerId !== pointerId) return
+      const dx = e.clientX - lastX
+      const dy = e.clientY - lastY
+      lastX = e.clientX
+      lastY = e.clientY
+
+      // World up at the pivot (ellipsoid normal). On a sphere world
+      // this is the normalized pivot vector.
+      tmpUp.copy(pivot).normalize()
+      // Camera forward direction (pivot might be behind us if synthetic
+      // and at low forward distance; the cross with up still gives a
+      // valid right axis).
+      camera.getWorldDirection(tmpForward)
+      tmpRight.crossVectors(tmpForward, tmpUp).normalize()
+
+      yawQ.setFromAxisAngle(tmpUp, -dx * SENS_X)
+      pitchQ.setFromAxisAngle(tmpRight, -dy * SENS_Y)
+
+      // Rotate camera position around pivot.
+      offset.copy(camera.position).sub(pivot)
+      offset.applyQuaternion(yawQ).applyQuaternion(pitchQ)
+      camera.position.copy(pivot).add(offset)
+
+      // Re-aim the camera at the pivot so orbit feels like "spin around
+      // this point". Preserve the up axis as the local ellipsoid normal
+      // at the new camera position so the horizon stays level.
+      camera.up.copy(camera.position).normalize()
+      camera.lookAt(pivot)
+
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const onUp = (e) => {
+      if (!active || e.pointerId !== pointerId) return
+      active = false
+      pointerId = null
+      try {
+        canvas.releasePointerCapture(e.pointerId)
+      } catch {}
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const opts = { capture: true }
+    canvas.addEventListener('pointerdown', onDown, opts)
+    canvas.addEventListener('pointermove', onMove, opts)
+    canvas.addEventListener('pointerup', onUp, opts)
+    canvas.addEventListener('pointercancel', onUp, opts)
+    return () => {
+      canvas.removeEventListener('pointerdown', onDown, opts)
+      canvas.removeEventListener('pointermove', onMove, opts)
+      canvas.removeEventListener('pointerup', onUp, opts)
+      canvas.removeEventListener('pointercancel', onUp, opts)
+    }
+  }, [gl, camera, scene])
+  return null
+}
+
 // Click-to-focus — tap anywhere on the canvas to update the DoF focal point.
 // Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
 function ClickToFocus() {
@@ -123,8 +265,7 @@ function ClickToFocus() {
     const tapThreshold = coarse ? 14 : 8
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
-      if (!downPos || !sceneRef.dof.on) return
-      if (sceneRef.editorActive || window.__editorActive) { downPos = null; return }
+      if (!downPos || sceneRef.dof.aperture <= 0) return
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
@@ -228,7 +369,7 @@ export default function Scene() {
     const isFiniteArray = (a, n) =>
       Array.isArray(a) && a.length === n && a.every((x) => Number.isFinite(x))
     try {
-      const raw = localStorage.getItem('mapposter3d_poster_v2_session')
+      const raw = localStorage.getItem('vedute_session')
       if (raw) {
         const s = JSON.parse(raw)
         const c = s?.camera
@@ -272,13 +413,21 @@ export default function Scene() {
       camera.position, camera.quaternion, camera.up,
     )
     if (typeof window !== 'undefined') {
-      const raw = (() => { try { return localStorage.getItem('mapposter3d_poster_v2_session') } catch { return null } })()
+      const raw = (() => { try { return localStorage.getItem('vedute_session') } catch { return null } })()
       window.__sessionRestore = raw ? 'fallback:session-present-but-incomplete' : 'fallback:no-session'
     }
   }, [camera])
 
   // Fly-to animation from location search. A ref holds the in-flight tween
   // so useFrame can step it; when done we clear the ref.
+  //
+  // Phase 3.3 polish:
+  //   - Duration scales with distance: short city-scale hops stay snappy
+  //     (~1.5s) while cross-continent / cross-globe hops take ~5s and feel
+  //     like travel, not teleportation.
+  //   - Long hops arc through a higher altitude peak so the camera reads
+  //     as "lifting off and descending" rather than burrowing through the
+  //     globe. Below ~50km the arc is suppressed; the simple lerp is fine.
   const flyRef = useRef(null)
   useEffect(() => {
     const handler = (e) => {
@@ -290,11 +439,22 @@ export default function Scene() {
         new Geodetic(radians(lng), radians(lat)).toECEF(),
         endPos, endQuat, endUp,
       )
+      const startPos = camera.position.clone()
+      const dist = startPos.distanceTo(endPos)
+      // Distance-aware duration. log scaling so 100km and 10000km feel
+      // proportionally different, not 100x apart. Clamped 1.5s..5s.
+      const duration = Math.min(5, Math.max(1.5, 1 + Math.log10(Math.max(1, dist / 1000))))
+      // Arc altitude: 0 (no arc) for short hops, max 1.0 (Earth-radius
+      // worth of bow) for cross-globe.
+      const arc = Math.min(1, Math.max(0, (dist - 50_000) / 5_000_000))
       flyRef.current = {
-        startPos: camera.position.clone(),
+        startPos,
         startQuat: camera.quaternion.clone(),
         startUp: camera.up.clone(),
-        endPos, endQuat, endUp, progress: 0,
+        endPos, endQuat, endUp,
+        progress: 0,
+        duration,
+        arc,
       }
     }
     window.addEventListener('fly-to', handler)
@@ -359,9 +519,17 @@ export default function Scene() {
   }, [camera])
 
   // Saved-view consumer: restore-view applies a saved payload directly to
-  // the camera. Accepts either the bare camera object {position, quaternion,
-  // up, ...} OR a wrapped saved-view {camera: {...}, tod, ...}. Geodetic
-  // {latitude, longitude, altitude} is the last-resort fallback.
+  // the camera. Accepts three position shapes:
+  //   1. {position: [x, y, z]}            — current React format (get-camera)
+  //   2. {px, py, pz, qx, qy, qz, qw, fov} — prototype legacy shape, still
+  //                                          on disk for users who saved
+  //                                          views before the rebrand
+  //                                          (mapposter3d_v2_views →
+  //                                          vedute_views migration carries
+  //                                          them through unchanged)
+  //   3. {latitude, longitude, altitude}  — geodetic fallback
+  // Each can be wrapped in {camera: {...}} (from saved views) or sent flat
+  // (from get-camera reply / direct restore).
   useEffect(() => {
     const handler = (e) => {
       const detail = e.detail
@@ -369,12 +537,19 @@ export default function Scene() {
       const v = detail.camera && typeof detail.camera === 'object' ? detail.camera : detail
       if (Array.isArray(v.position) && v.position.length === 3) {
         camera.position.set(v.position[0], v.position[1], v.position[2])
+      } else if (typeof v.px === 'number' && typeof v.py === 'number' && typeof v.pz === 'number') {
+        camera.position.set(v.px, v.py, v.pz)
       } else if (v.latitude != null && v.longitude != null && v.altitude != null) {
         const p = new Geodetic(radians(v.longitude), radians(v.latitude), v.altitude).toECEF()
         camera.position.copy(p)
       }
       if (Array.isArray(v.quaternion) && v.quaternion.length === 4) {
         camera.quaternion.set(v.quaternion[0], v.quaternion[1], v.quaternion[2], v.quaternion[3])
+      } else if (
+        typeof v.qx === 'number' && typeof v.qy === 'number'
+        && typeof v.qz === 'number' && typeof v.qw === 'number'
+      ) {
+        camera.quaternion.set(v.qx, v.qy, v.qz, v.qw)
       }
       if (Array.isArray(v.up) && v.up.length === 3) {
         camera.up.set(v.up[0], v.up[1], v.up[2])
@@ -383,6 +558,11 @@ export default function Scene() {
         // Vertical fov from 24mm-full-frame-sensor-height formula (see
         // useLayoutEffect above). Must match syncCameraToUI / FovListener.
         camera.fov = 2 * Math.atan(12 / v.fovMm) * 180 / Math.PI
+        camera.updateProjectionMatrix()
+      } else if (typeof v.fov === 'number') {
+        // Prototype-shape views stored vertical fov directly (Three's
+        // camera.fov), not the focal-length-derived fovMm.
+        camera.fov = v.fov
         camera.updateProjectionMatrix()
       }
     }
@@ -403,13 +583,25 @@ export default function Scene() {
   const setCameraReadout = useSetAtom(cameraReadoutAtom)
 
   useFrame(({ gl }, delta) => {
-    // Step fly-to tween (smoothstep ease, 2s duration).
+    // Step fly-to tween. Smoothstep ease, distance-aware duration, and
+    // (for long hops) an altitude arc so the camera lifts off + descends
+    // instead of cutting straight through the globe.
     const fly = flyRef.current
     if (fly && fly.progress < 1) {
-      fly.progress = Math.min(1, fly.progress + delta / 2)
+      fly.progress = Math.min(1, fly.progress + delta / fly.duration)
       const t = fly.progress
       const s = t * t * (3 - 2 * t)
       camera.position.lerpVectors(fly.startPos, fly.endPos, s)
+      if (fly.arc > 0) {
+        // Push the midpoint outward radially. Bow peaks at s=0.5 with a
+        // sin curve so the lift is symmetric. arc=1 lifts an Earth radius;
+        // typical cross-continent hops use ~0.3.
+        const bow = Math.sin(s * Math.PI) * fly.arc * EARTH_RADIUS_M_FLY
+        if (bow > 0) {
+          const radial = camera.position.clone().normalize()
+          camera.position.addScaledVector(radial, bow)
+        }
+      }
       camera.quaternion.slerpQuaternions(fly.startQuat, fly.endQuat, s)
       camera.up.lerpVectors(fly.startUp, fly.endUp, s)
       if (fly.progress >= 1) flyRef.current = null
@@ -445,7 +637,9 @@ export default function Scene() {
     const clouds = cloudsRef.current
     window._cloudsRef = clouds
     if (clouds) {
-      clouds.coverage = sceneRef.clouds.on ? sceneRef.clouds.coverage : 0
+      // coverage===0 disables clouds entirely (the cluster pill writes
+      // 0 at its slider's OFF detent).
+      clouds.coverage = sceneRef.clouds.coverage || 0
       const spd = sceneRef.clouds.paused ? 0 : sceneRef.clouds.speed * 0.001
       clouds.localWeatherVelocity.set(spd, 0)
     }
@@ -505,7 +699,11 @@ export default function Scene() {
       //     meaningful when DoF is on (no focal plane otherwise).
       // The shader clamps sceneColorPop + focusAmount*focusColorPop to 1.
       fx.uniforms.get('sceneColorPop').value = (sceneRef.dof.sceneColorPop ?? 0) / 100
-      if (!sceneRef.dof.on) {
+      // aperture===0 disables DoF (the cluster pill writes 0 at its
+      // OFF detent). The on/off boolean was removed from the atom
+      // shape; aperture is the single source of truth.
+      const dofOff = !sceneRef.dof.aperture
+      if (dofOff) {
         fx.uniforms.get('focusColorPop').value = 0
         fx.uniforms.get('maxBlur').value = 0
       } else {
@@ -600,11 +798,24 @@ export default function Scene() {
   return (
     <Atmosphere ref={atmosphereRef} correctAltitude>
       <Globe>
-        <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
+        {/* adjustHeight: GlobeControls auto-pushes the camera back above
+         * terrain when an orbit / drag arc would clip it under. The
+         * prototype shipped with this off, which let the user dip into
+         * the ground at flat pitch — orbit around a building swings the
+         * camera below the base. Re-enabled here. cameraRadius bumps
+         * the minimum hover above the tile mesh from the default 1m to
+         * 4m so the lift isn't visible as a sudden jolt the moment you
+         * skim a rooftop. */}
+        <GlobeControls
+          enableDamping
+          adjustHeight
+          cameraRadius={4}
+          maxAltitude={Math.PI * 0.55}
+        />
       </Globe>
+      <CtrlOrbit />
       <ClickToFocus />
       <SubjectListener />
-      <SavedViewMarkers />
 
       <PostProcessing composerRef={composerRef} dofRef={dofRef}>
         <Clouds

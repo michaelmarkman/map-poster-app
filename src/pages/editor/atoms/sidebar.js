@@ -1,16 +1,8 @@
 import { atom } from 'jotai'
 
-// Which sidebar section is expanded. The section-head buttons toggle this;
-// other sections don't collapse automatically — open sections list is held
-// here so saved-views / dropdowns can drive it too.
-export const openSectionsAtom = atom({
-  environment: true,
-  camera: true,
-  canvas: true,
-  text: true,
-  editor: true,
-  export: true,
-})
+// (openSectionsAtom — which sidebar section was expanded — went with
+// the sidebar editor in Phase 1.2. /app's pill UI doesn't have
+// collapsible sections; nothing imports this atom anymore.)
 
 // AI enhance panel state
 // AI render is implicitly on whenever the Render Styles panel is used
@@ -33,16 +25,36 @@ export const aiApiKeyAtom = atom('') // Gemini — stored locally only
 // want the mesh-faithful look (e.g. low-poly art renders).
 export const aiCleanArtifactsAtom = atom(true)
 
-// Toggles the in-scene layer of camera markers for saved views — see
-// docs/superpowers/specs/2026-04-30-saved-view-camera-markers-design.md.
-// Off by default; persists across sessions via useSessionPersistence.
-export const savedViewMarkersOnAtom = atom(false)
+// (savedViewMarkersOnAtom + hoveredSavedViewIdAtom retired with the
+// in-scene marker layer in the Phase 2.7 cluster redesign — see plan
+// "Vedute — UI Consolidation Pass". The defaultSavedViewIdAtom below
+// stays; it drives the cold-load auto-restore.)
+
+// Saved view id to load on first visit (or after a fresh page load when
+// no session blob exists yet). Persisted via useSessionPersistence so the
+// user's pick survives reloads. null = no default chosen.
+export const defaultSavedViewIdAtom = atom(null)
+
+// Onboarding flag — false on first visit, set true once the user has
+// dismissed the welcome card. Persisted; survives reloads.
+export const onboardedAtom = atom(false)
+
+// First-boot intro sequence done flag. The intro plays on every page
+// load (per Phase 2.7 follow-up: word "vedute" appears, definition
+// types in, consolidates, controls reveal one-by-one, then the
+// overlay fades to expose the editor). Set to true when the intro
+// finishes (or the user hits Esc to skip). Other UI that should NOT
+// appear during the intro (e.g. OnboardingCard) gates on this.
+//
+// NOT persisted — every page load gets a fresh intro until the
+// product matures past it.
+export const introDoneAtom = atom(false)
 
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 
 // Saved views — array of { id, name, session }. Backed by localStorage key
-// `mapposter3d_v2_views`; useSavedViews hook owns read/write.
+// `vedute_views`; useSavedViews hook owns read/write.
 export const savedViewsAtom = atom([])
 
 // Queue entries — {id, status, resolution, startedAt, preset, result?}.

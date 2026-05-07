@@ -107,7 +107,15 @@ export default function HoverPopoverPill({
       className="mock-hover-pill-wrap"
       {...wrapHover}
     >
-      <Pill icon={icon} active={active} onClick={handlePillClick} {...rest}>
+      <Pill
+        icon={icon}
+        active={active}
+        onClick={handlePillClick}
+        aria-pressed={!!active}
+        aria-haspopup="true"
+        aria-expanded={popoverVisible}
+        {...rest}
+      >
         {label}
       </Pill>
       {popoverVisible ? (

@@ -19,23 +19,42 @@ export default async function handler(req, res) {
     return
   }
 
-  const { data: post, error } = await supabase
-    .from('community_posts')
-    .select('title, description, image_url, location_name, profiles(display_name, username)')
-    .eq('id', postId)
-    .single()
-
-  if (error || !post) {
+  let post
+  try {
+    const result = await supabase
+      .from('community_posts')
+      .select('title, description, image_url, location_name, profiles(display_name, username)')
+      .eq('id', postId)
+      .single()
+    if (result.error) {
+      res.statusCode = 404
+      res.end('Post not found')
+      return
+    }
+    post = result.data
+  } catch (e) {
+    // Supabase throws on network failure / missing config; degrade to
+    // a 503 rather than a 500 stack-trace leak so a misconfigured
+    // deployment doesn't expose internals to social crawlers.
+    res.statusCode = 503
+    res.end('Service unavailable')
+    return
+  }
+  if (!post) {
     res.statusCode = 404
     res.end('Post not found')
     return
   }
 
-  const title = post.title || 'MapPoster Creation'
-  const desc = post.description || `A 3D map poster of ${post.location_name || 'a beautiful location'}`
+  const title = post.title || 'Vedute creation'
+  const desc = post.description || `An aerial poster of ${post.location_name || 'a beautiful location'}`
   const image = post.image_url || ''
-  const author = post.profiles?.display_name || post.profiles?.username || 'MapPoster'
-  const canonicalUrl = `https://${req.headers.host}/community.html?post=${postId}`
+  const author = post.profiles?.display_name || post.profiles?.username || 'Vedute'
+  // Redirect target: the React /community route, NOT the legacy
+  // /community.html prototype (which still carries the old MapPoster
+  // brand and isn't part of the live product). When Phase 7.3 lands a
+  // dedicated /v/:id route, swap this for that.
+  const canonicalUrl = `https://${req.headers.host}/community?post=${postId}`
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
@@ -43,7 +62,7 @@ export default async function handler(req, res) {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${esc(title)} by ${esc(author)} — MapPoster</title>
+  <title>${esc(title)} by ${esc(author)} — Vedute</title>
   <meta name="description" content="${esc(desc)}">
   <meta property="og:type" content="article">
   <meta property="og:title" content="${esc(title)}">

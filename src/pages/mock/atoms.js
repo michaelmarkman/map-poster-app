@@ -1,6 +1,4 @@
-import { atom } from 'jotai'
-
-// /mock-only: when set to a dataUrl, the <RenderBackdrop> component shows
-// the image as the canvas backdrop (over the live WebGL scene) so users can
-// edit graphics on top of a previously-rendered photo. Cleared on exit.
-export const editingBackdropAtom = atom(null)
+// /app-specific atoms. Empty for now after the graphics editor was removed
+// in Phase 1.3 — kept as a module so future /app-only atoms have an obvious
+// home and the import path is stable.
+export {}

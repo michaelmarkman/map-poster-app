@@ -9,6 +9,9 @@ import AuthButton from '../components/auth/AuthButton'
 
 function validateUsername(username) {
   if (username.length < 3) return 'Username must be at least 3 characters'
+  // 24 covers every realistic handle, well under Supabase's 64-char column
+  // and short enough to render cleanly in the navbar / community page.
+  if (username.length > 24) return 'Username must be 24 characters or fewer'
   if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Only letters, numbers, and underscores'
   return null
 }
@@ -56,11 +59,12 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthLayout title="Create account" subtitle="Start building beautiful map posters">
+    <AuthLayout title="Create account" subtitle="Aerial city posters, made from 3D maps">
       <style>{`@keyframes shake { 0%, 100% { transform: translateX(0) } 20%, 60% { transform: translateX(-6px) } 40%, 80% { transform: translateX(6px) } } .auth-error.shake { animation: shake 0.4s ease }`}</style>
       <form onSubmit={handleSubmit}>
         <AuthInput
           label="Username" type="text" required autoComplete="username"
+          minLength={3} maxLength={24}
           value={username} onChange={e => { setUsername(e.target.value); setUsernameError('') }}
           error={usernameError}
         />

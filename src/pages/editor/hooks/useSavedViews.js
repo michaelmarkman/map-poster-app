@@ -5,10 +5,27 @@ import {
   timeOfDayAtom,
   dofAtom,
 } from '../atoms/scene'
+import { reverseGeocodeName } from '../../../lib/geocode'
+import { canSaveAnotherView } from '../../../lib/entitlements'
+import { fireToast } from '../../../lib/toast'
+import { snapshotCanvas } from '../utils/export'
 
-// Saved views hook — mounted once from EditorShell. Owns the localStorage
-// <-> savedViewsAtom sync and listens for the window events dispatched from
-// ExportSection ('save-view', 'load-view', 'delete-view').
+// Capture a small thumbnail for the saved view at the moment of save.
+// Resolution 0.5 keeps the thumb tiny (typically ~150kB at 2x DPR);
+// the SavedViewsPanel renders these at 56x56 so smaller is fine.
+// Returns null on capture failure — callers treat thumbnail as
+// optional in buildSavedView.
+function captureThumbnail() {
+  try {
+    return snapshotCanvas(0.5) || null
+  } catch {
+    return null
+  }
+}
+
+// Saved views hook — mounted once from MockEditorShell. Owns the
+// localStorage <-> savedViewsAtom sync and listens for the window events
+// dispatched from save-view UI ('save-view', 'load-view', 'delete-view').
 //
 // Serialization shape matches prototypes/poster-v3-ui.jsx `buildSavedViewFromCapture`
 // so views already in users' localStorage keep loading after the port:
@@ -17,8 +34,38 @@ import {
 // The only shape drift is `id` — prototype used Date.now(), we use UUID.
 // Old numeric ids still match via strict equality on load/delete lookups.
 
-const VIEWS_KEY = 'mapposter3d_v2_views'
-const MAX_VIEWS = 20
+const VIEWS_KEY = 'vedute_views'
+
+// "Recent search wins the save name" window. If the user picks a place
+// from the search dropdown and saves a view within this many ms — and
+// hasn't moved more than RECENT_PICK_RADIUS_M meters away — the picked
+// name is used as the saved-view name verbatim instead of relying on
+// reverse geocoding the camera coords (which often resolves to a
+// nearby street address rather than the intended landmark).
+const RECENT_PICK_TTL_MS = 60_000
+const RECENT_PICK_RADIUS_M = 300
+
+// Cheap lat/lng → meters distance. Uses the equirectangular approximation;
+// at typical city-scale distances (<1km) the error vs. haversine is well
+// under 1%, which is far inside the radius we care about. Avoids importing
+// a haversine helper for one user.
+function approxDistanceMeters(latA, lngA, latB, lngB) {
+  const R = 6378137 // earth radius (m)
+  const toRad = Math.PI / 180
+  const dLat = (latB - latA) * toRad
+  const dLng = (lngB - lngA) * toRad
+  const meanLat = ((latA + latB) / 2) * toRad
+  const x = dLng * Math.cos(meanLat)
+  return Math.sqrt(x * x + dLat * dLat) * R
+}
+// Defensive ceiling against localStorage exhaustion. The real per-tier
+// limit lives in src/lib/entitlements.js (`maxSavedViews`) and gates
+// save submissions upstream. This cap exists because each saved view
+// stores a ~150KB thumbnail; at 50 views that's ~7.5MB which already
+// pushes most browsers' 5–10MB localStorage budget. Pro is nominally
+// "unlimited" but practically capped here. If we move to IndexedDB
+// for thumbnails (or move them off-device entirely), this can lift.
+const MAX_VIEWS = 50
 const WRITE_THROTTLE_MS = 100
 const CAMERA_REPLY_TIMEOUT_MS = 500
 
@@ -45,14 +92,6 @@ function uuid() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   } catch (e) {}
   return 'v-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
-}
-
-// Fire a toast event — no toast renderer in src yet, so this is a no-op
-// until one is added. Decoupled channel matches the prototype's convention.
-function fireToast(type, message) {
-  try {
-    window.dispatchEvent(new CustomEvent('toast', { detail: { type, message } }))
-  } catch (e) {}
 }
 
 // Request current camera state from Scene via the get-camera event.
@@ -83,11 +122,38 @@ function requestCameraState() {
   })
 }
 
-// Compose a saved-view record identical in shape to the prototype's
-// buildSavedViewFromCapture output, aside from a UUID `id`. Now also
-// captures a serialized snapshot of the Fabric graphics layer so loading
-// the view restores both camera + graphics together.
-function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorPop, graphicsJSON }, { name = 'View', fromGalleryId = null, thumbnail = null } = {}) {
+// Compose a saved-view record. Shape matches the prototype's
+// buildSavedViewFromCapture output, aside from a UUID `id` and (since
+// Phase 1.3) no `graphicsJSON` field — the graphics editor is gone.
+//
+// Color-pop history: the prototype carried a single `dofColorPop` field
+// because the shader only had one knob. After the DoF split into
+// sceneColorPop (boost everywhere) + focusColorPop (boost on top, in the
+// focal area), saved views started persisting both as
+// dofSceneColorPop / dofFocusColorPop. We still write `dofColorPop`
+// (set to focusColorPop) so older readers + the legacy session migration
+// keep working, but the new fields are authoritative on restore.
+//
+// Old views in localStorage may still carry `graphicsJSON`; we preserve
+// that field on round-trip but no longer write or apply it.
+function buildSavedView(
+  {
+    camera,
+    tod,
+    focalUV,
+    dofTightness,
+    dofBlur,
+    dofSceneColorPop,
+    dofFocusColorPop,
+    dofColorPop,
+  },
+  { name = 'View', fromGalleryId = null, thumbnail = null } = {},
+) {
+  // Prefer the explicit pair when provided; fall back to the legacy
+  // single-value field so callers passing a pre-split saved view through
+  // (e.g. lightbox-save-view from a gallery entry) don't drop data.
+  const scene = dofSceneColorPop ?? 0
+  const focus = dofFocusColorPop ?? dofColorPop ?? 0
   return {
     id: uuid(),
     fromGalleryId,
@@ -97,68 +163,12 @@ function buildSavedView({ camera, tod, focalUV, dofTightness, dofBlur, dofColorP
     focalUV: [...(focalUV || [0.5, 0.5])],
     dofTightness,
     dofBlur,
-    dofColorPop,
-    graphicsJSON: graphicsJSON || null,
+    dofSceneColorPop: scene,
+    dofFocusColorPop: focus,
+    // Legacy alias — single-value readers see the focus value (the closest
+    // analog to the prototype's old colorPop).
+    dofColorPop: focus,
     thumbnail: thumbnail || undefined,
-  }
-}
-
-// Snapshot the live Fabric editor state. Returns a JSON string or null
-// when there's no Fabric canvas / no user-added objects.
-function captureGraphicsJSON() {
-  try {
-    const fabric = window.__editorOverlayFabric
-    if (!fabric || !fabric.getObjects) return null
-    const objects = fabric.getObjects().filter((o) => !o.excludeFromExport)
-    if (objects.length === 0) return null
-    return JSON.stringify(
-      fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-    )
-  } catch {
-    return null
-  }
-}
-
-// Restore a Fabric overlay from saved JSON. If the view has no graphics,
-// clear any existing Fabric content so the loaded view doesn't carry stale
-// objects from a previous edit.
-async function applyGraphicsJSON(graphicsJSON) {
-  try {
-    const fabric = window.__editorOverlayFabric
-    if (!fabric) return
-    if (graphicsJSON) {
-      await fabric.loadFromJSON(JSON.parse(graphicsJSON))
-      fabric.renderAll?.()
-    } else {
-      fabric.clear?.()
-      fabric.renderAll?.()
-    }
-  } catch {}
-}
-
-// Reverse-geocode a coordinate to a human-readable place name via Nominatim.
-// Returns the most specific neighbourhood/town/city it can find, falling
-// back to the first segment of `display_name`. Resolves to null on any
-// failure (network, parse, missing fields) so the caller can fall back to
-// coord-based naming.
-async function reverseGeocodeName(lat, lng) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
-      { headers: { 'User-Agent': 'MapPoster/1.0' } },
-    )
-    if (!r.ok) return null
-    const data = await r.json()
-    const a = data?.address || {}
-    return (
-      a.neighbourhood || a.suburb || a.city_district ||
-      a.town || a.village || a.hamlet || a.city ||
-      (typeof data?.display_name === 'string' ? data.display_name.split(',')[0].trim() : null) ||
-      null
-    )
-  } catch {
-    return null
   }
 }
 
@@ -224,21 +234,57 @@ export default function useSavedViews() {
   const setDof = useSetAtom(dofAtom)
 
   // Latest snapshot of atoms — used by event handlers without retriggering
-  // effect setup on every atom change.
+  // effect setup on every atom change. The ref is updated inside useEffect
+  // (not the render body) to stay safe under React 19 concurrent rendering;
+  // see LEARNINGS 2026-04-17 for the discarded-render scenario.
   const dof = useAtomValue(dofAtom)
   const tod = useAtomValue(timeOfDayAtom)
   const stateRef = useRef({ dof, tod, views: savedViews })
-  stateRef.current = { dof, tod, views: savedViews }
+  useEffect(() => {
+    stateRef.current = { dof, tod, views: savedViews }
+  }, [dof, tod, savedViews])
 
   // Throttled writer: coalesces rapid saves into one localStorage write.
   const writeTimerRef = useRef(null)
   const pendingWriteRef = useRef(null)
+
+  // Most-recent place picked via search. Populated by listening to
+  // `location-changed` (dispatched by ClusterTopLeft when the user
+  // commits a prediction). Used by the save-view path to use the
+  // picked name verbatim when the user saves shortly after picking.
+  const lastPickedRef = useRef(null)
 
   useEffect(() => {
     // Hydrate on mount.
     const initial = safeReadStorage()
     setSavedViews(initial)
     stateRef.current.views = initial
+
+    // Phase 4.3 — first-run auto-load of the default saved view.
+    // If the user has marked a view as default AND there's no session
+    // blob (i.e. we're on a cold load with no camera state to restore),
+    // dispatch restore-view for that default view a moment after mount
+    // so Scene's listener has registered. Session-restore takes
+    // precedence over this — no-op if the user already has a session.
+    try {
+      const SESSION_KEY = 'vedute_session'
+      const hasSession = !!localStorage.getItem(SESSION_KEY)
+      const sessionRaw = hasSession ? localStorage.getItem(SESSION_KEY) : null
+      const sessionData = sessionRaw ? JSON.parse(sessionRaw) : null
+      const hasCamera = !!sessionData?.camera?.position
+      const defaultId = sessionData?.ui?.defaultSavedViewId
+      if (!hasCamera && defaultId) {
+        const view = initial.find((v) => v.id === defaultId)
+        if (view) {
+          // Defer past Scene's mount + get-camera listener attach.
+          setTimeout(() => {
+            try {
+              window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
+            } catch {}
+          }, 600)
+        }
+      }
+    } catch {}
 
     const flushWrite = () => {
       if (writeTimerRef.current) {
@@ -274,6 +320,16 @@ export default function useSavedViews() {
         : detail && typeof detail === 'object' ? detail.name
         : null
 
+      // Phase 6 entitlement gate. Free tier capped at 5 saved views.
+      // profile is read from the active-profile bridge in entitlements.
+      if (!canSaveAnotherView({ currentCount: stateRef.current.views.length })) {
+        fireToast(
+          'error',
+          'Free tier saves up to 5 views. Delete one or upgrade to Pro.',
+        )
+        return
+      }
+
       const cam = await requestCameraState()
       if (!cam) {
         fireToast('error', 'Camera not ready')
@@ -284,7 +340,30 @@ export default function useSavedViews() {
       // synchronously (tests + perceived snappiness depend on this). Then
       // fire reverse-geocode in the background; if it returns a place
       // name, patch the view's name in-place.
-      const initialName = userName || coordName(cam)
+      //
+      // Recent-pick override: if the user just searched for a place and
+      // saves within RECENT_PICK_TTL_MS while the camera is still near
+      // it, use that name verbatim. Skips the reverse-geocode call
+      // entirely — the picked place is more authoritative than whatever
+      // a reverse-geocoder would resolve from the lat/lng.
+      let initialName = userName || coordName(cam)
+      let usedRecentPick = false
+      if (!userName) {
+        const pick = lastPickedRef.current
+        if (pick && Date.now() - pick.timestamp < RECENT_PICK_TTL_MS) {
+          const [camLat, camLng] = extractLatLng(cam)
+          if (
+            Number.isFinite(camLat) &&
+            Number.isFinite(camLng) &&
+            approxDistanceMeters(camLat, camLng, pick.lat, pick.lng) < RECENT_PICK_RADIUS_M
+          ) {
+            initialName = pick.name
+            usedRecentPick = true
+          }
+        }
+      }
+      // Phase 2.3 thumbnail — 0.5x snapshot, ~150kB, used by SavedViewsPanel.
+      const thumbnail = captureThumbnail()
       const view = buildSavedView(
         {
           camera: cam,
@@ -292,13 +371,13 @@ export default function useSavedViews() {
           focalUV: curDof.focalUV,
           dofTightness: curDof.tightness,
           dofBlur: curDof.blur,
-          dofColorPop: curDof.colorPop,
-          graphicsJSON: captureGraphicsJSON(),
+          dofSceneColorPop: curDof.sceneColorPop,
+          dofFocusColorPop: curDof.focusColorPop,
         },
-        { name: initialName },
+        { name: initialName, thumbnail },
       )
 
-      if (!userName) {
+      if (!userName && !usedRecentPick) {
         const [lat, lng] = extractLatLng(cam)
         if (lat != null && lng != null) {
           reverseGeocodeName(lat, lng).then((place) => {
@@ -339,11 +418,12 @@ export default function useSavedViews() {
         focalUV: Array.isArray(view.focalUV) ? [...view.focalUV] : prev.focalUV,
         tightness: view.dofTightness ?? prev.tightness,
         blur: view.dofBlur ?? prev.blur,
-        colorPop: view.dofColorPop ?? prev.colorPop,
+        // Prefer the split pair; fall back to the legacy single value for
+        // older saves that predate the sceneColorPop / focusColorPop split.
+        sceneColorPop: view.dofSceneColorPop ?? prev.sceneColorPop,
+        focusColorPop:
+          view.dofFocusColorPop ?? view.dofColorPop ?? prev.focusColorPop,
       }))
-
-      // Restore the Fabric graphics overlay if the view has one.
-      applyGraphicsJSON(view.graphicsJSON)
 
       // Camera: dispatch a restore-view event with the full view detail. Scene
       // (or the session-persistence agent's Scene wiring) is responsible for
@@ -361,13 +441,52 @@ export default function useSavedViews() {
       commitViews(next)
     }
 
+    // Rename: detail = { id, name }. Names cap at 60 chars — long enough
+    // for "Manhattan Bridge sunrise · golden hour" but short enough that
+    // the SavedViewsPanel row doesn't overflow. Beyond this, the
+    // input-side rename UI would need its own length-capped textarea
+    // anyway; truncate here as defense-in-depth.
+    const onRename = (e) => {
+      const detail = e?.detail
+      if (!detail?.id || typeof detail.name !== 'string') return
+      const trimmed = detail.name.trim().slice(0, 60)
+      if (!trimmed) return
+      const next = stateRef.current.views.map((v) =>
+        v.id === detail.id ? { ...v, name: trimmed } : v,
+      )
+      commitViews(next)
+    }
+
+    // Reorder: detail = { id, direction: 'up' | 'down' }
+    const onReorder = (e) => {
+      const detail = e?.detail
+      if (!detail?.id || (detail.direction !== 'up' && detail.direction !== 'down')) return
+      const list = stateRef.current.views
+      const idx = list.findIndex((v) => v.id === detail.id)
+      if (idx < 0) return
+      const target = detail.direction === 'up' ? idx - 1 : idx + 1
+      if (target < 0 || target >= list.length) return
+      const next = [...list]
+      ;[next[idx], next[target]] = [next[target], next[idx]]
+      commitViews(next)
+    }
+
     // Lightbox bridges — Jump-to-view on a gallery entry should restore the
-    // camera/graphics that produced it; Save-view should add it to the
-    // saved-views list. Both read entry.view (captured at queue time) and
-    // optionally entry.graphicsJSON (overlay layer).
+    // camera that produced it; Save-view should add it to the saved-views
+    // list. Both read entry.view (captured at queue time).
     const onLightboxSave = (e) => {
       const entry = e?.detail
       if (!entry?.view) return
+      // Entitlement gate (Phase 6.1) — same as the keyboard / pill save
+      // path. Without this, a free user clicking "Save view" inside the
+      // lightbox could exceed the 5-view cap.
+      if (!canSaveAnotherView({ currentCount: stateRef.current.views.length })) {
+        fireToast(
+          'error',
+          'Free tier saves up to 5 views. Delete one or upgrade to Pro.',
+        )
+        return
+      }
       const cam = entry.view.camera || entry.view
       const view = buildSavedView(
         {
@@ -376,8 +495,10 @@ export default function useSavedViews() {
           focalUV: entry.view.focalUV,
           dofTightness: entry.view.dofTightness,
           dofBlur: entry.view.dofBlur,
+          dofSceneColorPop: entry.view.dofSceneColorPop,
+          dofFocusColorPop: entry.view.dofFocusColorPop,
+          // Legacy fallback — old saves only had this one field.
           dofColorPop: entry.view.dofColorPop,
-          graphicsJSON: entry.graphicsJSON || null,
         },
         { name: entry.label || 'View', fromGalleryId: entry.id ?? null },
       )
@@ -391,29 +512,53 @@ export default function useSavedViews() {
       const entry = e?.detail
       if (!entry?.view) return
       // Apply tod / dof if the entry captured them, else leave current.
+      // Mirrors the regular load-view path (above) — both color-pop AND
+      // focalUV need to come along, otherwise jumping to a saved render
+      // loses its focus point and looks wrong.
       if (typeof entry.view.tod === 'number') setTimeOfDay(entry.view.tod)
-      if (entry.view.dofTightness != null || entry.view.dofBlur != null) {
-        setDof((prev) => ({
-          ...prev,
-          tightness: entry.view.dofTightness ?? prev.tightness,
-          blur: entry.view.dofBlur ?? prev.blur,
-        }))
-      }
+      setDof((prev) => ({
+        ...prev,
+        focalUV: Array.isArray(entry.view.focalUV) ? [...entry.view.focalUV] : prev.focalUV,
+        tightness: entry.view.dofTightness ?? prev.tightness,
+        blur: entry.view.dofBlur ?? prev.blur,
+        // Prefer the split pair; fall back to legacy single-value field.
+        sceneColorPop:
+          entry.view.dofSceneColorPop ?? prev.sceneColorPop,
+        focusColorPop:
+          entry.view.dofFocusColorPop ?? entry.view.dofColorPop ?? prev.focusColorPop,
+      }))
       // Restore camera. Scene accepts either the bare camera object or a
       // wrapped { camera } detail — pass whatever shape we have.
       try {
         const detail = entry.view.camera ? entry.view : { camera: entry.view }
         window.dispatchEvent(new CustomEvent('restore-view', { detail }))
       } catch {}
-      // Restore the saved graphics overlay if present.
-      applyGraphicsJSON(entry.graphicsJSON || null)
+    }
+
+    // Picked-place memory. ClusterTopLeft dispatches `location-changed`
+    // every time the user commits a search prediction with a fresh
+    // shortName + lat/lng. Stash those under a TTL ref so save-view can
+    // pick the name up if the save happens shortly after the search.
+    const onLocationChanged = (e) => {
+      const d = e?.detail
+      if (!d) return
+      const lat = +d.lat
+      const lng = +d.lng
+      const name = (typeof d.shortName === 'string' && d.shortName.trim()) ||
+                   (typeof d.fullName === 'string' && d.fullName.split(',')[0].trim()) ||
+                   null
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !name) return
+      lastPickedRef.current = { lat, lng, name, timestamp: Date.now() }
     }
 
     window.addEventListener('save-view', onSave)
     window.addEventListener('load-view', onLoad)
     window.addEventListener('delete-view', onDelete)
+    window.addEventListener('rename-view', onRename)
+    window.addEventListener('reorder-view', onReorder)
     window.addEventListener('lightbox-save-view', onLightboxSave)
     window.addEventListener('lightbox-jump-view', onLightboxJump)
+    window.addEventListener('location-changed', onLocationChanged)
 
     return () => {
       window.removeEventListener('save-view', onSave)
@@ -421,6 +566,9 @@ export default function useSavedViews() {
       window.removeEventListener('delete-view', onDelete)
       window.removeEventListener('lightbox-save-view', onLightboxSave)
       window.removeEventListener('lightbox-jump-view', onLightboxJump)
+      window.removeEventListener('rename-view', onRename)
+      window.removeEventListener('reorder-view', onReorder)
+      window.removeEventListener('location-changed', onLocationChanged)
       flushWrite()
     }
     // setSavedViews/setTimeOfDay/setDof are stable Jotai setters.

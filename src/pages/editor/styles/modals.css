@@ -83,266 +83,14 @@
     flex-shrink: 0;
   }
 
-  /* ═══════ SAVED VIEWS (inline dropdown) ═══════ */
-  #saved-views-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-    margin-bottom: 4px;
-  }
-  #saved-views-list:empty + #saved-empty { display: block; }
-  #saved-views-list:not(:empty) + #saved-empty { display: none; }
-  .saved-view {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    background: rgba(255,255,255,0.025);
-    border: 0.5px solid var(--ink-whisper);
-    border-radius: 6px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .saved-view:hover {
-    border-color: var(--panel-border-strong);
-    transform: translateY(-1px);
-  }
-  .saved-view img {
-    width: 100%;
-    aspect-ratio: 4/3;
-    object-fit: cover;
-    display: block;
-    background: var(--bg-deep);
-  }
-  .saved-view .sv-name {
-    font-size: 9.5px;
-    color: var(--ink-soft);
-    padding: 5px 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .saved-view .sv-delete {
-    position: absolute;
-    top: 4px; right: 4px;
-    width: 18px; height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(10,9,12,0.75);
-    backdrop-filter: blur(8px);
-    border: 0.5px solid var(--panel-border);
-    border-radius: 4px;
-    color: var(--ink-dim);
-    font-size: 11px;
-    cursor: pointer;
-    opacity: 0;
-    transition: all 0.15s;
-  }
-  .saved-view:hover .sv-delete { opacity: 1; }
-  .saved-view .sv-delete:hover { color: var(--red); }
-  #saved-empty {
-    display: none;
-    padding: 14px 8px;
-    text-align: center;
-    color: var(--ink-dim);
-    font-size: 10px;
-    font-style: italic;
-  }
-
-  /* ═══════ RENDER STYLES MODAL ═══════ */
-  .render-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-  .render-section { }
-  .render-section-label {
-    font-size: 9px;
-    font-weight: 500;
-    color: var(--ink-dim);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-  }
-  #ai-settings {
-    display: none;
-    margin-top: 6px;
-  }
-  #ai-settings.open { display: block; }
-  #ai-settings .text-input { margin-bottom: 8px; }
-
-  .preset-cat {
-    font-size: 9px;
-    font-weight: 500;
-    color: var(--ink-dim);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin: 16px 0 8px;
-    padding-top: 12px;
-    border-top: 0.5px solid var(--rule);
-  }
-  .preset-cat:first-child {
-    margin-top: 4px;
-    border-top: none;
-    padding-top: 0;
-  }
-  .preset-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .ai-preset {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 0.5px solid var(--ink-whisper);
-    background: rgba(255,255,255,0.022);
-    color: var(--ink-soft);
-    font-size: 10px;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: 0;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .ai-preset:hover {
-    border-color: var(--panel-border-strong);
-    color: var(--ink);
-  }
-  .ai-preset.active {
-    border-color: var(--accent);
-    color: var(--ink);
-    box-shadow: inset 0 0 0 0.5px var(--accent);
-  }
-  .preset-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  /* Render styles footer — export actions */
-  .render-footer {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    width: 100%;
-  }
-  .render-footer .spacer { flex: 1; }
-  .render-footer #export-res {
-    background: rgba(255,255,255,0.04);
-    color: var(--ink-soft);
-    border: 0.5px solid var(--ink-whisper);
-    border-radius: 6px;
-    padding: 7px 10px;
-    font-size: 10px;
-    font-family: inherit;
-    cursor: pointer;
-    outline: none;
-  }
-  .btn {
-    padding: 9px 16px;
-    border-radius: 8px;
-    border: 0.5px solid var(--panel-border-strong);
-    background: rgba(255,255,255,0.03);
-    color: var(--ink);
-    font-family: inherit;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .btn:hover { background: rgba(255,255,255,0.06); }
-  .btn.primary {
-    border-color: var(--accent);
-    color: var(--ink);
-    box-shadow: inset 0 0 0 0.5px var(--accent);
-  }
-  .btn.primary:hover { background: var(--accent-soft); }
-  .btn.ghost { background: transparent; border-color: var(--ink-whisper); color: var(--ink-soft); }
-  .btn.ghost:hover { color: var(--ink); border-color: var(--panel-border-strong); }
-
-  /* Export queue (inside render styles modal) */
-  #export-queue {
-    margin-top: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  #export-queue:empty { display: none; }
-  .queue-item.clickable {
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-  }
-  .queue-item.clickable:hover {
-    background: var(--bg-hover);
-    border-color: var(--panel-border-strong);
-  }
-  .queue-item.clickable:focus-visible {
-    outline: 1px solid var(--accent-dim);
-    outline-offset: -1px;
-  }
-  .queue-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 11px;
-    background: rgba(255,255,255,0.025);
-    border: 0.5px solid var(--ink-whisper);
-    border-radius: 6px;
-    font-size: 10.5px;
-  }
-  .queue-item .qi-label {
-    flex: 1;
-    color: var(--ink-soft);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .queue-item .qi-status {
-    font-size: 9px;
-    color: var(--ink-dim);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .queue-item .qi-bar {
-    flex: 0 0 40px;
-    height: 1px;
-    background: var(--ink-whisper);
-    overflow: hidden;
-  }
-  .queue-item .qi-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    transition: width 0.3s;
-  }
-  .queue-item .qi-remove {
-    cursor: pointer;
-    color: var(--ink-dim);
-    font-size: 14px;
-    line-height: 1;
-    transition: color 0.15s;
-  }
-  .queue-item .qi-remove:hover { color: var(--red); }
-  .queue-item.qi-done { opacity: 0.68; }
-  .queue-item.qi-clickable {
-    cursor: pointer;
-    transition: all 0.12s;
-  }
-  .queue-item.qi-clickable:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.05);
-    border-color: var(--panel-border-strong);
-  }
-  .queue-item.qi-done .qi-status { color: var(--green); }
-  .queue-item.qi-error .qi-status { color: var(--red); }
-  .queue-item.qi-active { border-color: var(--accent-dim); }
-  @keyframes qi-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
-  .queue-item.qi-active .qi-status {
-    animation: qi-pulse 2s ease infinite;
-    color: var(--accent);
-  }
+  /* (Sidebar saved-views dropdown rules — #saved-views-list, .saved-view,
+   * .sv-*, #saved-empty — went with /app-classic. /app uses
+   * SavedViewsPanel + svp-* classes in mock.css.)
+   *
+   * (Sidebar render modal — .render-grid, .render-section, #ai-settings,
+   * .preset-cat, .preset-grid, .ai-preset, .preset-dot, .render-footer,
+   * .btn, .btn.primary, .btn.ghost, #export-queue, .queue-item, .qi-* —
+   * all replaced by AIRenderModal's rs-* + mock-render-sheet.css.) */
 
   /* ═══════ GALLERY MODAL (restyled to match) ═══════ */
   #gallery-overlay {
@@ -469,12 +217,68 @@
     color: #14100a;
     border-color: var(--accent);
   }
-  /* Share button sits just left of the download button. Previously an
-     inline style carried right: 38px + smaller font; moved here so the
-     mobile override can actually win without !important. */
+  /* Action button positions: Delete (right-most), Download, Public,
+     Share, in that order from far-right to nearer-center.
+     Phase 7.2 added the public toggle; Phase 2.5 added Delete. */
   .gallery-card .gc-dl-share {
-    right: 38px;
+    right: 100px;
     font-size: 11px;
+  }
+  .gallery-card .gc-dl-public {
+    right: 69px;
+    font-size: 12px;
+  }
+  .gallery-card .gc-dl-public.is-on {
+    background: var(--accent);
+    color: var(--ink-deepest);
+    border-color: var(--accent);
+    opacity: 1;
+  }
+  .gallery-card .gc-dl-download {
+    right: 38px;
+  }
+  .gallery-card .gc-dl-delete {
+    /* Stays at right: 7px from the base .gc-dl rule. */
+    font-size: 14px;
+    line-height: 1;
+  }
+  .gallery-card .gc-public-badge {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    z-index: 1;
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: var(--ink-deepest);
+    font: 600 9px/1 var(--body);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    pointer-events: none;
+  }
+  .gallery-card .gc-dl-delete:hover {
+    background: var(--red);
+    color: var(--ink);
+    border-color: var(--red);
+  }
+  .gallery-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--s-10) var(--s-7);
+    color: var(--ink-soft);
+  }
+  .gallery-empty-title {
+    font: 600 var(--t-lg)/1.2 var(--serif);
+    color: var(--ink);
+    margin-bottom: var(--s-3);
+  }
+  .gallery-empty-body {
+    font: 400 var(--t-base)/1.5 var(--body);
+    color: var(--ink-dim);
+    max-width: 360px;
   }
   .gallery-card.gallery-batch .gc-mosaic {
     display: grid;
@@ -635,60 +439,6 @@
   .lb-actions .lb-download {
     position: static;
   }
-  /* Flag that toggles the overflow menu; populated + wired up in JS.
-     On narrow widths we collapse Share / Jump to view / Save view into
-     this menu, keeping Preview + Download on the main row. */
-  .lb-more {
-    position: relative;
-  }
-  .lb-more-btn {
-    padding: 7px 10px;
-    border-radius: 6px;
-    border: 0.5px solid var(--ink-whisper);
-    background: transparent;
-    color: var(--ink-soft);
-    font-size: 12px;
-    font-family: inherit;
-    cursor: pointer;
-    line-height: 1;
-  }
-  .lb-more-btn:hover { color: var(--ink); border-color: var(--panel-border-strong); }
-  .lb-more-menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 160px;
-    background: rgba(20,19,23,0.96);
-    backdrop-filter: blur(20px);
-    border: 0.5px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 4px;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-    display: none;
-    flex-direction: column;
-    gap: 2px;
-    z-index: 10;
-  }
-  .lb-more.open .lb-more-menu { display: flex; }
-  .lb-more-menu .gallery-btn {
-    position: static;
-    border: none;
-    padding: 8px 12px;
-    text-align: left;
-    border-radius: 4px;
-    width: 100%;
-    background: transparent;
-    color: var(--ink-soft);
-    font-size: 12px;
-  }
-  .lb-more-menu .gallery-btn:hover {
-    background: rgba(255,255,255,0.05);
-    color: var(--ink);
-  }
-  .lb-more-menu .gallery-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
 
   /* ═══════ 3D POSTER PREVIEW ═══════ */
   /* Inset from the left so the sidebar stays visible + clickable */
@@ -696,16 +446,17 @@
      Below that, the preview can open from Lightbox's "Preview as poster"
      button but still be hidden behind its own parent — which looked like
      clicking the button did nothing. */
+  /* Phase 2.6 — preview spans the whole viewport now that the sidebar
+     is gone (Phase 1.2). The left: 316px gutter was reserving space
+     for the sidebar that no longer exists. */
   #poster-preview {
-    position: fixed; top: 0; right: 0; bottom: 0; left: 316px;
-    z-index: 400;
+    position: fixed; inset: 0;
+    z-index: var(--z-modal);
     display: none;
     align-items: center;
     justify-content: center;
     cursor: grab;
   }
-  /* Keep sidebar above the preview so it remains interactive */
-  body.preview-open #sidebar { z-index: 200; }
   #poster-preview.open { display: flex; }
   #poster-preview:active { cursor: grabbing; }
 
@@ -732,34 +483,37 @@
   }
   .pp-close {
     position: absolute;
-    top: 22px; right: 22px;
+    top: var(--s-7); right: var(--s-7);
     z-index: 2;
     width: 38px; height: 38px;
-    border-radius: 8px;
-    background: rgba(20,19,23,0.72);
-    backdrop-filter: blur(20px);
-    border: 0.5px solid var(--panel-border);
+    border-radius: var(--r-md);
+    background: var(--panel-strong);
+    -webkit-backdrop-filter: blur(var(--blur-pill));
+            backdrop-filter: blur(var(--blur-pill));
+    border: 1px solid var(--panel-border);
     color: var(--ink-soft);
-    font-size: 18px;
+    font-size: var(--t-md);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: background var(--d-fast) var(--ease-out),
+                color var(--d-fast) var(--ease-out);
     font-family: inherit;
   }
-  .pp-close:hover { background: rgba(30,29,33,0.85); color: var(--ink); }
+  .pp-close:hover { background: var(--panel-deep); color: var(--ink); }
   .pp-hint {
     position: absolute;
-    bottom: 28px;
+    bottom: var(--s-8);
     left: 50%;
     transform: translateX(-50%);
-    font-size: 9px;
+    font-size: var(--t-xs);
     color: var(--ink-dim);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     pointer-events: none;
     opacity: 0.55;
+    font-family: var(--mono);
   }
   .pp-scene {
     perspective: 1200px;

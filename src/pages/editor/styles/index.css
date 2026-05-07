@@ -1,12 +1,9 @@
 /* Editor CSS — split out of prototypes/poster-v3-ui.html.
    Order matters: tokens first so CSS variables are defined before use,
-   then global layout, then the sidebar/modal/timemachine/graphics
-   modules that consume the tokens, responsive overrides last so their
-   media-query rules win. */
+   then global layout, then the modal/graphics modules that consume the
+   tokens, responsive overrides last so their media-query rules win.
+   Sidebar + Time Machine styles were dropped with /app-classic (Phase 1.2). */
 @import './tokens.css';
 @import './editor.css';
-@import './sidebar.css';
 @import './modals.css';
-@import './timemachine.css';
-@import './graphics.css';
 @import './responsive.css';

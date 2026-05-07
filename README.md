@@ -1,6 +1,8 @@
-# map-poster-app
+# Vedute
 
-3D map poster editor. Pick a location on Google 3D Tiles, tune time of day, clouds, depth-of-field, camera angle, and map style; export a framed poster.
+Aerial city posters, made from 3D maps. Pick a location on Google 3D Tiles, tune time of day, clouds, depth-of-field, camera angle, and map style; render a framed poster.
+
+Named for the 18th-century Italian art genre of detailed urban view paintings (Canaletto, Bellotto, Guardi).
 
 ![Editor](docs/editor-screenshot.png)
 
@@ -12,7 +14,15 @@ npm install
 npm run dev  # dev server → visit http://localhost:5173/app
 ```
 
-The landing page at `/` is the static prototype; the React editor lives at `/app` (pill UI — the default). The legacy sidebar editor is preserved at `/app-classic`. First load may look blank if Supabase env vars aren't set — the editor at `/app` runs regardless (auth degrades gracefully).
+React routes:
+- `/` — Vedute landing page (the React `LandingPage`).
+- `/app` — the editor (pill UI). Guests can use it directly, no login required.
+- `/community` — public posters feed.
+- `/login`, `/signup`, `/forgot-password`, `/reset-password` — auth flow.
+- `/profile`, `/gallery` — logged-in only.
+- `/app-classic` and `/mock` redirect to `/app` (historical aliases; the sidebar editor was removed in Phase 1.2).
+
+Supabase env vars are optional — without them, auth flows degrade gracefully and the editor still runs as guest. Set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` to wire sign-in.
 
 ## Scripts
 
@@ -28,16 +38,26 @@ The landing page at `/` is the static prototype; the React editor lives at `/app
 ## Project layout
 
 ```
-src/pages/editor/       — sidebar editor (/app-classic) + shared scene/atoms/hooks
-  scene/                  @react-three/fiber scene, Scene.jsx is load-bearing
-  atoms/                  Jotai state
-  sidebar/ modals/ hooks/ styles/
-src/pages/mock/         — pill editor (/app, the new default UI)
-  components/             pill primitives + 5 corner clusters
-  modals/ hooks/ styles/
-prototypes/             — original HTML prototype, frozen as reference
-api/                    — Vercel serverless fns (gemini.js, og.js)
-scripts/smoke.js        — production-build canary (covers both /app + /app-classic)
+src/                    — React app
+  App.jsx                 routes (lazy-loaded for the heavy ones)
+  components/             shared chrome (Navbar, ProtectedRoute, ToastHost,
+                          AuthLayout/Input/Button)
+  contexts/AuthContext    Supabase auth + active-profile bridge
+  lib/                    entitlements / errors / geocode / migrations / etc.
+  pages/                  top-level routes
+    editor/               shared scene/atoms/hooks (the editor's heart)
+      scene/                @react-three/fiber scene, Scene.jsx is load-bearing
+      atoms/                Jotai state
+      modals/ hooks/ styles/
+    mock/                 pill editor (/app)
+      components/           pill primitives + 5 corner clusters
+      modals/ hooks/ styles/
+prototypes/             — frozen HTML reference implementations (not deployed
+                          since the rebrand cleanup; still served by vite dev)
+api/                    — Vercel serverless functions
+                          gemini.js + og.js (live), stripe-* / places /
+                          upscale (501 stubs with detailed wire-up plans)
+scripts/smoke.js        — production-build Playwright canary
 docs/superpowers/       — design specs, phase plans, ADRs
 CLAUDE.md               — architecture, state pattern, event channels, gotchas
 ```
@@ -47,11 +67,18 @@ CLAUDE.md               — architecture, state pattern, event channels, gotchas
 ## Deployment
 
 - Vercel auto-deploys on push to `main`.
-- Rewrites live in `vercel.json` (landing → prototype; `/app/*` and `/app-classic/*` → React SPA; legacy `*.html` paths preserved).
+- Rewrites live in `vercel.json` — every customer-facing path
+  (`/`, `/app`, `/community`, `/profile`, `/gallery`, the auth flow)
+  maps to the React SPA. The prototype HTML pages are no longer
+  surfaced via clean URLs (`robots.txt` blocks them too).
 - Required env vars:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
   - `GEMINI_API_KEY` (server-side, for `api/gemini.js`)
+- Optional env vars (each gated by a 501 stub today):
+  - `STRIPE_SECRET_KEY` + `VITE_STRIPE_PRICE_*` (Phase 6.2 monetization)
+  - `GOOGLE_PLACES_API_KEY` (Phase 3.2 location autocomplete)
+  - `UPSCALE_API_KEY` (Phase 5.1 server-side render upscaling)
 
 ## Contributing
 

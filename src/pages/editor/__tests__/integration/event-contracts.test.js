@@ -53,7 +53,6 @@ function mockCameraResponder() {
 }
 
 describe('saved-view round trip', () => {
-  const SESSION_KEY = 'mapposter3d_v2_views'
   const storageBackup = new Map()
 
   beforeEach(() => {

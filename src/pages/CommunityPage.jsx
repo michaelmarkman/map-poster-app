@@ -1,30 +1,177 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { loadGalleryEntries } from './editor/utils/galleryDb'
+
+// Phase 7.2 — community page substance.
+//
+// Today the community feed is a single-user proxy: we pull the user's
+// LOCAL gallery (IndexedDB) and treat it as the showcase. When the
+// Supabase `gallery_entries` table lands (see
+// docs/superpowers/plans/2026-05-06-monetization-handoff.md), this
+// page swaps its data source for `is_public=true` rows from there
+// without touching the rest of the layout.
+//
+// Until then this page demonstrates: the visual pattern of the feed,
+// the per-card layout (image + author + location), and the empty
+// state. It's also a useful place for a logged-out user to see what
+// the product produces.
+
 const s = {
   page: {
-    minHeight: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    background: '#09090b', fontFamily: "'Inter', system-ui, sans-serif",
-    padding: '40px 24px', textAlign: 'center',
+    minHeight: 'calc(100vh - 56px)',
+    background: '#09090b',
+    fontFamily: "'Inter', system-ui, sans-serif",
+    padding: '48px 24px 80px',
+    color: '#e8e4dc',
   },
-  icon: { fontSize: 64, marginBottom: 24, opacity: 0.6 },
+  container: { maxWidth: 1280, margin: '0 auto' },
+  hero: { textAlign: 'center', marginBottom: 48 },
   title: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 28, fontWeight: 400, color: '#e8e4dc', marginBottom: 12, fontStyle: 'italic',
+    fontFamily: "'Fraunces', 'Playfair Display', Georgia, serif",
+    fontSize: 40, fontWeight: 500, marginBottom: 12, letterSpacing: '0.005em',
   },
-  text: { color: '#5a5750', fontSize: 15, maxWidth: 400, marginBottom: 32, lineHeight: 1.6 },
-  btn: {
-    display: 'inline-block', padding: '12px 28px', background: '#c8b897', color: '#09090b',
-    border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600,
-    textDecoration: 'none', cursor: 'pointer',
+  subtitle: {
+    fontSize: 16, color: '#8a8780', maxWidth: 540, margin: '0 auto', lineHeight: 1.5,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+    gap: 20,
+  },
+  card: {
+    background: '#151518', border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 12, overflow: 'hidden',
+    transition: 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms',
+  },
+  cardImg: { width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block', background: '#0c0a08' },
+  cardBody: { padding: '14px 16px 16px' },
+  cardLabel: { fontSize: 14, fontWeight: 500, color: '#e8e4dc', marginBottom: 4 },
+  cardMeta: { fontSize: 12, color: '#8a8780' },
+  empty: {
+    textAlign: 'center', padding: '80px 24px',
+    color: '#8a8780',
+  },
+  emptyTitle: {
+    fontFamily: "'Fraunces', Georgia, serif",
+    fontSize: 22, color: '#e8e4dc', marginBottom: 8,
+  },
+  emptyBody: { fontSize: 14, color: '#8a8780', maxWidth: 460, margin: '0 auto 24px' },
+  emptyCta: {
+    display: 'inline-block', padding: '12px 22px',
+    background: '#c8b897', color: '#0c0a08',
+    borderRadius: 8, fontSize: 13, fontWeight: 600,
+    textDecoration: 'none', letterSpacing: '0.02em',
+  },
+  banner: {
+    background: 'rgba(200,184,151,0.08)',
+    border: '1px solid rgba(200,184,151,0.24)',
+    borderRadius: 8,
+    padding: '14px 18px',
+    marginBottom: 32,
+    fontSize: 13, color: '#c8b897', textAlign: 'center',
   },
 }
 
 export default function CommunityPage() {
+  const navigate = useNavigate()
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadGalleryEntries()
+      .then((items) => {
+        // Phase 7.2 — filter to public-only. Today the flag is local; once
+        // Supabase ships, this swaps to a server-side WHERE is_public=true.
+        const pub = items.filter((it) => it.isPublic)
+        setEntries(pub.slice().reverse())
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Phase 7.2 — clicking a card with a saved view restores the camera in
+  // the editor. Without a view (e.g. quick-download entries that didn't
+  // capture one), fall back to opening the editor at default state.
+  // SPA navigation reuses the already-loaded auth + gallery atoms; a
+  // hard window.location reload would re-download the editor JS chunk.
+  const openInEditor = (entry) => {
+    if (entry.view) {
+      // Stash the restore intent in sessionStorage and navigate. The editor
+      // picks it up on mount and dispatches restore-view once Scene is up.
+      try {
+        sessionStorage.setItem(
+          'vedute_pending_restore',
+          JSON.stringify(entry.view),
+        )
+      } catch {}
+    }
+    navigate('/app')
+  }
+
   return (
     <div style={s.page}>
-      <div style={s.icon}>🗺️</div>
-      <h1 style={s.title}>Community Gallery</h1>
-      <p style={s.text}>Discover beautiful map posters shared by creators worldwide.</p>
-      <a href="/prototypes/community.html" style={s.btn}>Browse gallery →</a>
+      <div style={s.container}>
+        <div style={s.hero}>
+          <h1 style={s.title}>Community</h1>
+          <p style={s.subtitle}>
+            Aerial city posters from the Vedute community. Browse, get inspired,
+            jump into the editor and make your own.
+          </p>
+        </div>
+
+        {/* TODO Phase 7.2 (Supabase): swap loadGalleryEntries() for a
+            Supabase query against `gallery_entries WHERE is_public = true`
+            ordered by created_at desc. The card layout below is final
+            for that schema (image_url, author, location_name, created_at). */}
+        <div style={s.banner}>
+          You&rsquo;re seeing your local gallery here. Public sharing arrives with the next release.
+        </div>
+
+        {loading ? (
+          <div style={s.empty}>
+            <div style={s.emptyBody}>Loading…</div>
+          </div>
+        ) : entries.length === 0 ? (
+          <div style={s.empty}>
+            <div style={s.emptyTitle}>Nothing public yet</div>
+            <div style={s.emptyBody}>
+              Render a poster in the editor and toggle the Public badge on its
+              gallery card. Public posters land here.
+            </div>
+            <Link to="/app" style={s.emptyCta}>Open the editor →</Link>
+          </div>
+        ) : (
+          <div style={s.grid}>
+            {entries.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => openInEditor(item)}
+                style={{ ...s.card, textDecoration: 'none', color: 'inherit', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}
+                title={item.view ? 'Open this view in the editor' : 'Open the editor'}
+              >
+                <img src={item.dataUrl} alt={item.label} style={s.cardImg} />
+                <div style={s.cardBody}>
+                  <div style={s.cardLabel}>{item.label || 'Untitled'}</div>
+                  <div style={s.cardMeta}>
+                    {item.location || '—'} · {formatTime(item.time)}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
+}
+
+function formatTime(d) {
+  if (!d) return ''
+  const date = d instanceof Date ? d : new Date(d)
+  if (Number.isNaN(date.getTime())) return ''
+  const days = Math.floor((Date.now() - date.getTime()) / 86_400_000)
+  if (days < 1) return 'today'
+  if (days < 2) return 'yesterday'
+  if (days < 7) return `${days} days ago`
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }

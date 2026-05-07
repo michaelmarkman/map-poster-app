@@ -12,7 +12,21 @@ import {
 import { dracoLoader } from '../utils/three'
 
 // Google 3D Tiles — client-side OK; do NOT use for Gemini.
-const API_KEY = localStorage.getItem('mapposter_google_key') || 'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
+//
+// Resolution order:
+//   1. localStorage `vedute_google_key` — power-user override (no UI;
+//      set via devtools).
+//   2. VITE_GOOGLE_3DTILES_KEY env var — recommended for prod
+//      deployments. Domain-restrict the key in Google Cloud Console
+//      so it's safe to embed in the client bundle.
+//   3. Hardcoded fallback — keeps dev / no-env builds usable. Also
+//      domain-restricted (vedute.com), so an attacker can't cleanly
+//      reuse it from another origin. Long-term: drop and require an
+//      env var.
+const API_KEY =
+  (typeof localStorage !== 'undefined' && localStorage.getItem('vedute_google_key')) ||
+  import.meta.env.VITE_GOOGLE_3DTILES_KEY ||
+  'AIzaSyCIsBRv6ZcKXhIecWHAOOLkwmLKQcsocKg'
 
 // Applies creased normals to every mesh in a loaded tile. Photogrammetry
 // tiles ship with vertex normals that result in overly smooth surfaces —

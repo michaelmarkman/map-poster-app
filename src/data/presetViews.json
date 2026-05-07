@@ -1,0 +1,94 @@
+{
+  "_doc": "Vedute preset views — curated 'cool starting points' that ship with the app. Each entry triggers a fly-to with the listed lat/lng + viewing parameters. These do NOT carry a full saved-view payload (no ECEF position/quaternion); the camera lands at the location and Scene's GlobeControls handle the framing from the viewing params. Users can clone any preset into their own saved views.",
+  "_authoring": "lat/lng in degrees, altitude in metres, tilt 0..89 (0=looking straight down), heading 0..360 (0=N, 90=E), fov in mm-equivalent (35 = 50mm-ish for a poster look)",
+  "presets": [
+    {
+      "id": "preset-manhattan",
+      "name": "Manhattan",
+      "subtitle": "New York, USA",
+      "lat": 40.7549,
+      "lng": -73.984,
+      "altitude": 800,
+      "tilt": 60,
+      "heading": 200,
+      "fovMm": 35
+    },
+    {
+      "id": "preset-hong-kong",
+      "name": "Victoria Harbour",
+      "subtitle": "Hong Kong",
+      "lat": 22.2796,
+      "lng": 114.1722,
+      "altitude": 1200,
+      "tilt": 65,
+      "heading": 0,
+      "fovMm": 35
+    },
+    {
+      "id": "preset-paris",
+      "name": "Eiffel Tower",
+      "subtitle": "Paris, France",
+      "lat": 48.8584,
+      "lng": 2.2945,
+      "altitude": 600,
+      "tilt": 65,
+      "heading": 70,
+      "fovMm": 50
+    },
+    {
+      "id": "preset-tokyo",
+      "name": "Shibuya",
+      "subtitle": "Tokyo, Japan",
+      "lat": 35.6595,
+      "lng": 139.7005,
+      "altitude": 700,
+      "tilt": 60,
+      "heading": 150,
+      "fovMm": 35
+    },
+    {
+      "id": "preset-venice",
+      "name": "Grand Canal",
+      "subtitle": "Venice, Italy",
+      "lat": 45.4408,
+      "lng": 12.3155,
+      "altitude": 500,
+      "tilt": 55,
+      "heading": 30,
+      "fovMm": 50
+    },
+    {
+      "id": "preset-dubai",
+      "name": "Burj Khalifa",
+      "subtitle": "Dubai, UAE",
+      "lat": 25.1972,
+      "lng": 55.2744,
+      "altitude": 1500,
+      "tilt": 60,
+      "heading": 280,
+      "fovMm": 35
+    },
+    {
+      "id": "preset-rio",
+      "name": "Christ the Redeemer",
+      "subtitle": "Rio de Janeiro, Brazil",
+      "lat": -22.9519,
+      "lng": -43.2105,
+      "altitude": 900,
+      "tilt": 55,
+      "heading": 30,
+      "fovMm": 35
+    },
+    {
+      "id": "preset-london",
+      "name": "London Skyline",
+      "subtitle": "London, UK",
+      "lat": 51.5074,
+      "lng": -0.0877,
+      "altitude": 700,
+      "tilt": 65,
+      "heading": 250,
+      "fovMm": 35
+    }
+  ]
+}

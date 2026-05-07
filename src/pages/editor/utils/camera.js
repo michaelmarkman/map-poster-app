@@ -1,5 +1,5 @@
 import { Vector3 } from 'three'
-import { Geodetic, radians } from '@takram/three-geospatial'
+import { Geodetic } from '@takram/three-geospatial'
 
 // Module-local state — used to coalesce slider writes. These are values the
 // sidebar reads back at ~5Hz, and also the defaults dispatchCameraSet falls
@@ -10,19 +10,10 @@ let _currentHeading = 20
 let _currentAlt = 700
 let _suppressSliderInput = false
 
-// Log mapping for altitude slider: 0-1000 slider range → 100m-10000m altitude
-const ALT_MIN = 100
-const ALT_MAX = 10000
-
-export function sliderToAlt(s) {
-  const t = Math.max(0, Math.min(1000, s)) / 1000
-  return ALT_MIN * Math.pow(ALT_MAX / ALT_MIN, t)
-}
-
-export function altToSlider(alt) {
-  const clamped = Math.max(ALT_MIN, Math.min(ALT_MAX, alt))
-  return Math.round(1000 * Math.log(clamped / ALT_MIN) / Math.log(ALT_MAX / ALT_MIN))
-}
+// (sliderToAlt / altToSlider — log-mapped slider math for the deleted
+// sidebar's altitude slider — were dropped along with dispatchCameraSet
+// the previous round. The pill UI doesn't surface altitude as a slider.
+// If it comes back, it's 5 lines of Math.exp/Math.log to recreate.)
 
 // Ray/Earth-sphere intersection using the WGS84 equatorial radius. Used as a
 // fallback for dolly zoom when no loaded geometry is under the screen center
@@ -103,15 +94,7 @@ export function syncCameraToUI(camera, setReadout) {
   } catch (e) {}
 }
 
-// Dispatch camera-set event with desired tilt/heading/alt. Falls back to the
-// last synced values so a single-axis change keeps the other two stable.
-export function dispatchCameraSet(partial) {
-  if (_suppressSliderInput) return
-  window.dispatchEvent(new CustomEvent('camera-set', {
-    detail: {
-      tilt: partial.tilt ?? _currentTilt,
-      heading: partial.heading ?? _currentHeading,
-      altitude: partial.altitude ?? _currentAlt,
-    },
-  }))
-}
+// (dispatchCameraSet was removed alongside the sidebar editor in Phase 1.2.
+// The pill UI doesn't have tilt/heading/alt sliders; if those come back,
+// the helper can come back with them — sliderToAlt / altToSlider above
+// stay around as the math half of that future surface.)

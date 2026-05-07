@@ -5,13 +5,15 @@ import {
   loadGalleryEntries,
   deleteGalleryEntry,
   saveGalleryEntry,
+  updateGalleryEntry,
   buildGalleryItem,
 } from '../utils/galleryDb'
 
 // Gallery data layer. Hydrates galleryEntriesAtom from IndexedDB on mount and
-// exposes add/delete/refresh. Also listens to the legacy window events
-// (gallery-add, gallery-delete, gallery-download-all) so sidebar/modal/queue
-// code that still speaks the prototype's event channel keeps working.
+// exposes add/delete/refresh. Also listens to window events (gallery-add,
+// gallery-remove, gallery-toggle-public, gallery-download-all) so the queue
+// + gallery card + community page can interact with the gallery without
+// holding a hook reference.
 //
 // Ports:
 //   - openGalleryDB      prototypes/poster-v3-ui.jsx:2008  (via galleryDb util)
@@ -47,6 +49,18 @@ export default function useGalleryData() {
     [setEntries],
   )
 
+  // Phase 7.2 — toggle the local is_public flag. Survives the Supabase
+  // swap unchanged: server side just gets the same boolean update.
+  const setPublic = useCallback(
+    async (id, isPublic) => {
+      setEntries((cur) =>
+        cur.map((e) => (e.id === id ? { ...e, isPublic: !!isPublic } : e)),
+      )
+      await updateGalleryEntry(id, { isPublic: !!isPublic })
+    },
+    [setEntries],
+  )
+
   // Initial hydration.
   useEffect(() => {
     let cancelled = false
@@ -77,11 +91,19 @@ export default function useGalleryData() {
       const list = e?.detail?.gallery
       const entries = Array.isArray(list) ? list : null
       const run = (items) => {
-        items.forEach((item) => {
-          const link = document.createElement('a')
-          link.download = (item.filename || 'image') + '.png'
-          link.href = item.dataUrl
-          link.click()
+        // Browsers throttle anchor.click() downloads when they fire in a
+        // tight loop — Chrome silently drops everything after ~10 rapid
+        // anchors, Firefox shows a permission prompt. Stagger with a
+        // small delay (~150ms) so all the downloads land. Even at 50
+        // entries that's only ~7.5s total, perfectly acceptable for a
+        // 'Download all' button.
+        items.forEach((item, i) => {
+          setTimeout(() => {
+            const link = document.createElement('a')
+            link.download = (item.filename || 'image') + '.png'
+            link.href = item.dataUrl
+            link.click()
+          }, i * 150)
         })
       }
       if (entries) {
@@ -90,15 +112,21 @@ export default function useGalleryData() {
         loadGalleryEntries().then(run)
       }
     }
+    const onTogglePublic = (e) => {
+      const { id, isPublic } = e?.detail || {}
+      if (id != null) setPublic(id, !!isPublic)
+    }
     window.addEventListener('gallery-add', onAdd)
-    window.addEventListener('gallery-delete', onDelete)
+    window.addEventListener('gallery-remove', onDelete)
+    window.addEventListener('gallery-toggle-public', onTogglePublic)
     window.addEventListener('gallery-download-all', onDownloadAll)
     return () => {
       window.removeEventListener('gallery-add', onAdd)
-      window.removeEventListener('gallery-delete', onDelete)
+      window.removeEventListener('gallery-remove', onDelete)
+      window.removeEventListener('gallery-toggle-public', onTogglePublic)
       window.removeEventListener('gallery-download-all', onDownloadAll)
     }
-  }, [addEntry, deleteEntry])
+  }, [addEntry, deleteEntry, setPublic])
 
-  return { addEntry, deleteEntry, refresh }
+  return { addEntry, deleteEntry, setPublic, refresh }
 }

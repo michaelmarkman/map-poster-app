@@ -1,45 +1,141 @@
-  :root {
-    /* Warm charcoal — the workbench */
-    --bg-0: #1c1b1f;
-    --bg-1: #232228;
-    --bg-2: #2c2b32;
-    --bg-deep: #0e0d11;
+/* Vedute design tokens — single source of truth.
+ *
+ * Phase 2.1: extended from the original prototype tokens with explicit
+ * type scale, spacing rhythm, radii, motion, and z-index. The 2.2–2.6
+ * redesigns reference these tokens — never hardcode a value here in a
+ * downstream stylesheet.
+ *
+ * Aesthetic direction: editorial / refined. Warm charcoal canvas, cream
+ * (#c8b897) accent used sparingly, glass-panel chrome. The wordmark sets
+ * in Fraunces (a high-contrast serif in the lineage of Bodoni / GT Sectra
+ * but free via Google Fonts); UI runs on Inter for tight, neutral text.
+ */
+:root {
+  /* ────── Colour ────── */
 
-    /* Glass panel */
-    --panel: rgba(20, 19, 23, 0.52);
-    --panel-border: rgba(255, 255, 255, 0.08);
-    --panel-border-strong: rgba(255, 255, 255, 0.12);
-    --rule: rgba(255, 255, 255, 0.05);
+  /* Warm charcoal — the workbench */
+  --bg-0: #1c1b1f;
+  --bg-1: #232228;
+  --bg-2: #2c2b32;
+  --bg-deep: #0e0d11;
+  --ink-deepest: #0c0a08;
 
-    /* Ink */
-    --ink: #eceae3;
-    --ink-soft: rgba(236, 234, 227, 0.62);
-    --ink-dim: rgba(236, 234, 227, 0.38);
-    --ink-ghost: rgba(236, 234, 227, 0.22);
-    --ink-whisper: rgba(236, 234, 227, 0.08);
+  /* Glass panel */
+  --panel: rgba(20, 19, 23, 0.52);
+  --panel-strong: rgba(20, 19, 23, 0.72);
+  --panel-deep: rgba(20, 19, 23, 0.82);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-border-strong: rgba(255, 255, 255, 0.12);
+  --rule: rgba(255, 255, 255, 0.05);
 
-    /* Accent — champagne, used sparingly */
-    --accent: #c8b897;
-    --accent-soft: rgba(200, 184, 151, 0.18);
-    --accent-dim: rgba(200, 184, 151, 0.45);
+  /* Ink */
+  --ink: #eceae3;
+  --ink-soft: rgba(236, 234, 227, 0.62);
+  --ink-dim: rgba(236, 234, 227, 0.38);
+  --ink-ghost: rgba(236, 234, 227, 0.22);
+  --ink-whisper: rgba(236, 234, 227, 0.08);
 
-    /* Legacy tokens (used by some JS-driven bits) */
-    --copper: var(--accent);
-    --copper-dim: var(--accent-soft);
-    --copper-glow: rgba(200, 184, 151, 0.22);
-    --text-1: var(--ink);
-    --text-2: var(--ink-soft);
-    --text-3: var(--ink-dim);
-    --red: #c45a5a;
-    --green: #6b9b6e;
-    --border: var(--panel-border);
-    --border-hover: var(--panel-border-strong);
-    --bg-panel: var(--panel);
-    --bg-surface: rgba(255,255,255,0.03);
-    --bg-raised: rgba(255,255,255,0.05);
-    --bg-hover: rgba(255,255,255,0.08);
+  /* Accent — champagne, used sparingly */
+  --accent: #c8b897;
+  --accent-soft: rgba(200, 184, 151, 0.18);
+  --accent-dim: rgba(200, 184, 151, 0.45);
+  --accent-glow: rgba(200, 184, 151, 0.22);
 
-    --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
-    --body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
-    --mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
-  }
+  /* Status */
+  --red: #c45a5a;
+  --green: #6b9b6e;
+  --amber: #d4a857;
+
+  /* Surface tints used by hover / nested-card states. (The other legacy
+   * aliases — --copper, --text-1/2/3, --border, --bg-panel, --bg-raised
+   * — were sidebar-era and had zero remaining refs after the Phase 1.2
+   * cleanup.) */
+  --bg-surface: rgba(255, 255, 255, 0.03);
+  --bg-hover: rgba(255, 255, 255, 0.08);
+
+  /* ────── Type ────── */
+
+  /* Wordmark + headings: refined serif. */
+  --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  /* UI body. */
+  --body: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  /* Numerics, code, ratios. */
+  --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+
+  /* Type scale — rooted in 14px UI body. */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-base: 14px;
+  --t-md: 16px;
+  --t-lg: 20px;
+  --t-xl: 28px;
+  --t-display: 48px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-relaxed: 1.5;
+
+  /* ────── Spacing rhythm — multiples of 4 ────── */
+
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 20px;
+  --s-8: 24px;
+  --s-9: 32px;
+  --s-10: 48px;
+
+  /* ────── Radii ────── */
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* ────── Shadows / glass ────── */
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.44);
+  --shadow-pill: 0 1px 3px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--panel-border);
+
+  /* Backdrop blur magnitudes — used together with --panel for glass. */
+  --blur-pill: 16px;
+  --blur-panel: 24px;
+  --blur-modal: 32px;
+
+  /* ────── Motion ────── */
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  --d-fast: 120ms;
+  --d-base: 220ms;
+  --d-slow: 360ms;
+
+  /* ────── Z-index stack ──────
+   * Numbers chosen with gaps so insertions don't require renumbering.
+   *   0    canvas (WebGL root)
+   *   5    canvas-overlays (frame border, render backdrop)
+   *  20    in-scene HTML overlays (saved-view tooltip)
+   *  50    floating pills + clusters
+   * 100    popover panels anchored to pills
+   * 200    modals
+   * 300    lightbox / fullscreen overlays
+   * 500    toasts
+   * 999    onboarding card / hard-stop overlay
+   */
+  --z-canvas: 0;
+  --z-overlay: 5;
+  --z-svm-tooltip: 20;
+  --z-pill: 50;
+  --z-popover: 100;
+  --z-modal: 200;
+  --z-lightbox: 300;
+  --z-toast: 500;
+  --z-onboarding: 999;
+}

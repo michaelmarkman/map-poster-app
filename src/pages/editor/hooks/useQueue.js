@@ -11,12 +11,24 @@ import {
   savedViewsAtom,
 } from '../atoms/sidebar'
 import { dofAtom } from '../atoms/scene'
+import { textFieldsAtom } from '../atoms/ui'
 import {
+  applyWatermark,
   buildFilename,
-  composite,
   downloadDataUrl,
   snapshotCanvas,
 } from '../utils/export'
+import {
+  canSubmitRender,
+  canUseResolution,
+  getTierLimits,
+  shouldShowWatermark,
+} from '../../../lib/entitlements'
+import {
+  getRenderCount,
+  incrementRenderCount,
+} from '../../../lib/renderCount'
+import { fireToast } from '../../../lib/toast'
 
 // Queue hook — port of the export queue wiring from prototypes/poster-v3-ui.jsx
 // (lines 1997-2425). The prototype kept `exportQueue` as a module-scoped
@@ -193,12 +205,33 @@ function emitStatus(text) {
   window.dispatchEvent(new CustomEvent('export-status', { detail: text || '' }))
 }
 
-function getLocation() {
-  try {
-    return document.getElementById('location-search')?.value || ''
-  } catch (e) {
-    return ''
+// (getLocation that read document.getElementById('location-search') was
+// dead code from /app-classic — that input lived in the sidebar's
+// EnvironmentSection. /app uses textFieldsAtom.title as the canonical
+// location label, populated by ClusterTopLeft on every search hit.
+// useQueue threads textFields through settingsRef and reads .title at
+// snapshot time.)
+
+// Pull a user-facing error message from a failed /api/gemini response.
+// Handles both error shapes in flight:
+//   - our proxy returns { error: "string" } (no key / rate limit / upstream error)
+//   - Gemini's upstream returns { error: { message: "..." } }
+// Earlier code only honored the second shape, so the first collapsed to
+// "API error 500" with no useful detail. Exported so unit tests can pin
+// the shape across both proxies.
+export function geminiErrorMessage(status, body) {
+  let msg = `API error ${status}`
+  if (body && typeof body === 'object') {
+    const fromProxy = typeof body.error === 'string' ? body.error : null
+    const fromUpstream = body.error?.message
+    msg = fromProxy || fromUpstream?.slice(0, 200) || msg
   }
+  // 500 with "not configured" is the recurring "no GEMINI_API_KEY"
+  // case — translate it to a friendlier hint that points at BYOK.
+  if (status === 500 && /not configured/i.test(msg)) {
+    msg = 'Gemini key not set. Add one on /profile (BYOK), or set GEMINI_API_KEY in .env.local.'
+  }
+  return msg
 }
 
 // Gemini call — mirrors sendToGemini from poster-v3-ui.jsx:2215. The server
@@ -234,15 +267,35 @@ async function callGemini(snapshotDataUrl, prompt, apiKey) {
   const headers = { 'Content-Type': 'application/json' }
   const body = apiKey ? { ...payload, apiKey } : payload
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  })
+  // 90-second hard ceiling on the request. Gemini image generation
+  // typically returns in 6-15s. Without a timeout, an upstream Gemini
+  // outage or a stalled connection leaves the request hanging
+  // indefinitely — the queue UI keeps spinning, the progress-pulse
+  // setInterval keeps firing, and the user has no way to recover
+  // without a page reload. AbortController + 90s timeout means a
+  // hung request fails as a normal job error and the user can retry.
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90_000)
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err?.name === 'AbortError') {
+      throw new Error('Render timed out (90s) — try again')
+    }
+    throw err
+  }
+  clearTimeout(timeoutId)
   if (!res.ok) {
-    let msg = `API error ${res.status}`
-    try { msg = (await res.json()).error?.message?.slice(0, 80) || msg } catch (e) {}
-    throw new Error(msg)
+    let body = null
+    try { body = await res.json() } catch {}
+    throw new Error(geminiErrorMessage(res.status, body))
   }
   const result = await res.json()
   for (const cand of result.candidates || []) {
@@ -274,24 +327,53 @@ export default function useQueue() {
   const resolution = useAtomValue(exportResolutionAtom)
   const savedViews = useAtomValue(savedViewsAtom)
   const dof = useAtomValue(dofAtom)
+  const textFields = useAtomValue(textFieldsAtom)
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
+  // Writes happen in useEffect (not during render): under React 19 concurrent
+  // rendering, ref writes inside the function body can be silently dropped
+  // when a render is restarted, leaving listeners with stale state. See the
+  // 2026-04-17 LEARNINGS entry on R19 concurrent rendering for the full
+  // story — same fix applies here.
   const settingsRef = useRef({})
-  settingsRef.current = {
+  // Phase 6 — clamp resolution to the user's tier max so a user who had
+  // 4× selected before the entitlements layer landed (or after a downgrade)
+  // doesn't keep rendering at 4×. UI gating disables the disallowed buttons;
+  // this is the safety net at submission time.
+  const tierMax = getTierLimits().maxResolutionMultiplier
+  const clampedResolution = canUseResolution({ multiplier: resolution })
+    ? resolution
+    : tierMax
+  useEffect(() => {
+    settingsRef.current = {
+      aiEnhance,
+      aiPrompt,
+      aiPreset,
+      aiKey,
+      aiCleanArtifacts,
+      resolution: clampedResolution,
+      savedViews,
+      dof,
+      textFields,
+    }
+  }, [
     aiEnhance,
     aiPrompt,
     aiPreset,
     aiKey,
     aiCleanArtifacts,
-    resolution,
+    clampedResolution,
     savedViews,
     dof,
-  }
+    textFields,
+  ])
 
   // Queue snapshot ref so async processors can read the newest array without
-  // re-subscribing each tick.
+  // re-subscribing each tick. Same R19-concurrent-safe pattern as above.
   const queueRef = useRef(queue)
-  queueRef.current = queue
+  useEffect(() => {
+    queueRef.current = queue
+  }, [queue])
 
   // Processor loop — single-concurrency like the prototype's exportProcessing
   // flag. Runs until there are no more pending jobs, then releases.
@@ -322,6 +404,16 @@ export default function useQueue() {
       return entry
     }
 
+    // Has the user removed this job since runJob started? When yes, the
+    // download + gallery-add + render-count bump should all skip — the
+    // user explicitly cancelled. Without this guard, a user clicking
+    // Remove on an active AI render still saw the result land in the
+    // gallery (and got billed against the monthly cap) once the in-flight
+    // fetch resolved, which contradicts the explicit cancel intent.
+    function isJobLive(id) {
+      return queueRef.current.some((j) => j.id === id)
+    }
+
     async function runJob(job) {
       // Already-captured snapshot locks the view to the moment the job was
       // created — matches the prototype (see poster-v3-ui.jsx:2312).
@@ -339,23 +431,23 @@ export default function useQueue() {
           resolution: job.resolution,
           location: job.location,
         })
-        // Auto-download every completed job, including batched ones. The
-        // queue runs single-concurrency, so even a 28-style batch trickles
-        // downloads out one-by-one as each render finishes (minutes
-        // apart) — no risk of a download-spam burst.
-        downloadDataUrl(snapshotUrl, fname)
-        dispatchGalleryAdd(job.label, fname, snapshotUrl, {
+        // Phase 6 — apply free-tier watermark (no-op for Pro). BYOK does
+        // NOT bypass the watermark (see entitlements.js doc comment).
+        const finalUrl = shouldShowWatermark()
+          ? await applyWatermark(snapshotUrl)
+          : snapshotUrl
+        if (!isJobLive(job.id)) return
+        downloadDataUrl(finalUrl, fname)
+        dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
-          baseImage: job.baseImage || snapshotUrl,
-          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
           statusText: 'Done',
           progress: 100,
-          resultUrl: snapshotUrl,
+          resultUrl: finalUrl,
         })
         return
       }
@@ -371,30 +463,25 @@ export default function useQueue() {
       }, 1000)
 
       try {
-        // Send the raw snapshot to Gemini (no graphics baked in — they get
-        // re-stylized otherwise). Composite the saved graphics layer back
-        // on top of the AI result here so text/shapes stay pixel-crisp.
         const aiResult = await callGemini(snapshotUrl, job.prompt, job.apiKey)
         clearInterval(pulse)
-        let finalUrl = aiResult
-        if (job.includeGraphicsAfter !== false && job.graphicsJSON) {
-          try {
-            updateJob(job.id, { statusText: 'Compositing...', progress: 90 })
-            finalUrl = (await composite(aiResult, { includeGraphics: true })) || aiResult
-          } catch {}
-        }
+        // Bail if the user removed the job during the fetch — don't
+        // download, don't add to gallery, don't bump the render counter.
+        if (!isJobLive(job.id)) return
         const fname = buildFilename(job.label, {
           resolution: job.resolution,
           location: job.location,
         })
-        // See raw-export branch — auto-download all jobs, batched or not.
+        // Phase 6 — apply free-tier watermark.
+        const finalUrl = shouldShowWatermark()
+          ? await applyWatermark(aiResult)
+          : aiResult
+        if (!isJobLive(job.id)) return
         downloadDataUrl(finalUrl, fname)
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
-          baseImage: aiResult,
-          graphicsJSON: job.graphicsJSON || null,
         })
         updateJob(job.id, {
           status: 'done',
@@ -402,8 +489,12 @@ export default function useQueue() {
           progress: 100,
           resultUrl: finalUrl,
         })
+        // Phase 6.1 — bump the per-month render counter on a successful
+        // AI render, IF the user isn't on BYOK. Failed renders don't count.
+        if (!job.apiKey) incrementRenderCount(1)
       } catch (err) {
         clearInterval(pulse)
+        if (!isJobLive(job.id)) return
         updateJob(job.id, {
           status: 'error',
           statusText: err?.message?.slice(0, 80) || 'Error',
@@ -419,7 +510,6 @@ export default function useQueue() {
           const next = queueRef.current.find((j) => j.status === 'pending')
           if (!next) break
           emitStatus(`Rendering ${next.label || 'job'}…`)
-          // eslint-disable-next-line no-await-in-loop
           await runJob(next)
         }
         emitStatus('')
@@ -504,13 +594,15 @@ export default function useQueue() {
     async function onQuickDownload() {
       const raw = snapshotCanvas(settingsRef.current.resolution)
       if (!raw) return
-      // Composite is a no-op today (see utils/export.js) but we route through
-      // it so wiring the overlay in a later phase only touches that util.
-      const dataUrl = await composite(raw)
       const fname = buildFilename('raw', {
         resolution: settingsRef.current.resolution,
-        location: getLocation(),
+        location: (settingsRef.current.textFields?.title || ''),
       })
+      // Phase 6 — quick downloads also get the free-tier watermark.
+      // BYOK does NOT bypass — watermark is Vedute's product gating.
+      const dataUrl = shouldShowWatermark()
+        ? await applyWatermark(raw)
+        : raw
       downloadDataUrl(dataUrl, fname)
       // Capture the current camera view so the gallery entry can power
       // 'Jump to view' later. Without this, quick-download entries have
@@ -519,46 +611,44 @@ export default function useQueue() {
       dispatchGalleryAdd('Quick', fname, dataUrl, { view })
     }
 
-    // /mock dispatches `add-to-queue` with a detail payload to override
+    // /app dispatches `add-to-queue` with a detail payload to override
     // settingsRef-derived behavior on a per-job basis:
-    //   { preset: string|null, includeGraphics: boolean, prompt?: string }
+    //   { preset: string|null, prompt?: string }
     // - preset === null  → raw export (no AI), regardless of aiPreset state
     // - preset === string → that preset is used for this single job
-    // - includeGraphics === false → graphics layer is dropped from the result
     // - prompt → custom prompt override (used by 'custom' preset)
-    // /app's ExportSection still fires `add-to-queue` with no detail; that
-    // path falls through to settingsRef as before.
-    //
-    // IMPORTANT: graphics are *never* sent to Gemini — we always snapshot
-    // raw and composite the Fabric overlay back on top of the AI result
-    // afterwards. This keeps text/shapes pixel-crisp instead of getting
-    // re-stylized by the AI. The graphics layer is also captured as JSON
-    // and stored on the gallery entry so it can be hidden / edited later.
     async function onAddToQueue(e) {
       const detail = e?.detail || {}
       const overridePreset = Object.hasOwn(detail, 'preset') ? detail.preset : undefined
-      const includeGraphics = detail.includeGraphics !== false // default true
       const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
 
-      // Raw snapshot — no graphics baked in. Used as-is for AI; composited
-      // for raw exports below.
-      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
+      const s = settingsRef.current
+
+      // Entitlement gate (Phase 6.1). Only AI submissions count toward
+      // the per-month limit; raw exports stay free. BYOK bypasses the
+      // gate entirely. profile is null today (no Supabase tier flag);
+      // entitlements treats null as 'free' tier.
+      const presetIsAi = overridePreset === undefined ? !!s.aiPreset : (overridePreset !== null)
+      const wouldUseAi = !!s.aiEnhance && presetIsAi
+      if (wouldUseAi) {
+        const gate = canSubmitRender({
+          // profile: undefined → entitlements reads from the active profile bridge
+          count: getRenderCount(),
+          byokKey: s.aiKey,
+        })
+        if (!gate.ok) {
+          // Surface the gate reason via the shared toast channel rather
+          // than window.alert (the rest of the app moved to toasts when
+          // ToastHost shipped).
+          fireToast('error', gate.reason)
+          return
+        }
+      }
+
+      const rawSnapshot = snapshotCanvas(s.resolution)
       if (!rawSnapshot) return
 
-      // Capture the live Fabric state at queue time so a later edit/replay
-      // can rebuild the graphics layer exactly as it was at this moment.
-      let graphicsJSON = null
-      try {
-        const fabric = window.__editorOverlayFabric
-        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
-          graphicsJSON = JSON.stringify(
-            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-          )
-        }
-      } catch {}
-
-      const s = settingsRef.current
-      const location = getLocation()
+      const location = (settingsRef.current.textFields?.title || '')
       const view = await captureCurrentView()
 
       const presetKey = overridePreset !== undefined ? overridePreset : s.aiPreset
@@ -567,8 +657,6 @@ export default function useQueue() {
         location,
         apiKey: s.aiKey,
         view,
-        graphicsJSON,
-        includeGraphicsAfter: includeGraphics,
         // Propagate batch info from the dispatcher (Render sheet sends
         // these when the user picks multiple styles at once so they
         // group as a single batch in the queue list).
@@ -577,15 +665,12 @@ export default function useQueue() {
       }
 
       if (presetKey === null) {
-        // Raw — composite graphics now and queue.
-        const final = includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot
         addJob({
           ...baseJob,
           label: 'Raw',
           prompt: '',
           useAI: false,
-          snapshot: final,
-          baseImage: rawSnapshot,
+          snapshot: rawSnapshot,
         })
       } else if (s.aiEnhance && presetKey) {
         const preset = AI_PRESETS[presetKey]
@@ -594,68 +679,60 @@ export default function useQueue() {
           label: preset?.label || presetKey,
           prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
           useAI: true,
-          snapshot: rawSnapshot, // sent to Gemini raw
+          snapshot: rawSnapshot,
           preset: presetKey,
         })
       } else {
         const useAI = !!s.aiEnhance
         const label = useAI ? 'Custom' : 'Raw'
         const prompt = useAI ? appendEffectPrompts(overridePrompt ?? s.aiPrompt) : ''
-        const final = !useAI && includeGraphics
-          ? await composite(rawSnapshot, { includeGraphics: true })
-          : rawSnapshot
         addJob({
           ...baseJob,
           label,
           prompt,
           useAI,
-          snapshot: final,
-          baseImage: rawSnapshot,
+          snapshot: rawSnapshot,
         })
       }
 
-      try { window.__openQueueDropdown?.() } catch (e) {}
       processQueue()
     }
 
     // Multi-preset add — fired by the Render sheet when the user submits
-    // 2+ styles at once. The naive path was to fire one `add-to-queue`
-    // event per preset, but that re-snapshots the WebGL canvas on every
-    // call (expensive: GPU readback + Fabric capture + composite). At
-    // 28 presets ("Select all → Render") that locks the main thread
-    // for several seconds and on slower machines the page goes
-    // unresponsive. Snapshot ONCE here, fan out as N addJob calls
+    // 2+ styles at once. Snapshot ONCE here, fan out as N addJob calls
     // sharing a batchId so they group in the queue UI.
     async function onAddBatchToQueue(e) {
       const detail = e?.detail || {}
       const presetKeys = Array.isArray(detail.presets) ? detail.presets : []
       if (presetKeys.length === 0) return
-      const includeGraphics = detail.includeGraphics !== false
       const overridePrompt = typeof detail.prompt === 'string' ? detail.prompt : null
       const batchId = detail.batchId || ('batch-' + Date.now())
       const batchLabel = detail.batchLabel || `${presetKeys.length} styles`
 
-      const rawSnapshot = snapshotCanvas(settingsRef.current.resolution)
-      if (!rawSnapshot) return
-
-      let graphicsJSON = null
-      try {
-        const fabric = window.__editorOverlayFabric
-        if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
-          graphicsJSON = JSON.stringify(
-            fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-          )
-        }
-      } catch {}
-
       const s = settingsRef.current
-      const location = getLocation()
+
+      // Entitlement gate (Phase 6.1). Each AI preset in the batch counts
+      // as one render against the limit. Raw (preset === null) stays free.
+      const aiCount = presetKeys.filter((k) => k !== null).length
+      if (aiCount > 0) {
+        const gate = canSubmitRender({
+          // profile: undefined → entitlements reads from the active profile bridge
+          count: getRenderCount() + aiCount - 1,
+          byokKey: s.aiKey,
+        })
+        if (!gate.ok) {
+          // Surface the gate reason via the shared toast channel rather
+          // than window.alert (the rest of the app moved to toasts when
+          // ToastHost shipped).
+          fireToast('error', gate.reason)
+          return
+        }
+      }
+
+      const rawSnapshot = snapshotCanvas(s.resolution)
+      if (!rawSnapshot) return
+      const location = (settingsRef.current.textFields?.title || '')
       const view = await captureCurrentView()
-      // Pre-composite the raw export once if any preset key is the raw
-      // export (the only path that needs graphics baked in pre-Gemini).
-      const compositedRaw = presetKeys.includes(null)
-        ? (includeGraphics ? await composite(rawSnapshot, { includeGraphics: true }) : rawSnapshot)
-        : null
 
       for (const presetKey of presetKeys) {
         const baseJob = {
@@ -663,8 +740,6 @@ export default function useQueue() {
           location,
           apiKey: s.aiKey,
           view,
-          graphicsJSON,
-          includeGraphicsAfter: includeGraphics,
           batchId,
           batchLabel,
         }
@@ -674,8 +749,7 @@ export default function useQueue() {
             label: 'Raw',
             prompt: '',
             useAI: false,
-            snapshot: compositedRaw,
-            baseImage: rawSnapshot,
+            snapshot: rawSnapshot,
           })
         } else if (presetKey === 'custom') {
           addJob({
@@ -698,38 +772,6 @@ export default function useQueue() {
         }
       }
 
-      try { window.__openQueueDropdown?.() } catch (e) {}
-      processQueue()
-    }
-
-    async function onGenerateAll() {
-      const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
-      if (!snapshot) return
-      const s = settingsRef.current
-      const location = getLocation()
-      const batchId = 'batch-' + Date.now()
-      const batchLabel = (location ? location.split(',')[0] : 'All Styles') + ' · All Styles'
-
-      // If a single preset is selected, only render that one; otherwise fan
-      // out across every preset. Matches the spec ("each active AI preset
-      // (or just the selected one)").
-      const keys = s.aiPreset ? [s.aiPreset] : Object.keys(AI_PRESETS)
-      for (const key of keys) {
-        const preset = AI_PRESETS[key]
-        addJob({
-          label: preset.label || key,
-          prompt: promptFor(key),
-          useAI: true,
-          snapshot,
-          resolution: s.resolution,
-          location,
-          apiKey: s.aiKey,
-          preset: key,
-          batchId,
-          batchLabel,
-        })
-      }
-      try { window.__openQueueDropdown?.() } catch (e) {}
       processQueue()
     }
 
@@ -756,6 +798,27 @@ export default function useQueue() {
       queueRef.current = queueRef.current.filter((j) => j.id !== id)
     }
 
+    // Reorder — move a pending job up or down by one slot. Detail:
+    // { id, direction: 'up' | 'down' }. Active/done jobs stay in place
+    // (reorder mid-flight would be confusing). Pending-only because that's
+    // the only window where the user actually has scheduling control.
+    function onReorder(e) {
+      const id = e?.detail?.id
+      const dir = e?.detail?.direction
+      if (id == null || (dir !== 'up' && dir !== 'down')) return
+      setQueue((cur) => {
+        const idx = cur.findIndex((j) => j.id === id)
+        if (idx < 0 || cur[idx].status !== 'pending') return cur
+        const target = dir === 'up' ? idx - 1 : idx + 1
+        if (target < 0 || target >= cur.length) return cur
+        if (cur[target].status !== 'pending') return cur
+        const next = [...cur]
+        ;[next[idx], next[target]] = [next[target], next[idx]]
+        queueRef.current = next
+        return next
+      })
+    }
+
     // Retry — reset a failed job back to pending and kick the queue.
     // Only `error` jobs are eligible; pending/active/done are no-ops.
     function onRetry(e) {
@@ -776,59 +839,24 @@ export default function useQueue() {
       processQueue()
     }
 
-    async function onBatchExport() {
-      // TODO(Phase 6+): drive the full batch-export loop (restore view ->
-      // wait for scene settle -> snapshot -> queue entry -> next). Needs the
-      // saved-views restore event and a reliable "scene is rendered" signal
-      // before we can run it without races. For now, fall back to snapshotting
-      // the current view once per saved view so the button isn't dead.
-      const views = settingsRef.current.savedViews || []
-      if (!views.length) return
-      for (const view of views) {
-        window.dispatchEvent(new CustomEvent('restore-view', { detail: view }))
-        // Settle delay matches the prototype's 1500ms (poster-v3-ui.jsx:2404).
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, 1500))
-        // eslint-disable-next-line no-await-in-loop
-        const snapshot = await composite(snapshotCanvas(settingsRef.current.resolution))
-        if (!snapshot) continue
-        addJob({
-          label: view.name || 'View',
-          prompt: '',
-          useAI: false,
-          snapshot,
-          resolution: settingsRef.current.resolution,
-          location: getLocation(),
-          view,
-        })
-      }
-      processQueue()
-    }
-
     window.addEventListener('quick-download', onQuickDownload)
     window.addEventListener('add-to-queue', onAddToQueue)
     window.addEventListener('add-batch-to-queue', onAddBatchToQueue)
-    window.addEventListener('generate-all', onGenerateAll)
     window.addEventListener('queue-clear-done', onClearDone)
-    window.addEventListener('queue-clear-all', onClearAll)
-    // Legacy alias — ExportSection.jsx dispatches 'clear-queue'. Keep both
-    // wired so Phase-5 UI changes don't have to happen in lockstep.
     window.addEventListener('clear-queue', onClearAll)
     window.addEventListener('queue-remove', onRemove)
     window.addEventListener('queue-retry', onRetry)
-    window.addEventListener('batch-export', onBatchExport)
+    window.addEventListener('queue-reorder', onReorder)
 
     return () => {
       window.removeEventListener('quick-download', onQuickDownload)
       window.removeEventListener('add-to-queue', onAddToQueue)
       window.removeEventListener('add-batch-to-queue', onAddBatchToQueue)
-      window.removeEventListener('generate-all', onGenerateAll)
       window.removeEventListener('queue-clear-done', onClearDone)
-      window.removeEventListener('queue-clear-all', onClearAll)
       window.removeEventListener('clear-queue', onClearAll)
       window.removeEventListener('queue-remove', onRemove)
       window.removeEventListener('queue-retry', onRetry)
-      window.removeEventListener('batch-export', onBatchExport)
+      window.removeEventListener('queue-reorder', onReorder)
     }
   }, [setQueue])
 }

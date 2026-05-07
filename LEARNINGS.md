@@ -449,3 +449,294 @@ file is the raw log — CLAUDE.md is the curated summary.
   neutralize its effect via uniform/texture data instead. `Object.assign`
   won't copy accessor properties from a prototype — use a Proxy when
   the forwarded object uses classes.
+
+## 2026-05-01 — Saved-view markers turning ON made the screen go solid brown
+
+- Bug: enabling the new saved-view camera markers right after a fresh
+  page load turned the entire viewport solid `#c8b897` (the marker's
+  cream accent color). Looked like a WebGL context-loss crash —
+  console even printed `Context Lost` warnings — but bisecting from
+  a returns-null component up to a hardcoded box (worked) to a full
+  primitive camera body (broke) showed the issue wasn't the
+  scene-graph at all.
+- Mechanism: session-persistence restores the live camera to the
+  saved-view's exact position. With `MARKER_SCALE = 50` and a
+  multi-mesh camera body roughly 1.2 × 0.7 × 0.4 in local units, the
+  marker's bounding box was ~60×35×20 m centred on the live camera —
+  the camera was sitting INSIDE the marker mesh, so every fragment
+  shaded the inside of the cream box and filled the screen. The
+  context-lost warnings were a secondary effect of submitting absurd
+  draw calls per frame to a fully-eclipsed view, not the cause.
+- Fix (src/pages/editor/scene/SavedViewMarkers.jsx): drop
+  `MARKER_SCALE` to 10 and add `MARKER_HIDE_DIST = 80`. In useFrame,
+  hide the marker group via `groupRef.current.visible = false` when
+  `camera.position.distanceTo(savedPosition) < MARKER_HIDE_DIST`.
+  The user's "saved" view IS where they are — drawing a marker on
+  top of themselves is never useful.
+- General rule: any in-scene marker placed at a camera-restorable
+  position needs an "I'm at the marker" hide rule. Otherwise the
+  first thing a user sees on a fresh page load with a restored
+  saved camera is the inside of the marker mesh, not the world.
+
+## 2026-05-01 — `react-dom`'s `createPortal` doesn't escape `<Canvas>`
+
+- Bug: turning saved-view markers ON crashed the canvas to solid
+  black with `Uncaught Error: R3F: Div is not part of the THREE
+  namespace! Did you forget to extend?` followed by
+  `WebGLRenderer: Context Lost.` Looked like a shader-recompile or
+  a coordinate-magnitude blow-up. It was neither — bisecting from
+  parent-returns-null (worked) up to a single static mesh (crashed)
+  through every variation (small position, no events, imperative
+  scene.add, etc.) all crashed identically. Even a no-op marker
+  with zero saved views crashed on toggle.
+- Mechanism: `SavedViewMarkers` lived inside the R3F `<Canvas>` and
+  rendered the tooltip via `createPortal(<div>…</div>, document.body)`
+  from `react-dom`. The portal escapes the DOM but NOT the active
+  reconciler — its children are still constructed by R3F's
+  custom-renderer reconciler, which only knows Three.js primitives.
+  R3F throws on the first `<div>` it tries to host, the error
+  bubbles through the Canvas fiber tree, and the WebGL context
+  drops on the next frame. The "Context Lost" line is a downstream
+  symptom of React unmounting the canvas element, not a GPU
+  watchdog timeout.
+- Fix (src/pages/editor/scene/SavedViewMarkers.jsx): split the
+  component in two. `<SavedViewMarkers />` stays inside the Canvas,
+  renders only Three.js primitives, and publishes hovered-id to a
+  Jotai atom. New `<SavedViewMarkersOverlay />` mounts as a sibling
+  of `<EditorCanvas />` (in MockEditorShell + EditorShell), owns the
+  tooltip `<div>` in the regular DOM, and exposes its element to
+  the Canvas-side useFrame projection via a module-scoped ref
+  (`tooltipDomRef`). The Canvas-side `<TooltipPositioner>` writes
+  `style.transform` directly on that DOM node every frame.
+- General rule: never call `react-dom`'s `createPortal` from a
+  component that lives inside a custom-reconciler tree (R3F,
+  react-konva, etc.). The portal target is irrelevant — what
+  matters is which reconciler is mounted in the React fiber path.
+  Use the host renderer's own bridge (drei `<Html>`) or render the
+  HTML from a sibling of the custom-renderer root.
+
+## 2026-05-05 — Vedute rebrand: localStorage migration must guard against clobber
+
+- Task: rename all `mapposter3d_*` / `mapposter_*` localStorage keys
+  to `vedute_*` as part of the Vedute rebrand. Naïve migration:
+  `setItem(newKey, getItem(oldKey)); removeItem(oldKey)`.
+- Subtle bug to avoid: a user can have BOTH the new and old keys
+  populated simultaneously. Sequence: open the app under the new
+  build (writes `vedute_session`), then open an old still-cached
+  tab still holding `mapposter3d_poster_v2_session`. If the
+  migration unconditionally writes `getItem(oldKey)` to `newKey`,
+  it silently overwrites the fresh `vedute_session` with the
+  stale legacy one — losing the user's recent state.
+- Fix (src/lib/migrations.js): only write the new key if it's
+  null. Migration becomes "promote stale → new IF new is empty;
+  otherwise just delete the stale". Idempotent and crash-safe
+  under partial migrations.
+- General rule: localStorage key migrations are append-only
+  unless you can prove the new key is unset. Always guard with
+  `getItem(newKey) === null` before the write.
+
+## 2026-05-06 — Phase 1.2: deleting /app-classic + smoke tightly coupled to sidebar DOM
+
+- Task: delete the /app-classic sidebar editor (~3000 LOC), keep
+  the shared scene/atoms/hooks alive, and rewrite the smoke test
+  which was driving sidebar-only DOM (`#tod-slider`, `#toggle-clouds`,
+  `[data-ratio]`, `.size-btn`).
+- Subtle issue: trying to recreate the sidebar's "set TOD → save →
+  reload → assert restored" flow against /app's pill UI doesn't
+  work. The pills don't expose stable DOM IDs the way the sidebar
+  did. And replicating the flow by seeding localStorage + reload
+  + asserting "session blob still has my values" fails because
+  the persistence hook's debounced save fires within 500ms of
+  mount and overwrites the seeded blob with current atom values
+  (which start as defaults until restore lands and atoms re-render).
+  Race-condition territory.
+- Fix (scripts/smoke.js): the smoke test exists to catch BUILD
+  bugs (minifier strips, asset paths, prod-only React surprises).
+  It is not a re-test of the persistence hook — those round-trips
+  are covered by useSessionPersistence.test.js. Drop the
+  set-via-DOM + reload-and-assert dance entirely. Smoke now
+  verifies: cold-load /app renders pills + frame + canvas,
+  /app-classic redirects to /app, save-view round-trips through
+  the event channel into localStorage, session blob gets written
+  with a camera position, CSS bundle has both prefixed and
+  unprefixed backdrop-filter rules. Done.
+- General rule: smoke tests are for CI-against-prod-bundle bugs
+  that unit tests can't see. If a smoke check duplicates a unit
+  test, drop it from smoke. Keep smoke fast, focused, and
+  resilient to UI churn.
+
+## 2026-05-06 — Phase 1.3: removed graphics editor + persistence/Scene mount race
+
+- Task: delete the Fabric-based graphics editor, including the lazy-
+  loaded prototype/editor-overlay.jsx, useGraphicEditor / useSavedGraphics,
+  GraphicEditorOverlay component, RenderBackdrop component, the
+  composite() function in utils/export, and all the threading through
+  useQueue + useSavedViews + ClusterBottomLeft. ~5000 LOC gone.
+- Subtle race surfaced after the cleanup: smoke check
+  `session has camera position` started failing intermittently. The
+  persistence hook's first debounced save fires 500ms after mount, but
+  Scene's useLayoutEffect — which calls registerCamera(camera) to
+  populate the module-scoped _camera ref — sometimes runs AFTER that
+  500ms, especially on slow CI. With the graphics editor's lazy load
+  gone, MockEditorShell mounts faster; the race that was hidden by
+  Fabric's bundle latency now bites.
+- Symptom: session blob written with `camera = { tilt, heading,
+  altitude, fovMm }` (from cameraReadout via latest.current), but no
+  `position`/`quaternion`/`up` fields. writeNow's
+  `if (_camera) { … }` block silently no-ops when _camera is null.
+- Fix (src/pages/editor/hooks/useSessionPersistence.js): in
+  registerCamera, dispatch a synthetic `camera-set` event the first
+  time it's called with a non-null camera. The hook already listens
+  for `camera-set` and reschedules its debounced save; this guarantees
+  the next save runs after the camera ref is live.
+- General rule: when one subsystem populates a module-scoped ref that
+  another subsystem reads, mount order matters. Don't rely on it —
+  add an explicit "ref is now ready" signal that any consumer can
+  subscribe to. Cheaper than rearranging mount order, more robust
+  than tightening debounce.
+
+## 2026-05-06 — fireToast events were vanishing into the void
+
+- Bug: useSavedViews has been calling `fireToast('success', 'View
+  saved!')` and `fireToast('error', 'Camera not ready')` for months.
+  Phase 6.1 added `'Free tier saves up to 5 views. Delete one or
+  upgrade to Pro.'`. None of these toasts ever appeared on screen.
+  Users got silent failures (clicking save with a sealed camera state
+  did nothing visible) and silent successes (a saved view appeared in
+  the panel but no confirmation flash).
+- Mechanism: `fireToast` dispatches a `'toast'` window CustomEvent.
+  The `/app-classic` sidebar editor used to mount a Toast component
+  that listened for it — but `/app-classic` was deleted in Phase 1.2,
+  and the matching ToastHost was never built for `/app`. The dispatch
+  worked perfectly; nobody was listening.
+- Fix (src/pages/mock/components/ToastHost.jsx): new component that
+  subscribes to the 'toast' event and renders a stack of up to 3
+  toasts with auto-dismiss at 4s. Mounted in MockEditorShell next
+  to the existing overlays. CSS uses Phase 2.1 tokens; per-type
+  classes give success / error / info visual variants.
+- General rule: when you remove a UI shell (route, sidebar, etc.),
+  audit the EVENT LISTENERS it removed too. Components that only
+  exist on the deleted shell take their listeners with them. Search
+  for `addEventListener` and `dispatchEvent` pairs whenever you
+  delete a top-level mount. The dispatchers stay; the receivers
+  silently disappear; the data flow looks intact in code but isn't.
+
+## 2026-05-06 — BYOK watermark exploit (entitlements doc/impl mismatch)
+
+- Bug: `shouldShowWatermark({ byokKey })` returned false for any
+  truthy byokKey, including a free-tier user. So any free user could
+  paste any string into the BYOK input and launder their way out of
+  the free-tier watermark on every export.
+- Mechanism: when entitlements.js was written, the comment at the
+  top of the file said "Resolution + watermark gates still apply
+  [for BYOK] (those are Vedute's product, not the model's)" — the
+  intent was BYOK skips render-counting (since Vedute isn't paying
+  for the API call) but watermark/resolution still apply. The
+  implementation had `if (byokKey) return false` in
+  shouldShowWatermark anyway. The unit test asserted the wrong
+  behavior, so the regression was locked in.
+- Fix (src/lib/entitlements.js): drop byokKey from the watermark
+  signature entirely. Update all three call sites in useQueue
+  (raw branch, AI-render branch, quick-download). Update the test
+  to assert the corrected behavior.
+- General rule: when the docstring contradicts the implementation,
+  one of them is wrong. Don't assume the test pinned the right one
+  — read the design intent from the doc comment FIRST, then check
+  what the code actually does, and fix whichever is inconsistent.
+
+## 2026-05-06 — Lightbox Share button opening a non-existent modal
+
+- Bug: clicking Share in the Lightbox dispatched a `lightbox-share`
+  window event nobody listened to, set `modalsAtom.share = true`
+  for a ShareModal that was never built, and visually did nothing.
+  The user got zero feedback.
+- Mechanism: same class as the silent-fireToast issue from earlier
+  this session. A ShareModal was scaffolded in atoms (modals.share,
+  shareDraftAtom) but the component was never actually written, so
+  flipping the boolean had no consumer. Lightbox kept calling the
+  scaffolding as if it were live.
+- Fix (src/pages/editor/modals/Lightbox.jsx): replaced the modal
+  flip with the same flow the gallery-card Share button uses —
+  copy a pre-formatted caption to the clipboard, trigger the file
+  download, and toast on success. Dropped the dead `share` slot
+  and shareDraftAtom from atoms/modals.js.
+- General rule: scaffolded atoms / modal slots without consumers
+  are silent UI bugs waiting to happen. When you scaffold a future
+  modal, leave a TODO that fails loudly (a toast + "Not implemented
+  yet") rather than silently flipping a boolean that nothing reads.
+
+## 2026-05-06 — API-stub pattern for endpoints we can't ship without external keys
+
+- Phases 3.2 (Google Places), 5.1 (server upscaling), and 6.2 (Stripe)
+  all needed real third-party API keys to ship live, but punting on the
+  call sites would have left the front-end full of dead code paths.
+- Pattern adopted across api/places.js, api/upscale.js, and
+  api/stripe-*.js: each endpoint is a 501-returning handler with an
+  exhaustive top-of-file comment that documents (1) every env var it
+  needs, (2) the exact third-party HTTP call, (3) the response shape,
+  (4) pricing implications, and (5) any entitlement / auth checks.
+  The client is wired to call the proxy and falls back gracefully on
+  a 501 / { fallback: true } response.
+- Concrete: `searchPlaces` in src/lib/geocode.js calls /api/places
+  first, drops to Nominatim search on a non-OK response, and reshapes
+  the result into the same prediction format. So the day a Places key
+  is wired, only api/places.js needs replacing — no client changes.
+- General rule: stubs are only useful if they're swappable. Keep the
+  client → proxy → external pattern even when the proxy isn't real
+  yet. The 501 forces fallback behavior to be designed into the
+  client from day one rather than retrofitted later.
+
+## 2026-05-06 — vite.deploy.config.js prototype inputs are doing real work as code-split forcers
+
+- Tried to drop the prototype HTML files from the deploy build (they
+  were a brand-leak vector — old "MapPoster" stale prototypes that
+  shipped to production at /prototypes/*.html). Removed the entries
+  from `rollupOptions.input` in `vite.deploy.config.js` so only
+  `app: src/index.html` remained.
+- Build went from healthy chunked output (app 267KB + editor-overlay
+  364KB + DRACOLoader 1725KB lazy chunk) to a single 2.18MB bundle.
+  Auth/landing pages now ship the entire editor JS upfront. Big
+  perf regression.
+- Mechanism: rolldown defaults to splitting only when there are
+  multiple inputs OR `rolldownOptions.output.codeSplitting: true` is
+  set. With one input and no override, it bundles everything. The
+  prototype inputs were forcing splitting as a side-effect.
+- Tried `rolldownOptions.output.codeSplitting: true` next to
+  `rollupOptions.input` — error because rolldownOptions overrides
+  rollupOptions entirely (not merged), so input was lost.
+- Reverted. The prototypes are still customer-reachable at
+  /prototypes/*.html but: (1) robots.txt blocks indexing,
+  (2) vercel.json no longer aliases clean URLs to them, (3) no
+  React route links to them. Acceptable footprint for now.
+- General rule: a build config that "looks redundant" might be
+  doing structural work (chunking discipline, asset routing). Run
+  `npm run build` and diff sizes before deleting any input/output
+  config.
+
+## 2026-05-06 — Two-bug-deep dead-write masking a dead-read in saved views
+
+- Saving a view captured `dofColorPop: curDof.colorPop` (curDof has no
+  `colorPop` field — it's `sceneColorPop` + `focusColorPop` since the
+  DoF split). So every save persisted `dofColorPop: undefined`.
+- Restoring a view wrote `colorPop: view.dofColorPop ?? prev.colorPop`
+  back onto the dofAtom — but the atom has no `colorPop` either, so the
+  write went into the void.
+- Both halves were broken. Because the dead write stored undefined and
+  the dead read produced undefined, no test ever caught the silent loss
+  of a real user setting (the saturation knob on saved views).
+- Mechanism: when a field gets renamed or split, the round-trip looks
+  fine if save and restore are *consistently* wrong on the same name.
+  The bug only surfaces when one side gets fixed and the other doesn't,
+  which is rare during a refactor.
+- Fix in src/pages/editor/hooks/useSavedViews.js: persist
+  dofSceneColorPop + dofFocusColorPop explicitly, keep dofColorPop as
+  a backwards-compat alias for older readers + the legacy session
+  migration, restore the split pair (with fallback to the legacy field
+  for old saves on disk). Two regression tests in
+  __tests__/useSavedViews.test.js pin the round trip end to end.
+- General rule: when you split or rename a field, search the codebase
+  for *both* the old and new names on save AND restore paths — not just
+  one side. A test that round-trips through (save x → load → assert x)
+  catches the matched-pair version of this bug; a test that only loads
+  a fixture catches the dead-read; you need both to catch the
+  matched-bug case.

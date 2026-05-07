@@ -1,126 +1,91 @@
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { useAtom } from 'jotai'
+import { useMemo, useState } from 'react'
 import Pill from './Pill'
-import PopoverPill from './PopoverPill'
 import HoverPopoverPill from './HoverPopoverPill'
-import { PencilIcon, FrameIcon, EyeIcon, EyeOffIcon, TrashIcon, LayersIcon, SaveIcon } from './icons'
+import { FrameIcon } from './icons'
 import { aspectRatioAtom, fillModeAtom } from '../../editor/atoms/ui'
 import { modalsAtom } from '../../editor/atoms/modals'
-import { savedGraphicsAtom } from '../hooks/useSavedGraphics'
-import { editingBackdropAtom } from '../atoms'
-import { composite, buildFilename } from '../../editor/utils/export'
 
-function fire(name, detail) {
-  window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))
-}
+// Phase 2.2 — visually clearer aspect picker with custom W:H input and a
+// "Fill" choice integrated into the same control instead of a separate
+// toggle. aspectRatioAtom stays a plain number (the ratio w/h); fillMode
+// is still its own atom but the UI treats them as one selection.
 
+// Phase 2.7 — labels are W × H integer mnemonics (24 × 36, 16 × 9, etc.)
+// instead of W:H ratio shorthand. Reads as physical poster proportions
+// at a glance, even when the user hasn't memorized aspect-ratio numbers.
+// Same atom, same picker — just the display string changes.
 const PORTRAIT_RATIOS = [
-  { label: '4:5', ratio: 0.8 },
-  { label: '2:3', ratio: 0.667 },
-  { label: '3:4', ratio: 0.75 },
-  { label: '9:16', ratio: 0.5625 },
+  { label: '16 × 20', ratio: 4 / 5 },
+  { label: '24 × 36', ratio: 2 / 3 },
+  { label: '18 × 24', ratio: 3 / 4 },
+  { label: '9 × 16', ratio: 9 / 16 },
 ]
 const LANDSCAPE_RATIOS = [
-  { label: '5:4', ratio: 1.25 },
-  { label: '3:2', ratio: 1.5 },
-  { label: '4:3', ratio: 1.333 },
-  { label: '16:9', ratio: 1.778 },
+  { label: '20 × 16', ratio: 5 / 4 },
+  { label: '36 × 24', ratio: 3 / 2 },
+  { label: '24 × 18', ratio: 4 / 3 },
+  { label: '16 × 9', ratio: 16 / 9 },
 ]
 const ALL_RATIOS = [...PORTRAIT_RATIOS, ...LANDSCAPE_RATIOS]
+
+const ratioMatch = (a, b) => Math.abs(a - b) < 0.001
+
+// Render a tiny rectangle preview of the chosen ratio inside a fixed
+// 24x24 box. Helps users grok the shape without leaving the popover.
+function RatioGlyph({ ratio, fill }) {
+  if (fill) {
+    return <span className="mock-ratio-glyph mock-ratio-glyph--fill" />
+  }
+  // Fit the rectangle inside a 20x20 box, centered.
+  const max = 20
+  const w = ratio >= 1 ? max : max * ratio
+  const h = ratio >= 1 ? max / ratio : max
+  return (
+    <span
+      className="mock-ratio-glyph"
+      style={{ width: `${w}px`, height: `${h}px` }}
+    />
+  )
+}
 
 export default function ClusterBottomLeft() {
   const [aspectRatio, setAspectRatio] = useAtom(aspectRatioAtom)
   const [fillMode, setFillMode] = useAtom(fillModeAtom)
   const [modals, setModals] = useAtom(modalsAtom)
-  const [editorActive, setEditorActive] = useState(false)
-  const [graphicsHidden, setGraphicsHidden] = useState(false)
-  const savedGraphics = useAtomValue(savedGraphicsAtom)
-  const editingBackdrop = useAtomValue(editingBackdropAtom)
-  const setEditingBackdrop = useSetAtom(editingBackdropAtom)
+  const [customW, setCustomW] = useState('')
+  const [customH, setCustomH] = useState('')
 
-  // Save the current edit on a rendered photo (backdrop + Fabric overlay)
-  // back to the gallery as a new entry, then exit edit-render mode.
-  const saveRenderEdit = async () => {
-    if (!editingBackdrop) return
-    let final = editingBackdrop
-    try {
-      const composed = await composite(editingBackdrop, { includeGraphics: true })
-      if (composed) final = composed
-    } catch {}
-    let graphicsJSON = null
-    try {
-      const fabric = window.__editorOverlayFabric
-      if (fabric && fabric.getObjects && fabric.getObjects().filter((o) => !o.excludeFromExport).length > 0) {
-        graphicsJSON = JSON.stringify(
-          fabric.toJSON(['name', 'editorType', 'lockMovementX', 'lockMovementY', 'excludeFromExport']),
-        )
-      }
-    } catch {}
-    const filename = buildFilename('edited', { resolution: 1 })
-    window.dispatchEvent(new CustomEvent('gallery-add', {
-      detail: {
-        label: 'Edited',
-        filename,
-        dataUrl: final,
-        opts: {
-          baseImage: editingBackdrop,
-          graphicsJSON,
-        },
-      },
-    }))
-    setEditingBackdrop(null)
-    // Exit the editor too — render-edit doesn't persist into a normal scene
-    // edit session.
-    if (editorActive) window.dispatchEvent(new Event('toggle-graphic-editor'))
-  }
-
-  const discardRenderEdit = () => {
-    setEditingBackdrop(null)
-    if (editorActive) window.dispatchEvent(new Event('toggle-graphic-editor'))
-  }
-
-  useEffect(() => {
-    const onChange = (e) => {
-      const active = !!e?.detail?.active
-      setEditorActive(active)
-      // Entering edit mode forces graphics back on — you can't edit what
-      // you can't see.
-      if (active) setGraphicsHidden(false)
-    }
-    window.addEventListener('graphic-editor-changed', onChange)
-    return () => window.removeEventListener('graphic-editor-changed', onChange)
-  }, [])
-
-  // Toggle a body class so CSS can hide the Fabric overlay visually.
-  // Independent from the Render modal's "include graphics in export"
-  // toggle — this is just about what's visible on the canvas right now.
-  useEffect(() => {
-    document.body.classList.toggle('mock-graphics-hidden', graphicsHidden)
-    return () => document.body.classList.remove('mock-graphics-hidden')
-  }, [graphicsHidden])
-
-  // Editor only makes sense when there's a poster to edit. If the user
-  // flips fill mode on while editing, exit the editor automatically so
-  // they don't get stranded with no pill to toggle off.
-  useEffect(() => {
-    if (fillMode && editorActive) {
-      window.dispatchEvent(new Event('toggle-graphic-editor'))
-    }
-  }, [fillMode, editorActive])
-
-  const ratioLabel =
-    ALL_RATIOS.find((r) => r.ratio === aspectRatio)?.label ?? '4:3'
-  const sizeLabel = fillMode ? 'Preview' : ratioLabel
+  const ratioLabel = useMemo(() => {
+    if (fillMode) return 'Fill'
+    const preset = ALL_RATIOS.find((r) => ratioMatch(r.ratio, aspectRatio))
+    if (preset) return preset.label
+    // Custom: try to render as nice integers.
+    return formatCustomRatio(aspectRatio)
+  }, [aspectRatio, fillMode])
 
   const pickRatio = (r) => {
     setFillMode(false)
     setAspectRatio(r)
   }
 
+  const submitCustom = () => {
+    const w = parseFloat(customW)
+    const h = parseFloat(customH)
+    if (!Number.isFinite(w) || !Number.isFinite(h)) return
+    if (w <= 0 || h <= 0) return
+    pickRatio(w / h)
+    setCustomW('')
+    setCustomH('')
+  }
+
+  const isCustom =
+    !fillMode && !ALL_RATIOS.some((r) => ratioMatch(r.ratio, aspectRatio))
+
   return (
     <div className="mock-cluster mock-cluster--bottom-left">
       <HoverPopoverPill
-        label={sizeLabel}
+        label={ratioLabel}
         active={!fillMode}
         onToggle={() => setFillMode((v) => !v)}
         alwaysShowPopover
@@ -129,136 +94,92 @@ export default function ClusterBottomLeft() {
         className="mock-aspect-pill-wrap"
       >
         <div className="mock-aspect-grid">
+          <button
+            type="button"
+            className={`mock-aspect-row mock-aspect-fill-row${fillMode ? ' is-active' : ''}`}
+            onClick={() => setFillMode(true)}
+          >
+            <RatioGlyph fill />
+            <span className="mock-aspect-fill-label">Fill</span>
+          </button>
+
           <div className="mock-aspect-label">Portrait</div>
           <div className="mock-aspect-row">
             {PORTRAIT_RATIOS.map(({ label, ratio }) => (
               <button
                 key={label}
                 type="button"
-                className={`mock-aspect-btn${!fillMode && ratio === aspectRatio ? ' is-active' : ''}`}
+                className={`mock-aspect-btn${
+                  !fillMode && ratioMatch(ratio, aspectRatio) ? ' is-active' : ''
+                }`}
                 onClick={() => pickRatio(ratio)}
+                title={label}
               >
-                {label}
+                <RatioGlyph ratio={ratio} />
+                <span className="mock-aspect-btn-label">{label}</span>
               </button>
             ))}
           </div>
+
           <div className="mock-aspect-label">Landscape</div>
           <div className="mock-aspect-row">
             {LANDSCAPE_RATIOS.map(({ label, ratio }) => (
               <button
                 key={label}
                 type="button"
-                className={`mock-aspect-btn${!fillMode && ratio === aspectRatio ? ' is-active' : ''}`}
+                className={`mock-aspect-btn${
+                  !fillMode && ratioMatch(ratio, aspectRatio) ? ' is-active' : ''
+                }`}
                 onClick={() => pickRatio(ratio)}
+                title={label}
               >
-                {label}
+                <RatioGlyph ratio={ratio} />
+                <span className="mock-aspect-btn-label">{label}</span>
               </button>
             ))}
           </div>
-        </div>
-      </HoverPopoverPill>
 
-      {!fillMode && (
-        <Pill
-          icon={<PencilIcon />}
-          active={editorActive}
-          onClick={() => window.dispatchEvent(new Event('toggle-graphic-editor'))}
-        >
-          {editorActive ? 'Exit' : 'Edit'}
-        </Pill>
-      )}
-
-      {!fillMode && editorActive && (
-        <PopoverPill
-          icon={<LayersIcon />}
-          align="left"
-          drop="up"
-          aria-label="Saved graphics"
-          title="Saved graphics"
-        >
-          {({ close }) => (
-            <div className="mock-saved-views">
-              {savedGraphics.length === 0 ? (
-                <div className="mock-empty">No saved graphics yet.</div>
-              ) : (
-                <ul className="mock-saved-list">
-                  {savedGraphics.map((g) => (
-                    <li key={g.id}>
-                      <button
-                        type="button"
-                        className="mock-saved-row"
-                        onClick={() => { fire('load-graphics', g.id); close() }}
-                      >
-                        {g.name || 'Layer'}
-                      </button>
-                      <button
-                        type="button"
-                        className="mock-saved-del"
-                        aria-label="Delete saved graphics"
-                        onClick={(e) => { e.stopPropagation(); fire('delete-graphics', g.id) }}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                type="button"
-                className="mock-btn-primary"
-                onClick={() => { fire('save-graphics'); close() }}
-              >
-                Save current graphics
-              </button>
+          <div className="mock-aspect-label">Custom</div>
+          <form
+            className="mock-aspect-custom"
+            onSubmit={(e) => { e.preventDefault(); submitCustom() }}
+          >
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              placeholder="W"
+              value={customW}
+              onChange={(e) => setCustomW(e.target.value)}
+              aria-label="Custom width"
+              className="mock-aspect-custom-input"
+            />
+            <span className="mock-aspect-custom-sep">:</span>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              placeholder="H"
+              value={customH}
+              onChange={(e) => setCustomH(e.target.value)}
+              aria-label="Custom height"
+              className="mock-aspect-custom-input"
+            />
+            <button
+              type="submit"
+              className="mock-aspect-custom-apply"
+              disabled={!customW || !customH}
+            >
+              Set
+            </button>
+          </form>
+          {isCustom && (
+            <div className="mock-aspect-custom-current">
+              Active: {ratioLabel}
             </div>
           )}
-        </PopoverPill>
-      )}
-
-      {!fillMode && editorActive && (
-        <Pill
-          icon={<TrashIcon />}
-          onClick={() => fire('clear-graphics')}
-          aria-label="Clear graphics"
-          title="Clear graphics"
-        />
-      )}
-
-      {/* Render-edit controls — only shown when the user opened "Edit
-       * graphics" on a gallery entry (backdrop is set). Save composites
-       * the current state into a new gallery entry; Discard exits without
-       * saving. The regular Exit/Edit pill above also exits and is
-       * equivalent to Discard. */}
-      {editingBackdrop && (
-        <Pill
-          icon={<SaveIcon />}
-          active
-          onClick={saveRenderEdit}
-          aria-label="Save edited render"
-          title="Save edited render to gallery"
-        >
-          Save
-        </Pill>
-      )}
-      {editingBackdrop && (
-        <Pill
-          onClick={discardRenderEdit}
-          aria-label="Discard edits"
-          title="Discard edits"
-        >
-          Discard
-        </Pill>
-      )}
-
-      {!fillMode && !editorActive && (
-        <Pill
-          icon={graphicsHidden ? <EyeOffIcon /> : <EyeIcon />}
-          active={!graphicsHidden}
-          onClick={() => setGraphicsHidden((v) => !v)}
-          aria-label={graphicsHidden ? 'Show graphics' : 'Hide graphics'}
-          title={graphicsHidden ? 'Show graphics' : 'Hide graphics'}
-        />
-      )}
+        </div>
+      </HoverPopoverPill>
 
       {!fillMode && (
         <Pill
@@ -271,4 +192,17 @@ export default function ClusterBottomLeft() {
       )}
     </div>
   )
+}
+
+// Render a custom ratio as W × H using small integers when possible.
+// (Integers up to 20×20 covers most user-typed values; otherwise fall
+// back to a 1-decimal float.)
+function formatCustomRatio(r) {
+  if (!Number.isFinite(r) || r <= 0) return '—'
+  for (let h = 1; h <= 20; h++) {
+    for (let w = 1; w <= 20; w++) {
+      if (Math.abs(w / h - r) < 0.005) return `${w} × ${h}`
+    }
+  }
+  return r.toFixed(2)
 }

@@ -1,7 +1,8 @@
 /* ═══ Render sheet — unified Styles + Queue ═══════════════════════════
  *
- * Ported from public/render-merged-prototype.html (Grid @ 560 direction +
- * The Darkroom queue). Everything in here is scoped to `.mock-render-sheet`
+ * Ported from docs/design-references/render-merged-prototype.html
+ * (Grid @ 560 direction + The Darkroom queue). Everything here is
+ * scoped to `.mock-render-sheet`
  * so the old `.mock-airender-*` styles in mock.css are untouched — those
  * still live on the right edge / are used elsewhere (dof-lab).
  *
@@ -56,9 +57,9 @@
 
 /* ═══ Backdrop ═══════════════════════════════════════════════════════ */
 /* Sits above the Gallery modal (z:200) and below the Lightbox (z:300) so
- * opening Render over an already-open gallery works cleanly. Not named
- * `.mock-render-backdrop` because that class is taken by the poster-edit
- * backdrop-image in mock.css (z:5, pointer-events:none). */
+ * opening Render over an already-open gallery works cleanly. (The
+ * `.mock-render-backdrop` class that used to clash with this name went
+ * away with the graphics editor in Phase 1.3.) */
 .mock-rs-overlay {
   position: fixed;
   inset: 0;
@@ -334,7 +335,13 @@
   font-family: inherit;
   cursor: pointer;
 }
-.mock-render-sheet .rs-res-btn:hover { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-res-btn:hover:not(.is-locked):not(:disabled) { background: var(--rs-surface-2); }
+.mock-render-sheet .rs-res-btn.is-locked,
+.mock-render-sheet .rs-res-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  font-size: 10px;
+}
 .mock-render-sheet .rs-res-btn.is-active {
   background: linear-gradient(180deg, rgba(255, 200, 115, 0.14), rgba(230, 162, 74, 0.08));
   border-color: rgba(255, 200, 115, 0.55);
@@ -568,6 +575,17 @@
 
 /* Custom-prompt card — same look as Raw, but expands a prompt input below. */
 .mock-render-sheet .rs-custom { margin-top: 14px; }
+/* Multi-line custom prompt (Phase 5.2). Vertical resize allowed; layout
+   doesn't jump while the user types because we set a sensible min-height. */
+.mock-render-sheet .rs-custom-textarea {
+  min-height: 88px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  white-space: pre-wrap;
+}
 .mock-render-sheet .rs-input {
   width: 100%;
   background: var(--rs-surface-1);
