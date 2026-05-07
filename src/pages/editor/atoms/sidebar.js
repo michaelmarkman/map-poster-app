@@ -39,6 +39,17 @@ export const defaultSavedViewIdAtom = atom(null)
 // dismissed the welcome card. Persisted; survives reloads.
 export const onboardedAtom = atom(false)
 
+// First-boot intro sequence done flag. The intro plays on every page
+// load (per Phase 2.7 follow-up: word "vedute" appears, definition
+// types in, consolidates, controls reveal one-by-one, then the
+// overlay fades to expose the editor). Set to true when the intro
+// finishes (or the user hits Esc to skip). Other UI that should NOT
+// appear during the intro (e.g. OnboardingCard) gates on this.
+//
+// NOT persisted — every page load gets a fresh intro until the
+// product matures past it.
+export const introDoneAtom = atom(false)
+
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)
 

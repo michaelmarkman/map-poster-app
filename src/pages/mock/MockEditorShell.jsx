@@ -17,6 +17,7 @@ import ClusterBottomLeft from './components/ClusterBottomLeft'
 import ClusterBottomMid from './components/ClusterBottomMid'
 import ClusterBottomRight from './components/ClusterBottomRight'
 import FrameOverlay from './components/FrameOverlay'
+import IntroSequence from './components/IntroSequence'
 import OnboardingCard from './components/OnboardingCard'
 import AIRenderModal from './modals/AIRenderModal'
 
@@ -147,6 +148,11 @@ export default function MockEditorShell() {
       <Lightbox />
       <PosterPreviewModal />
       <AIRenderModal />
+      {/* IntroSequence sits above modals so its overlay covers them on
+       *  cold load. It self-removes when phase === 'done', and gates
+       *  OnboardingCard via introDoneAtom so the welcome card only
+       *  appears AFTER the intro finishes. */}
+      <IntroSequence />
       <OnboardingCard />
       {/* ToastHost lives in App.jsx (mounted once app-wide). */}
     </div>

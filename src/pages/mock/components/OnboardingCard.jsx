@@ -1,5 +1,5 @@
-import { useAtom } from 'jotai'
-import { onboardedAtom } from '../../editor/atoms/sidebar'
+import { useAtom, useAtomValue } from 'jotai'
+import { introDoneAtom, onboardedAtom } from '../../editor/atoms/sidebar'
 
 // Phase 4.2 — first-run welcome card. Appears once until the user
 // dismisses it (or runs through the steps). Lives at the bottom-center
@@ -7,9 +7,16 @@ import { onboardedAtom } from '../../editor/atoms/sidebar'
 // crowded.
 //
 // Persisted via onboardedAtom (session-persistence picks it up).
+//
+// Phase 2.7 follow-up: gated on introDoneAtom so the card waits for
+// the boot intro to finish before rendering. Otherwise it'd sit
+// behind the intro overlay (invisible) but still cost layout +
+// animation work during the intro.
 export default function OnboardingCard() {
   const [onboarded, setOnboarded] = useAtom(onboardedAtom)
+  const introDone = useAtomValue(introDoneAtom)
 
+  if (!introDone) return null
   if (onboarded) return null
 
   const dismiss = () => setOnboarded(true)

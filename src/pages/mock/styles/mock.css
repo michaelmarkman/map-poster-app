@@ -115,7 +115,9 @@ body.mock-mounted #canvas-container::before {
 .mock-cluster--top-right  { top: 18px; right: 18px; gap: 6px; }
 
 /* Top-center wordmark — non-interactive (click-through to canvas). The
- * SVG carries its own drop shadow so it stays legible over bright sky. */
+ * SVG carries its own drop shadow so it stays legible over bright sky.
+ * z-index 500 keeps it above poster-preview / gallery / AI-render
+ * modals so the brand mark stays put when any of those open. */
 .mock-wordmark {
   position: fixed;
   top: 24px;
@@ -125,8 +127,138 @@ body.mock-mounted #canvas-container::before {
   width: auto;
   pointer-events: none;
   user-select: none;
-  z-index: 1;
+  z-index: 500;
 }
+/* Hidden during the intro until the settle phase — the intro renders
+ * its own larger centered wordmark and animates it; once the intro
+ * finishes, the persistent .mock-wordmark fades back in at the top. */
+body[data-intro-phase] .mock-wordmark {
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+body[data-intro-phase="settle"] .mock-wordmark,
+body:not([data-intro-phase]) .mock-wordmark {
+  opacity: 1;
+}
+
+/* ═══════ Intro sequence (Phase 2.7 follow-up) ═══════
+ * Full-screen overlay that runs on every page load:
+ *   wordmark → typewriter definition → consolidate → reveal corners →
+ *   settle (wordmark moves to top, overlay fades).
+ * The corner clusters themselves stay rendered the whole time; the
+ * overlay just sits on top of them with a darkening backdrop. Clusters
+ * fade in one-by-one driven by body[data-intro-revealed]. */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;            /* above modals (200) + .mock-wordmark (500) */
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: background 600ms ease;
+}
+/* Reveal phase: lighten the backdrop slightly so the corner clusters
+ * underneath start reading through. */
+body[data-intro-phase="reveal"] .intro-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+/* Settle: drain the overlay completely. */
+.intro-overlay.is-settling {
+  background: rgba(0, 0, 0, 0);
+  transition: background 800ms ease;
+}
+
+/* Centered wordmark + (during typing/hold) the definition typewriter
+ * inline beside it. Crimson Text was the family in the Figma mock —
+ * the index.html font stack already includes it. */
+.intro-wordmark {
+  max-width: 657px;
+  padding: 0 24px;
+  text-align: center;
+  font: 400 39px/40px 'Crimson Text', Georgia, serif;
+  color: rgba(255, 255, 255, 0.86);
+  opacity: 0;
+  animation: intro-wordmark-in 600ms ease-out forwards;
+  transition:
+    transform 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    font-size 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    line-height 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    max-width 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    opacity 800ms ease;
+}
+@keyframes intro-wordmark-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.intro-wordmark-mark {
+  color: #fff;
+}
+.intro-wordmark-def {
+  color: #a5a5a5;
+}
+/* Tiny block caret on the typewriter, blinking. */
+.intro-caret {
+  display: inline-block;
+  margin-left: 2px;
+  animation: intro-caret-blink 1s steps(1, end) infinite;
+  color: rgba(255, 255, 255, 0.5);
+}
+@keyframes intro-caret-blink {
+  0%, 50%   { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* Settle: shrink the wordmark down to the persistent top-center size
+ * and translate it to its home position (top: 24px, height: 28px). The
+ * overlay's flex centering becomes the start position; we override it
+ * with a translate to the top of the viewport. */
+.intro-overlay.is-settling .intro-wordmark {
+  font-size: 24px;
+  line-height: 28px;
+  transform: translateY(calc(-50vh + 38px));  /* 24px top + ~14px to center on the 28px-tall mark */
+  opacity: 0;
+}
+
+/* Cluster fade-in during reveal phase. Each cluster reads
+ * body[data-intro-revealed] (a counter 0..5) and its own ordinal in
+ * the reveal sequence. Clusters are normally at opacity 1; the intro
+ * forces them to 0 during the early phases and brings them up one at
+ * a time during reveal. */
+body[data-intro-phase] .mock-cluster {
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+/* Once any cluster has been revealed, the corresponding cluster's
+ * opacity flips to 1. The selectors are explicit — CSS attr() can't
+ * compute "if N >= my-ordinal" directly, but explicit per-step rules
+ * are cheap and obvious. */
+body[data-intro-revealed="1"] .mock-cluster--top-left,
+body[data-intro-revealed="2"] .mock-cluster--top-left,
+body[data-intro-revealed="3"] .mock-cluster--top-left,
+body[data-intro-revealed="4"] .mock-cluster--top-left,
+body[data-intro-revealed="5"] .mock-cluster--top-left,
+body[data-intro-phase="settle"] .mock-cluster--top-left { opacity: 1; }
+
+body[data-intro-revealed="2"] .mock-cluster--top-right,
+body[data-intro-revealed="3"] .mock-cluster--top-right,
+body[data-intro-revealed="4"] .mock-cluster--top-right,
+body[data-intro-revealed="5"] .mock-cluster--top-right,
+body[data-intro-phase="settle"] .mock-cluster--top-right { opacity: 1; }
+
+body[data-intro-revealed="3"] .mock-cluster--bottom-left,
+body[data-intro-revealed="4"] .mock-cluster--bottom-left,
+body[data-intro-revealed="5"] .mock-cluster--bottom-left,
+body[data-intro-phase="settle"] .mock-cluster--bottom-left { opacity: 1; }
+
+body[data-intro-revealed="4"] .mock-cluster--bottom-mid,
+body[data-intro-revealed="5"] .mock-cluster--bottom-mid,
+body[data-intro-phase="settle"] .mock-cluster--bottom-mid { opacity: 1; }
+
+body[data-intro-revealed="5"] .mock-cluster--bottom-right,
+body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
+
 .mock-cluster--bottom-left  { bottom: 18px; left: 18px; }
 .mock-cluster--bottom-mid   { bottom: 18px; left: 50%; transform: translateX(-50%); }
 .mock-cluster--bottom-right { bottom: 18px; right: 18px; }
@@ -1101,13 +1233,9 @@ body.mock-mounted #poster-preview {
 body.mock-mounted.preview-open .mock-cluster {
   z-index: 500;
 }
-/* Keep the wordmark visible above the preview backdrop — Phase 2.7
- * placed it at z-index: 1, which puts it under the preview modal
- * along with everything else. Lift it alongside the clusters so the
- * brand mark stays put when the user opens the preview. */
-body.mock-mounted.preview-open .mock-wordmark {
-  z-index: 500;
-}
+/* (z-index lift for the wordmark in preview-open mode is no longer
+ * needed — the base .mock-wordmark z-index is 500, which is already
+ * above #poster-preview at 200.) */
 body.mock-mounted.preview-open .mock-frame-overlay {
   display: none;
 }
