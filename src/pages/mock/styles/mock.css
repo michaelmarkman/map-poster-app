@@ -205,19 +205,21 @@ body[data-intro-phase="reveal"] .intro-overlay {
 .intro-wordmark-mark {
   color: #fff;
 }
+/* Definition fades in as a block, opacity 0 → 1 over ~500ms during
+ * the 'typing' phase, then fades out during 'consolidate'. The
+ * keyframes-driven approach (vs. a transition) lets us define both
+ * directions cleanly without needing two separate phase classes. */
 .intro-wordmark-def {
   color: #a5a5a5;
+  opacity: 0;
+  transition: opacity 500ms ease;
 }
-/* Tiny block caret on the typewriter, blinking. */
-.intro-caret {
-  display: inline-block;
-  margin-left: 2px;
-  animation: intro-caret-blink 1s steps(1, end) infinite;
-  color: rgba(255, 255, 255, 0.5);
+body[data-intro-phase="typing"] .intro-wordmark-def,
+body[data-intro-phase="hold"] .intro-wordmark-def {
+  opacity: 1;
 }
-@keyframes intro-caret-blink {
-  0%, 50%   { opacity: 1; }
-  50.01%, 100% { opacity: 0; }
+body[data-intro-phase="consolidate"] .intro-wordmark-def {
+  opacity: 0;
 }
 
 /* Settle: shrink the wordmark down to the persistent top-center size

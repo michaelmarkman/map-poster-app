@@ -41,11 +41,15 @@ describe('IntroSequence', () => {
     vi.useFakeTimers()
     document.body.removeAttribute('data-intro-phase')
     document.body.removeAttribute('data-intro-revealed')
+    // The intro persists a once-only flag in localStorage; clean it
+    // between tests so each fresh-mount test starts as "first visit".
+    try { localStorage.removeItem('vedute_intro_seen') } catch {}
   })
   afterEach(() => {
     vi.useRealTimers()
     document.body.removeAttribute('data-intro-phase')
     document.body.removeAttribute('data-intro-revealed')
+    try { localStorage.removeItem('vedute_intro_seen') } catch {}
   })
 
   it('starts in the wordmark phase with body[data-intro-phase] set', () => {
@@ -63,15 +67,16 @@ describe('IntroSequence', () => {
     expect(container.textContent).not.toContain('highly detailed')
   })
 
-  it('progresses to typing and starts revealing the definition', async () => {
+  it('progresses to typing and renders the full definition (CSS handles the fade)', async () => {
     const { container } = renderWith()
     // Advance past the wordmark hold (600ms) into typing.
     await advance(700)
     expect(document.body.getAttribute('data-intro-phase')).toBe('typing')
-    // Tick the typewriter forward a few chars.
-    await advance(200)
-    // First few chars are "are".
-    expect(container.textContent).toContain('are')
+    // Definition is rendered as a whole — CSS opacity transition does
+    // the fade-in. The text content should contain a chunk of the
+    // sentence as soon as we're in the typing phase.
+    expect(container.textContent).toContain('highly detailed')
+    expect(container.textContent).toContain('cityscapes')
   })
 
   it('Esc skips straight to done and clears body data-attr', async () => {
@@ -137,6 +142,29 @@ describe('IntroSequence', () => {
     await advance(15_000, 50)
     expect(document.body.hasAttribute('data-intro-phase')).toBe(false)
     expect(document.body.hasAttribute('data-intro-revealed')).toBe(false)
+  })
+
+  it('persists vedute_intro_seen=1 once the intro finishes', async () => {
+    renderWith()
+    await advance(15_000, 50)
+    expect(localStorage.getItem('vedute_intro_seen')).toBe('1')
+  })
+
+  it('Esc skip also persists the seen-flag (counts as a completion)', async () => {
+    renderWith()
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
+    expect(localStorage.getItem('vedute_intro_seen')).toBe('1')
+  })
+
+  it('returning users (vedute_intro_seen=1) skip the intro entirely', () => {
+    localStorage.setItem('vedute_intro_seen', '1')
+    const { store, container } = renderWith()
+    // Should never render the overlay — phase starts at done.
+    expect(container.querySelector('.intro-overlay')).toBe(null)
+    expect(store.get(introDoneAtom)).toBe(true)
+    expect(document.body.hasAttribute('data-intro-phase')).toBe(false)
   })
 
   it('removes the keydown listener on unmount', () => {

@@ -27,13 +27,14 @@ import { introDoneAtom } from '../../editor/atoms/sidebar'
 // drives the cluster opacity transitions so the corner clusters
 // themselves don't have to know about the intro.
 
-// Phase timeline — total ~7.5s without skip.
+// Phase timeline — total ~6s without skip.
 const TIMING = {
-  // Time the wordmark stays alone before the typewriter starts.
+  // Time the wordmark stays alone before the definition fades in.
   wordmarkHold: 600,
-  // Per-character interval for the definition typewriter. ~165 chars
-  // total → ~1.6s typing duration at 10ms/char.
-  typeChar: 10,
+  // Definition fade-in window. CSS transitions the .intro-wordmark-def
+  // span's opacity 0 → 1 over this duration; this constant keeps the JS
+  // phase clock aligned.
+  defFadeIn: 500,
   // Hold the full sentence on screen before consolidating.
   fullSentenceHold: 1100,
   // Definition fade-out duration (consolidate phase).
@@ -56,13 +57,37 @@ const REVEAL_ORDER = [
   'mock-cluster--bottom-right',
 ]
 
+// localStorage flag — set when the intro plays through to completion
+// (or the user hits Esc). On every subsequent mount we read this and
+// skip the intro entirely. Persisted forever; users only see the
+// intro the first time they open Vedute on a given browser.
+const INTRO_SEEN_KEY = 'vedute_intro_seen'
+
+function hasSeenIntro() {
+  try {
+    return typeof localStorage !== 'undefined' &&
+      localStorage.getItem(INTRO_SEEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markIntroSeen() {
+  try {
+    localStorage.setItem(INTRO_SEEN_KEY, '1')
+  } catch {}
+}
+
 export default function IntroSequence() {
   const setIntroDone = useSetAtom(introDoneAtom)
 
   // 'wordmark' | 'typing' | 'hold' | 'consolidate' | 'reveal' | 'settle' | 'done'
-  const [phase, setPhase] = useState('wordmark')
-  // How many definition characters to render — drives the typewriter.
-  const [typedChars, setTypedChars] = useState(0)
+  // ('typing' is a legacy name from when the definition typed in
+  // char-by-char; it now fades in as a whole. Kept for the CSS hooks
+  // already keyed on `body[data-intro-phase="typing"]`.)
+  // Lazy initializer reads the localStorage seen-flag once on mount —
+  // returning users start at 'done' so the intro doesn't replay.
+  const [phase, setPhase] = useState(() => (hasSeenIntro() ? 'done' : 'wordmark'))
   // How many corners have been revealed — drives the stagger.
   const [revealedCount, setRevealedCount] = useState(0)
 
@@ -78,13 +103,10 @@ export default function IntroSequence() {
     if (phase === 'wordmark') {
       timer = setTimeout(() => setPhase('typing'), TIMING.wordmarkHold)
     } else if (phase === 'typing') {
-      // Self-recursing typewriter — append one char per tick until the
-      // definition is fully visible, then transition.
-      if (typedChars >= DEFINITION.length) {
-        timer = setTimeout(() => setPhase('hold'), TIMING.fullSentenceHold)
-      } else {
-        timer = setTimeout(() => setTypedChars((n) => n + 1), TIMING.typeChar)
-      }
+      // Definition fades in (CSS-driven on .intro-wordmark-def). Once
+      // the fade-in window has elapsed, transition to the hold phase
+      // so the full sentence sits on screen.
+      timer = setTimeout(() => setPhase('hold'), TIMING.defFadeIn)
     } else if (phase === 'hold') {
       timer = setTimeout(() => setPhase('consolidate'), TIMING.consolidate)
     } else if (phase === 'consolidate') {
@@ -99,7 +121,7 @@ export default function IntroSequence() {
       timer = setTimeout(() => setPhase('done'), TIMING.settle)
     }
     return () => clearTimeout(timer)
-  }, [phase, typedChars, revealedCount])
+  }, [phase, revealedCount])
 
   // Esc → skip. Snap state to "done" so the overlay disappears.
   useEffect(() => {
@@ -121,6 +143,8 @@ export default function IntroSequence() {
       // cluster that's already mid-fade keeps its visible state when
       // the intro ends mid-flight.
       document.body.removeAttribute('data-intro-revealed')
+      // Persist the seen-flag so subsequent mounts skip the intro.
+      markIntroSeen()
       setIntroDone(true)
       return undefined
     }
@@ -132,8 +156,9 @@ export default function IntroSequence() {
   if (phase === 'done') return null
 
   const isSettling = phase === 'settle'
+  // Definition is in the DOM during typing + hold; CSS keys off
+  // body[data-intro-phase] to fade .intro-wordmark-def in/out.
   const definitionVisible = phase === 'typing' || phase === 'hold'
-  const visibleDef = DEFINITION.slice(0, typedChars)
 
   return (
     <div
@@ -144,11 +169,7 @@ export default function IntroSequence() {
       <div className={`intro-wordmark intro-wordmark--phase-${phase}`}>
         <span className="intro-wordmark-mark">vedute</span>
         {definitionVisible && (
-          <span className="intro-wordmark-def">
-            {' '}
-            {visibleDef}
-            <span className="intro-caret" aria-hidden="true">▍</span>
-          </span>
+          <span className="intro-wordmark-def"> {DEFINITION}</span>
         )}
       </div>
     </div>
