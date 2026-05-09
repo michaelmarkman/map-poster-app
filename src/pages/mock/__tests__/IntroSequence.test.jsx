@@ -1,6 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, act } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
+
+// Tegaki's TegakiRenderer needs ResizeObserver + canvas font metrics —
+// neither lives in jsdom. Mock it as a render-only stub that fires
+// onComplete on next tick so the phase machine can progress as if the
+// handwriting finished. The actual tegaki SVG rendering is exercised
+// in the visual / smoke verify, not unit tests.
+vi.mock('tegaki/react', () => ({
+  TegakiRenderer: ({ children, onComplete }) => {
+    // Schedule onComplete in a microtask so the test's fake-timer flush
+    // catches it on the same advance.
+    Promise.resolve().then(() => onComplete && onComplete())
+    return <span data-testid="tegaki-stub">{children}</span>
+  },
+}))
+vi.mock('tegaki/fonts/italianno', () => ({ default: { __mock: 'italianno' } }))
+
 import IntroSequence from '../components/IntroSequence'
 import { introDoneAtom } from '../../editor/atoms/sidebar'
 
@@ -57,8 +73,12 @@ describe('IntroSequence', () => {
     expect(document.body.getAttribute('data-intro-phase')).toBe('wordmark')
   })
 
-  it('renders the "vedute" wordmark from the start', () => {
+  it('renders the "vedute" wordmark once tegaki has lazy-loaded', async () => {
     const { container } = renderWith()
+    // Tegaki is dynamic-imported on mount; the renderer is null on the
+    // first paint and resolves a tick later. Flush microtasks + give
+    // React a chance to commit the next render before asserting.
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
     expect(container.textContent).toContain('vedute')
   })
 

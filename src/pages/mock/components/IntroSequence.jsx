@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useSetAtom } from 'jotai'
 import { introDoneAtom } from '../../editor/atoms/sidebar'
 
-// First-boot intro sequence. Plays on every page load (per the
-// Phase 2.7 follow-up Figma frames in ZRmt5GyQEEIyigxYiALwTJ):
+// First-boot intro sequence. Plays on first visit (per the Phase 2.7
+// follow-up Figma frames in ZRmt5GyQEEIyigxYiALwTJ); persisted via
+// localStorage so returning users skip it:
 //
-//   1. WORDMARK    — dark backdrop, "vedute" appears centered.
-//   2. TYPING      — dictionary entry types in beside it ("are highly
+//   1. WORDMARK    — dark backdrop, "vedute" handwrites itself in
+//                    italianno cursive (tegaki library — strokes are
+//                    drawn one-by-one as if by hand).
+//   2. TYPING      — dictionary entry fades in beside it ("are highly
 //                    detailed, atmospheric paintings or prints that
 //                    capture the breathtaking beauty of cityscapes
 //                    and picturesque vistas.").
@@ -27,10 +30,19 @@ import { introDoneAtom } from '../../editor/atoms/sidebar'
 // drives the cluster opacity transitions so the corner clusters
 // themselves don't have to know about the intro.
 
-// Phase timeline — total ~6s without skip.
+// Phase timeline — total ~6s without skip. The wordmark phase ends on
+// tegaki's onComplete callback (handwriting finished) rather than a
+// fixed timer, so the typing phase always starts the moment the word
+// is fully drawn — no awkward waiting if the font tweaks its stroke
+// timing later.
 const TIMING = {
-  // Time the wordmark stays alone before the definition fades in.
-  wordmarkHold: 600,
+  // Beat between handwriting completion and the definition starting
+  // to fade in — gives the eye a moment to register the wordmark.
+  wordmarkHold: 250,
+  // Hard cap on tegaki playback. If onComplete somehow doesn't fire
+  // (font load failure, render error), fall through after this many
+  // ms so the intro never gets stuck on the wordmark.
+  wordmarkFallback: 4000,
   // Definition fade-in window. CSS transitions the .intro-wordmark-def
   // span's opacity 0 → 1 over this duration; this constant keeps the JS
   // phase clock aligned.
@@ -90,6 +102,36 @@ export default function IntroSequence() {
   const [phase, setPhase] = useState(() => (hasSeenIntro() ? 'done' : 'wordmark'))
   // How many corners have been revealed — drives the stagger.
   const [revealedCount, setRevealedCount] = useState(0)
+  // Tegaki onComplete signal — true once the handwriting finishes.
+  // Wordmark phase waits for this (or the fallback timer, whichever
+  // first) before progressing to typing.
+  const [wordmarkDrawn, setWordmarkDrawn] = useState(false)
+
+  // Lazy-load tegaki + the italianno bundle (~230KB combined, gzipped
+  // ~65KB). Only first-visit users need it; returning users start at
+  // phase='done' so they never trigger the imports. Skipped entirely
+  // when intro-seen=1 to avoid wasted network on returning visits.
+  const [Tegaki, setTegaki] = useState(null)
+  const [italianno, setItalianno] = useState(null)
+  useEffect(() => {
+    if (hasSeenIntro()) return
+    let cancelled = false
+    Promise.all([
+      import('tegaki/react'),
+      import('tegaki/fonts/italianno'),
+    ]).then(([reactMod, fontMod]) => {
+      if (cancelled) return
+      // Wrap setTegaki in a callback to avoid React calling the
+      // component as a function (it sees a function ref otherwise).
+      setTegaki(() => reactMod.TegakiRenderer)
+      setItalianno(fontMod.default)
+    }).catch(() => {
+      // If the import fails (offline / bundle missing), the wordmark
+      // stays empty and the fallback timer (TIMING.wordmarkFallback)
+      // pushes the phase machine forward so the intro doesn't stall.
+    })
+    return () => { cancelled = true }
+  }, [])
 
   // Latched skip flag: once Esc fires we ignore in-flight timers.
   const skippedRef = useRef(false)
@@ -101,7 +143,14 @@ export default function IntroSequence() {
     if (skippedRef.current) return undefined
     let timer
     if (phase === 'wordmark') {
-      timer = setTimeout(() => setPhase('typing'), TIMING.wordmarkHold)
+      // Wait for tegaki onComplete (sets wordmarkDrawn=true) → schedule
+      // a brief beat → transition. If onComplete never fires for any
+      // reason, fall through after wordmarkFallback.
+      if (wordmarkDrawn) {
+        timer = setTimeout(() => setPhase('typing'), TIMING.wordmarkHold)
+      } else {
+        timer = setTimeout(() => setPhase('typing'), TIMING.wordmarkFallback)
+      }
     } else if (phase === 'typing') {
       // Definition fades in (CSS-driven on .intro-wordmark-def). Once
       // the fade-in window has elapsed, transition to the hold phase
@@ -121,7 +170,7 @@ export default function IntroSequence() {
       timer = setTimeout(() => setPhase('done'), TIMING.settle)
     }
     return () => clearTimeout(timer)
-  }, [phase, revealedCount])
+  }, [phase, revealedCount, wordmarkDrawn])
 
   // Esc → skip. Snap state to "done" so the overlay disappears.
   useEffect(() => {
@@ -167,7 +216,24 @@ export default function IntroSequence() {
       aria-hidden="true"
     >
       <div className={`intro-wordmark intro-wordmark--phase-${phase}`}>
-        <span className="intro-wordmark-mark">vedute</span>
+        <span className="intro-wordmark-mark">
+          {/* Tegaki handwrites "vedute" stroke-by-stroke. onComplete
+           * fires the moment the last stroke finishes; the phase
+           * machine keys off wordmarkDrawn for transition. The
+           * fallback timer (TIMING.wordmarkFallback) covers any case
+           * where onComplete doesn't fire (font load failure, lazy
+           * import never resolved, etc.). */}
+          {Tegaki && italianno ? (
+            <Tegaki
+              font={italianno}
+              time={{ mode: 'uncontrolled', speed: 1, loop: false }}
+              onComplete={() => setWordmarkDrawn(true)}
+              style={{ fontSize: 88, color: '#fff' }}
+            >
+              vedute
+            </Tegaki>
+          ) : null}
+        </span>
         {definitionVisible && (
           <span className="intro-wordmark-def"> {DEFINITION}</span>
         )}

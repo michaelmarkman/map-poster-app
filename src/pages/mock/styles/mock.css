@@ -180,37 +180,37 @@ body[data-intro-phase="reveal"] .intro-overlay {
   transition: background 800ms ease;
 }
 
-/* Centered wordmark + (during typing/hold) the definition typewriter
- * inline beside it. Crimson Text was the family in the Figma mock —
- * the index.html font stack already includes it. */
+/* Centered wordmark stack: handwritten "vedute" (tegaki, italianno
+ * cursive) on top, dictionary definition fading in below. Stacked
+ * because the handwriting is visually distinct enough that flowing
+ * the prose inline next to it would clash. */
 .intro-wordmark {
-  max-width: 657px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 720px;
   padding: 0 24px;
   text-align: center;
-  font: 400 39px/40px 'Crimson Text', Georgia, serif;
   color: rgba(255, 255, 255, 0.86);
-  opacity: 0;
-  animation: intro-wordmark-in 600ms ease-out forwards;
   transition:
     transform 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
-    font-size 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
-    line-height 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
-    max-width 800ms cubic-bezier(0.25, 0.1, 0.25, 1),
     opacity 800ms ease;
 }
-@keyframes intro-wordmark-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 .intro-wordmark-mark {
+  /* Wraps the TegakiRenderer SVG. fontSize on TegakiRenderer's style
+   * prop drives the SVG's intrinsic size; here we just give it room
+   * to breathe and ensure currentColor flows through to the strokes. */
+  display: inline-block;
   color: #fff;
+  line-height: 1;
 }
 /* Definition fades in as a block, opacity 0 → 1 over ~500ms during
- * the 'typing' phase, then fades out during 'consolidate'. The
- * keyframes-driven approach (vs. a transition) lets us define both
- * directions cleanly without needing two separate phase classes. */
+ * the 'typing' phase, then fades out during 'consolidate'. */
 .intro-wordmark-def {
   color: #a5a5a5;
+  font: 400 22px/30px 'Crimson Text', Georgia, serif;
+  letter-spacing: 0.01em;
   opacity: 0;
   transition: opacity 500ms ease;
 }
@@ -223,13 +223,9 @@ body[data-intro-phase="consolidate"] .intro-wordmark-def {
 }
 
 /* Settle: shrink the wordmark down to the persistent top-center size
- * and translate it to its home position (top: 24px, height: 28px). The
- * overlay's flex centering becomes the start position; we override it
- * with a translate to the top of the viewport. */
+ * and translate it to its home position (top: 24px). */
 .intro-overlay.is-settling .intro-wordmark {
-  font-size: 24px;
-  line-height: 28px;
-  transform: translateY(calc(-50vh + 38px));  /* 24px top + ~14px to center on the 28px-tall mark */
+  transform: translateY(calc(-50vh + 38px));
   opacity: 0;
 }
 
