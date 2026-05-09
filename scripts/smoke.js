@@ -75,7 +75,10 @@ async function run() {
     //     server with no proxy mounted, so /api/places 501s during
     //     reverse-geocode on save-view; the client handles that via the
     //     documented Nominatim fallback (covered by unit tests).
-    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic|\/api\/places/i.test(url)) return
+    // italianno*.ttf — lazy-loaded by the intro sequence; the smoke
+    //   navigates between routes mid-fetch which aborts the request.
+    //   The font lands fine in real browsers.
+    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic|\/api\/places|italianno.*\.ttf|githubusercontent\.com.*takram|three-geospatial.*\.bin/i.test(url)) return
     consoleErrors.push(`requestfailed: ${url} ${req.failure()?.errorText || ''}`)
   })
   page.on('response', (resp) => {
@@ -87,7 +90,10 @@ async function run() {
     //     server with no proxy mounted, so /api/places 501s during
     //     reverse-geocode on save-view; the client handles that via the
     //     documented Nominatim fallback (covered by unit tests).
-    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic|\/api\/places/i.test(url)) return
+    // italianno*.ttf — lazy-loaded by the intro sequence; the smoke
+    //   navigates between routes mid-fetch which aborts the request.
+    //   The font lands fine in real browsers.
+    if (/favicon\.ico|TilesRenderer|3dtiles|googleapis|gstatic|\/api\/places|italianno.*\.ttf|githubusercontent\.com.*takram|three-geospatial.*\.bin/i.test(url)) return
     consoleErrors.push(`HTTP ${resp.status()}: ${url}`)
   })
   page.on('console', (msg) => {

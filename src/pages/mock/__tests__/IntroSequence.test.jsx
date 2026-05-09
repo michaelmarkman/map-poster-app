@@ -89,8 +89,8 @@ describe('IntroSequence', () => {
 
   it('progresses to typing and renders the full definition (CSS handles the fade)', async () => {
     const { container } = renderWith()
-    // Advance past the wordmark hold (600ms) into typing.
-    await advance(700)
+    // Advance past the wordmark phase (2500ms) into typing.
+    await advance(2600)
     expect(document.body.getAttribute('data-intro-phase')).toBe('typing')
     // Definition is rendered as a whole — CSS opacity transition does
     // the fade-in. The text content should contain a chunk of the
