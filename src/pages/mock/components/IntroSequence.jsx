@@ -30,25 +30,24 @@ import { introDoneAtom } from '../../editor/atoms/sidebar'
 // drives the cluster opacity transitions so the corner clusters
 // themselves don't have to know about the intro.
 
-// Phase timeline — total ~5s without skip. tegaki runs in CSS mode
-// (GPU-accelerated, doesn't fire onComplete), so the wordmark phase
-// uses a fixed timer matching tegaki's intrinsic stroke duration
-// for "vedute" in italianno at speed 1. Roughly 2.2s of stroke +
-// a 300ms beat to register the finished mark before the definition
-// fades in.
+// Phase timing.
+//
+// User-driven advancement: clicking the overlay moves the intro from
+// one read-text phase to the next (typing → consolidate → reveal).
+// The wordmark phase auto-advances to typing once tegaki's onComplete
+// fires (handwriting finished); during reveal the corner clusters
+// stagger in automatically; settle runs on a fixed timer. This keeps
+// the user in control of the parts they're reading without making
+// them click their way through every micro-step.
 const TIMING = {
-  // Total time the wordmark stays alone (handwriting playback +
-  // post-completion beat). Tuned by visual feel — too short clips
-  // the last stroke; too long feels staged.
-  wordmark: 2500,
-  // Definition fade-in window. CSS transitions the .intro-wordmark-def
-  // span's opacity 0 → 1 over this duration; this constant keeps the JS
-  // phase clock aligned.
+  // Hard cap on tegaki playback. If onComplete never fires (font load
+  // failure, render error), fall through after this many ms so the
+  // intro doesn't stall on the wordmark.
+  wordmarkFallback: 6000,
+  // Definition fade-in / fade-out window. CSS transitions on the
+  // .intro-wordmark-def opacity drive the visual; the JS phase clock
+  // doesn't tick during typing/hold/consolidate any more — clicks do.
   defFadeIn: 500,
-  // Hold the full sentence on screen before consolidating.
-  fullSentenceHold: 1100,
-  // Definition fade-out duration (consolidate phase).
-  consolidate: 600,
   // Per-corner reveal stagger. 5 corners × this gives total reveal time.
   revealStagger: 280,
   // Settle phase (wordmark moves to top + overlay fades).
@@ -91,15 +90,20 @@ function markIntroSeen() {
 export default function IntroSequence() {
   const setIntroDone = useSetAtom(introDoneAtom)
 
-  // 'wordmark' | 'typing' | 'hold' | 'consolidate' | 'reveal' | 'settle' | 'done'
-  // ('typing' is a legacy name from when the definition typed in
-  // char-by-char; it now fades in as a whole. Kept for the CSS hooks
-  // already keyed on `body[data-intro-phase="typing"]`.)
+  // 'wordmark' | 'typing' | 'consolidate' | 'reveal' | 'settle' | 'done'
+  // (legacy 'hold' phase folded into 'typing' since the user advances
+  // them with a click anyway; 'typing' itself is a misnomer since the
+  // definition now just fades in, but the CSS hooks key off
+  // body[data-intro-phase="typing"] so the name stays.)
   // Lazy initializer reads the localStorage seen-flag once on mount —
   // returning users start at 'done' so the intro doesn't replay.
   const [phase, setPhase] = useState(() => (hasSeenIntro() ? 'done' : 'wordmark'))
   // How many corners have been revealed — drives the stagger.
   const [revealedCount, setRevealedCount] = useState(0)
+  // Tegaki onComplete signal — true once the handwriting finishes.
+  // Used to gate the wordmark→typing click handler (no advancing
+  // before the user has seen the wordmark fully drawn).
+  const [wordmarkDrawn, setWordmarkDrawn] = useState(false)
   // Lazy-load tegaki + the italianno bundle (~230KB combined, gzipped
   // ~65KB). Only first-visit users need it; returning users start at
   // phase='done' so they never trigger the imports. Skipped entirely
@@ -129,25 +133,26 @@ export default function IntroSequence() {
   // Latched skip flag: once Esc fires we ignore in-flight timers.
   const skippedRef = useRef(false)
 
-  // Drive phase transitions via setTimeout chains. Each phase's effect
-  // schedules the next; a clear-on-unmount pattern keeps strict-mode
-  // double-invocations safe.
+  // Phase progression. Most phases now wait for a user click (see
+  // advancePhase below). The exceptions:
+  //   - wordmark: auto-advances to typing as soon as tegaki's
+  //     onComplete fires. A 6s fallback timer covers the case where
+  //     the lazy import / font load fails so the intro doesn't stall.
+  //   - reveal: corners stagger in automatically.
+  //   - settle: fixed timer; not user-controllable since it's the
+  //     "out" animation.
   useEffect(() => {
     if (skippedRef.current) return undefined
     let timer
     if (phase === 'wordmark') {
-      // Fixed timer aligned with tegaki's CSS-mode stroke duration.
-      // CSS mode doesn't fire onComplete; the timer is the only signal.
-      timer = setTimeout(() => setPhase('typing'), TIMING.wordmark)
-    } else if (phase === 'typing') {
-      // Definition fades in (CSS-driven on .intro-wordmark-def). Once
-      // the fade-in window has elapsed, transition to the hold phase
-      // so the full sentence sits on screen.
-      timer = setTimeout(() => setPhase('hold'), TIMING.defFadeIn)
-    } else if (phase === 'hold') {
-      timer = setTimeout(() => setPhase('consolidate'), TIMING.consolidate)
-    } else if (phase === 'consolidate') {
-      timer = setTimeout(() => setPhase('reveal'), TIMING.consolidate)
+      if (wordmarkDrawn) {
+        // Tegaki finished — but DON'T auto-advance. The user advances
+        // by clicking. (This used to auto-tick to 'typing' here; the
+        // intro change brought clicking to the front.)
+        return undefined
+      }
+      // Fallback: in case tegaki never resolves, push forward.
+      timer = setTimeout(() => setWordmarkDrawn(true), TIMING.wordmarkFallback)
     } else if (phase === 'reveal') {
       if (revealedCount >= REVEAL_ORDER.length) {
         timer = setTimeout(() => setPhase('settle'), TIMING.revealStagger)
@@ -158,7 +163,23 @@ export default function IntroSequence() {
       timer = setTimeout(() => setPhase('done'), TIMING.settle)
     }
     return () => clearTimeout(timer)
-  }, [phase, revealedCount])
+  }, [phase, revealedCount, wordmarkDrawn])
+
+  // Click handler: advances the intro one phase. Used while the user
+  // is reading the wordmark / definition; once we hit reveal, the
+  // staggered corner-fade and settle play out automatically.
+  const advancePhase = () => {
+    if (skippedRef.current) return
+    if (phase === 'wordmark') {
+      // Only advance once tegaki has finished drawing — clicking
+      // mid-stroke would cut off the brand moment. (Esc still skips.)
+      if (wordmarkDrawn) setPhase('typing')
+      return
+    }
+    if (phase === 'typing') return setPhase('consolidate')
+    if (phase === 'consolidate') return setPhase('reveal')
+    // reveal / settle / done: ignore clicks (auto-driven from here).
+  }
 
   // Esc → skip. Snap state to "done" so the overlay disappears.
   useEffect(() => {
@@ -195,30 +216,30 @@ export default function IntroSequence() {
   const isSettling = phase === 'settle'
   // Definition is in the DOM during typing + hold; CSS keys off
   // body[data-intro-phase] to fade .intro-wordmark-def in/out.
-  const definitionVisible = phase === 'typing' || phase === 'hold'
+  const definitionVisible = phase === 'typing'
 
   return (
     <div
       className={`intro-overlay${isSettling ? ' is-settling' : ''}`}
       role="presentation"
       aria-hidden="true"
+      onClick={advancePhase}
     >
       <div className={`intro-wordmark intro-wordmark--phase-${phase}`}>
         <span className="intro-wordmark-mark">
           {/* Tegaki handwrites "vedute" stroke-by-stroke in italianno
-           * cursive. CSS mode (vs uncontrolled) — the animation is
-           * driven by stroke-dashoffset CSS transitions, which the
-           * compositor can hand off to the GPU. Massive perf win
-           * over the JS-clock uncontrolled mode, which was running
-           * stroke math per-frame in competition with the editor's
-           * WebGL render loop. shaper={false} skips the harfbuzz
-           * shaping step (overkill for one English word; saves a
-           * non-trivial chunk of CPU on first paint). */}
+           * cursive. mode='uncontrolled' so the strokes actually
+           * render visibly (CSS mode tested in 456f4e8 ended up
+           * not painting the strokes for some users — different
+           * compositor pathway than the JS-clock-driven uncontrolled
+           * mode). The handwriting is a one-shot ~2-3s animation;
+           * after that tegaki is idle, so the per-frame cost only
+           * spans those few seconds at the start. */}
           {Tegaki && italianno ? (
             <Tegaki
               font={italianno}
-              time={{ mode: 'css', speed: 1 }}
-              shaper={false}
+              time={{ mode: 'uncontrolled', speed: 1, loop: false }}
+              onComplete={() => setWordmarkDrawn(true)}
               style={{ fontSize: 88, color: '#fff' }}
             >
               vedute
@@ -229,6 +250,18 @@ export default function IntroSequence() {
           <span className="intro-wordmark-def"> {DEFINITION}</span>
         )}
       </div>
+
+      {/* Click hint — appears once a click would actually advance
+       *  something (i.e. wordmark finished, or in typing/consolidate).
+       *  Hidden during reveal/settle so the auto-driven phases don't
+       *  imply they're click-driven. */}
+      {((phase === 'wordmark' && wordmarkDrawn) ||
+        phase === 'typing' ||
+        phase === 'consolidate') && (
+        <div className="intro-click-hint" aria-hidden="true">
+          Click to continue
+        </div>
+      )}
     </div>
   )
 }

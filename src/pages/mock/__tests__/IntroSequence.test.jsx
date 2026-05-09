@@ -87,16 +87,24 @@ describe('IntroSequence', () => {
     expect(container.textContent).not.toContain('highly detailed')
   })
 
-  it('progresses to typing and renders the full definition (CSS handles the fade)', async () => {
+  it('clicking the overlay (after handwriting) advances wordmark→typing and renders the definition', async () => {
     const { container } = renderWith()
-    // Advance past the wordmark phase (2500ms) into typing.
-    await advance(2600)
+    // Tegaki mock fires onComplete on next tick → wordmarkDrawn=true.
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    // Click the overlay to advance to typing.
+    await act(async () => { fireEvent.click(container.querySelector('.intro-overlay')) })
     expect(document.body.getAttribute('data-intro-phase')).toBe('typing')
-    // Definition is rendered as a whole — CSS opacity transition does
-    // the fade-in. The text content should contain a chunk of the
-    // sentence as soon as we're in the typing phase.
     expect(container.textContent).toContain('highly detailed')
     expect(container.textContent).toContain('cityscapes')
+  })
+
+  it("clicking before handwriting completes doesn't advance the phase", async () => {
+    // Brand-protection: clicking mid-stroke shouldn't cut off the
+    // wordmark. The advance happens only once tegaki onComplete fires.
+    const { container } = renderWith()
+    // Don't flush microtasks — wordmarkDrawn stays false.
+    fireEvent.click(container.querySelector('.intro-overlay'))
+    expect(document.body.getAttribute('data-intro-phase')).toBe('wordmark')
   })
 
   it('Esc skips straight to done and clears body data-attr', async () => {
@@ -121,13 +129,23 @@ describe('IntroSequence', () => {
     expect(document.body.getAttribute('data-intro-phase')).toBe('wordmark')
   })
 
+  // Helper: drive the phase machine through to reveal via clicks
+  // (wordmark → typing → consolidate → reveal). Reveal + settle then
+  // play out automatically on timers.
+  async function clickThroughToReveal(container) {
+    // Wait for tegaki onComplete (mock fires it next tick).
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    const overlay = container.querySelector('.intro-overlay')
+    await act(async () => { fireEvent.click(overlay) }) // → typing
+    await act(async () => { fireEvent.click(overlay) }) // → consolidate
+    await act(async () => { fireEvent.click(overlay) }) // → reveal
+  }
+
   it('reveals corner clusters one-by-one via data-intro-revealed', async () => {
-    renderWith()
-    // Race forward through wordmark → typing → hold → consolidate → reveal.
-    // Burn a generous chunk of time to reach reveal.
-    await advance(20_000, 50)
-    // After enough time we're in either reveal (with a counter) or
-    // settle / done. data-intro-revealed should have advanced to 5.
+    const { container } = renderWith()
+    await clickThroughToReveal(container)
+    // Burn time to let the auto-stagger run through 5 corners + settle.
+    await advance(5_000, 50)
     const phase = document.body.getAttribute('data-intro-phase')
     const revealed = document.body.getAttribute('data-intro-revealed')
     if (phase === 'reveal' || phase === 'settle') {
@@ -136,12 +154,10 @@ describe('IntroSequence', () => {
   })
 
   it('writes data-intro-revealed during reveal phase (incremental counter)', async () => {
-    renderWith()
-    // Push to reveal phase (after wordmark + typing + hold + consolidate).
-    // ~600 (hold) + 165 chars * 22ms (~3630) + 1100 (sentence hold) +
-    // 600 (consolidate1) + 600 (consolidate2) ≈ 6.5s.
-    await advance(7_000, 50)
-    // We should now be in reveal with revealed >= 0 set.
+    const { container } = renderWith()
+    await clickThroughToReveal(container)
+    // Tick a bit so revealedCount advances at least once.
+    await advance(500, 50)
     const phase = document.body.getAttribute('data-intro-phase')
     if (phase === 'reveal') {
       const revealed = document.body.getAttribute('data-intro-revealed')
@@ -151,22 +167,26 @@ describe('IntroSequence', () => {
   })
 
   it('eventually reaches done; introDoneAtom flips to true', async () => {
-    const { store } = renderWith()
-    // Long enough for the entire sequence + safety margin (~10s total).
-    await advance(15_000, 50)
+    const { store, container } = renderWith()
+    await clickThroughToReveal(container)
+    // Reveal stagger + settle ≈ 5*280 + 800 ≈ 2.2s; pad generously.
+    await advance(5_000, 50)
     expect(store.get(introDoneAtom)).toBe(true)
   })
 
   it('clears the body data attributes when phase reaches done', async () => {
-    renderWith()
+    const { container } = renderWith()
+    await clickThroughToReveal(container)
+    await advance(5_000, 50)
     await advance(15_000, 50)
     expect(document.body.hasAttribute('data-intro-phase')).toBe(false)
     expect(document.body.hasAttribute('data-intro-revealed')).toBe(false)
   })
 
   it('persists vedute_intro_seen=1 once the intro finishes', async () => {
-    renderWith()
-    await advance(15_000, 50)
+    const { container } = renderWith()
+    await clickThroughToReveal(container)
+    await advance(5_000, 50)
     expect(localStorage.getItem('vedute_intro_seen')).toBe('1')
   })
 
