@@ -310,68 +310,6 @@ export default function Lightbox() {
       >
         ›
       </button>
-      <button
-        className="modal-close lb-close"
-        id="lb-close"
-        type="button"
-        onClick={onCloseClick}
-        aria-label="Close lightbox"
-      >
-        ×
-      </button>
-
-      <div className="lb-actions" id="lb-actions">
-        <button
-          className="gallery-btn lb-download"
-          id="lb-share"
-          type="button"
-          onClick={onShare}
-        >
-          Share
-        </button>
-        <button
-          className="gallery-btn lb-download"
-          id="lb-jump-view"
-          type="button"
-          onClick={onJumpView}
-          disabled={!hasView}
-          title={hasView
-            ? 'Jump to the camera view and settings this was rendered from'
-            : 'No view data saved for this render'}
-        >
-          Jump to view
-        </button>
-        <button
-          className="gallery-btn lb-download"
-          id="lb-save-view"
-          type="button"
-          onClick={onSaveView}
-          disabled={!hasView}
-          title={hasView
-            ? 'Save this view to your saved-views list'
-            : 'No view data saved for this render'}
-        >
-          Save view
-        </button>
-        <button
-          className="gallery-btn lb-download"
-          id="lb-frame"
-          type="button"
-          onClick={onPreviewAsPoster}
-          title="Preview this render inside a physical poster frame mockup"
-        >
-          Preview as poster
-        </button>
-        <button
-          className="gallery-btn accent lb-download"
-          id="lb-download"
-          type="button"
-          onClick={onDownload}
-        >
-          Download
-        </button>
-      </div>
-
       <img
         id="lb-img"
         ref={imgRef}
@@ -389,57 +327,127 @@ export default function Lightbox() {
           touchAction: isCoarse ? 'pan-y' : undefined,
         }}
       />
-      <div className="lb-label" id="lb-label">
-        {label + positionSuffix}
-      </div>
 
-      {/* Phase 21 — metadata table mirroring the prototype's
-       *  `.lightbox-meta-list`. Only renders when at least one row
-       *  has data; sidebar reflow keeps the title flush at the top. */}
-      {(label || capturedStr || lensMm || todStr) && (
-        <div className="lb-meta-list" onClick={(e) => e.stopPropagation()}>
-          {label && (
-            <div className="lb-meta-row">
-              <span className="lb-meta-key">Style</span>
-              <span className="lb-meta-val">{label}</span>
-            </div>
-          )}
-          {capturedStr && (
-            <div className="lb-meta-row">
-              <span className="lb-meta-key">Captured</span>
-              <span className="lb-meta-val">{capturedStr}</span>
-            </div>
-          )}
-          {lensMm && (
-            <div className="lb-meta-row">
-              <span className="lb-meta-key">Lens</span>
-              <span className="lb-meta-val">{lensMm}</span>
-            </div>
-          )}
-          {todStr && (
-            <div className="lb-meta-row">
-              <span className="lb-meta-key">Time of day</span>
-              <span className="lb-meta-val">{todStr}</span>
-            </div>
-          )}
+      {/* Phase 21 audit — real flex-column sidebar mirroring the
+       *  prototype's `.lightbox-side`. Replaces the fragile absolute-
+       *  margin layout (close, label, actions, meta, danger all
+       *  positioned by manual margin-top from the column edge). With
+       *  a real container, children stack with gap: 24px and the
+       *  footer-danger glues to the bottom via margin-top: auto. */}
+      <aside className="lb-side" onClick={(e) => e.stopPropagation()}>
+        <div className="lb-close-row">
+          <button
+            className="modal-close lb-close"
+            id="lb-close"
+            type="button"
+            onClick={onCloseClick}
+            aria-label="Close lightbox"
+          >
+            ×
+          </button>
         </div>
-      )}
 
-      {/* Footer destructive — terracotta-bordered Delete button.
-       *  Confirms then dispatches `gallery-remove` and closes self. */}
-      <button
-        type="button"
-        className="lb-danger"
-        onClick={onDelete}
-        aria-label="Delete this render"
-      >
-        <svg viewBox="0 0 11 11" aria-hidden="true">
-          <path d="M3 4h5M3.5 4v5.5M7.5 4v5.5M3 4l.5-1.5h4l.5 1.5"
-                fill="none" stroke="currentColor" strokeWidth="1.4"
-                strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>Delete</span>
-      </button>
+        <div className="lb-head">
+          <span className="lb-label" id="lb-label">
+            {label + positionSuffix}
+          </span>
+        </div>
+
+        <div className="lb-actions" id="lb-actions">
+          <button
+            className="gallery-btn lb-download"
+            id="lb-share"
+            type="button"
+            onClick={onShare}
+          >
+            Share
+          </button>
+          <button
+            className="gallery-btn lb-download"
+            id="lb-jump-view"
+            type="button"
+            onClick={onJumpView}
+            disabled={!hasView}
+            title={hasView
+              ? 'Jump to the camera view and settings this was rendered from'
+              : 'No view data saved for this render'}
+          >
+            Jump to view
+          </button>
+          <button
+            className="gallery-btn lb-download"
+            id="lb-save-view"
+            type="button"
+            onClick={onSaveView}
+            disabled={!hasView}
+            title={hasView
+              ? 'Save this view to your saved-views list'
+              : 'No view data saved for this render'}
+          >
+            Save view
+          </button>
+          <button
+            className="gallery-btn lb-download"
+            id="lb-frame"
+            type="button"
+            onClick={onPreviewAsPoster}
+            title="Preview this render inside a physical poster frame mockup"
+          >
+            Preview as poster
+          </button>
+          <button
+            className="gallery-btn accent lb-download"
+            id="lb-download"
+            type="button"
+            onClick={onDownload}
+          >
+            Download
+          </button>
+        </div>
+
+        {(label || capturedStr || lensMm || todStr) && (
+          <div className="lb-meta-list">
+            {label && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Style</span>
+                <span className="lb-meta-val">{label}</span>
+              </div>
+            )}
+            {capturedStr && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Captured</span>
+                <span className="lb-meta-val">{capturedStr}</span>
+              </div>
+            )}
+            {lensMm && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Lens</span>
+                <span className="lb-meta-val">{lensMm}</span>
+              </div>
+            )}
+            {todStr && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Time of day</span>
+                <span className="lb-meta-val">{todStr}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="lb-danger"
+          onClick={onDelete}
+          aria-label="Delete this render"
+        >
+          <svg viewBox="0 0 11 11" aria-hidden="true">
+            <path d="M3 4h5M3.5 4v5.5M7.5 4v5.5M3 4l.5-1.5h4l.5 1.5"
+                  fill="none" stroke="currentColor" strokeWidth="1.4"
+                  strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Delete</span>
+        </button>
+      </aside>
 
       {total > 1 && (
         <div className="lb-strip" onClick={(e) => e.stopPropagation()}>

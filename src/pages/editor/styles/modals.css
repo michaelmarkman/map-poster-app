@@ -508,22 +508,25 @@
     object-fit: contain;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
   }
-  /* Sidebar — the column on the right. Borrows from the prototype's
-   * `.lightbox-sidebar`: dark glass, 1px left border to read as a
-   * pane separator. */
-  #lightbox::after {
-    content: '';
+  /* Sidebar — real flex-column container in column 2. Replaces the
+   * old ::after pseudo-element + absolute-margin grid-positioning that
+   * was fragile to add to. Mirrors the prototype's `.lightbox-side`. */
+  .lb-side {
     grid-column: 2;
     grid-row: 1;
-    background: rgba(8, 10, 12, 0.55);
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(20px);
+    background: rgba(8, 10, 12, 0.65);
+    border-left: 1px solid rgba(250, 250, 250, 0.06);
     -webkit-backdrop-filter: blur(20px);
-    z-index: 0;
+    backdrop-filter: blur(20px);
+    padding: 32px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+    z-index: 2;
   }
-  /* Mobile fallback — drop the sidebar, let the image fill the whole
-   * viewport. Actions reflow inline (the existing flex-wrap rule
-   * below handles this), label collapses to its compact form. */
+  /* Mobile fallback — drop the sidebar background style + reflow into
+   * a bottom row. Actions reflow inline via the flex-wrap rule below. */
   @media (max-width: 720px) {
     #lightbox {
       grid-template-columns: 1fr;
@@ -533,7 +536,15 @@
       max-width: 92vw;
       max-height: 72vh;
     }
-    #lightbox::after { display: none; }
+    .lb-side {
+      grid-column: 1;
+      grid-row: 2;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 18px 24px 24px;
+      max-height: 40vh;
+    }
   }
   /* Thumbnail strip — sits at the bottom of the IMAGE COLUMN now
    * (Phase 10), constrained to `right: 320px` so it doesn't slide
@@ -583,28 +594,30 @@
    * under the image. The `(2/5)` position suffix appended by Lightbox
    * stays inline; it reads as a quiet "of N" qualifier next to the
    * editorial title. */
+  /* Close-button row inside the sidebar — pulls right with a negative
+   * margin so the button hangs over the sidebar's top-right corner
+   * (matches the prototype's `.lightbox-close-row`). */
+  .lb-close-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: -8px -8px 0 0;
+  }
+  /* Head + title — sits below the close row in the flex column. */
+  .lb-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .lb-label {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    justify-self: start;
-    margin: 88px 28px 0;
     font: italic 500 32px/1.1 'Bodoni Moda', 'Times New Roman', serif;
     font-variation-settings: 'opsz' 96;
     color: #fff;
     letter-spacing: -0.012em;
     text-transform: none;
-    z-index: 2;
-    max-width: 264px;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   }
   @media (max-width: 720px) {
-    .lb-label {
-      grid-column: 1;
-      grid-row: 2;
-      margin: 0 24px 18px;
-      font-size: 18px;
-    }
+    .lb-label { font-size: 22px; }
   }
   .lb-nav {
     position: absolute;
@@ -640,35 +653,37 @@
   @media (max-width: 720px) {
     .lb-nav.next { right: 24px; }
   }
-  /* Close button stays absolute; offset accounts for the sidebar
-   * (it should sit at the top-right of the sidebar, not the viewport). */
-  .lb-close { position: absolute; top: 18px; right: 18px; z-index: 3; }
+  /* Close button — small square inside .lb-close-row. The row's
+   * negative margin floats it into the top-right corner of the sidebar. */
+  .lb-close {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 3px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.12s ease;
+  }
+  .lb-close:hover { background: rgba(255, 255, 255, 0.08); }
 
-  /* Phase 10 — action stack lives in the sidebar as a vertical column
-   * (was a horizontal row across the top). The close button stays
-   * docked top-right via .lb-close's existing `position: absolute`. */
+  /* Action stack — vertical column inside the sidebar. Below 720px
+   * the sidebar reflows to a wrapping row, so the actions follow. */
   .lb-actions {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    justify-self: stretch;
-    margin: 160px 24px 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
     align-items: stretch;
-    justify-content: flex-start;
-    z-index: 2;
-    max-width: 272px;
   }
   @media (max-width: 720px) {
     .lb-actions {
-      grid-column: 1;
-      grid-row: 2;
       flex-direction: row;
       flex-wrap: wrap;
-      margin: 0 24px 14px;
-      max-width: calc(100vw - 48px);
     }
   }
   .lb-actions .gallery-btn,
@@ -676,20 +691,9 @@
     position: static;
   }
 
-  /* Phase 21 — metadata table mirroring the prototype's
-   * `.lightbox-meta-list`. Lives in the sidebar column below the
-   * action stack. Key/value rows with mono typography; key is dim
-   * uppercase, value is bright tabular-nums. */
+  /* Metadata table — key/value rows, prototype's `.lightbox-meta-list`.
+   * Lives naturally in the sidebar's flex column; no absolute margins. */
   .lb-meta-list {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-    justify-self: stretch;
-    /* sits below .lb-actions (margin-top: 160px + ~5 buttons of stack).
-     * Approximate offset; sidebar is overflow-y:auto via ::after layer
-     * but content stacks naturally inside the grid cell. */
-    margin: 380px 28px 0;
-    max-width: 264px;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -697,7 +701,6 @@
     border: 1px solid rgba(250, 250, 250, 0.06);
     border-radius: 3px;
     overflow: hidden;
-    z-index: 2;
   }
   .lb-meta-row {
     display: flex;
@@ -721,24 +724,11 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
-  @media (max-width: 720px) {
-    .lb-meta-list {
-      grid-column: 1;
-      grid-row: 2;
-      margin: 0 24px 12px;
-      max-width: calc(100vw - 48px);
-    }
-  }
 
-  /* Phase 21 — destructive footer button. Terracotta accent, mono
-   * uppercase, sits flush at the bottom of the sidebar. */
+  /* Destructive footer button — pushed to the bottom of the sidebar
+   * via margin-top: auto inside the flex column. */
   .lb-danger {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: end;
-    justify-self: stretch;
-    margin: 0 28px 28px;
-    max-width: 264px;
+    margin-top: auto;
     height: 32px;
     padding: 0 12px;
     display: inline-flex;
@@ -753,20 +743,12 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     cursor: pointer;
-    z-index: 2;
     transition: background 0.15s;
   }
   .lb-danger:hover { background: rgba(217, 154, 138, 0.10); }
   .lb-danger svg {
-    width: 11px; height: 11px;
-  }
-  @media (max-width: 720px) {
-    .lb-danger {
-      grid-column: 1;
-      grid-row: 2;
-      margin: 0 24px 14px;
-      max-width: calc(100vw - 48px);
-    }
+    width: 11px;
+    height: 11px;
   }
 
   /* ═══════ 3D POSTER PREVIEW ═══════ */
