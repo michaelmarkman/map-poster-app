@@ -100,12 +100,19 @@
     /* uses modal-header */
   }
   .gallery-title {
-    font-family: var(--serif);
+    /* Phase 4 — MoMA prototype's italic Bodoni Moda editorial title.
+     * Matches the gallery sheet's hero typography from
+     * prototypes/editor-chrome-moma-v1.html (`.gallery-sheet-title`).
+     * Italic 600 with optical size cranked to 96 yields the high-
+     * contrast didone feel the prototype leans on. */
+    font-family: 'Bodoni Moda', 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 600;
     font-optical-sizing: auto;
-    font-variation-settings: 'opsz' 144;
-    font-size: 22px;
-    font-weight: 300;
-    letter-spacing: -0.02em;
+    font-variation-settings: 'opsz' 96;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.005em;
     color: var(--ink);
   }
   .gallery-count {
