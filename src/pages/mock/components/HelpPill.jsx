@@ -28,6 +28,7 @@ export default function HelpPill() {
       align="right"
       drop="up"
       panelClassName="mock-popover--help"
+      className="mock-pill--help"
       aria-label="Keyboard shortcuts and help"
     >
       {({ close }) => (

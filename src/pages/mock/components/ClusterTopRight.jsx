@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import ReadoutPill from './ReadoutPill'
+import DragPill from './DragPill'
 import RenderCountChip from './RenderCountChip'
 import {
   cloudsAtom,
@@ -101,54 +101,55 @@ export default function ClusterTopRight() {
   return (
     <div className="mock-cluster mock-cluster--top-right">
       <RenderCountChip />
-      <ReadoutPill
-        segments={[
-          {
-            key: 'focal',
-            label: 'Focal length',
-            value: readout.fovMm,
-            setValue: setFov,
-            min: 14,
-            max: 200,
-            scale: 0.5,
-            format: (v) => `${Math.round(v)}mm`,
-          },
-          {
-            key: 'aperture',
-            label: 'Aperture',
-            value: apertureSliderValue,
-            setValue: setApertureFromSlider,
-            min: 0,
-            max: APERTURE_STEPS,
-            scale: 0.5,
-            format: formatAperture,
-          },
-          {
-            key: 'tod',
-            label: 'Time of day',
-            value: timeOfDay,
-            setValue: setTimeOfDay,
-            min: todRange.min,
-            max: todRange.max,
-            scale: 0.05,
-            format: formatHour,
-            // Shift+drag unlocks the day-window clamp so the user can
-            // drag past sunset into night. Sticky once flipped — the
-            // user re-clamps by clearing the session or unsetting in
-            // a future settings panel.
-            onShiftDrag: () => setTodUnlocked(true),
-          },
-          {
-            key: 'clouds',
-            label: 'Cloud coverage',
-            value: cloudsSliderValue,
-            setValue: setCloudsFromSlider,
-            min: 0,
-            max: 100,
-            scale: 0.5,
-            format: (v) => `${Math.round(v)}%`,
-          },
-        ]}
+      {/* Phase 6 — the prototype renders DoF / Lens / Time / Clouds as
+       *  four distinct scrub pills (each its own LABEL VALUE chip),
+       *  not as one consolidated ReadoutPill strip. Each pill uses the
+       *  shared DragPill scrub primitive (3px deadzone, pointer
+       *  capture). Atoms + state hooks stay here unchanged — only the
+       *  render structure flips from segmented strip → four pills. */}
+      <DragPill
+        label="Lens"
+        value={readout.fovMm}
+        setValue={setFov}
+        min={14}
+        max={200}
+        scale={0.5}
+        format={(v) => `${Math.round(v)}mm`}
+        aria-label="Focal length scrub"
+      />
+      <DragPill
+        label="DoF"
+        value={apertureSliderValue}
+        setValue={setApertureFromSlider}
+        min={0}
+        max={APERTURE_STEPS}
+        scale={0.5}
+        format={formatAperture}
+        aria-label="Aperture scrub"
+      />
+      <DragPill
+        label="Time"
+        value={timeOfDay}
+        setValue={setTimeOfDay}
+        min={todRange.min}
+        max={todRange.max}
+        scale={0.05}
+        format={formatHour}
+        // Shift+drag unlocks the day-window clamp so the user can
+        // drag past sunset into night. Sticky once flipped — the
+        // user re-clamps by clearing the session.
+        onShiftDrag={() => setTodUnlocked(true)}
+        aria-label="Time of day scrub"
+      />
+      <DragPill
+        label="Clouds"
+        value={cloudsSliderValue}
+        setValue={setCloudsFromSlider}
+        min={0}
+        max={100}
+        scale={0.5}
+        format={(v) => `${Math.round(v)}%`}
+        aria-label="Cloud coverage scrub"
       />
     </div>
   )

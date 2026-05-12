@@ -4,8 +4,14 @@ import Pill from './Pill'
 // Drag-on-pill scrubber. pointerdown captures pointer; pointermove maps Δx
 // to a value change via `scale` (units per pixel). 3px threshold separates
 // click vs drag — caller can pass onClick for the click case.
+//
+// Phase 6 — two-slot LABEL VALUE recipe. If `label` is passed, renders
+// as the prototype's `LABEL value` pattern (dim 9px uppercase name +
+// bright 11px formatted value). Otherwise renders single-slot with
+// just the formatted value (existing API).
 export default function DragPill({
   icon,
+  label,
   value,
   setValue,
   min,
@@ -13,6 +19,10 @@ export default function DragPill({
   scale,
   format,
   onClick,
+  // Phase 6 — optional shift-modifier hook (called once on pointerdown
+  // if shiftKey is held). Used by the time-of-day scrub to unlock the
+  // sunrise/sunset clamp before the drag math kicks in.
+  onShiftDrag,
   className = '',
   ...rest
 }) {
@@ -21,6 +31,12 @@ export default function DragPill({
 
   const onPointerDown = (e) => {
     if (e.button !== 0) return
+    if (onShiftDrag && e.shiftKey) {
+      // Fire the shift-modifier hook so a caller can flip todUnlocked
+      // (or similar) before drag math runs — the value commit below
+      // uses the post-hook clamp range.
+      onShiftDrag()
+    }
     startRef.current = {
       x: e.clientX,
       v: value,
@@ -52,6 +68,8 @@ export default function DragPill({
   return (
     <Pill
       icon={icon}
+      label={label != null ? label : undefined}
+      value={label != null ? format(value) : undefined}
       className={`is-drag${dragging ? ' is-dragging' : ''}${className ? ' ' + className : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -61,7 +79,7 @@ export default function DragPill({
       onClick={(e) => e.preventDefault()}
       {...rest}
     >
-      {format(value)}
+      {label == null ? format(value) : null}
     </Pill>
   )
 }

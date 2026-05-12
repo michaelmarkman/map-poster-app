@@ -302,6 +302,23 @@ body.mock-mounted #canvas-container::before {
 .mock-vf-bracket--bl { bottom: 64px; left: 24px;   transform: scaleY(-1); }
 .mock-vf-bracket--br { bottom: 64px; right: 24px;  transform: scale(-1, -1); }
 
+/* Phase 6 — hide product-chrome chips that don't exist in the MoMA
+ * prototype layout. These are real features (auth, render budget,
+ * keyboard help) but the prototype doesn't model them. Hidden via
+ * display:none under .mock-mounted only — they're still mounted in
+ * the React tree (state subscriptions stay live) and visible outside
+ * the editor where applicable. Future phase can relocate them into
+ * dedicated MoMA-styled affordances (e.g. an account menu in TR,
+ * help into Tour). */
+body.mock-mounted .mock-account-wrap,
+body.mock-mounted .mock-rc-chip,
+body.mock-mounted .mock-pill--help { display: none; }
+
+/* The empty BM cluster only contained Capture (moved to BR in the
+ * prototype layout). Hide it so the layout doesn't leave a vertical
+ * gap. */
+body.mock-mounted .mock-cluster--bottom-mid:empty { display: none; }
+
 /* ═══════ Pill clusters — all horizontal rows now ═══════ */
 .mock-cluster {
   position: fixed;

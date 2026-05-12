@@ -49,7 +49,7 @@ function renderWith({
   ) }
 }
 
-describe('ClusterTopRight (Phase 2.7 ReadoutPill integration)', () => {
+describe('ClusterTopRight (Phase 6 — four DragPills)', () => {
   beforeEach(() => {
     // RenderCountChip queries this; stub.
     if (!localStorage.getItem('vedute_render_count')) {
@@ -57,32 +57,33 @@ describe('ClusterTopRight (Phase 2.7 ReadoutPill integration)', () => {
     }
   })
 
-  it('renders 4 drag-scrubber segments (focal, aperture, TOD, clouds)', () => {
+  it('renders 4 drag pills (focal/lens, aperture/DoF, TOD/time, clouds)', () => {
     const { container } = renderWith()
-    const segs = container.querySelectorAll('.mock-readout-segment')
-    expect(segs).toHaveLength(4)
+    // Phase 6 — ReadoutPill split into 4 DragPills. Each carries
+    // `is-drag` modifier; count those.
+    const dragPills = container.querySelectorAll('.mock-pill.is-drag')
+    expect(dragPills).toHaveLength(4)
   })
 
-  it('focal segment shows fovMm with mm suffix', () => {
+  it('lens pill shows fovMm with mm suffix', () => {
     renderWith({ fovMm: 35 })
-    expect(screen.getByLabelText(/Focal length 35mm/)).toBeDefined()
+    expect(screen.getByText('35mm')).toBeDefined()
   })
 
-  it('aperture segment shows f/X.X for an open f-stop', () => {
+  it('DoF pill shows f/X.X for an open f-stop', () => {
     renderWith({ dof: { aperture: 4.5 } })
-    // f/4.5 should render as exactly that.
     expect(screen.getByText('f/4.5')).toBeDefined()
   })
 
-  it('aperture segment shows f/— when DoF is off (aperture=0)', () => {
+  it('DoF pill shows f/— when DoF is off (aperture=0)', () => {
     renderWith({ dof: { aperture: 0 } })
     expect(screen.getByText('f/—')).toBeDefined()
   })
 
-  it('aperture segment shows the f-stop within 1 of the requested value across the range', () => {
-    // The slider quantizes to 100 steps across f/16..f/1.4 log; round-trip
-    // is approximate but should land within a tenth of an f-stop. Check a
-    // few canonical points.
+  it('DoF pill shows the f-stop within ~1 of the requested value across the range', () => {
+    // The slider quantizes to 100 steps across f/16..f/1.4 log;
+    // round-trip is approximate but should land within a tenth of
+    // an f-stop. Check a few canonical points.
     const cases = [
       { aperture: 16, expected: /f\/(15|16)/ },
       { aperture: 8, expected: /f\/8/ },
@@ -91,7 +92,7 @@ describe('ClusterTopRight (Phase 2.7 ReadoutPill integration)', () => {
     ]
     for (const c of cases) {
       const { unmount } = renderWith({ dof: { aperture: c.aperture } })
-      const matched = Array.from(document.querySelectorAll('.mock-readout-segment'))
+      const matched = Array.from(document.querySelectorAll('.mock-pill.is-drag'))
         .map((n) => n.textContent)
         .find((t) => c.expected.test(t))
       expect(matched, `aperture=${c.aperture}`).toBeTruthy()
