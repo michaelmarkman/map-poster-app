@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   aiPromptAtom,
@@ -118,25 +118,36 @@ export default function CaptureMenu({ onClose }) {
   const queue = useAtomValue(queueAtom)
 
   // Phase swap — 'picker' (style + resolution) or 'queue' (in-progress
-  // + recent renders). dispatchRender flips to queue; the user flips
-  // back manually via the queue's "Capture more" footer button.
+  // + recent renders). The menu opens straight to whichever phase is
+  // most useful right now: if anything is rendering or recently rendered,
+  // the queue. Otherwise the picker. dispatchRender flips to queue and
+  // the user flips back manually via the queue's "Capture more" footer.
   //
-  // No auto-flip-back-to-picker effect on queue.length === 0 here —
-  // useQueue's add-to-queue handler is async (it awaits a canvas
-  // snapshot before calling addJob), so right after dispatchRender
-  // the queue is briefly empty. An auto-flip would race the snapshot
-  // and bounce us back to picker before the user ever sees the queue
-  // populate.
-  const [phase, setPhase] = useState('picker')
+  // No auto-flip-back-to-picker effect on queue.length === 0 — useQueue's
+  // add-to-queue handler is async (awaits a canvas snapshot before
+  // calling addJob), so right after dispatchRender the queue is briefly
+  // empty. An auto-flip would race the snapshot and bounce us back to
+  // picker before the user ever sees the queue populate.
+  const [phase, setPhase] = useState(() => (queue.length > 0 ? 'queue' : 'picker'))
   // True between dispatchRender() and the first time queueAtom reflects
-  // the new job. Lets the queue view show a "Starting render…" placeholder
-  // instead of the "queue empty" state during the snapshot window. */
-  const pendingDispatchRef = useRef(false)
+  // the new job. Lets the queue view show a "Capturing snapshot…"
+  // placeholder instead of the "queue empty" state during the snapshot
+  // window (useQueue's add-to-queue handler awaits a canvas snapshot
+  // before calling addJob — typically 50–500ms).
+  const [pendingDispatch, setPendingDispatch] = useState(false)
+  // Clear pendingDispatch as soon as the first job lands so we render the
+  // real queue rows.
   useEffect(() => {
-    if (queue.length > 0 && pendingDispatchRef.current) {
-      pendingDispatchRef.current = false
-    }
-  }, [queue.length])
+    if (queue.length > 0 && pendingDispatch) setPendingDispatch(false)
+  }, [queue.length, pendingDispatch])
+  // Safety net: if the snapshot fails silently and no job ever appears,
+  // bail out of the placeholder after 6s so the queue view doesn't sit
+  // on "Capturing snapshot…" forever.
+  useEffect(() => {
+    if (!pendingDispatch) return undefined
+    const t = setTimeout(() => setPendingDispatch(false), 6000)
+    return () => clearTimeout(t)
+  }, [pendingDispatch])
 
   const togglePreset = (key) => {
     setSelected((cur) => {
@@ -154,6 +165,7 @@ export default function CaptureMenu({ onClose }) {
     if (selected.size === 0) {
       // No selection → raw export.
       window.dispatchEvent(new CustomEvent('add-to-queue', { detail: { preset: null } }))
+      setPendingDispatch(true)
       setPhase('queue')
       return
     }
@@ -216,7 +228,7 @@ export default function CaptureMenu({ onClose }) {
           pendingJobs={pendingJobs}
           doneJobs={doneJobs}
           errorJobs={errorJobs}
-          starting={pendingDispatchRef.current && queue.length === 0}
+          starting={pendingDispatch && queue.length === 0}
           onCaptureMore={() => setPhase('picker')}
         />
       </div>
