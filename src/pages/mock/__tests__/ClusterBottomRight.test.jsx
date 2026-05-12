@@ -116,10 +116,34 @@ describe('ClusterBottomRight (Phase 7 — scrub pills + Capture)', () => {
     expect(restValues(container)).toContain('0%')
   })
 
-  it('renders a Capture pill that opens the AI render sheet', () => {
+  it('Capture pill opens a menu popover (Phase 16); More options opens the AI render sheet', () => {
+    // Phase 16 — Capture is now a PopoverPill. Clicking the pill opens
+    // the inline CaptureMenu popover. The "More options →" footer link
+    // inside still opens the AIRenderModal for the advanced flow.
     const { store } = renderWith()
     const capture = screen.getByRole('button', { name: /Capture/ })
     fireEvent.click(capture)
+    // Popover open → "More options →" button is in the DOM.
+    const more = screen.getByText(/More options/)
+    fireEvent.click(more)
     expect(store.get(modalsAtom).aiRender).toBe(true)
+  })
+
+  it('Capture pill → Render with no selection fires add-to-queue with preset=null', () => {
+    const events = []
+    const onAdd = (e) => events.push(e.detail)
+    window.addEventListener('add-to-queue', onAdd)
+    try {
+      renderWith()
+      fireEvent.click(screen.getByRole('button', { name: /Capture/ }))
+      // Find the Render button inside the popover. There may be a
+      // "Render N" form; the no-selection state shows just "Render".
+      const render = screen.getByText(/^Render$/)
+      fireEvent.click(render)
+      expect(events).toHaveLength(1)
+      expect(events[0].preset).toBe(null)
+    } finally {
+      window.removeEventListener('add-to-queue', onAdd)
+    }
   })
 })

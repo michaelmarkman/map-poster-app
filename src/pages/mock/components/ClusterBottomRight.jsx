@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import DragPill from './DragPill'
 import HelpPill from './HelpPill'
-import Pill from './Pill'
+import PopoverPill from './PopoverPill'
+import CaptureMenu from './CaptureMenu'
 import { CameraSnapIcon } from './icons'
 import {
   cloudsAtom,
@@ -12,7 +13,6 @@ import {
   todUnlockedAtom,
 } from '../../editor/atoms/scene'
 import { cameraReadoutAtom } from '../../editor/atoms/ui'
-import { modalsAtom } from '../../editor/atoms/modals'
 import { getSunTimes } from '../../editor/utils/sun'
 
 // Phase 7 — prototype's BR cluster holds the four scrub pills
@@ -75,8 +75,6 @@ export default function ClusterBottomRight() {
   const todUnlocked = useAtomValue(todUnlockedAtom)
   const latitude = useAtomValue(latitudeAtom)
   const readout = useAtomValue(cameraReadoutAtom)
-  const setModals = useSetAtom(modalsAtom)
-
   const todRange = useMemo(() => {
     if (todUnlocked) return { min: 0, max: 24 }
     const { sunrise, sunset } = getSunTimes(latitude)
@@ -141,13 +139,17 @@ export default function ClusterBottomRight() {
         format={(v) => `${Math.round(v)}%`}
         aria-label="Cloud coverage scrub"
       />
-      <Pill
+      <PopoverPill
         className="mock-pill--capture"
         icon={<CameraSnapIcon />}
         value="Capture"
-        onClick={() => setModals((m) => ({ ...m, aiRender: true }))}
+        align="right"
+        drop="up"
+        panelClassName="mock-popover--capture"
         aria-label="Capture poster — opens render menu"
-      />
+      >
+        {({ close }) => <CaptureMenu onClose={close} />}
+      </PopoverPill>
     </div>
   )
 }
