@@ -58,17 +58,6 @@
       "fovMm": 50
     },
     {
-      "id": "preset-dubai",
-      "name": "Burj Khalifa",
-      "subtitle": "Dubai, UAE",
-      "lat": 25.1972,
-      "lng": 55.2744,
-      "altitude": 1500,
-      "tilt": 60,
-      "heading": 280,
-      "fovMm": 35
-    },
-    {
       "id": "preset-rio",
       "name": "Christ the Redeemer",
       "subtitle": "Rio de Janeiro, Brazil",
