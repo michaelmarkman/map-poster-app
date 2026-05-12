@@ -1517,211 +1517,270 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   color: var(--accent);
 }
 
-/* ═══════ Capture menu (Phase 16 port) ═══════
- * Click-to-open popover from the Capture pill (replaces direct
- * AIRenderModal launch). Layout: resolution segment + category tabs
- * + Raw row + 3-col style grid + footer (More options ↔ Render).
- * Multi-select: clicking a card toggles its selection; Render fires
- * add-to-queue (or add-batch-to-queue for 2+). */
-.mock-popover--capture { padding: 12px; min-width: 380px; max-width: 380px; }
+/* ═══════ Capture menu (Phase 18 — pixel-perfect port) ═══════
+ * Mirrors `.menu-capture` in the prototype line-for-line:
+ *   - 440px wide × min-height 730px (locked footprint, no reflow
+ *     when filtering categories)
+ *   - 14px padding, white-space: normal (the .mock-popover chassis
+ *     defaults to nowrap; this menu's grid needs to wrap)
+ *   - Header: 35px box-sized, title + meta with bottom hairline
+ *   - Resolution segment: 4 buttons, 32px tall
+ *   - Section labels with their own padding cadence
+ *   - Category pills: 26px tall, white-bg on active (NOT chartreuse —
+ *     the prototype's pop-of-contrast for the active filter)
+ *   - 3-col style grid using `padding-top: 75%` for 4:3 aspect (the
+ *     aspect-ratio CSS property doesn't give grid tracks intrinsic
+ *     height when cards have no flow content)
+ *   - Cards: image thumbnail bg with brightness(0.65) filter, label
+ *     overlaid bottom-left with text-shadow, chartreuse-circle check
+ *     top-right on active. Raw + Custom = is-pinned with custom
+ *     thumb backgrounds.
+ *   - Custom prompt textarea — shown only when Custom is selected.
+ *   - Footer: More options → link + Render CTA, sticks to the bottom
+ *     of the locked 730px footprint via margin-top: auto.
+ */
+.mock-popover--capture {
+  padding: 14px;
+  min-width: 440px;
+  max-width: 440px;
+  white-space: normal;
+}
 .mock-menu-capture {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  min-height: 702px;        /* 730 — 14*2 padding = 702 inner */
 }
 .mock-menu-capture-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding: 0 2px;
+  box-sizing: border-box;
+  min-height: 35px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(250, 250, 250, 0.06);
 }
 .mock-menu-capture-title {
-  font: 400 var(--moma-value-size) / 1 var(--mono);
-  letter-spacing: var(--moma-value-track);
+  font: 500 13px/1 var(--mono);
+  letter-spacing: var(--moma-upper-track);
+  text-transform: uppercase;
   color: var(--ink);
 }
 .mock-menu-capture-meta {
+  font: 400 10px/1 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section labels inside the capture menu get more breathing room
+ * than the standard `.mock-menu-section-label` (the picker has
+ * higher content density). */
+.mock-menu-capture .mock-menu-section-label {
+  padding: 14px 0 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.mock-menu-capture .mock-menu-section-label:first-of-type {
+  padding-top: 0;
+}
+.mock-menu-count {
   font: 400 var(--moma-label-size) / 1 var(--mono);
   letter-spacing: var(--moma-label-track);
   text-transform: uppercase;
-  color: var(--ink-soft);
+  color: var(--accent);
 }
+
+/* Resolution segment — 4 button grid, 32px tall. */
 .mock-menu-capture-seg {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  padding: 2px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 2px;
+  gap: 4px;
 }
 .mock-menu-capture-seg-btn {
-  background: transparent;
-  border: 0;
-  color: var(--ink-soft);
-  font: 400 11px/1 var(--mono);
-  letter-spacing: var(--moma-value-track);
-  padding: 5px 0;
-  cursor: pointer;
+  height: 32px;
+  padding: 0 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(250, 250, 250, 0.06);
   border-radius: 2px;
-  transition: background 0.12s ease, color 0.12s ease;
+  color: var(--ink-soft);
+  font: 500 11px/1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
 }
-.mock-menu-capture-seg-btn:hover { background: rgba(255, 255, 255, 0.06); color: var(--ink); }
+.mock-menu-capture-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+}
 .mock-menu-capture-seg-btn.is-active {
   background: rgba(155, 229, 127, 0.14);
+  border-color: rgba(155, 229, 127, 0.4);
   color: var(--accent);
 }
+
+/* Category pills — horizontally scrollable strip, white-bg on
+ * active (prototype's pop-of-contrast). */
 .mock-menu-capture-cats {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.mock-menu-capture-cats::-webkit-scrollbar { display: none; }
 .mock-menu-capture-cat {
+  height: 26px;
+  padding: 0 11px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: 999px;
   color: var(--ink-soft);
-  font: 400 var(--moma-label-size) / 1 var(--mono);
-  letter-spacing: var(--moma-label-track);
+  font: 500 9px/1 var(--mono);
   text-transform: uppercase;
-  padding: 5px 9px;
-  border-radius: 2px;
+  letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.mock-menu-capture-cat:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.18); }
-.mock-menu-capture-cat.is-active {
-  background: rgba(155, 229, 127, 0.10);
-  border-color: rgba(155, 229, 127, 0.45);
-  color: var(--accent);
-}
-
-/* Raw row — distinct from the style grid; sits above the categories
- * so it's always reachable regardless of active filter. */
-.mock-menu-capture-raw {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 2px;
-  cursor: pointer;
-  text-align: left;
+.mock-menu-capture-cat:hover {
   color: var(--ink);
-  font: 400 var(--moma-value-size) / 1 var(--mono);
-  letter-spacing: var(--moma-value-track);
-  transition: border-color 0.12s ease, background 0.12s ease;
+  background: rgba(255, 255, 255, 0.04);
 }
-.mock-menu-capture-raw:hover {
-  background: rgba(155, 229, 127, 0.06);
-  border-color: rgba(155, 229, 127, 0.30);
-}
-.mock-menu-capture-raw.is-active {
-  background: rgba(155, 229, 127, 0.14);
-  border-color: rgba(155, 229, 127, 0.55);
-  color: var(--accent);
-}
-.mock-menu-capture-raw-glyph {
-  width: 24px;
-  height: 24px;
-  background: rgba(155, 229, 127, 0.10);
-  border: 1px dashed rgba(155, 229, 127, 0.5);
-  border-radius: 2px;
-}
-.mock-menu-capture-raw.is-active .mock-menu-capture-raw-glyph {
-  background: rgba(155, 229, 127, 0.20);
-  border-style: solid;
-}
-.mock-menu-capture-raw-label { font-weight: 500; }
-.mock-menu-capture-raw-sub {
-  font: 400 var(--moma-label-size) / 1 var(--mono);
-  letter-spacing: var(--moma-label-track);
-  text-transform: uppercase;
-  color: var(--ink-soft);
+.mock-menu-capture-cat.is-active {
+  background: #fff;
+  color: #0b0b0d;
 }
 
-/* Style grid — 3-col cards with image thumbnail + label + sub. */
-.mock-menu-capture-grid {
+/* Style grid — 3-col 4:3 cards via padding-top trick. */
+.mock-menu-capture-styles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  max-height: 320px;
+  gap: 5px;
+  max-height: 340px;
   overflow-y: auto;
-  margin: 0 -4px;
-  padding: 0 4px;
+  margin-bottom: 14px;
 }
 .mock-menu-capture-style {
   position: relative;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 75%;
   border-radius: 2px;
-  overflow: hidden;
-  padding: 0;
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  transition: border-color 0.14s ease, transform 0.14s ease;
+  overflow: hidden;
+  text-align: left;
 }
 .mock-menu-capture-style:hover {
-  border-color: rgba(155, 229, 127, 0.45);
+  border-color: rgba(155, 229, 127, 0.4);
+}
+.mock-menu-capture-style-thumb {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: brightness(0.65) saturate(1.05);
+  transition: filter 0.18s ease;
+}
+.mock-menu-capture-style.is-raw .mock-menu-capture-style-thumb {
+  background: repeating-linear-gradient(135deg,
+    rgba(255, 255, 255, 0.04) 0 6px,
+    rgba(255, 255, 255, 0.06) 6px 12px);
+  filter: none;
+}
+.mock-menu-capture-style.is-custom .mock-menu-capture-style-thumb {
+  background: linear-gradient(135deg, #2f3526 0%, #1b1d18 100%);
+  filter: none;
+}
+.mock-menu-capture-style-icon {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+  color: var(--ink-soft);
+}
+.mock-menu-capture-style.is-custom .mock-menu-capture-style-icon {
+  color: var(--accent);
+}
+.mock-menu-capture-style-label {
+  position: absolute;
+  left: 6px;
+  bottom: 5px;
+  right: 5px;
+  font: 500 10px/1 var(--mono);
+  color: #fff;
+  letter-spacing: var(--moma-value-track);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mock-menu-capture-style.is-active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(155, 229, 127, 0.4),
-              0 0 14px rgba(155, 229, 127, 0.18);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
-.mock-menu-capture-style-thumb {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: #0d0d10;
-  overflow: hidden;
+.mock-menu-capture-style.is-active .mock-menu-capture-style-thumb {
+  filter: brightness(0.85) saturate(1.1);
 }
-.mock-menu-capture-style-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+.mock-menu-capture-style-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  color: var(--moma-accent-dark);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font: 700 9px/1 var(--mono);
 }
-.mock-menu-capture-style:hover .mock-menu-capture-style-thumb img {
-  transform: scale(1.06);
-}
-.mock-menu-capture-style-body {
-  padding: 6px 7px 7px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.mock-menu-capture-style-label {
-  font: 400 10px/1.1 var(--mono);
-  letter-spacing: var(--moma-value-track);
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mock-menu-capture-style-sub {
-  font: 400 8px/1 var(--mono);
-  letter-spacing: var(--moma-label-track);
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mock-menu-capture-style.is-active .mock-menu-capture-style-label {
-  color: var(--accent);
+.mock-menu-capture-style.is-active .mock-menu-capture-style-check {
+  display: inline-flex;
 }
 
-/* Footer — More options link on the left, Render CTA on the right. */
+/* Custom-prompt textarea — only renders when Custom is selected. */
+.mock-menu-capture-prompt {
+  width: 100%;
+  min-height: 56px;
+  max-height: 120px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  border-radius: 2px;
+  color: var(--ink);
+  font: 400 11px/1.5 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  resize: vertical;
+  outline: none;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+}
+.mock-menu-capture-prompt:focus {
+  border-color: rgba(155, 229, 127, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+.mock-menu-capture-prompt::placeholder { color: var(--ink-dim); }
+
+/* Footer — sticks to bottom of the locked 730px footprint via
+ * margin-top: auto. */
 .mock-menu-capture-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 10px;
 }
 .mock-menu-capture-more {
   background: transparent;
@@ -1735,7 +1794,10 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   border-radius: 2px;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.mock-menu-capture-more:hover { background: rgba(255, 255, 255, 0.04); color: var(--ink); }
+.mock-menu-capture-more:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+}
 .mock-menu-capture-render {
   background: var(--accent);
   border: 0;

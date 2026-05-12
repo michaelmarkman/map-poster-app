@@ -12,40 +12,44 @@
  * ───────────────────────────────────────────────────────────────────── */
 
 .mock-render-sheet {
-  /* Tokens — saturated darkroom palette. Primary is rich amber (safelight),
-   * secondary is oxidized copper (fixer stain), accents include ice-blue
-   * (cool state) + magenta (contrast filter / chromogenic highlight). The
-   * body gets a warm undertone instead of flat black so the chrome doesn't
-   * read as washed-out grey. */
+  /* Phase 18 — tokens realigned with the canonical render-merged-
+   * prototype.html (`.gallery-sheet-tile` + `.menu-capture-style`
+   * lineage). Production previously drifted into an elaborate
+   * amber/copper "darkroom" palette (#e6a24a + ambers); the
+   * prototype is actually a cooler cream-on-dark system with
+   * neutral surface tints. The semantic helpers (--rs-copper,
+   * --rs-cool, --rs-magenta) stay defined for status accents that
+   * read against the cooler base but downgrade in saturation. */
   --rs-sheet-width: 560px;
-  --rs-sheet-bg: rgba(20, 15, 12, 0.97);
-  --rs-sheet-border: rgba(230, 162, 74, 0.16);
-  --rs-text-primary: rgba(255, 248, 236, 0.95);
-  --rs-text-secondary: rgba(255, 235, 200, 0.62);
-  --rs-text-dim: rgba(255, 220, 180, 0.42);
+  --rs-sheet-bg: rgba(14, 14, 16, 0.96);
+  --rs-sheet-border: rgba(255, 255, 255, 0.08);
+  --rs-text-primary: rgba(255, 255, 255, 0.92);
+  --rs-text-secondary: rgba(255, 255, 255, 0.55);
+  --rs-text-dim: rgba(255, 255, 255, 0.38);
 
-  /* Primary amber — vivid darkroom safelight */
-  --rs-accent: #e6a24a;
-  --rs-accent-bright: #ffc873;
-  --rs-accent-deep: #b8771d;
+  /* Primary cream — the prototype's editorial accent */
+  --rs-accent: #c8b897;
+  --rs-accent-bright: #e8dcc0;
+  --rs-accent-deep: #9a8a6b;
+  --rs-accent-glow: rgba(200, 184, 151, 0.25);
 
-  /* Secondary copper — fixer oxidation, used for the "developing" band */
+  /* Secondary copper — kept for the "developing" band warmth */
   --rs-copper: #c36a3a;
   --rs-copper-bright: #e68a52;
 
   /* Cool + hot contrasts for state variety */
-  --rs-cool: #7ab3d4;          /* ice-blue — queued / idle */
+  --rs-cool: #7ab3d4;
   --rs-cool-soft: rgba(122, 179, 212, 0.14);
-  --rs-magenta: #d96aa8;       /* chromogenic contrast filter */
+  --rs-magenta: #d96aa8;
   --rs-magenta-soft: rgba(217, 106, 168, 0.16);
 
-  /* Surfaces — warm-tinted so the whole sheet has a sepia undertone */
-  --rs-surface-1: rgba(230, 162, 74, 0.05);
-  --rs-surface-2: rgba(230, 162, 74, 0.10);
-  --rs-surface-border: rgba(230, 162, 74, 0.14);
+  /* Surfaces — neutral white tints, no warm bias */
+  --rs-surface-1: rgba(255, 255, 255, 0.03);
+  --rs-surface-2: rgba(255, 255, 255, 0.06);
+  --rs-surface-border: rgba(255, 255, 255, 0.08);
 
-  --rs-danger: #e86e5d;
-  --rs-danger-soft: rgba(232, 110, 93, 0.18);
+  --rs-danger: #d88a7e;
+  --rs-danger-soft: rgba(216, 138, 126, 0.18);
 }
 
 /* Font stack — Instrument Serif for display, Inter for body, JetBrains Mono
