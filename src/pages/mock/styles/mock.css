@@ -44,6 +44,15 @@ body.mock-mounted {
   /* UI body font flips to JetBrains Mono — matches the prototype's
    * body rule. The wordmark + headings keep --serif (Fraunces). */
   --body: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  /* Radii tighten to MoMA's boxy 2-3px. Override the shared --r-*
+   * tokens here so every downstream rule that reads var(--r-sm) /
+   * var(--r-md) / var(--r-lg) (modals, ghost buttons, action chips,
+   * SavedViewsPanel rows) picks up the new corners without a
+   * per-class rewrite. --r-pill stays 999px for any rule that wants
+   * a true pill / circular element. */
+  --r-sm: 2px;
+  --r-md: 3px;
+  --r-lg: 4px;
 
   /* ─── MoMA-specific tokens (prefixed) ─── */
   /* Page / canvas surfaces */
@@ -846,7 +855,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   content: '';
   position: absolute;
   inset: -8px;
-  border-radius: 8px;
+  border-radius: 3px;
   background: radial-gradient(closest-side, rgba(155, 229, 127, 0.5), transparent 70%);
   opacity: 0;
   z-index: -1;
@@ -922,7 +931,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   -webkit-backdrop-filter: blur(20px) saturate(140%);
           backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 3px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 30;
 }
@@ -1202,7 +1211,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 3px;
   font: 12px/1 inherit;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
@@ -1240,7 +1249,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   gap: 6px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 6px 8px;
   color: rgba(255, 255, 255, 0.78);
   font: 11px/1 inherit;
@@ -1277,7 +1286,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 .mock-saved-list li {
   display: flex;
   align-items: stretch;
-  border-radius: 6px;
+  border-radius: 2px;
   overflow: hidden;
 }
 .mock-saved-row {
@@ -1289,7 +1298,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   font: inherit;
   padding: 6px 8px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 2px;
   font-family: inherit;
 }
 .mock-saved-row:hover { background: rgba(255, 255, 255, 0.06); }
@@ -1879,7 +1888,7 @@ body.mock-mounted #poster-preview .pp-scene {
   width: 28px;
   height: 28px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 2px;
 }
 .mock-airender-close:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .mock-airender-body {
@@ -1932,7 +1941,7 @@ body.mock-mounted #poster-preview .pp-scene {
   gap: 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 7px 10px;
   color: rgba(255, 255, 255, 0.8);
   font: 11px/1 inherit;
@@ -1971,7 +1980,7 @@ body.mock-mounted #poster-preview .pp-scene {
 .mock-res-btn {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 8px 0;
   color: rgba(255, 255, 255, 0.78);
   font: 12px/1 inherit;
@@ -2002,7 +2011,7 @@ body.mock-mounted #poster-preview .pp-scene {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 8px 10px;
   font: 12px/1 inherit;
   cursor: pointer;
@@ -2045,7 +2054,7 @@ body.mock-mounted #poster-preview .pp-scene {
   align-items: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 7px 10px;
   font-size: 11px;
 }
