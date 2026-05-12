@@ -22,17 +22,29 @@ function makeProps(overrides = {}) {
   }
 }
 
+// Phase 12 — DragPill now renders the value text in three places:
+// the rest-state .mock-pill-value, the scrub-state .mock-pill-scrub-
+// value, and the floating .mock-pill-tooltip-value. The chevrons +
+// tooltip are always in the DOM (hidden via CSS at rest). Tests
+// target the rest-state span via its class to avoid the duplicate
+// matches.
+function restValue(container) {
+  return container.querySelector('.mock-pill-stack .mock-pill-value')
+}
+
 describe('DragPill', () => {
   it('formats value via the format prop', () => {
-    render(<DragPill {...makeProps({ value: 42, format: (v) => `${v}mm` })} />)
-    expect(screen.getByText('42mm')).toBeDefined()
+    const { container } = render(
+      <DragPill {...makeProps({ value: 42, format: (v) => `${v}mm` })} />,
+    )
+    expect(restValue(container).textContent).toBe('42mm')
   })
 
   it('updates display when value changes', () => {
-    const { rerender } = render(<DragPill {...makeProps({ value: 50 })} />)
-    expect(screen.getByText('50')).toBeDefined()
+    const { container, rerender } = render(<DragPill {...makeProps({ value: 50 })} />)
+    expect(restValue(container).textContent).toBe('50')
     rerender(<DragPill {...makeProps({ value: 75 })} />)
-    expect(screen.getByText('75')).toBeDefined()
+    expect(restValue(container).textContent).toBe('75')
   })
 
   it('suppresses native click via preventDefault — pointerup carries the click', () => {
@@ -42,8 +54,8 @@ describe('DragPill', () => {
     // to e.preventDefault and uses pointerup for the click vs drag
     // discrimination instead.
     const props = makeProps()
-    render(<DragPill {...props} />)
-    const pill = screen.getByText('50').closest('button')
+    const { container } = render(<DragPill {...props} />)
+    const pill = restValue(container).closest('button')
     fireEvent.click(pill)
     // The component-level onClick is for click-vs-drag — gated on
     // pointerup with no drag. fireEvent.click bypasses pointer events,

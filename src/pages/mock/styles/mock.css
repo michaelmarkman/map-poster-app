@@ -643,14 +643,136 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 .mock-pill.is-active .mock-pill-label {
   color: var(--moma-pill-label-bright);
 }
-/* Drag scrubber pills (focal-length mm, time-of-day). touch-action must
+/* Drag scrubber pills (Lens, DoF, Time, Clouds). touch-action must
  * be `none` — without it, mobile browsers interpret a horizontal finger
  * drag as a page-pan gesture and cancel the pointer events that
  * DragPill.jsx reads, leaving the slider dead on touch. */
-.mock-pill.is-drag { cursor: ew-resize; touch-action: none; }
+.mock-pill.is-drag {
+  cursor: ew-resize;
+  touch-action: none;
+  position: relative;
+}
+/* Hairline chartreuse scrub-track hint on hover — implies "this pill
+ * is a slider" without permanent visual chrome. Pseudo-element so it
+ * never affects hit-testing. Mirrors the prototype's
+ * `.pill.scrubbable::after`. */
+.mock-pill.is-drag::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: -3px;
+  height: 1px;
+  background: rgba(155, 229, 127, 0.5);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  pointer-events: none;
+}
+.mock-pill.is-drag:hover::after { opacity: 1; }
+.mock-pill.is-drag.is-dragging::after { opacity: 0; }
+
+/* Rest-state value-stack — wraps the label + value spans so the scrub
+ * morph can hide them as a single unit. */
+.mock-pill-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Chevrons + scrub-value — only rendered during active scrub. The
+ * pill keeps its existing width (no reflow during drag); the value-
+ * stack vanishes and the chevrons + value take its place at the
+ * pill's natural max-width. */
+.mock-pill-chevrons {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+  pointer-events: none;
+}
+.mock-pill-chev {
+  width: 10px;
+  height: 10px;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.mock-pill-chev svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.mock-pill-scrub-value {
+  font: 400 var(--moma-value-size) / 1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  flex: 1;
+  text-align: center;
+}
+
+/* Floating scrub-tooltip — shows the LABEL VALUE pair above the pill
+ * during scrub so the user knows which parameter they're scrubbing
+ * even when the in-pill label disappears. Positioned via absolute
+ * inside .mock-pill (which is now position: relative when .is-drag).
+ * `opacity: 0; visibility: hidden` at rest — both transition together
+ * so screen readers also see it appear / disappear. */
+.mock-pill-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  opacity: 0;
+  visibility: hidden;
+  height: 28.5px;
+  padding: 7px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--moma-pill);
+  -webkit-backdrop-filter: var(--moma-pill-blur);
+          backdrop-filter: var(--moma-pill-blur);
+  border: 1px solid var(--moma-pill-border);
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 80;
+}
+.mock-pill-tooltip-label {
+  font: 400 var(--moma-label-size) / 1 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.mock-pill-tooltip-value {
+  font: 400 var(--moma-value-size) / 1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Active scrub — pill goes OPAQUE.
+ *
+ * This is the critical perf fix per the prototype's notes. Rest-state
+ * pill uses backdrop-filter: blur(7px) over the full-bleed cityscape.
+ * Every time the value text inside the pill changes during a drag,
+ * the browser invalidates the cached backdrop blur and has to
+ * recompute the gaussian over the source area — O(width × height)
+ * GPU op per pointermove, ~100Hz of it. Going opaque eliminates the
+ * filter entirely; paint cost per move drops to "fill rectangle +
+ * text" which is essentially free. Pill keeps size + borders + radius
+ * so the shape doesn't change visually; only the fill swaps. */
 .mock-pill.is-dragging {
-  background: var(--moma-pill-bg-active);
+  background: rgb(40, 42, 46);
+  -webkit-backdrop-filter: none !important;
+          backdrop-filter: none !important;
   border-color: var(--moma-pill-border-active);
+}
+.mock-pill.is-dragging .mock-pill-stack { display: none; }
+.mock-pill.is-dragging .mock-pill-chevrons { display: flex; }
+.mock-pill.is-dragging .mock-pill-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .mock-pill-icon {
