@@ -18,6 +18,7 @@ import ClusterBottomMid from './components/ClusterBottomMid'
 import ClusterBottomRight from './components/ClusterBottomRight'
 import FrameOverlay from './components/FrameOverlay'
 import ViewfinderBrackets from './components/ViewfinderBrackets'
+import FocusReticle from './components/FocusReticle'
 import OnboardingCard from './components/OnboardingCard'
 import AIRenderModal from './modals/AIRenderModal'
 
@@ -131,6 +132,11 @@ export default function MockEditorShell() {
        * the viewport, drawn above the canvas but below cluster pills
        * (z-index var(--z-overlay)). Pure presentation. */}
       <ViewfinderBrackets />
+
+      {/* Phase 3 — Tap-to-focus reticle. Listens for `focus-tap`
+       *  events dispatched by Scene's ClickToFocus handler, positions
+       *  itself at the click point, and plays the snap-in animation. */}
+      <FocusReticle />
 
       {/* Top-center wordmark — non-interactive overlay so it doesn't
        * intercept canvas clicks (click-to-focus, orbit). The SVG itself

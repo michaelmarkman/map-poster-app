@@ -265,19 +265,31 @@ function ClickToFocus() {
     const tapThreshold = coarse ? 14 : 8
     const onDown = (e) => { downPos = { x: e.clientX, y: e.clientY } }
     const onUp = (e) => {
-      if (!downPos || sceneRef.dof.aperture <= 0) return
+      if (!downPos) return
       const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
       const rect = canvas.getBoundingClientRect()
-      sceneRef.dof.focalUV = [
-        (e.clientX - rect.left) / rect.width,
-        1.0 - (e.clientY - rect.top) / rect.height,
-      ]
-      // iOS Safari throttles the rAF loop on an idle WebGL canvas; without
-      // a kick, a tap updates sceneRef but the shader uniforms don't land
-      // until something else (camera move, slider) wakes the loop.
-      invalidate()
+      // Phase 3 — emit a `focus-tap` event regardless of DoF state so
+      // the MoMA reticle plays its snap-in animation on every valid
+      // tap. The DoF focal-plane update below stays gated on aperture
+      // (only updates the focus point when DoF is actually on).
+      window.dispatchEvent(
+        new CustomEvent('focus-tap', {
+          detail: { x: e.clientX, y: e.clientY },
+        }),
+      )
+      if (sceneRef.dof.aperture > 0) {
+        sceneRef.dof.focalUV = [
+          (e.clientX - rect.left) / rect.width,
+          1.0 - (e.clientY - rect.top) / rect.height,
+        ]
+        // iOS Safari throttles the rAF loop on an idle WebGL canvas;
+        // without a kick, a tap updates sceneRef but the shader
+        // uniforms don't land until something else (camera move,
+        // slider) wakes the loop.
+        invalidate()
+      }
     }
     // pointercancel fires on iOS Safari mid-gesture when another handler
     // grabs the pointer capture (e.g. GlobeControls promoting a tap into

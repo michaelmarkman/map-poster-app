@@ -187,6 +187,95 @@ body.mock-mounted #canvas-container::before {
               height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ═══════ Tap-to-focus reticle ═══════
+ * MoMA viewfinder reticle that plays on every canvas tap. Hidden at
+ * rest, positioned at the tap point by FocusReticle.jsx, animated via
+ * `.is-focusing` (560ms snap-in → micro-overshoot → hold → fade).
+ *
+ * Same family as .mock-vf-bracket: chartreuse L-corners forming a
+ * square, plus a centered focus dot that pulses once during the hold
+ * portion. The label below the bracket is a 9px mono FOCUS · ###m
+ * rangefinder readout.
+ *
+ * pointer-events: none so the reticle never intercepts canvas taps. */
+.mock-reticle {
+  position: fixed;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: var(--z-overlay);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1);
+}
+.mock-reticle-bracket {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+.mock-reticle-bracket::before,
+.mock-reticle-bracket::after,
+.mock-reticle-bracket > span:first-child,
+.mock-reticle-bracket > span:last-child {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1.25px solid var(--moma-accent);
+}
+.mock-reticle-bracket::before { top: 0;    left: 0;    border-right: none; border-bottom: none; }
+.mock-reticle-bracket::after  { top: 0;    right: 0;   border-left: none;  border-bottom: none; }
+.mock-reticle-bracket > span:first-child { bottom: 0; left: 0;  border-right: none; border-top: none; }
+.mock-reticle-bracket > span:last-child  { bottom: 0; right: 0; border-left: none;  border-top: none; }
+
+.mock-reticle-center {
+  width: 4px;
+  height: 4px;
+  border: none;
+  border-radius: 50%;
+  background: var(--moma-accent);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px rgba(155, 229, 127, 0.6);
+}
+.mock-reticle-label {
+  font: 400 var(--moma-label-size) / 1 var(--mono);
+  color: var(--moma-accent);
+  letter-spacing: var(--moma-upper-track);
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.mock-reticle-sep { opacity: 0.7; padding: 0 6px; }
+
+.mock-reticle.is-focusing {
+  animation: reticleFocus 560ms cubic-bezier(0.2, 0.85, 0.3, 1) forwards;
+}
+@keyframes reticleFocus {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+  22%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  30%  { opacity: 1; transform: translate(-50%, -50%) scale(0.94); }
+  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
+}
+.mock-reticle.is-focusing .mock-reticle-center {
+  animation: focusPulse 360ms ease-in-out 100ms 1;
+}
+@keyframes focusPulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(155, 229, 127, 0.55);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(155, 229, 127, 0.9);
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
 /* ═══════ Viewfinder corner brackets ═══════
  * MoMA-prototype safe-frame indicator — four L-shaped corner brackets
  * 24px from each viewport edge. White at 70% opacity, 1px stroke.
