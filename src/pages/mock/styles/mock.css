@@ -552,10 +552,6 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
  * .mock-mounted class is only on body during the editor's mounted
  * lifetime, so the animations don't re-fire on rerenders. */
 
-@keyframes mockBracketIn {
-  from { opacity: 0; transform: scale(0.7); }
-  to   { opacity: 1; transform: scale(1); }
-}
 /* The bottom-mid cluster keeps its translateX(-50%) centering, so its
  * load-in animates only opacity (translating Y would fight the
  * centering transform). Other clusters get a soft 8px lift. */
@@ -572,17 +568,17 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   to   { opacity: 1; }
 }
 
-/* Bracket-corner brackets all snap in together at t=0 (160ms each).
- * The bracket is a tiny visual; staggering them looks fidgety. */
+/* Bracket-corner brackets fade in opacity-only.
+ *
+ * IMPORTANT: this MUST NOT touch transform — each bracket carries its
+ * own per-corner mirror transform (.tl has none, .tr scaleX(-1), .bl
+ * scaleY(-1), .br scale(-1,-1)) and an animation that set transform
+ * would clobber those mirrors, making all 4 brackets render as TL.
+ * Matches the prototype's `.vf-bracket { animation: vfIn opacity-only }`. */
 body.mock-mounted .mock-vf-bracket {
-  animation: mockBracketIn 320ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 320ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 80ms;
-  transform-origin: var(--mock-vf-origin, top left);
 }
-body.mock-mounted .mock-vf-bracket--tl { --mock-vf-origin: top left; }
-body.mock-mounted .mock-vf-bracket--tr { --mock-vf-origin: top right; }
-body.mock-mounted .mock-vf-bracket--bl { --mock-vf-origin: bottom left; }
-body.mock-mounted .mock-vf-bracket--br { --mock-vf-origin: bottom right; }
 
 /* FrameOverlay (poster crop) fades in just after the brackets. */
 body.mock-mounted .frame-overlay,
