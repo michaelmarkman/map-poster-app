@@ -508,7 +508,10 @@
     max-width: calc(100vw - 320px - 120px);
     max-height: 84vh;
     border-radius: 4px;
-    border: 6px solid #fff;
+    /* Thinner white photo-frame border — was 6px (prototype value),
+     * now 3px so it feels like a print indicator rather than a
+     * polaroid mount. Matches the frame-border thinning sweep. */
+    border: 3px solid #fff;
     object-fit: contain;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
   }
