@@ -2415,7 +2415,9 @@ body.mock-mounted #poster-preview .pp-scene {
   transition: background var(--d-fast) var(--ease-out);
 }
 .vd-onboard-cta:hover {
-  background: #d8c8a7;
+  /* Bright chartreuse (Phase 13 sweep): was #d8c8a7 — leftover from
+   * the cream brand voice. Same hover color as .mock-pill--capture. */
+  background: #a9eb90;
 }
 
 /* ═══════ Render-count chip (Phase 6.1) ═══════ */
