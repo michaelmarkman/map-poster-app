@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { useAtom, useSetAtom } from 'jotai'
+import { useEffect, useState } from 'react'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   aiPromptAtom,
   exportResolutionAtom,
+  queueAtom,
 } from '../../editor/atoms/sidebar'
+import { galleryEntriesAtom } from '../../editor/atoms/gallery'
 import { modalsAtom } from '../../editor/atoms/modals'
 
 // Phase 18 — Capture menu refined to match the prototype's
@@ -113,6 +115,19 @@ export default function CaptureMenu({ onClose }) {
   const [exportRes, setExportRes] = useAtom(exportResolutionAtom)
   const [aiPrompt, setAiPrompt] = useAtom(aiPromptAtom)
   const setModals = useSetAtom(modalsAtom)
+  const queue = useAtomValue(queueAtom)
+
+  // Phase swap — 'picker' (style + resolution) or 'queue' (in-progress
+  // + recent renders). Auto-flip to queue on render-dispatch so the user
+  // sees their jobs progress; the user can manually flip back via the
+  // header link.
+  const [phase, setPhase] = useState('picker')
+  // If queue empties (everything done/cleared) and we're on the queue
+  // phase, flip back to picker so the menu doesn't sit on an empty list.
+  // Otherwise stay where the user put us.
+  useEffect(() => {
+    if (phase === 'queue' && queue.length === 0) setPhase('picker')
+  }, [phase, queue.length])
 
   const togglePreset = (key) => {
     setSelected((cur) => {
@@ -130,7 +145,7 @@ export default function CaptureMenu({ onClose }) {
     if (selected.size === 0) {
       // No selection → raw export.
       window.dispatchEvent(new CustomEvent('add-to-queue', { detail: { preset: null } }))
-      onClose?.()
+      setPhase('queue')
       return
     }
     const keys = Array.from(selected)
@@ -156,7 +171,12 @@ export default function CaptureMenu({ onClose }) {
       )
     }
     setSelected(new Set())
-    onClose?.()
+    // Phase 21 — keep the menu open and flip to the queue phase so the
+    // user can watch their jobs progress. Was: onClose() which dropped
+    // them back to the canvas and forced them to re-open the menu to
+    // see status. The picker phase swap is one click away via the
+    // queue-link in the header.
+    setPhase('queue')
   }
 
   const openFullSheet = () => {
@@ -169,13 +189,59 @@ export default function CaptureMenu({ onClose }) {
     ? PRESETS
     : PRESETS.filter((p) => p.tags.includes(activeCat))
 
+  // Queue counts surfaced in the queue-link badge + header meta.
+  const activeJobs  = queue.filter((j) => j.status === 'active')
+  const pendingJobs = queue.filter((j) => j.status === 'pending')
+  const doneJobs    = queue.filter((j) => j.status === 'done')
+  const errorJobs   = queue.filter((j) => j.status === 'error')
+  const inflightCount = activeJobs.length + pendingJobs.length
+  const queueLinkCount = inflightCount > 0 ? inflightCount : queue.length
+
+  if (phase === 'queue') {
+    return (
+      <div className="mock-menu-capture" data-phase="queue">
+        <QueueView
+          queue={queue}
+          activeJobs={activeJobs}
+          pendingJobs={pendingJobs}
+          doneJobs={doneJobs}
+          errorJobs={errorJobs}
+          onCaptureMore={() => setPhase('picker')}
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="mock-menu-capture">
+    <div className="mock-menu-capture" data-phase="picker">
       <div className="mock-menu-capture-head">
         <span className="mock-menu-capture-title">Capture</span>
-        <span className="mock-menu-capture-meta">
-          {exportRes}× · {RES_PX[exportRes]}px
-        </span>
+        <div className="mock-menu-capture-head-right">
+          {queue.length > 0 && (
+            <button
+              type="button"
+              className="mock-menu-capture-queue-link"
+              onClick={() => setPhase('queue')}
+              title="View render queue"
+            >
+              {inflightCount > 0 && (
+                <span className="mock-menu-capture-queue-link-dot" aria-hidden="true" />
+              )}
+              <span>Queue</span>
+              <span className="mock-menu-capture-queue-link-count">
+                {queueLinkCount}
+              </span>
+              <svg viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2.5 5h5M5.5 2l2.5 3-2.5 3" fill="none"
+                      stroke="currentColor" strokeWidth="1.4"
+                      strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <span className="mock-menu-capture-meta">
+            {exportRes}× · {RES_PX[exportRes]}px
+          </span>
+        </div>
       </div>
 
       <div className="mock-menu-section-label">Resolution</div>
@@ -291,5 +357,334 @@ export default function CaptureMenu({ onClose }) {
         </button>
       </div>
     </div>
+  )
+}
+
+// ── Queue phase ──────────────────────────────────────────────────
+// Ported from the MoMA prototype's `.menu-capture[data-phase="queue"]`
+// view. Three sections: Active (only when something's rendering),
+// Queued (pending), Recent (done + error). Each row: status-dot ·
+// thumb · body · actions. Done rows open the lightbox on click.
+
+function fmtRelative(ms) {
+  if (!ms) return ''
+  const dt = Date.now() - ms
+  if (dt < 60 * 1000) return 'just now'
+  if (dt < 60 * 60 * 1000) return `${Math.floor(dt / 60000)}m ago`
+  if (dt < 24 * 60 * 60 * 1000) return `${Math.floor(dt / 3600000)}h ago`
+  return `${Math.floor(dt / 86400000)}d ago`
+}
+
+function fmtElapsed(startedAt) {
+  if (!startedAt) return ''
+  const sec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+  const mm = Math.floor(sec / 60)
+  const ss = sec % 60
+  return `${mm}:${String(ss).padStart(2, '0')}`
+}
+
+function QueueRow({ job, idx, isFirstPending }) {
+  const galleryEntries = useAtomValue(galleryEntriesAtom)
+  const setModals = useSetAtom(modalsAtom)
+
+  const status = job.status || 'pending'
+  // Prefer the finished result so the user sees the actual render;
+  // fall back to the pre-AI snapshot for in-flight + pending jobs.
+  const thumbBg = job.resultUrl || job.snapshot || ''
+  const resPx = RES_PX[job.resolution] || RES_PX[2]
+
+  // Right-side meta string — "0:42" for active, "#N" for pending,
+  // relative time for done/error. Matches prototype.
+  let timeText = ''
+  if (status === 'active')  timeText = fmtElapsed(job.startedAt)
+  else if (status === 'pending') timeText = `#${idx + 1}`
+  else if (status === 'done')    timeText = fmtRelative(job.finishedAt || job.startedAt)
+  else if (status === 'error')   timeText = fmtRelative(job.startedAt)
+
+  let meta = ''
+  if (status === 'active')  meta = `${job.resolution || 2}× · ${resPx}px · ${job.statusText || 'rendering'}`
+  else if (status === 'pending') meta = `${job.resolution || 2}× · ${resPx}px · waiting`
+  else if (status === 'done')    meta = `${job.resolution || 2}× · ${resPx}px · in gallery`
+  // error: error message rendered via .mock-menu-queue-error below
+
+  const onCancel = (e) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('queue-remove', { detail: { id: job.id } }))
+  }
+  const onRetry = (e) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('queue-retry', { detail: { id: job.id } }))
+  }
+  const onReorder = (dir) => (e) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent('queue-reorder', { detail: { id: job.id, direction: dir } }))
+  }
+  const onOpen = (e) => {
+    e.stopPropagation()
+    // Find the gallery entry that came from this job. The matching is
+    // approximate (filename + label) since useQueue doesn't echo the
+    // gallery id back into the job; relies on dispatchGalleryAdd's
+    // most-recent insertion for this label.
+    const match = galleryEntries.find((g) => g.dataUrl === job.resultUrl)
+      || galleryEntries.find((g) => g.label === job.label && g.dataUrl)
+    if (!match) return
+    const flatList = galleryEntries.slice().reverse()
+    const startIndex = Math.max(0, flatList.findIndex((g) => g.id === match.id))
+    window.dispatchEvent(new CustomEvent('open-lightbox', {
+      detail: { entries: flatList, startIndex },
+    }))
+    setModals((m) => ({ ...m, lightbox: true }))
+  }
+
+  return (
+    <article
+      className={`mock-menu-queue-row${status === 'done' ? ' is-clickable' : ''}`}
+      data-status={status}
+      onClick={status === 'done' ? onOpen : undefined}
+    >
+      <span className="mock-menu-queue-dot" />
+      <span
+        className="mock-menu-queue-thumb"
+        style={thumbBg ? { backgroundImage: `url('${thumbBg}')` } : undefined}
+      />
+      <div className="mock-menu-queue-body">
+        <div className="mock-menu-queue-top">
+          <span className="mock-menu-queue-label">{job.label || 'Render'}</span>
+          <span className="mock-menu-queue-time">{timeText}</span>
+        </div>
+        {status === 'error' ? (
+          <div className="mock-menu-queue-error">
+            {job.statusText || 'Render failed.'}
+          </div>
+        ) : (
+          <div className="mock-menu-queue-meta">{meta}</div>
+        )}
+        {status === 'active' && (
+          <div className="mock-menu-queue-progress">
+            <span style={{ width: `${job.progress || 0}%` }} />
+          </div>
+        )}
+      </div>
+      <div className="mock-menu-queue-actions">
+        {status === 'active' && (
+          <button
+            type="button"
+            className="mock-menu-queue-action"
+            onClick={onCancel}
+            title="Cancel"
+            aria-label="Cancel render"
+          >
+            <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M3 3l5 5M8 3l-5 5" />
+            </svg>
+          </button>
+        )}
+        {status === 'pending' && (
+          <>
+            {!isFirstPending && (
+              <button
+                type="button"
+                className="mock-menu-queue-action"
+                onClick={onReorder('up')}
+                title="Move earlier"
+                aria-label="Move earlier"
+              >
+                <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5.5 3v5M3 5.5L5.5 3 8 5.5" />
+                </svg>
+              </button>
+            )}
+            <button
+              type="button"
+              className="mock-menu-queue-action"
+              onClick={onCancel}
+              title="Remove"
+              aria-label="Remove from queue"
+            >
+              <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <path d="M3 3l5 5M8 3l-5 5" />
+              </svg>
+            </button>
+          </>
+        )}
+        {status === 'done' && (
+          <button
+            type="button"
+            className="mock-menu-queue-action is-primary"
+            onClick={onOpen}
+            title="Open in lightbox"
+            aria-label="Open in lightbox"
+          >
+            <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 8.5L8 3M4 3h4v4" />
+            </svg>
+          </button>
+        )}
+        {status === 'error' && (
+          <>
+            <button
+              type="button"
+              className="mock-menu-queue-action is-primary"
+              onClick={onRetry}
+              title="Retry"
+              aria-label="Retry render"
+            >
+              <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 5.5a3 3 0 1 0 1-2.25L2 4.5M2 2v2.5h2.5" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="mock-menu-queue-action"
+              onClick={onCancel}
+              title="Dismiss"
+              aria-label="Dismiss"
+            >
+              <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <path d="M3 3l5 5M8 3l-5 5" />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function QueueView({ queue, activeJobs, pendingJobs, doneJobs, errorJobs, onCaptureMore }) {
+  // Force a re-render every second so the active row's elapsed timer
+  // updates. Only spin when there's an active job — otherwise idle.
+  const [, force] = useState(0)
+  useEffect(() => {
+    if (activeJobs.length === 0) return
+    const id = setInterval(() => force((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [activeJobs.length])
+
+  // Overall progress across all in-flight + pending jobs.
+  const inflightTotal = activeJobs.length + pendingJobs.length
+  const overallPct = inflightTotal === 0
+    ? 100
+    : Math.round(
+        activeJobs.reduce((s, j) => s + (j.progress || 0), 0) / Math.max(1, activeJobs.length),
+      )
+
+  // Recent = done + error, most-recent first.
+  const recent = [...doneJobs, ...errorJobs].sort(
+    (a, b) => (b.finishedAt || b.startedAt || 0) - (a.finishedAt || a.startedAt || 0),
+  )
+
+  const clearDone = () => {
+    window.dispatchEvent(new Event('queue-clear-done'))
+  }
+
+  const headerMeta = activeJobs.length > 0
+    ? `${activeJobs.length} active · ${pendingJobs.length} queued · ${overallPct}%`
+    : pendingJobs.length > 0
+      ? `${pendingJobs.length} queued`
+      : `${doneJobs.length} done · ${errorJobs.length} failed`
+
+  return (
+    <>
+      <div className="mock-menu-capture-head">
+        <span className="mock-menu-capture-title">
+          {activeJobs.length > 0 ? 'Rendering' : 'Queue'}
+        </span>
+        <span className="mock-menu-capture-meta">{headerMeta}</span>
+      </div>
+
+      {activeJobs.length > 0 && (
+        <div className="mock-menu-queue-overall">
+          <div
+            className="mock-menu-queue-overall-fill"
+            style={{ width: `${overallPct}%` }}
+          />
+        </div>
+      )}
+
+      <div className="mock-menu-queue-scroll">
+        {activeJobs.length > 0 && (
+          <>
+            <div className="mock-menu-section-label">Active</div>
+            <div className="mock-menu-queue-list">
+              {activeJobs.map((j, i) => (
+                <QueueRow key={j.id} job={j} idx={i} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {pendingJobs.length > 0 && (
+          <>
+            <div className="mock-menu-section-label">
+              <span>Queued</span>
+              <span className="mock-menu-count">{pendingJobs.length} waiting</span>
+            </div>
+            <div className="mock-menu-queue-list">
+              {pendingJobs.map((j, i) => (
+                <QueueRow
+                  key={j.id}
+                  job={j}
+                  idx={i}
+                  isFirstPending={i === 0}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {recent.length > 0 && (
+          <>
+            <div className="mock-menu-section-label">
+              <span>Recent</span>
+              <span className="mock-menu-count">
+                {doneJobs.length} done{errorJobs.length > 0 ? ` · ${errorJobs.length} failed` : ''}
+              </span>
+            </div>
+            <div className="mock-menu-queue-list">
+              {recent.map((j, i) => (
+                <QueueRow key={j.id} job={j} idx={i} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {queue.length === 0 && (
+          <div className="mock-menu-queue-empty">
+            <div className="mock-menu-queue-empty-title">Queue empty</div>
+            <div className="mock-menu-queue-empty-sub">
+              Pick a style and hit Render to start.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mock-menu-capture-foot">
+        {doneJobs.length > 0 ? (
+          <button
+            type="button"
+            className="mock-menu-capture-more"
+            onClick={clearDone}
+          >
+            Clear done
+          </button>
+        ) : (
+          <span style={{ flex: 1 }} />
+        )}
+        <button
+          type="button"
+          className="mock-menu-capture-render mock-menu-capture-render-ghost"
+          onClick={onCaptureMore}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none"
+                 stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 6h7M6 3v6" />
+            </svg>
+            Capture more
+          </span>
+        </button>
+      </div>
+    </>
   )
 }

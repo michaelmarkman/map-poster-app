@@ -1836,6 +1836,342 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 .mock-menu-capture-render:hover { background: #a9eb90; }
 .mock-menu-capture-render:active { transform: scale(0.97); }
 
+/* Ghost variant used as "Capture more" in the queue-phase footer.
+ * Same shape as the chartreuse-filled CTA but transparent so the
+ * queue surface reads as the secondary task. */
+.mock-menu-capture-render-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--pill-border);
+}
+.mock-menu-capture-render-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* ═══════ Capture menu — queue phase (Phase 21) ═══════
+ * Sister view to the picker. Phase swap happens inside CaptureMenu
+ * (no DOM transition); the header → footer chrome reuses the picker
+ * shell, only the body changes. */
+
+/* Header-right cluster (picker phase): queue-return link + meta */
+.mock-menu-capture-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Queue link — chartreuse-tinted pill that flips to the queue phase.
+ * Pulse dot shows only when something is rendering. */
+.mock-menu-capture-queue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 8px;
+  background: rgba(155, 229, 127, 0.10);
+  border: 1px solid rgba(155, 229, 127, 0.30);
+  border-radius: 2px;
+  color: var(--accent);
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.mock-menu-capture-queue-link:hover {
+  background: rgba(155, 229, 127, 0.18);
+  border-color: rgba(155, 229, 127, 0.50);
+}
+.mock-menu-capture-queue-link-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 4px rgba(155, 229, 127, 0.5);
+  animation: queueDotPulse 1.4s ease-in-out infinite;
+}
+.mock-menu-capture-queue-link-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.mock-menu-capture-queue-link svg {
+  width: 10px; height: 10px;
+  opacity: 0.7;
+}
+
+/* Overall progress bar shown under the header when active jobs exist. */
+.mock-menu-queue-overall {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.mock-menu-queue-overall-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #c1f1a5);
+  transition: width 200ms ease;
+}
+
+/* Scrollable middle of the queue phase. The head/overall/footer stay
+ * anchored; this region scrolls the section labels + rows. */
+.mock-menu-queue-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -2px;
+  padding: 0 2px;
+}
+
+/* Status-coloured tokens, scoped to a single row so we don't leak.
+ * .mock-menu-queue-row applies them via data-status. */
+.mock-menu-queue-row {
+  --q-active: #9be57f;
+  --q-active-soft: rgba(155, 229, 127, 0.16);
+  --q-pending: #6c6962;
+  --q-pending-soft: rgba(255, 255, 255, 0.06);
+  --q-done: #b9c4ad;
+  --q-done-soft: rgba(185, 196, 173, 0.14);
+  --q-error: #d99a8a;
+  --q-error-soft: rgba(217, 154, 138, 0.14);
+}
+
+/* Queue row list — flush column with hairline gaps. */
+.mock-menu-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+/* The row itself: 4-track grid (dot · thumb · body · actions). */
+.mock-menu-queue-row {
+  display: grid;
+  grid-template-columns: 12px 56px 1fr auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.mock-menu-queue-row:hover { background: rgba(155, 229, 127, 0.06); }
+.mock-menu-queue-row.is-clickable { cursor: pointer; }
+
+/* Status dot — uses CSS vars wired up via data-status. */
+.mock-menu-queue-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--q-pending);
+  box-shadow: 0 0 0 3px var(--q-pending-soft);
+  justify-self: center;
+}
+.mock-menu-queue-row[data-status="active"] .mock-menu-queue-dot {
+  background: var(--q-active);
+  box-shadow: 0 0 0 3px var(--q-active-soft);
+  animation: queueDotPulse 1.4s ease-in-out infinite;
+}
+.mock-menu-queue-row[data-status="done"] .mock-menu-queue-dot {
+  background: var(--q-done);
+  box-shadow: 0 0 0 3px var(--q-done-soft);
+}
+.mock-menu-queue-row[data-status="error"] .mock-menu-queue-dot {
+  background: var(--q-error);
+  box-shadow: 0 0 0 3px var(--q-error-soft);
+}
+@keyframes queueDotPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* Thumbnail — frozen snapshot at row creation time. Subtle bottom
+ * gradient prevents bright thumbs from clobbering the label. */
+.mock-menu-queue-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04) center / cover no-repeat;
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+.mock-menu-queue-thumb::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 50%, rgba(0, 0, 0, 0.35) 100%);
+}
+/* Active rows shimmer left→right. Pure compositor work (background-
+ * position) so no layout cost per frame. */
+.mock-menu-queue-row[data-status="active"] .mock-menu-queue-thumb::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(110deg,
+    rgba(155, 229, 127, 0) 30%,
+    rgba(155, 229, 127, 0.18) 50%,
+    rgba(155, 229, 127, 0) 70%);
+  background-size: 220% 100%;
+  animation: queueShimmer 1.6s linear infinite;
+  z-index: 1;
+}
+@keyframes queueShimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -120% 0; }
+}
+/* Pending rows: dimmed thumbnails so they read as inactive. */
+.mock-menu-queue-row[data-status="pending"] .mock-menu-queue-thumb {
+  filter: grayscale(0.5) brightness(0.65);
+}
+/* Done rows: small cream checkmark badge top-right. */
+.mock-menu-queue-row[data-status="done"] .mock-menu-queue-thumb::before {
+  content: '✓';
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 14px; height: 14px;
+  background: var(--accent);
+  color: var(--moma-accent-dark);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 9px/1 var(--mono);
+  z-index: 1;
+}
+/* Error rows: terracotta × badge. */
+.mock-menu-queue-row[data-status="error"] .mock-menu-queue-thumb::before {
+  content: '×';
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 14px; height: 14px;
+  background: #d99a8a;
+  color: #0b0b0d;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 11px/1 var(--mono);
+  z-index: 1;
+}
+
+/* Body — label/time top row, meta line, optional progress bar. */
+.mock-menu-queue-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mock-menu-queue-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mock-menu-queue-label {
+  font: 500 12px/1 var(--mono);
+  color: var(--ink);
+  letter-spacing: var(--moma-value-track);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-menu-queue-time {
+  font: 400 9px/1 var(--mono);
+  color: var(--ink-soft);
+  letter-spacing: var(--moma-label-track);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.mock-menu-queue-row[data-status="active"] .mock-menu-queue-time {
+  color: var(--accent);
+}
+.mock-menu-queue-meta {
+  font: 400 10px/1 var(--mono);
+  color: var(--ink-soft);
+  letter-spacing: var(--moma-label-track);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mock-menu-queue-error {
+  font: 400 10px/1.2 var(--mono);
+  color: #d99a8a;
+  letter-spacing: var(--moma-label-track);
+}
+
+/* Per-row progress bar (active jobs only). */
+.mock-menu-queue-progress {
+  margin-top: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.mock-menu-queue-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #c1f1a5);
+  transition: width 200ms ease;
+}
+
+/* Right rail: cancel / retry / open buttons. Hidden by default, fade
+ * in on row hover. is-primary stays visible (chartreuse-tinted). */
+.mock-menu-queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.mock-menu-queue-action {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+.mock-menu-queue-row:hover .mock-menu-queue-action { opacity: 1; }
+.mock-menu-queue-action.is-primary {
+  color: var(--accent);
+  opacity: 1;
+  background: rgba(155, 229, 127, 0.10);
+}
+.mock-menu-queue-action:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+.mock-menu-queue-action.is-primary:hover {
+  background: rgba(155, 229, 127, 0.18);
+}
+.mock-menu-queue-action svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* Empty state — shows when the queue phase opens with nothing to
+ * report (rare; the queue-link only appears when queue.length > 0). */
+.mock-menu-queue-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.mock-menu-queue-empty-title {
+  font: italic 500 22px/1.1 'Bodoni Moda', 'Times New Roman', serif;
+  font-variation-settings: 'opsz' 96;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.mock-menu-queue-empty-sub {
+  font: 400 10px/1.4 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  color: var(--ink-dim);
+}
+
 /* Gallery preview popover — wider chassis than the default `.mock-popover`
  * (240–320px) so the 3-col preview grid fits cleanly. Drop the
  * default 6px padding too so the grid runs edge-to-edge inside the
