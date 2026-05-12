@@ -1544,21 +1544,28 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   min-width: 440px;
   max-width: 440px;
   white-space: normal;
-  /* Bounded to viewport height with some headroom for the BR pill
-   * + 24px cluster offset. The popover scrolls internally on the
-   * grid if cards overflow. */
+  /* Bound to viewport with headroom for the BR pill + 24px cluster
+   * offset. Overflow is OWNED by the inner styles grid (see below)
+   * so the header + footer stay anchored while only the cards
+   * scroll. */
   max-height: calc(100vh - 100px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 .mock-menu-capture {
   display: flex;
   flex-direction: column;
-  /* Prototype's locked 702px footprint was for the picker↔queue
-   * phase-swap (so both views were the same height). React port
-   * doesn't have phase-swap (queue lives in AIRenderModal), so we
-   * let the menu size to content. Footer no longer needs
-   * margin-top: auto to push to bottom. */
+  flex: 1;
+  min-height: 0;
 }
+/* Header / resolution / section labels / cats / prompt / footer all
+ * stay anchored (flex-shrink: 0). Only the styles grid scrolls. */
+.mock-menu-capture > .mock-menu-capture-head,
+.mock-menu-capture > .mock-menu-capture-seg,
+.mock-menu-capture > .mock-menu-section-label,
+.mock-menu-capture > .mock-menu-capture-cats,
+.mock-menu-capture > .mock-menu-capture-prompt,
+.mock-menu-capture > .mock-menu-capture-foot { flex-shrink: 0; }
 .mock-menu-capture-head {
   display: flex;
   align-items: center;
@@ -1667,14 +1674,21 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   color: #0b0b0d;
 }
 
-/* Style grid — 3-col 4:3 cards via padding-top trick. Grows with
- * the menu (the popover's max-height + overflow-y catches overflow
- * at the popover level, not here). */
+/* Style grid — 3-col 4:3 cards via padding-top trick. This is the
+ * ONLY scrollable region in the capture popover: the surrounding
+ * header (title + resolution + section labels + cats) and the
+ * footer (Render CTA, Custom prompt) stay anchored. The
+ * flex:1 + min-height:0 combo lets the grid claim all remaining
+ * vertical space and trigger its own overflow. */
 .mock-menu-capture-styles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
   margin-bottom: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
 }
 .mock-menu-capture-style {
   position: relative;
