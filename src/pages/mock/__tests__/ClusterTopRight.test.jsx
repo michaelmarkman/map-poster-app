@@ -41,9 +41,15 @@ describe('ClusterTopRight (Phase 7 — Gallery-only)', () => {
     expect(screen.getByText('12')).toBeDefined()
   })
 
-  it('Gallery pill click opens the gallery modal', () => {
-    const { store } = renderWith({ galleryCount: 3 })
-    fireEvent.click(screen.getByRole('button', { name: /Gallery/ }))
+  it('"View all" inside the gallery menu opens the full modal', () => {
+    // Phase 16 — the Gallery pill is now a HoverPopoverPill that opens
+    // a preview menu first. The full modal opens via the "View all"
+    // CTA inside the popover, not the pill click.
+    const { store, container } = renderWith({ galleryCount: 3 })
+    // Open the popover (hover on desktop pointer mode).
+    const wrap = container.querySelector('.mock-hover-pill-wrap')
+    fireEvent.pointerEnter(wrap)
+    fireEvent.click(screen.getByText('View all'))
     expect(store.get(modalsAtom).gallery).toBe(true)
   })
 

@@ -11,41 +11,51 @@ import { modalsAtom } from '../../editor/atoms/modals'
 // toggle. aspectRatioAtom stays a plain number (the ratio w/h); fillMode
 // is still its own atom but the UI treats them as one selection.
 
-// Phase 2.7 — labels are W × H integer mnemonics (24 × 36, 16 × 9, etc.)
-// instead of W:H ratio shorthand. Reads as physical poster proportions
-// at a glance, even when the user hasn't memorized aspect-ratio numbers.
-// Same atom, same picker — just the display string changes.
+// Phase 16 — ported to the prototype's vertical-row aspect menu.
+// Layout is now [icon] [ratio] [name] per row, divided into Square /
+// Portrait / Landscape sections with mini-labels, plus a Fill row at
+// the top and a Custom W:H input form at the bottom. The Phase 2.7
+// W×H mnemonics (24 × 36, 18 × 24, etc.) stay as the right-side
+// "name" so users still see the physical poster proportions; the
+// ratio column gives the more compact W:H shorthand for the data-
+// minded.
 const PORTRAIT_RATIOS = [
-  { label: '16 × 20', ratio: 4 / 5 },
-  { label: '24 × 36', ratio: 2 / 3 },
-  { label: '18 × 24', ratio: 3 / 4 },
-  { label: '9 × 16', ratio: 9 / 16 },
+  { ratioKey: '4:5',  name: '16 × 20', ratio: 4 / 5 },
+  { ratioKey: '3:4',  name: '18 × 24', ratio: 3 / 4 },
+  { ratioKey: '2:3',  name: '24 × 36', ratio: 2 / 3 },
+  { ratioKey: '9:16', name: '9 × 16',  ratio: 9 / 16 },
 ]
 const LANDSCAPE_RATIOS = [
-  { label: '20 × 16', ratio: 5 / 4 },
-  { label: '36 × 24', ratio: 3 / 2 },
-  { label: '24 × 18', ratio: 4 / 3 },
-  { label: '16 × 9', ratio: 16 / 9 },
+  { ratioKey: '5:4',  name: '20 × 16', ratio: 5 / 4 },
+  { ratioKey: '4:3',  name: '24 × 18', ratio: 4 / 3 },
+  { ratioKey: '3:2',  name: '36 × 24', ratio: 3 / 2 },
+  { ratioKey: '16:9', name: '16 × 9',  ratio: 16 / 9 },
 ]
-const ALL_RATIOS = [...PORTRAIT_RATIOS, ...LANDSCAPE_RATIOS]
+const ALL_RATIOS = [
+  { ratioKey: '1:1', name: 'Square', ratio: 1 },
+  ...PORTRAIT_RATIOS,
+  ...LANDSCAPE_RATIOS,
+]
 
 const ratioMatch = (a, b) => Math.abs(a - b) < 0.001
 
-// Render a tiny rectangle preview of the chosen ratio inside a fixed
-// 24x24 box. Helps users grok the shape without leaving the popover.
-function RatioGlyph({ ratio, fill }) {
-  if (fill) {
-    return <span className="mock-ratio-glyph mock-ratio-glyph--fill" />
-  }
-  // Fit the rectangle inside a 20x20 box, centered.
-  const max = 20
-  const w = ratio >= 1 ? max : max * ratio
-  const h = ratio >= 1 ? max / ratio : max
+// Aspect-menu row — [icon] [ratio shorthand] [name]. The icon's
+// `::before` size comes from the [data-ratio="…"] CSS rule so each
+// ratio gets a distinct miniature glyph (e.g. 16:9 = wide rectangle,
+// 9:16 = tall rectangle, 1:1 = square). The `data-ratio` value is
+// also the visible W:H text in the middle column — keeping the two
+// in sync means new ratios slot in by adding one CSS rule.
+function AspectRow({ ratioKey, name, active, onClick, displayLabel }) {
   return (
-    <span
-      className="mock-ratio-glyph"
-      style={{ width: `${w}px`, height: `${h}px` }}
-    />
+    <button
+      type="button"
+      className={`mock-menu-aspect-item${active ? ' is-active' : ''}`}
+      onClick={onClick}
+    >
+      <span className="mock-menu-aspect-icon" data-ratio={ratioKey} aria-hidden="true" />
+      <span className="mock-menu-aspect-ratio">{displayLabel ?? ratioKey}</span>
+      <span className="mock-menu-aspect-name">{name}</span>
+    </button>
   )
 }
 
@@ -59,7 +69,7 @@ export default function ClusterBottomLeft() {
   const ratioLabel = useMemo(() => {
     if (fillMode) return 'Fill'
     const preset = ALL_RATIOS.find((r) => ratioMatch(r.ratio, aspectRatio))
-    if (preset) return preset.label
+    if (preset) return preset.name
     // Custom: try to render as nice integers.
     return formatCustomRatio(aspectRatio)
   }, [aspectRatio, fillMode])
@@ -94,91 +104,84 @@ export default function ClusterBottomLeft() {
         drop="up"
         className="mock-aspect-pill-wrap"
       >
-        <div className="mock-aspect-grid">
-          <button
-            type="button"
-            className={`mock-aspect-row mock-aspect-fill-row${fillMode ? ' is-active' : ''}`}
+        <div className="mock-menu-aspect">
+          <div className="mock-menu-section-label">Aspect ratio</div>
+          <AspectRow
+            ratioKey="fill"
+            name="Fill"
+            active={fillMode}
             onClick={() => setFillMode(true)}
-          >
-            <RatioGlyph fill />
-            <span className="mock-aspect-fill-label">Fill</span>
-          </button>
+            displayLabel="—"
+          />
+          <AspectRow
+            ratioKey="1:1"
+            name="Square"
+            active={!fillMode && ratioMatch(1, aspectRatio)}
+            onClick={() => pickRatio(1)}
+          />
 
-          <div className="mock-aspect-label">Portrait</div>
-          <div className="mock-aspect-row">
-            {PORTRAIT_RATIOS.map(({ label, ratio }) => (
-              <button
-                key={label}
-                type="button"
-                className={`mock-aspect-btn${
-                  !fillMode && ratioMatch(ratio, aspectRatio) ? ' is-active' : ''
-                }`}
-                onClick={() => pickRatio(ratio)}
-                title={label}
-              >
-                <RatioGlyph ratio={ratio} />
-                <span className="mock-aspect-btn-label">{label}</span>
-              </button>
-            ))}
-          </div>
+          <div className="mock-menu-divider" />
+          <div className="mock-menu-section-label">Portrait</div>
+          {PORTRAIT_RATIOS.map(({ ratioKey, name, ratio }) => (
+            <AspectRow
+              key={ratioKey}
+              ratioKey={ratioKey}
+              name={name}
+              active={!fillMode && ratioMatch(ratio, aspectRatio)}
+              onClick={() => pickRatio(ratio)}
+            />
+          ))}
 
-          <div className="mock-aspect-label">Landscape</div>
-          <div className="mock-aspect-row">
-            {LANDSCAPE_RATIOS.map(({ label, ratio }) => (
-              <button
-                key={label}
-                type="button"
-                className={`mock-aspect-btn${
-                  !fillMode && ratioMatch(ratio, aspectRatio) ? ' is-active' : ''
-                }`}
-                onClick={() => pickRatio(ratio)}
-                title={label}
-              >
-                <RatioGlyph ratio={ratio} />
-                <span className="mock-aspect-btn-label">{label}</span>
-              </button>
-            ))}
-          </div>
+          <div className="mock-menu-divider" />
+          <div className="mock-menu-section-label">Landscape</div>
+          {LANDSCAPE_RATIOS.map(({ ratioKey, name, ratio }) => (
+            <AspectRow
+              key={ratioKey}
+              ratioKey={ratioKey}
+              name={name}
+              active={!fillMode && ratioMatch(ratio, aspectRatio)}
+              onClick={() => pickRatio(ratio)}
+            />
+          ))}
 
-          <div className="mock-aspect-label">Custom</div>
+          <div className="mock-menu-divider" />
+          <div className="mock-menu-section-label">Custom</div>
           <form
-            className="mock-aspect-custom"
+            className={`mock-menu-aspect-custom${isCustom ? ' is-active' : ''}`}
             onSubmit={(e) => { e.preventDefault(); submitCustom() }}
           >
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              placeholder="W"
-              value={customW}
-              onChange={(e) => setCustomW(e.target.value)}
-              aria-label="Custom width"
-              className="mock-aspect-custom-input"
-            />
-            <span className="mock-aspect-custom-sep">:</span>
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              placeholder="H"
-              value={customH}
-              onChange={(e) => setCustomH(e.target.value)}
-              aria-label="Custom height"
-              className="mock-aspect-custom-input"
-            />
+            <span className="mock-menu-aspect-icon" data-ratio="custom" aria-hidden="true" />
+            <span className="mock-menu-aspect-custom-fields">
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="W"
+                value={customW}
+                onChange={(e) => setCustomW(e.target.value)}
+                aria-label="Custom width"
+                className="mock-menu-aspect-custom-input"
+              />
+              <span className="mock-menu-aspect-custom-sep">:</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                placeholder="H"
+                value={customH}
+                onChange={(e) => setCustomH(e.target.value)}
+                aria-label="Custom height"
+                className="mock-menu-aspect-custom-input"
+              />
+            </span>
             <button
               type="submit"
-              className="mock-aspect-custom-apply"
+              className="mock-menu-aspect-custom-set"
               disabled={!customW || !customH}
             >
               Set
             </button>
           </form>
-          {isCustom && (
-            <div className="mock-aspect-custom-current">
-              Active: {ratioLabel}
-            </div>
-          )}
         </div>
       </HoverPopoverPill>
 

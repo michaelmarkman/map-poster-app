@@ -206,23 +206,38 @@ export default function ClusterTopLeft() {
       >
         {({ close }) => (
           <div className="mock-search-wrap">
-            <input
-              ref={inputRef}
-              className="mock-input"
-              type="text"
-              placeholder="Search a place…"
-              value={query}
-              autoFocus
-              role="combobox"
-              aria-autocomplete="list"
-              aria-expanded={predictions.length > 0}
-              aria-controls="mock-search-listbox"
-              aria-activedescendant={
-                predictions[highlight] ? `mock-pred-${highlight}` : undefined
-              }
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => onKeyDown(e, close)}
-            />
+            {/* Phase 16 — input row with leading magnifier icon, matches
+             *  the prototype's `.menu-search-input` recipe. */}
+            <div className="mock-search-input-row">
+              <svg
+                className="mock-search-input-icon"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <circle cx="5" cy="5" r="3.25" />
+                <path d="M7.3 7.3 10 10" />
+              </svg>
+              <input
+                ref={inputRef}
+                className="mock-search-input"
+                type="text"
+                placeholder="Search a location…"
+                value={query}
+                autoFocus
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={predictions.length > 0}
+                aria-controls="mock-search-listbox"
+                aria-activedescendant={
+                  predictions[highlight] ? `mock-pred-${highlight}` : undefined
+                }
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => onKeyDown(e, close)}
+              />
+            </div>
             {predictions.length > 0 && (
               <ul
                 id="mock-search-listbox"

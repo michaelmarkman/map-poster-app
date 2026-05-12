@@ -88,7 +88,7 @@ describe('ClusterTopLeft', () => {
     searchPlaces.mockResolvedValue([])
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'tokyo')
     const [q, opts] = searchPlaces.mock.calls.at(-1)
     expect(q).toBe('tokyo')
@@ -103,7 +103,7 @@ describe('ClusterTopLeft', () => {
     ])
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'tokyo')
     await waitFor(() => {
       expect(screen.getAllByRole('option')).toHaveLength(2)
@@ -128,7 +128,7 @@ describe('ClusterTopLeft', () => {
 
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'paris')
     await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
@@ -151,7 +151,7 @@ describe('ClusterTopLeft', () => {
 
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'rio')
     await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
@@ -174,7 +174,7 @@ describe('ClusterTopLeft', () => {
     })
     const { store } = renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'rio')
     await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     await act(async () => {
@@ -198,7 +198,7 @@ describe('ClusterTopLeft', () => {
 
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     await typeQuery(input, 'q')
     await waitFor(() => expect(screen.getAllByRole('option').length).toBe(3))
 
@@ -216,7 +216,7 @@ describe('ClusterTopLeft', () => {
     window.addEventListener('fly-to', (e) => flies.push(e))
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     fireEvent.change(input, { target: { value: 'foo' } })
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(flies).toHaveLength(0)
@@ -225,7 +225,7 @@ describe('ClusterTopLeft', () => {
   it('empty / whitespace input never calls searchPlaces', async () => {
     renderWith()
     openSearchPopover()
-    const input = screen.getByPlaceholderText('Search a place…')
+    const input = screen.getByPlaceholderText('Search a location…')
     fireEvent.change(input, { target: { value: '   ' } })
     // Wait long enough for the debounce.
     await new Promise((r) => setTimeout(r, 250))

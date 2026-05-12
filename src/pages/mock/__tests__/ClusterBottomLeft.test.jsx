@@ -50,10 +50,14 @@ describe('ClusterBottomLeft', () => {
   it('clicking the Fill row enables fill mode', () => {
     const { store, container } = renderWith({ fillMode: false })
     openAspectPopover(container)
-    // Two "Fill" elements — pill label + popover row. The fill row is
-    // the one inside the popover panel.
+    // Phase 16 — the Fill row is now a .mock-menu-aspect-item inside
+    // .mock-menu-aspect. The "Fill" text appears once as the row's
+    // name slot (since the pill is NOT in fill mode initially, the
+    // trigger pill shows the active ratio's name, not "Fill").
     const fillEls = screen.getAllByText('Fill')
-    const popoverFill = fillEls.find((n) => n.closest('.mock-aspect-fill-row'))
+    const popoverFill = fillEls.find((n) =>
+      n.closest('.mock-menu-aspect-item'),
+    )
     fireEvent.click(popoverFill)
     expect(store.get(fillModeAtom)).toBe(true)
   })
