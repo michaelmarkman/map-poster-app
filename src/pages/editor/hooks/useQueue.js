@@ -54,6 +54,20 @@ import { fireToast } from '../../../lib/toast'
 // prototype used. Only the fields this hook actually needs (label, prompt)
 // are kept.
 const AI_PRESETS = {
+  vedute: {
+    label: 'Vedute',
+    // The brand's signature style — named after the 17th-/18th-century
+    // Italian veduta tradition (Canaletto, Bellotto, Guardi). Hyper-
+    // detailed atmospheric cityscape paintings with theatrical light,
+    // careful linear perspective, and a luminous sky. Pinned as the
+    // first card in the picker since it's the editor's namesake.
+    //
+    // Composition lock-down mirrors the Realistic + Travel Poster
+    // prompts — explicit "Only change X / do NOT add Y" pattern so
+    // the model doesn't redraw buildings to match its painting prior.
+    prompt:
+      'Transform this into an 18th-century Italian veduta painting in the tradition of Canaletto, Bellotto, and Guardi. Highly detailed, atmospheric cityscape painting with theatrical golden-hour light, careful linear perspective, luminous sky with soft cumulus clouds, painterly brushwork on rooftops and stone facades, subtle warm-cool color modulation across the depth of the scene, a slightly cinematic vantage that reads as a hand-painted aerial vista. Limited 18th-century palette: warm cream, terracotta, soft umber, sage green, dusty teal, pale gold. Visible brushwork in the sky and shadows; cleaner edges on the buildings. Only change the lighting, materials, color palette, and painterly texture — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Do NOT add cars, people, signage, text, ships, flags, banners, watermarks, or any element not visible in the source. Keep the exact same buildings, streets, composition, and layout.',
+  },
   realistic: {
     label: 'Realistic',
     // Composition-preserving rewrite. The old prompt ("helicopter

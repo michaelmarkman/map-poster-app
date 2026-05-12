@@ -1823,6 +1823,37 @@ body.mock-mounted .mock-cluster--bottom-right {
   background: linear-gradient(135deg, #2f3526 0%, #1b1d18 100%);
   filter: none;
 }
+/* Vedute — the brand's signature style. Warm-cream→sage gradient
+ * evokes the 18th-c. veduta palette; the centered italic 'V' in
+ * Bodoni Moda is the house mark. Filter cleared so the gradient
+ * shows full saturation (the default style-thumb has brightness
+ * 0.65 to dim photo bgs). */
+.mock-menu-capture-style.is-vedute .mock-menu-capture-style-thumb {
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(232, 220, 192, 0.32) 0%, transparent 55%),
+    linear-gradient(135deg, #3a3a2c 0%, #20281f 100%);
+  filter: none;
+}
+.mock-menu-capture-style-vedute-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: italic 500 36px/1 'Bodoni Moda', 'Times New Roman', serif;
+  font-variation-settings: 'opsz' 96;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+.mock-menu-capture-style.is-vedute:hover .mock-menu-capture-style-vedute-mark {
+  transform: scale(1.06);
+}
+.mock-menu-capture-style.is-vedute.is-active .mock-menu-capture-style-vedute-mark {
+  color: #c1f1a5;
+}
 .mock-menu-capture-style-icon {
   position: absolute;
   top: 6px;

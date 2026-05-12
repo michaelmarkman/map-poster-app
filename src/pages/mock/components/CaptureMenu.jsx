@@ -105,6 +105,7 @@ const photoFor = (file) =>
 
 const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
+const VEDUTE_KEY = 'vedute'
 
 // Resolution → pixel-height map for the meta readout.
 const RES_PX = { 1: 1080, 2: 2160, 3: 3240, 4: 4320 }
@@ -297,6 +298,21 @@ export default function CaptureMenu({ onClose }) {
             <path d="M2 4V2h2M10 4V2h-2M2 8v2h2M10 8v2h-2" />
           </svg>
           <span className="mock-menu-capture-style-label">Raw</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
+        {/* Vedute — the brand's signature style (18th-c. veduta painting).
+         *  Pinned alongside Raw + Custom so it's always reachable across
+         *  category filters. Custom thumb treatment in CSS so it reads
+         *  as "house" rather than a generic preset. */}
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-vedute is-pinned${selected.has(VEDUTE_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(VEDUTE_KEY)}
+          title="Vedute — our signature painterly cityscape"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-vedute-mark" aria-hidden="true">V</span>
+          <span className="mock-menu-capture-style-label">Vedute</span>
           <span className="mock-menu-capture-style-check">✓</span>
         </button>
         <button
