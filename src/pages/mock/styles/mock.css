@@ -186,10 +186,9 @@ body.mock-mounted #canvas-container::before {
   left: var(--frame-x);
   width: var(--frame-w);
   height: var(--frame-h);
-  /* Prototype's `.aspect-frame-border` — 3px solid rgba(255,255,255,0.95).
-   * Was 6px solid #fff (an older brand pass that was supposed to feel
-   * "MoMA-weight" but is actually heavier than the prototype's spec). */
-  border: 3px solid rgba(255, 255, 255, 0.95);
+  /* Thinner than the prototype's 3px — 1.5px reads as a precise crop
+   * indicator rather than a heavy poster-stock rail. User pref. */
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
   transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
               left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
               width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
