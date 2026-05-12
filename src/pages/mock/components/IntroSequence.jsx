@@ -208,6 +208,12 @@ export default function IntroSequence() {
     }
     document.body.setAttribute('data-intro-phase', phase)
     document.body.setAttribute('data-intro-revealed', String(revealedCount))
+    // Mid-flight: explicitly mark the intro as NOT done so
+    // OnboardingCard stays hidden until phase==='done'. introDoneAtom
+    // now defaults to true (since IntroSequence isn't mounted in prod
+    // anymore), so the component owns flipping it back to false while
+    // it's actually playing.
+    setIntroDone(false)
     return undefined
   }, [phase, revealedCount, setIntroDone])
 

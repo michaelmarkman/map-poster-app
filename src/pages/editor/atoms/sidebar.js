@@ -10,8 +10,12 @@ import { atom } from 'jotai'
 // useQueue + session persistence don't need a rewrite, but it defaults
 // to true and the UI no longer exposes a toggle.
 export const aiEnhanceAtom = atom(true)
+// Default seed for the custom-prompt field. Same composition-anchoring
+// pattern as AI_PRESETS.realistic (useQueue.js) — the helicopter/DSLR
+// language and bare "enhance realism" verbs drift composition badly,
+// so the seed leads with what changes and what stays fixed.
 export const aiPromptAtom = atom(
-  'Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.'
+  'Re-render this aerial scene as a photoreal daylight cityscape — natural sunlight, realistic building materials, soft shadows. Only change lighting, materials, and texture realism. Do NOT change the camera angle or framing. Do NOT add, remove, or relocate any building. Do NOT add cars, people, signage, or text. Keep the exact same buildings, streets, and composition.'
 )
 export const aiPresetAtom = atom(null) // null | 'realistic' | 'golden' | ...
 export const aiApiKeyAtom = atom('') // Gemini — stored locally only
@@ -46,9 +50,13 @@ export const onboardedAtom = atom(false)
 // finishes (or the user hits Esc to skip). Other UI that should NOT
 // appear during the intro (e.g. OnboardingCard) gates on this.
 //
-// NOT persisted — every page load gets a fresh intro until the
-// product matures past it.
-export const introDoneAtom = atom(false)
+// Defaults to TRUE: IntroSequence is no longer mounted in
+// MockEditorShell (retired pre-launch), so downstream consumers
+// should treat the intro as already finished on every boot. The
+// atom stays in the codebase so OnboardingCard's gate still
+// compiles and the IntroSequence unit tests (which mount the
+// component directly) can still drive it explicitly.
+export const introDoneAtom = atom(true)
 
 // Export resolution multiplier (1, 2, 3, 4)
 export const exportResolutionAtom = atom(2)

@@ -17,7 +17,7 @@ import ClusterBottomLeft from './components/ClusterBottomLeft'
 import ClusterBottomMid from './components/ClusterBottomMid'
 import ClusterBottomRight from './components/ClusterBottomRight'
 import FrameOverlay from './components/FrameOverlay'
-import IntroSequence from './components/IntroSequence'
+import ViewfinderBrackets from './components/ViewfinderBrackets'
 import OnboardingCard from './components/OnboardingCard'
 import AIRenderModal from './modals/AIRenderModal'
 
@@ -127,6 +127,11 @@ export default function MockEditorShell() {
 
       <FrameOverlay />
 
+      {/* Phase 1 — MoMA chrome. Four L-shaped corner brackets framing
+       * the viewport, drawn above the canvas but below cluster pills
+       * (z-index var(--z-overlay)). Pure presentation. */}
+      <ViewfinderBrackets />
+
       {/* Top-center wordmark — non-interactive overlay so it doesn't
        * intercept canvas clicks (click-to-focus, orbit). The SVG itself
        * carries a built-in soft drop-shadow so it stays legible over
@@ -148,11 +153,11 @@ export default function MockEditorShell() {
       <Lightbox />
       <PosterPreviewModal />
       <AIRenderModal />
-      {/* IntroSequence sits above modals so its overlay covers them on
-       *  cold load. It self-removes when phase === 'done', and gates
-       *  OnboardingCard via introDoneAtom so the welcome card only
-       *  appears AFTER the intro finishes. */}
-      <IntroSequence />
+      {/* IntroSequence was retired pre-launch — it staged the load on
+       *  cold boots but the cost (extra ~7.5s before the editor is
+       *  usable, plus tegaki font load) didn't pay for itself once
+       *  WebGL warm-up dropped under a second. introDoneAtom now
+       *  defaults to true so OnboardingCard appears immediately. */}
       <OnboardingCard />
       {/* ToastHost lives in App.jsx (mounted once app-wide). */}
     </div>

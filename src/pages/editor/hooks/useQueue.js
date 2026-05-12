@@ -56,8 +56,17 @@ import { fireToast } from '../../../lib/toast'
 const AI_PRESETS = {
   realistic: {
     label: 'Realistic',
+    // Composition-preserving rewrite. The old prompt ("helicopter
+    // DSLR photograph...subtly enhance realism") drifted heavily
+    // because (a) "helicopter / DSLR" reframes the camera toward the
+    // model's prior of oblique 30–45° stock helicopter photos, and
+    // (b) "enhance realism / detail" with no negative constraints
+    // reads as "fill in what a real city would have" — so the model
+    // adds cars, trees, signage, even reshuffles blocks. The
+    // "Only change X / Do NOT add Y" pattern (mirrored from Cyberpunk
+    // and Travel Poster, which hold composition well) pins geometry.
     prompt:
-      'Make this look like a real aerial photograph taken from a helicopter with a DSLR camera. Keep the exact same buildings and layout. Just enhance realism, lighting, and detail subtly.',
+      'Re-render this aerial scene as a photoreal daylight cityscape — natural sunlight, realistic building materials and roof textures, soft shadows, real-world surface detail on streets and rooftops. Only change the lighting, materials, and texture realism — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Do NOT add cars, people, signage, text, lens flares, watermarks, or any element not already visible in the source. Keep the exact same buildings, streets, composition, and layout.',
   },
   golden: {
     label: 'Golden Hour',
@@ -585,7 +594,10 @@ export default function useQueue() {
       if (p) return appendEffectPrompts(p.prompt)
       return appendEffectPrompts(
         fallback ||
-          'Make this look like a real aerial photograph. Keep the exact same buildings and layout. Enhance realism subtly.',
+          // Mirrors AI_PRESETS.realistic — composition-anchored
+          // fallback so a queue job with no preset and no custom
+          // prompt produces the same fidelity as clicking Realistic.
+          'Re-render this aerial scene as a photoreal daylight cityscape — natural sunlight, realistic building materials, soft shadows. Only change lighting, materials, and texture realism. Do NOT change the camera angle or framing. Do NOT add, remove, or relocate any building. Do NOT add cars, people, signage, or text. Keep the exact same buildings, streets, and composition.',
       )
     }
 
