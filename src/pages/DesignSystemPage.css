@@ -1,0 +1,639 @@
+/* Vedute Design System page — visual reference doc at /design-system.
+ *
+ * Loads the real mock.css + modals.css so live demos render against
+ * the source of truth (one CSS, two consumers — the editor and this
+ * doc). The .ds-* classes below are scoped to this page only and
+ * cover page layout + chrome (hero, section spacing, code blocks).
+ *
+ * Scope discipline: classes here all start with `ds-` so the editor
+ * never sees them; everything else (`.mock-*`, `.svp-*`, `.lb-*`) is
+ * the live editor styling reused for the previews. */
+
+.ds-root {
+  min-height: 100vh;
+  background: var(--moma-bg, #06080a);
+  color: var(--ink, #fafafa);
+  font: 400 14px/1.6 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  padding: 0 0 120px;
+}
+
+/* Cap content width but let the hero + body breathe. */
+.ds-section,
+.ds-hero,
+.ds-foot {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 48px;
+}
+@media (max-width: 720px) {
+  .ds-section,
+  .ds-hero,
+  .ds-foot { padding: 0 24px; }
+}
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.ds-hero {
+  padding-top: 96px;
+  padding-bottom: 80px;
+  border-bottom: 1px solid rgba(250, 250, 250, 0.06);
+}
+.ds-hero-tag {
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--moma-accent, #9be57f);
+  margin-bottom: 24px;
+}
+.ds-hero-title {
+  margin: 0 0 32px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  font: 500 13px/1 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1.98px;
+  color: var(--ink);
+}
+.ds-hero-serif {
+  font: italic 500 64px/1 'Bodoni Moda', 'Times New Roman', serif;
+  font-variation-settings: 'opsz' 96;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #fff;
+}
+.ds-hero-divider {
+  opacity: 0.4;
+  font: 400 36px/1 'Bodoni Moda', serif;
+  text-transform: none;
+}
+.ds-hero-lead {
+  max-width: 640px;
+  font: 400 14px/1.7 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.75);
+  letter-spacing: 0.01em;
+  margin: 0 0 40px;
+}
+.ds-hero-lead em {
+  color: var(--moma-accent);
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+.ds-hero-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.ds-hero-nav-link {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  border-radius: 2px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.ds-hero-nav-link:hover {
+  background: rgba(155, 229, 127, 0.08);
+  border-color: rgba(155, 229, 127, 0.30);
+}
+.ds-hero-nav-num {
+  font: 400 9px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.12em;
+  color: var(--moma-accent);
+  font-variant-numeric: tabular-nums;
+}
+.ds-hero-nav-label {
+  font: 500 11px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* ── Section ─────────────────────────────────────────────────── */
+.ds-section {
+  padding-top: 96px;
+  padding-bottom: 0;
+}
+.ds-section-head {
+  margin-bottom: 40px;
+  max-width: 720px;
+}
+.ds-section-tag {
+  display: inline-block;
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--moma-accent);
+  margin-bottom: 12px;
+}
+.ds-section-title {
+  margin: 0 0 12px;
+  font: italic 500 40px/1.1 'Bodoni Moda', serif;
+  font-variation-settings: 'opsz' 96;
+  letter-spacing: -0.012em;
+  color: #fff;
+}
+.ds-section-lead {
+  margin: 0;
+  font: 400 14px/1.65 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.65);
+  letter-spacing: 0.01em;
+}
+
+/* ── Tokens (colors / spacing) ───────────────────────────────── */
+.ds-token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1px;
+  background: rgba(250, 250, 250, 0.06);
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 56px;
+}
+.ds-token {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(8, 10, 12, 0.6);
+}
+.ds-token-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(250, 250, 250, 0.10);
+  background-clip: padding-box;
+}
+.ds-token-text { min-width: 0; flex: 1; }
+.ds-token-name {
+  font: 500 11px/1.2 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-token-value {
+  font: 400 10px/1.4 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.55);
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Block grid + per-block scaffold ─────────────────────────── */
+.ds-spec-grid,
+.ds-type-grid,
+.ds-pill-row,
+.ds-menu-grid,
+.ds-card-grid,
+.ds-chrome-grid {
+  display: grid;
+  gap: 20px;
+}
+.ds-spec-grid,
+.ds-type-grid,
+.ds-chrome-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.ds-pill-row { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.ds-menu-grid,
+.ds-card-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+.ds-block {
+  background: rgba(8, 10, 12, 0.5);
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ds-block-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(250, 250, 250, 0.04);
+}
+.ds-block-title {
+  font: 500 11px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.ds-block-sub {
+  font: 400 9px/1.2 'JetBrains Mono', monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(250, 250, 250, 0.45);
+  margin-top: 6px;
+}
+.ds-block-demo {
+  padding: 24px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 140px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.ds-block-spec {
+  padding: 12px 16px 14px;
+  border-top: 1px solid rgba(250, 250, 250, 0.04);
+  font: 400 10px/1.6 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.55);
+  letter-spacing: 0.02em;
+}
+.ds-spec p { margin: 0 0 4px; }
+.ds-spec p:last-child { margin-bottom: 0; }
+.ds-spec code,
+.ds-foot-meta code {
+  font: 400 10px/1.4 'JetBrains Mono', monospace;
+  color: var(--moma-accent);
+  background: rgba(155, 229, 127, 0.06);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* ── Pill stage (gradient bg so glass pills read) ────────────── */
+.ds-pill-stage {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ds-pill-stage-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+/* 1px chartreuse scrub-rail under the drag pill demo (matches the
+ * real .mock-pill--drag's ::after track but rendered standalone). */
+.ds-pill-scrub-rail {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: -3px;
+  height: 1px;
+  background: rgba(155, 229, 127, 0.45);
+}
+
+/* ── Spacing scale ───────────────────────────────────────────── */
+.ds-spacing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+}
+.ds-spacing-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ds-spacing-bar {
+  height: 4px;
+  background: var(--moma-accent);
+  border-radius: 1px;
+}
+.ds-spacing-num {
+  font: 400 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  color: rgba(250, 250, 250, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Type samples ────────────────────────────────────────────── */
+.ds-type-sample {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* ── Menu stage ──────────────────────────────────────────────── */
+.ds-menu-stage {
+  background: rgba(12, 14, 18, 0.8);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 4px;
+  padding: 6px 6px 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+/* ── Card row (gallery + style) ──────────────────────────────── */
+.ds-card-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  padding: 16px;
+  background: rgba(12, 14, 18, 0.8);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 4px;
+}
+.ds-card-row--gallery { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+/* Cancel mock-menu-capture-styles' flex:1 + overflow inside the
+ * doc page — it's meant to fill a popover, not a static demo card. */
+.ds-card-row.mock-menu-capture-styles {
+  flex: none;
+  overflow: visible;
+  margin: 0;
+  display: grid;
+  align-content: start;
+}
+
+/* ── Queue stage ─────────────────────────────────────────────── */
+.ds-queue-stage {
+  background: rgba(12, 14, 18, 0.8);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 4px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Lightbox stage ──────────────────────────────────────────── */
+.ds-lightbox-stage {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(4, 5, 7, 0.96);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  min-height: 460px;
+}
+@media (max-width: 720px) {
+  .ds-lightbox-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+}
+.ds-lightbox-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.ds-lightbox-image img {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 4px;
+  border: 6px solid #fff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+}
+.ds-lightbox-side {
+  background: rgba(8, 10, 12, 0.65);
+  border-left: 1px solid rgba(250, 250, 250, 0.06);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  padding: 32px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.ds-lightbox-side-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ds-lightbox-side-title {
+  font: italic 500 32px/1.1 'Bodoni Moda', 'Times New Roman', serif;
+  font-variation-settings: 'opsz' 96;
+  letter-spacing: -0.012em;
+  color: #fff;
+}
+.ds-lightbox-side-style {
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  color: var(--moma-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ds-lightbox-side-style::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--moma-accent);
+  margin-right: 6px;
+  vertical-align: 0.1em;
+  box-shadow: 0 0 4px rgba(155, 229, 127, 0.5);
+}
+
+/* ── Chrome stage (brackets / reticle / frame) ───────────────── */
+.ds-chrome-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 4px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.55) 100%),
+    url('/style-photos/vedute-realistic-2x-20260422-1705.png') center/cover;
+}
+.ds-chrome-bracket {
+  position: absolute;
+  width: 24px;
+  height: 14px;
+  pointer-events: none;
+}
+.ds-chrome-bracket::before,
+.ds-chrome-bracket::after {
+  content: '';
+  position: absolute;
+  background: rgba(250, 250, 250, 0.70);
+}
+.ds-chrome-bracket::before { width: 24px; height: 1px; top: 0; left: 0; }
+.ds-chrome-bracket::after  { width: 1px;  height: 14px; top: 0; left: 0; }
+.ds-chrome-bracket--tl { top: 18px; left: 18px; }
+.ds-chrome-bracket--tr { top: 18px; right: 18px; transform: scaleX(-1); }
+.ds-chrome-bracket--bl { bottom: 18px; left: 18px; transform: scaleY(-1); }
+.ds-chrome-bracket--br { bottom: 18px; right: 18px; transform: scale(-1, -1); }
+
+/* Reticle demo (centered, static). */
+.ds-chrome-stage--reticle { background: linear-gradient(135deg, #161922 0%, #0c0e12 100%); }
+.ds-chrome-reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.ds-chrome-reticle-bracket {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+.ds-chrome-reticle-bracket::before,
+.ds-chrome-reticle-bracket::after,
+.ds-chrome-reticle-bracket > span:first-child,
+.ds-chrome-reticle-bracket > span:last-child {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1.25px solid var(--moma-accent);
+}
+.ds-chrome-reticle-bracket::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+.ds-chrome-reticle-bracket::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+.ds-chrome-reticle-bracket > span:first-child { bottom: 0; left: 0; border-right: none; border-top: none; }
+.ds-chrome-reticle-bracket > span:last-child  { bottom: 0; right: 0; border-left: none; border-top: none; }
+.ds-chrome-reticle-bracket > span.center {
+  width: 4px;
+  height: 4px;
+  border: none;
+  border-radius: 50%;
+  background: var(--moma-accent);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px rgba(155, 229, 127, 0.6);
+}
+.ds-chrome-reticle-label {
+  font: 400 9px/1 'JetBrains Mono', monospace;
+  color: var(--moma-accent);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Aspect-frame demo — soft cut-out illusion via two overlays. */
+.ds-chrome-stage--frame { padding: 0; }
+.ds-chrome-frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ds-chrome-frame-blur {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+  -webkit-mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+  mask-position: 0 0, 50% 50%;
+  -webkit-mask-position: 0 0, 50% 50%;
+  mask-size: 100% 100%, 65% 80%;
+  -webkit-mask-size: 100% 100%, 65% 80%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+}
+.ds-chrome-frame-border {
+  width: 65%;
+  height: 80%;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  position: relative;
+}
+
+/* ── Motion table ────────────────────────────────────────────── */
+.ds-motion-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(250, 250, 250, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.ds-motion-row {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  padding: 16px 20px;
+  background: rgba(8, 10, 12, 0.5);
+  border-bottom: 1px solid rgba(250, 250, 250, 0.04);
+}
+.ds-motion-row:last-child { border-bottom: 0; }
+@media (max-width: 720px) {
+  .ds-motion-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.ds-motion-name {
+  font: 500 11px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.ds-motion-spec {
+  font: 400 10px/1.4 'JetBrains Mono', monospace;
+  color: var(--moma-accent);
+  letter-spacing: 0.02em;
+}
+.ds-motion-demo {
+  font: 400 12px/1.55 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.65);
+  letter-spacing: 0.01em;
+  align-self: center;
+}
+.ds-motion-note {
+  margin: 16px 0 0;
+  font: 400 11px/1.55 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.45);
+  letter-spacing: 0.02em;
+}
+.ds-motion-note code {
+  font: 400 10px/1.4 'JetBrains Mono', monospace;
+  color: var(--moma-accent);
+  background: rgba(155, 229, 127, 0.06);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* ── Foot ────────────────────────────────────────────────────── */
+.ds-foot {
+  margin-top: 96px;
+  padding-top: 32px;
+  padding-bottom: 0;
+  border-top: 1px solid rgba(250, 250, 250, 0.06);
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.ds-foot-tag {
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--moma-accent);
+}
+.ds-foot-meta {
+  font: 400 10px/1.4 'JetBrains Mono', monospace;
+  color: rgba(250, 250, 250, 0.45);
+  letter-spacing: 0.02em;
+}
+
+/* When the design-system page is mounted we add `mock-mounted` to
+ * <body> so the .mock-* live demos render. But that also activates
+ * a few body-scoped rules (hidden chrome chips, canvas full-bleed)
+ * that don't make sense outside the editor. ds-page-mounted scopes
+ * a counter-revert so the doc page reads correctly. */
+body.ds-page-mounted #main { display: none; }

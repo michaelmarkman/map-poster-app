@@ -23,6 +23,10 @@ const MockEditorPage = lazy(() => import('./pages/mock/MockEditorPage'))
 const GalleryPage = lazy(() => import('./pages/GalleryPage'))
 const CommunityPage = lazy(() => import('./pages/CommunityPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+// Design-system reference page — visual doc for the editor's vocabulary.
+// Loads mock.css + modals.css so the live demos render against the
+// source of truth.
+const DesignSystemPage = lazy(() => import('./pages/DesignSystemPage'))
 
 // /dof-lab is the internal DoF-tuning sandbox — its own copies of every
 // cluster + an aperture-coc dof variant. Not customer-facing. Wrap the
@@ -133,6 +137,18 @@ export default function App() {
             )}
             <Route path="/app-classic" element={<Navigate to="/app" replace />} />
             <Route path="/mock" element={<Navigate to="/app" replace />} />
+
+            {/* Design-system reference (no navbar, no auth). Visual doc
+             * for everything that ships in /app — tokens, primitives,
+             * menus, chrome. Internal but reachable in prod. */}
+            <Route
+              path="/design-system"
+              element={
+                <Suspense fallback={<PageLoading />}>
+                  <DesignSystemPage />
+                </Suspense>
+              }
+            />
 
             {/* Pages with navbar */}
             <Route element={<AppLayout />}>

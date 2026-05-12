@@ -48,6 +48,7 @@ const spaFallback = {
       // but we still need to fallback the bare path so React boots.
       '/', '/app', '/app-classic', '/mock', '/dof-lab', '/gallery', '/community', '/profile',
       '/login', '/signup', '/forgot-password', '/reset-password',
+      '/design-system',
     ])
     server.middlewares.use(async (req, res, next) => {
       const url = req.url || '/'
