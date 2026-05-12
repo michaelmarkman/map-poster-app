@@ -24,6 +24,14 @@ const FETCH_TIMEOUT_MS = 8000
 function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
+  // Honor an external signal too — when the caller's signal aborts
+  // (e.g. user typed another character), abort our internal controller
+  // so the underlying fetch winds down promptly.
+  const externalSignal = options.signal
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
   return fetch(url, { ...options, signal: controller.signal }).finally(() => {
     clearTimeout(timer)
   })
@@ -112,9 +120,46 @@ export function newSessionToken() {
 // active map view.
 //
 // Returns at most `limit` results (default 5). Empty array on any miss.
-export async function searchPlaces(query, { limit = 5, sessionToken, bias } = {}) {
+// Per-session in-memory cache so repeated identical queries don't hit
+// the network again. Nominatim is rate-limited (1 req/sec by their
+// terms), so caching is the cheapest reliability win — typing "new yo"
+// → "new yor" → "new yor" (typo backspace) returns cached on the
+// repeat. Capped to keep memory bounded; LRU eviction by insertion
+// order is sufficient at this scale.
+const SEARCH_CACHE_LIMIT = 64
+const searchCache = new Map() // cacheKey -> predictions[]
+function cacheKeyFor(query, limit, bias) {
+  const b = bias
+    ? `|${bias.lat?.toFixed(2)},${bias.lng?.toFixed(2)},${bias.radiusMeters || 0}`
+    : ''
+  return `${query.toLowerCase()}|${limit}${b}`
+}
+function cacheRead(key) {
+  if (!searchCache.has(key)) return null
+  // Touch — re-insert so it's "newest" for LRU eviction.
+  const v = searchCache.get(key)
+  searchCache.delete(key)
+  searchCache.set(key, v)
+  return v
+}
+function cacheWrite(key, value) {
+  if (searchCache.size >= SEARCH_CACHE_LIMIT) {
+    // Evict oldest insertion.
+    const oldest = searchCache.keys().next().value
+    if (oldest) searchCache.delete(oldest)
+  }
+  searchCache.set(key, value)
+}
+
+export async function searchPlaces(
+  query,
+  { limit = 5, sessionToken, bias, signal } = {},
+) {
   const trimmed = (query || '').trim()
   if (!trimmed) return []
+  const key = cacheKeyFor(trimmed, limit, bias)
+  const cached = cacheRead(key)
+  if (cached) return cached
   try {
     const body = { q: trimmed, limit }
     if (sessionToken) body.sessionToken = sessionToken
@@ -127,32 +172,69 @@ export async function searchPlaces(query, { limit = 5, sessionToken, bias } = {}
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal,
     })
     if (r.ok) {
       const data = await r.json()
       if (Array.isArray(data?.predictions) && data.predictions.length) {
-        return data.predictions.slice(0, limit).map((p) => ({
+        const mapped = data.predictions.slice(0, limit).map((p) => ({
           description: p.description || p.mainText || trimmed,
           placeId: p.placeId || null,
           mainText: p.mainText || null,
           secondaryText: p.secondaryText || null,
         }))
+        cacheWrite(key, mapped)
+        return mapped
       }
-      if (Array.isArray(data?.predictions)) return [] // valid empty
+      if (Array.isArray(data?.predictions)) {
+        cacheWrite(key, []) // valid empty — don't re-query
+        return []
+      }
     }
     // Non-2xx OR { fallback: true } -> drop through to Nominatim
-  } catch {
-    // network blip; fall through
+  } catch (e) {
+    // Aborted by caller (new keystroke) — propagate so caller knows
+    // to discard. Network blip / timeout — fall through to Nominatim.
+    if (e?.name === 'AbortError') throw e
   }
   try {
+    // dedupe=1 collapses near-duplicate hits (Manhattan as 3 separate
+    // OSM nodes was filling the dropdown with the same name). Bias the
+    // viewbox toward the current camera when provided so local hits
+    // bubble up first — Nominatim sorts by name+importance but a
+    // viewbox preference is honored as a soft signal.
+    const params = new URLSearchParams({
+      q: trimmed,
+      format: 'json',
+      limit: String(limit),
+      dedupe: '1',
+      'accept-language': 'en',
+    })
+    if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lng)) {
+      // ~25km box around the bias point — narrow enough to actually
+      // matter, wide enough to still surface neighborhood hits.
+      const radDeg = Math.max(0.1, (bias.radiusMeters || 25_000) / 111_000)
+      const left = bias.lng - radDeg
+      const right = bias.lng + radDeg
+      const top = bias.lat + radDeg
+      const bottom = bias.lat - radDeg
+      params.set('viewbox', `${left},${top},${right},${bottom}`)
+      params.set('bounded', '0') // soft bias, not a hard filter
+    }
     const r = await fetchWithTimeout(
-      `${NOMINATIM}/search?q=${encodeURIComponent(trimmed)}&format=json&limit=${limit}`,
-      { headers: { 'User-Agent': USER_AGENT } },
+      `${NOMINATIM}/search?${params}`,
+      { headers: { 'User-Agent': USER_AGENT }, signal },
     )
-    if (!r.ok) return []
+    if (!r.ok) {
+      cacheWrite(key, [])
+      return []
+    }
     const results = await r.json()
-    if (!Array.isArray(results)) return []
-    return results.slice(0, limit).map((row) => ({
+    if (!Array.isArray(results)) {
+      cacheWrite(key, [])
+      return []
+    }
+    const mapped = results.slice(0, limit).map((row) => ({
       description: row.display_name || trimmed,
       placeId: null,
       mainText: typeof row.display_name === 'string' ? row.display_name.split(',')[0].trim() : null,
@@ -163,7 +245,10 @@ export async function searchPlaces(query, { limit = 5, sessionToken, bias } = {}
       lat: +row.lat,
       lng: +row.lon,
     }))
-  } catch {
+    cacheWrite(key, mapped)
+    return mapped
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e
     return []
   }
 }

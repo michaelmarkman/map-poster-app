@@ -26,10 +26,13 @@ function shorten(name) {
   return name.split(',').slice(0, 2).join(',').trim()
 }
 
-// Debounce keystrokes -> autocomplete fetches. 200ms feels live without
-// firing a request on every character — a typical user types ~5 chars
-// per second.
-const TYPE_DEBOUNCE_MS = 200
+// Debounce keystrokes -> autocomplete fetches. Tuned to balance feel
+// (responsive) against Nominatim's 1 req/sec rate limit (the prod
+// fallback when no Google key is set). At 220ms a user typing 5
+// chars/sec only sends a request on natural pauses, not on every key —
+// and we cancel any in-flight request when a new key arrives so old
+// results can't overwrite newer ones.
+const TYPE_DEBOUNCE_MS = 220
 
 export default function ClusterTopLeft() {
   const setLatitude = useSetAtom(latitudeAtom)
@@ -47,6 +50,11 @@ export default function ClusterTopLeft() {
   const [searching, setSearching] = useState(false)
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
+  // In-flight abort controller — every new keystroke cancels the
+  // previous request so the latest query always wins the race for
+  // setPredictions. Without this, slow responses to short prefixes
+  // could overwrite fast responses to longer ones.
+  const abortRef = useRef(null)
   // Session token: minted on the first keystroke of a typing-stream so
   // every autocomplete + the matching resolve is billed as ONE Places
   // session. Cleared on commit (success / Escape / popover close).
@@ -73,31 +81,59 @@ export default function ClusterTopLeft() {
   }
 
   // Run autocomplete for the current query (debounced via the caller).
+  // Cancels any in-flight request — searchPlaces propagates AbortError
+  // for caller-initiated aborts so we can drop stale results.
   const runAutocomplete = async (q) => {
     const trimmed = q.trim()
+    if (abortRef.current) abortRef.current.abort()
     if (!trimmed) {
       setPredictions([])
       setSearching(false)
       return
     }
+    const controller = new AbortController()
+    abortRef.current = controller
     setSearching(true)
     try {
       const results = await searchPlaces(trimmed, {
         limit: 6,
         sessionToken: ensureSession(),
         bias: { lat: latitudeForBias, lng: longitude, radiusMeters: 25_000 },
+        signal: controller.signal,
       })
-      setPredictions(results)
-      setHighlight(0)
+      // Guard against a stale response landing after the user typed
+      // more — only apply when this controller is still the current one.
+      if (abortRef.current === controller) {
+        setPredictions(results)
+        setHighlight(0)
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') {
+        // Network failure with no fallback result — clear predictions
+        // so the user sees the empty state, not stale predictions.
+        if (abortRef.current === controller) setPredictions([])
+      }
     } finally {
-      setSearching(false)
+      if (abortRef.current === controller) {
+        abortRef.current = null
+        setSearching(false)
+      }
     }
   }
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => runAutocomplete(query), TYPE_DEBOUNCE_MS)
-    return () => clearTimeout(debounceRef.current)
+    return () => {
+      clearTimeout(debounceRef.current)
+      // Cancel any in-flight request when the component unmounts or
+      // the query effect re-fires; prevents a setState-after-unmount
+      // from a slow Nominatim response.
+      if (abortRef.current) {
+        abortRef.current.abort()
+        abortRef.current = null
+      }
+    }
     // runAutocomplete deliberately not in deps — it captures fresh state
     // each render anyway, and including it would refire on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
