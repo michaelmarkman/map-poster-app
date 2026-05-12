@@ -125,18 +125,28 @@
   }
   .gallery-actions { display: flex; gap: 6px; align-items: center; }
 
+  /* Phase 13/14 polish — .gallery-btn (used by lightbox + gallery
+   * header action cluster). Migrated to MoMA cadence: 2px corners,
+   * mono 9px uppercase with --moma-label-track for the editorial
+   * "small label" look. */
   .gallery-btn {
     padding: 7px 12px;
-    border-radius: 6px;
-    border: 0.5px solid var(--ink-whisper);
-    background: transparent;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(8, 10, 12, 0.55);
     color: var(--ink-soft);
-    font-size: 10px;
-    font-family: inherit;
+    font: 400 9px/1 var(--mono);
+    letter-spacing: 1.62px;
+    text-transform: uppercase;
+    font-family: var(--mono);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
   }
-  .gallery-btn:hover { border-color: var(--panel-border-strong); color: var(--ink); }
+  .gallery-btn:hover {
+    border-color: rgba(155, 229, 127, 0.45);
+    color: var(--ink);
+    background: rgba(12, 14, 18, 0.78);
+  }
   .gallery-btn:disabled, .gallery-btn[disabled] {
     opacity: 0.35;
     cursor: not-allowed;
