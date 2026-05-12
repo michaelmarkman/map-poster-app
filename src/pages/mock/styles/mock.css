@@ -2727,7 +2727,7 @@ body.mock-mounted .mock-cluster--bottom-right {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 5px 6px;
+  padding: 5px 8px;
   background: transparent;
   border: 0;
   border-radius: 2px;
@@ -2755,7 +2755,11 @@ body.mock-mounted .mock-cluster--bottom-right {
   height: 24px;
   border-radius: 2px;
   overflow: hidden;
-  background: var(--ink-whisper);
+  /* Prototype default — subtle steel gradient under any image, shows
+   * through when thumbnail is missing. Same recipe as .menu-view-thumb. */
+  background: linear-gradient(135deg, #2a2c30, #404550);
+  background-size: cover;
+  background-position: center;
   border: 1px solid rgba(255, 255, 255, 0.06);
   display: block;
 }
@@ -2794,10 +2798,9 @@ body.mock-mounted .mock-cluster--bottom-right {
   font-variant-numeric: tabular-nums;
 }
 
-/* Pin (star) — hover-only when unset; always-visible chartreuse when
- * the row is the default. Delete (×) — hover-only red-on-hover. */
-.svp-pin,
-.svp-del {
+/* Pin (star) — hover-only at 55% when unset; always-visible chartreuse
+ * when the row is the default. Delete (×) — hover-only at full opacity. */
+.svp-pin {
   width: 16px;
   height: 16px;
   display: inline-flex;
@@ -2810,17 +2813,31 @@ body.mock-mounted .mock-cluster--bottom-right {
   border-radius: 2px;
   flex-shrink: 0;
   opacity: 0;
+  color: var(--ink-dim);
   transition: opacity 0.12s ease, color 0.12s ease;
+}
+.svp-del {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  color: var(--ink-dim);
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 .svp-pin svg { width: 11px; height: 11px; }
 .svp-del svg { width: 11px; height: 11px; stroke-width: 1.6; }
-.svp-pin { color: var(--ink-dim); }
-.svp-del { color: var(--ink-dim); }
-.svp-row:hover .svp-pin,
-.svp-row:hover .svp-del { opacity: 0.55; }
+.svp-row:hover .svp-pin { opacity: 0.55; }
+.svp-row:hover .svp-del { opacity: 1; }
 .svp-pin:hover { opacity: 1; color: var(--accent); }
 .svp-del:hover {
-  opacity: 1;
   color: var(--red, #d99a8a);
   background: rgba(217, 154, 138, 0.12);
 }
@@ -2828,6 +2845,7 @@ body.mock-mounted .mock-cluster--bottom-right {
   opacity: 1;
   color: var(--accent);
 }
+.svp-pin.is-default svg { fill: currentColor; }
 
 /* Tour — single-column simple rows, no thumbnail. Name + city sub
  * inline; sub is proper-cased per the prototype. */
