@@ -2369,38 +2369,42 @@ body.mock-mounted .mock-cluster--bottom-right {
 }
 .mock-menu-gallery-tile:hover img { transform: scale(1.05); }
 .mock-menu-gallery-tile-meta {
+  /* Prototype `.menu-gallery-tile-info` — always-visible bottom
+   * gradient that bleeds into a soft black at the bottom so the
+   * label + timestamp stay readable over any thumb. Was hover-only,
+   * which made previews look bare on first glance. */
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 6px 7px 5px;
-  background: linear-gradient(
-    to top,
-    rgba(8, 10, 12, 0.85),
-    rgba(8, 10, 12, 0) 100%
-  );
+  padding: 14px 7px 6px;
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 50%,
+    rgba(0, 0, 0, 0.85) 100%);
   display: flex;
   flex-direction: column;
   gap: 1px;
-  opacity: 0;
-  transition: opacity 0.14s ease;
   pointer-events: none;
 }
-.mock-menu-gallery-tile:hover .mock-menu-gallery-tile-meta { opacity: 1; }
 .mock-menu-gallery-tile-label {
-  font: 400 9px/1.1 var(--mono);
-  letter-spacing: var(--moma-label-track);
-  text-transform: uppercase;
-  color: var(--ink);
+  /* Prototype `.menu-gallery-tile-label` — 500 10px mono, mixed-case,
+   * white (the gradient handles legibility). Was 9px uppercase. */
+  font: 500 10px/1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 .mock-menu-gallery-tile-time {
   font: 400 8px/1 var(--mono);
-  letter-spacing: var(--moma-value-track);
-  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
   font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 
 /* ═══════ Aspect popover (Phase 2.2 redesign — legacy grid recipe) ═══════
