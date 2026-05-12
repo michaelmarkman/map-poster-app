@@ -1638,10 +1638,11 @@ body.mock-mounted .mock-cluster--bottom-right {
   min-width: 440px;
   max-width: 440px;
   white-space: normal;
-  /* Bound to viewport with headroom for the BR pill + 24px cluster
-   * offset. Overflow is OWNED by the inner styles grid (see below)
-   * so the header + footer stay anchored while only the cards
-   * scroll. */
+  /* Lock height so picker and queue phases occupy the same footprint
+   * (prototype's recipe — both phases sized to 730px exactly so the
+   * menu doesn't pop between them). Cap with viewport headroom so
+   * shorter screens still fit. */
+  min-height: 730px;
   max-height: calc(100vh - 100px);
   display: flex;
   flex-direction: column;
@@ -1685,9 +1686,10 @@ body.mock-mounted .mock-cluster--bottom-right {
 
 /* Section labels inside the capture menu get more breathing room
  * than the standard `.mock-menu-section-label` (the picker has
- * higher content density). */
+ * higher content density). Prototype: 14px 11px 8px (matches the
+ * style-card grid's inset). */
 .mock-menu-capture .mock-menu-section-label {
-  padding: 14px 0 8px;
+  padding: 14px 11px 8px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
