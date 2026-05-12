@@ -2128,19 +2128,92 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   margin-top: var(--s-2);
 }
 
-/* ═══════ Saved views panel (Phase 2.3 + Phase 8 compact rows) ═══════ */
-.svp-panel { width: 320px; max-width: 90vw; }
-.svp { display: flex; flex-direction: column; gap: var(--s-2); }
+/* ═══════ Saved views panel (Phase 21 — prototype port) ═══════
+ * Single-column rows matching the prototype's `.menu-views`:
+ *
+ *   Saved Views · N
+ *   ＋ Save current view
+ *   ────────────────────
+ *   [filter] (when N > 6)
+ *   • thumb 36×24 | name … lens · ★ · ×    ← scrollable
+ *   …
+ *   ────────────────────
+ *   Tour
+ *   • name … city sub
+ *   …
+ */
+.svp-panel { width: 300px; max-width: 90vw; }
+.svp {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px;
+}
 
-/* Phase 8 — filter input. Surfaces only when count > FILTER_THRESHOLD
- * (6) in SavedViewsPanel.jsx. Mirrors the prototype's `.menu-views-
- * filter` rule: dark glass field with magnifier icon left, optional
- * clear-X right. The filter sits ABOVE the scrolling list so the
- * Tour + Save action stay anchored. */
+/* Section labels — small uppercase, used for both "Saved Views" + count
+ * and "Tour" headings inside the panel. */
+.svp-section-label {
+  font: 400 var(--moma-label-size) / 1 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 8px 10px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.svp-count {
+  font: 400 var(--moma-label-size) / 1 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Save action — chartreuse text + plus-icon box, sits above the list. */
+.svp-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--accent);
+  font: 500 11px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: var(--moma-label-track);
+  font-family: var(--mono);
+}
+.svp-action:hover { background: rgba(155, 229, 127, 0.10); }
+.svp-action-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.svp-action-icon svg { width: 9px; height: 9px; display: block; }
+
+.svp-divider {
+  height: 1px;
+  background: rgba(250, 250, 250, 0.06);
+  margin: 4px 4px;
+}
+
+/* Filter input — surfaces only when count > FILTER_THRESHOLD (6).
+ * Mirrors the prototype's `.menu-views-filter`: dark glass field
+ * with magnifier left, optional clear-× right. */
 .svp-filter {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin: 4px 4px 6px;
   padding: 5px 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -2181,67 +2254,60 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   color: var(--ink);
   background: rgba(255, 255, 255, 0.06);
 }
-.svp-empty--filtered { padding: var(--s-5) var(--s-4); }
+
 .svp-empty {
   text-align: center;
-  padding: var(--s-7) var(--s-4);
+  padding: 16px 8px;
   color: var(--ink-soft);
 }
+.svp-empty--filtered { padding: 18px 8px; }
 .svp-empty-text {
-  font: 500 var(--t-sm)/1.2 var(--body);
-  margin-bottom: var(--s-3);
+  font: 400 11px/1.4 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  margin-bottom: 4px;
 }
 .svp-empty-hint {
-  font: 400 var(--t-xs)/1.4 var(--body);
+  font: 400 10px/1.4 var(--mono);
   color: var(--ink-dim);
 }
-/* Phase 17 — saved views adopt the same 2-col card grid as the Tour
- * section below them, so the two read as one structured surface
- * (instead of "tight stripe list" + "card grid"). Cards carry the
- * MoMA cadence Phase 8 introduced (mono, 2px corners, chartreuse
- * hover, hover-revealed actions). Each card is:
- *
- *   ┌─────────────┐
- *   │ [thumb 3:2] │
- *   │ NAME        │   ← mono 11
- *   │ sub line    │   ← mono 9 dim
- *   └─────────────┘
- *
- * Actions (rename / pin / delete / reorder) overlay the top-right of
- * the card on hover. Pin stays visible at all times when set
- * (matches the `is-default` rule below).
- */
+
+/* Saved-views list — single column of compact 28px-tall rows
+ * mirroring the prototype's `.menu-view-item` recipe. */
 .svp-list {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-2);
-  max-height: 280px;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 240px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.svp-list::-webkit-scrollbar { width: 6px; }
+.svp-list::-webkit-scrollbar-track { background: transparent; }
+.svp-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
 }
 .svp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-surface);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--r-sm);
-  padding: 0;
-  overflow: hidden;
-  transition: background var(--d-fast) var(--ease-out),
-              border-color var(--d-fast) var(--ease-out);
+  transition: background 0.12s ease;
 }
-.svp-row:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-soft);
-}
+.svp-row:hover { background: rgba(155, 229, 127, 0.08); }
 .svp-row-main {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   background: transparent;
   border: 0;
   padding: 0;
@@ -2249,17 +2315,17 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   cursor: pointer;
   font-family: inherit;
   color: inherit;
-  width: 100%;
   min-width: 0;
 }
 .svp-thumb {
   flex: 0 0 auto;
-  display: block;
-  width: 100%;
-  aspect-ratio: 3 / 2;
+  width: 36px;
+  height: 24px;
+  border-radius: 2px;
+  overflow: hidden;
   background: var(--ink-whisper);
-  border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: block;
 }
 .svp-thumb img {
   width: 100%;
@@ -2277,153 +2343,108 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
       rgba(155, 229, 127, 0.04) 50%,
       rgba(155, 229, 127, 0.12) 100%);
 }
-/* Card body — name + sub line stacked below the thumb. Padding here
- * (not on the row) so the thumb runs full-bleed top-of-card. */
-.svp-row-main .svp-name,
-.svp-row-main .svp-rename {
-  display: block;
-  width: 100%;
-  padding: 6px 8px 7px;
-}
 .svp-name {
-  font: 400 11px/1.1 var(--mono);
+  flex: 1;
+  font: 500 12px/1 var(--mono);
   letter-spacing: var(--moma-value-track);
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  text-transform: uppercase;
 }
-.svp-rename {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-deep);
-  border: 1px solid var(--accent-dim);
-  border-radius: var(--r-sm);
-  color: var(--ink);
-  font: 500 var(--t-sm)/1 var(--body);
-  padding: var(--s-2) var(--s-3);
-}
-.svp-rename:focus { outline: none; border-color: var(--accent); }
-/* Phase 17 — actions overlay the top-right of the card on hover.
- * Backdrop blur so they read against light/dark thumbnails alike.
- * The default-pin row keeps its actions visible at all times (so
- * the star is always discoverable). */
-.svp-actions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  padding: 2px;
-  background: rgba(8, 10, 12, 0.7);
-  -webkit-backdrop-filter: blur(6px);
-          backdrop-filter: blur(6px);
-  border-radius: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-  z-index: 1;
-}
-.svp-row:hover .svp-actions,
-.svp-row:focus-within .svp-actions { opacity: 1; }
-.svp-actions:has(.is-active) { opacity: 1; }
-.svp-action {
-  background: transparent;
-  border: 0;
-  color: var(--ink-soft);
-  font: 500 11px/1 var(--mono);
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: background var(--d-fast) var(--ease-out),
-              color var(--d-fast) var(--ease-out);
-}
-.svp-action:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--ink);
-}
-.svp-action.is-active {
-  color: var(--accent);
-}
-.svp-action--danger:hover:not(:disabled) {
-  color: var(--red);
-  background: rgba(196, 90, 90, 0.12);
-}
-.svp-action:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.svp-save {
-  margin-top: var(--s-2);
-}
-
-/* Tour list — preset 'cool views' that ship with the app. (Phase 4.1)
- *
- * Phase 17 — kept the 2-col card grid (production's existing layout)
- * and harmonized recipe with the saved-views grid above: same card
- * chassis (bg-surface + panel-border + 2px corners), same hover
- * (chartreuse-tinted border), same MoMA mono name + dim sub. The
- * section header adopts the shared `--moma-label-track` so both
- * "Saved Views" and "Tour" feel like sections of one menu. */
-.svp-tour {
-  border-top: 1px solid var(--rule);
-  padding-top: var(--s-4);
-  margin-top: var(--s-2);
-}
-.svp-tour-label {
-  font: 400 var(--moma-label-size) / 1 var(--mono);
+.svp-lens {
+  flex-shrink: 0;
+  font: 400 9px/1 var(--mono);
   letter-spacing: var(--moma-label-track);
   text-transform: uppercase;
   color: var(--ink-soft);
-  margin-bottom: var(--s-3);
+  font-variant-numeric: tabular-nums;
 }
+
+/* Pin (star) — hover-only when unset; always-visible chartreuse when
+ * the row is the default. Delete (×) — hover-only red-on-hover. */
+.svp-pin,
+.svp-del {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.svp-pin svg { width: 11px; height: 11px; }
+.svp-del svg { width: 11px; height: 11px; stroke-width: 1.6; }
+.svp-pin { color: var(--ink-dim); }
+.svp-del { color: var(--ink-dim); }
+.svp-row:hover .svp-pin,
+.svp-row:hover .svp-del { opacity: 0.55; }
+.svp-pin:hover { opacity: 1; color: var(--accent); }
+.svp-del:hover {
+  opacity: 1;
+  color: var(--red, #d99a8a);
+  background: rgba(217, 154, 138, 0.12);
+}
+.svp-pin.is-default {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Tour — single-column simple rows, no thumbnail. Name + city sub
+ * inline; sub is proper-cased per the prototype. */
 .svp-tour-list {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-2);
-  max-height: 220px;
-  overflow-y: auto;
-}
-.svp-tour-row {
-  width: 100%;
+  padding: 0 4px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  background: var(--bg-surface);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--r-sm);
+  gap: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.svp-tour-list::-webkit-scrollbar { width: 6px; }
+.svp-tour-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+.svp-tour-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
   padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: background var(--d-fast) var(--ease-out),
-              border-color var(--d-fast) var(--ease-out);
+  color: var(--ink);
+  transition: background 0.12s ease;
 }
-.svp-tour-row:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-soft);
-}
+.svp-tour-row:hover { background: rgba(155, 229, 127, 0.10); }
 .svp-tour-name {
-  font: 400 11px/1.1 var(--mono);
+  flex: 1;
+  font: 400 12px/1.2 var(--mono);
   letter-spacing: var(--moma-value-track);
   color: var(--ink);
-  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .svp-tour-sub {
-  font: 400 9px/1.1 var(--mono);
-  letter-spacing: var(--moma-label-track);
-  color: var(--ink-dim);
-  text-transform: uppercase;
+  flex-shrink: 0;
+  font: 400 10px/1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  color: var(--ink-soft);
 }
 
 /* ═══════ Slider rows used in hover popovers ═══════ */

@@ -9,37 +9,46 @@ import presetData from '../../../data/presetViews.json'
 
 const PRESETS = presetData.presets || []
 
-// Phase 2.3 — saved views revamp.
+// Phase 21 — restructured to match the prototype's `.menu-views`
+// recipe byte-for-byte:
 //
-// Image-led list with thumbnail, inline rename, up/down reorder, delete,
-// "set as default" toggle.
+//   ┌ section label: SAVED VIEWS · N ┐
+//   ├ + Save current view (.menu-action) ┤
+//   ├ divider ────────────────────── ┤
+//   ├ filter input (when N > 6) ──── ┤
+//   ├ scrollable list, single-col   ┤
+//   │   • thumb 36×24 · name · lens · pin · ×  ┤
+//   │   …                            ┤
+//   ├ divider ────────────────────── ┤
+//   ├ section label: TOUR ────────── ┤
+//   ├ tour rows (single-col, name · city sub) ┤
+//   └────────────────────────────────┘
 //
-// Drag-to-reorder is deferred — adding @dnd-kit just for this is heavy.
-// Up/down arrow buttons cover the use case until we have other drag-y UI.
+// Was: 2-col card grid for both saved views + tour, Save button at
+// bottom. The prototype's single-col compact rows are more legible
+// at the menu width and align with the prototype's MoMA menu
+// vocabulary (`.menu-view-item` recipe).
 
 function fire(name, detail) {
   window.dispatchEvent(detail !== undefined ? new CustomEvent(name, { detail }) : new Event(name))
 }
 
-function ViewRow({ view, index, total, isDefault, onClose }) {
-  const [editing, setEditing] = useState(false)
-  const [draftName, setDraftName] = useState(view.name || '')
-
-  const commitRename = () => {
-    const next = draftName.trim()
-    if (next && next !== view.name) {
-      fire('rename-view', { id: view.id, name: next })
-    }
-    setEditing(false)
-  }
-
+function ViewRow({ view, isDefault, onClose }) {
+  // Phase 21 — compact single-line row matching the prototype's
+  // `.menu-view-item`. Two hover affordances only (pin + delete);
+  // rename + reorder are dropped from this menu surface for parity
+  // with the prototype (the renderable view-name + inline edit
+  // input — production-only product affordances — can return as a
+  // contextual menu or detail view later).
+  const lens = view.camera?.fov
+    ? `${Math.round(2 * Math.atan(12 / (view.camera.fov / 2 * Math.PI / 180)))}mm`
+    : view.lens || ''
   return (
     <li className="svp-row">
       <button
         type="button"
         className="svp-row-main"
         onClick={() => {
-          if (editing) return
           fire('load-view', view.id)
           onClose?.()
         }}
@@ -52,110 +61,49 @@ function ViewRow({ view, index, total, isDefault, onClose }) {
             <span className="svp-thumb-placeholder" aria-hidden />
           )}
         </span>
-        {editing ? (
-          <input
-            className="svp-rename"
-            value={draftName}
-            autoFocus
-            // useSavedViews truncates renames at 60 chars on commit;
-            // mirror the cap on the input so the user can't even type
-            // past it (less surprising than getting silently truncated).
-            maxLength={60}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={commitRename}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                commitRename()
-              } else if (e.key === 'Escape') {
-                e.preventDefault()
-                setDraftName(view.name || '')
-                setEditing(false)
-              }
-            }}
-          />
-        ) : (
-          <span className="svp-name">{view.name || 'Untitled view'}</span>
-        )}
+        <span className="svp-name">{view.name || 'Untitled view'}</span>
+        {lens && <span className="svp-lens">{lens}</span>}
       </button>
 
-      <div className="svp-actions">
-        <button
-          type="button"
-          className={`svp-action${isDefault ? ' is-active' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            fire('set-default-view', { id: isDefault ? null : view.id })
-          }}
-          aria-label={isDefault ? 'Unset default' : 'Set as default'}
-          title={isDefault ? 'Default view' : 'Set as default'}
-        >
-          {isDefault ? '★' : '☆'}
-        </button>
-        <button
-          type="button"
-          className="svp-action"
-          onClick={(e) => {
-            e.stopPropagation()
-            setDraftName(view.name || '')
-            setEditing(true)
-          }}
-          aria-label="Rename"
-          title="Rename"
-        >
-          ✎
-        </button>
-        <button
-          type="button"
-          className="svp-action"
-          disabled={index === 0}
-          onClick={(e) => {
-            e.stopPropagation()
-            fire('reorder-view', { id: view.id, direction: 'up' })
-          }}
-          aria-label="Move up"
-          title="Move up"
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          className="svp-action"
-          disabled={index === total - 1}
-          onClick={(e) => {
-            e.stopPropagation()
-            fire('reorder-view', { id: view.id, direction: 'down' })
-          }}
-          aria-label="Move down"
-          title="Move down"
-        >
-          ↓
-        </button>
-        <button
-          type="button"
-          className="svp-action svp-action--danger"
-          onClick={(e) => {
-            e.stopPropagation()
-            // Saved views can't be undone — confirm first. Mirrors the
-            // gallery-card delete flow so the two delete UIs feel
-            // consistent.
-            if (!window.confirm(`Delete "${view.name || 'this view'}"?`)) return
-            fire('delete-view', view.id)
-          }}
-          aria-label="Delete"
-          title="Delete"
-        >
-          ×
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`svp-pin${isDefault ? ' is-default' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          fire('set-default-view', { id: isDefault ? null : view.id })
+        }}
+        aria-label={isDefault ? 'Unset default' : 'Set as default'}
+        title={isDefault ? 'Default view — opens on cold load' : 'Set as default'}
+      >
+        <svg viewBox="0 0 11 11" aria-hidden="true">
+          <path
+            d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"
+            fill={isDefault ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1.2"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="svp-del"
+        onClick={(e) => {
+          e.stopPropagation()
+          // Saved views can't be undone — confirm first.
+          if (!window.confirm(`Delete "${view.name || 'this view'}"?`)) return
+          fire('delete-view', view.id)
+        }}
+        aria-label="Delete"
+        title="Delete"
+      >
+        <svg viewBox="0 0 11 11" aria-hidden="true">
+          <path d="M3 3l5 5M8 3l-5 5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </button>
     </li>
   )
 }
 
-// Filter threshold — show the filter input only when saved-views count
-// exceeds this. Below the threshold the list is short enough to scan.
-// Mirrors the prototype's `.menu-views.has-filter` toggle.
 const FILTER_THRESHOLD = 6
 
 export default function SavedViewsPanel({ onClose }) {
@@ -163,12 +111,6 @@ export default function SavedViewsPanel({ onClose }) {
   const [defaultId, setDefaultId] = useAtom(defaultSavedViewIdAtom)
   const [filter, setFilter] = useState('')
 
-  // Listen for set-default-view. The original implementation attached
-  // a listener during render guarded by a window-global flag — that's
-  // a React side-effect-in-render rule violation AND it leaked the
-  // listener forever after the first mount. useEffect with a cleanup
-  // is the right shape: tied to the panel's lifecycle, removed when
-  // the popover closes, re-attached cleanly on next mount.
   useEffect(() => {
     const onSetDefault = (e) => {
       const id = e?.detail?.id
@@ -178,8 +120,6 @@ export default function SavedViewsPanel({ onClose }) {
     return () => window.removeEventListener('set-default-view', onSetDefault)
   }, [setDefaultId])
 
-  // Filter views by name substring (case-insensitive). When the panel
-  // is below the threshold or the input is empty, return all views.
   const needle = filter.trim().toLowerCase()
   const visibleViews = needle
     ? savedViews.filter((v) => (v.name || '').toLowerCase().includes(needle))
@@ -200,6 +140,29 @@ export default function SavedViewsPanel({ onClose }) {
 
   return (
     <div className="svp">
+      <div className="svp-section-label">
+        <span>Saved Views</span>
+        {savedViews.length > 0 && (
+          <span className="svp-count">{savedViews.length}</span>
+        )}
+      </div>
+
+      <button
+        type="button"
+        className="svp-action"
+        onClick={() => {
+          fire('save-view')
+          onClose?.()
+        }}
+      >
+        <span className="svp-action-icon">
+          <svg viewBox="0 0 9 9" aria-hidden="true">
+            <path d="M4.5 1v7M1 4.5h7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </span>
+        <span>Save current view</span>
+      </button>
+
       {showFilter && (
         <div className="svp-filter">
           <svg
@@ -240,16 +203,12 @@ export default function SavedViewsPanel({ onClose }) {
           )}
         </div>
       )}
-      {/* Phase 17 — section header to mirror Tour's `.svp-tour-label`
-       *  so both grids feel like sections of one structured menu. */}
-      {savedViews.length > 0 && (
-        <div className="svp-tour-label">Saved Views</div>
-      )}
+
       {savedViews.length === 0 ? (
         <div className="svp-empty">
           <div className="svp-empty-text">No saved views yet.</div>
           <div className="svp-empty-hint">
-            Frame a shot, then hit Save current view below — or pick a tour.
+            Frame a shot, hit Save current view above — or pick a tour below.
           </div>
         </div>
       ) : visibleViews.length === 0 ? (
@@ -258,52 +217,34 @@ export default function SavedViewsPanel({ onClose }) {
         </div>
       ) : (
         <ul className="svp-list">
-          {visibleViews.map((view) => {
-            // index/total derived from the FULL saved-views list so
-            // reorder up/down arrows stay correct under filter.
-            const idx = savedViews.findIndex((v) => v.id === view.id)
-            return (
-              <ViewRow
-                key={view.id}
-                view={view}
-                index={idx}
-                total={savedViews.length}
-                isDefault={view.id === defaultId}
-                onClose={onClose}
-              />
-            )
-          })}
+          {visibleViews.map((view) => (
+            <ViewRow
+              key={view.id}
+              view={view}
+              isDefault={view.id === defaultId}
+              onClose={onClose}
+            />
+          ))}
         </ul>
       )}
 
-      <div className="svp-tour">
-        <div className="svp-tour-label">Tour</div>
-        <ul className="svp-tour-list">
-          {PRESETS.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                className="svp-tour-row"
-                onClick={() => flyToPreset(p)}
-              >
-                <span className="svp-tour-name">{p.name}</span>
-                <span className="svp-tour-sub">{p.subtitle}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <div className="svp-divider" />
 
-      <button
-        type="button"
-        className="mock-btn-primary svp-save"
-        onClick={() => {
-          fire('save-view')
-          onClose?.()
-        }}
-      >
-        Save current view
-      </button>
+      <div className="svp-section-label">Tour</div>
+      <ul className="svp-tour-list">
+        {PRESETS.map((p) => (
+          <li key={p.id}>
+            <button
+              type="button"
+              className="svp-tour-row"
+              onClick={() => flyToPreset(p)}
+            >
+              <span className="svp-tour-name">{p.name}</span>
+              <span className="svp-tour-sub">{p.subtitle}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

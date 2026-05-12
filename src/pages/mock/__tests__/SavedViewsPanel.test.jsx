@@ -65,20 +65,15 @@ describe('SavedViewsPanel', () => {
     expect(events).toEqual([{ id: null }])
   })
 
-  it('clicking up / down dispatches reorder-view in the right direction', () => {
-    const events = []
-    const handler = (e) => events.push(e.detail)
-    window.addEventListener('reorder-view', handler)
+  it('does not render reorder ↑↓ buttons on this surface (Phase 21 prototype match)', () => {
+    // The prototype's `.menu-view-item` recipe has only pin + delete
+    // affordances. Reorder still works via the `reorder-view` window
+    // event for callers that need it (e.g. a future drag-handle UI
+    // or keyboard shortcut), but isn't surfaced as a button inside
+    // this menu.
     renderWith()
-    // First row's "down" button. Up is disabled at index 0 so we
-    // reach for the second row's "up".
-    fireEvent.click(screen.getAllByLabelText('Move down')[0])
-    fireEvent.click(screen.getAllByLabelText('Move up')[1])
-    window.removeEventListener('reorder-view', handler)
-    expect(events).toEqual([
-      { id: 'a', direction: 'down' },
-      { id: 'b', direction: 'up' },
-    ])
+    expect(screen.queryAllByLabelText('Move up')).toHaveLength(0)
+    expect(screen.queryAllByLabelText('Move down')).toHaveLength(0)
   })
 
   it('clicking × dispatches delete-view with the id (after confirm)', () => {
@@ -128,18 +123,12 @@ describe('SavedViewsPanel', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('rename ✎ → input → Enter dispatches rename-view', () => {
-    const events = []
-    const handler = (e) => events.push(e.detail)
-    window.addEventListener('rename-view', handler)
+  it('does not render an inline rename ✎ on this surface (Phase 21 prototype match)', () => {
+    // The prototype's `.menu-view-item` recipe doesn't expose rename
+    // inline. The `rename-view` window event still works for callers
+    // that bring up their own rename UI later (e.g. a context menu).
     renderWith()
-
-    fireEvent.click(screen.getAllByLabelText('Rename')[0])
-    const input = screen.getByDisplayValue('View A')
-    fireEvent.change(input, { target: { value: 'Renamed' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    window.removeEventListener('rename-view', handler)
-    expect(events).toEqual([{ id: 'a', name: 'Renamed' }])
+    expect(screen.queryAllByLabelText('Rename')).toHaveLength(0)
   })
 
   it('the set-default-view listener cleans up on unmount', () => {
