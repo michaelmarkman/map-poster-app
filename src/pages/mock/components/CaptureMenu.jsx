@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   aiPromptAtom,
@@ -118,16 +118,25 @@ export default function CaptureMenu({ onClose }) {
   const queue = useAtomValue(queueAtom)
 
   // Phase swap — 'picker' (style + resolution) or 'queue' (in-progress
-  // + recent renders). Auto-flip to queue on render-dispatch so the user
-  // sees their jobs progress; the user can manually flip back via the
-  // header link.
+  // + recent renders). dispatchRender flips to queue; the user flips
+  // back manually via the queue's "Capture more" footer button.
+  //
+  // No auto-flip-back-to-picker effect on queue.length === 0 here —
+  // useQueue's add-to-queue handler is async (it awaits a canvas
+  // snapshot before calling addJob), so right after dispatchRender
+  // the queue is briefly empty. An auto-flip would race the snapshot
+  // and bounce us back to picker before the user ever sees the queue
+  // populate.
   const [phase, setPhase] = useState('picker')
-  // If queue empties (everything done/cleared) and we're on the queue
-  // phase, flip back to picker so the menu doesn't sit on an empty list.
-  // Otherwise stay where the user put us.
+  // True between dispatchRender() and the first time queueAtom reflects
+  // the new job. Lets the queue view show a "Starting render…" placeholder
+  // instead of the "queue empty" state during the snapshot window. */
+  const pendingDispatchRef = useRef(false)
   useEffect(() => {
-    if (phase === 'queue' && queue.length === 0) setPhase('picker')
-  }, [phase, queue.length])
+    if (queue.length > 0 && pendingDispatchRef.current) {
+      pendingDispatchRef.current = false
+    }
+  }, [queue.length])
 
   const togglePreset = (key) => {
     setSelected((cur) => {
@@ -176,6 +185,7 @@ export default function CaptureMenu({ onClose }) {
     // them back to the canvas and forced them to re-open the menu to
     // see status. The picker phase swap is one click away via the
     // queue-link in the header.
+    pendingDispatchRef.current = true
     setPhase('queue')
   }
 
@@ -206,6 +216,7 @@ export default function CaptureMenu({ onClose }) {
           pendingJobs={pendingJobs}
           doneJobs={doneJobs}
           errorJobs={errorJobs}
+          starting={pendingDispatchRef.current && queue.length === 0}
           onCaptureMore={() => setPhase('picker')}
         />
       </div>
@@ -551,7 +562,7 @@ function QueueRow({ job, idx, isFirstPending }) {
   )
 }
 
-function QueueView({ queue, activeJobs, pendingJobs, doneJobs, errorJobs, onCaptureMore }) {
+function QueueView({ queue, activeJobs, pendingJobs, doneJobs, errorJobs, starting, onCaptureMore }) {
   // Force a re-render every second so the active row's elapsed timer
   // updates. Only spin when there's an active job — otherwise idle.
   const [, force] = useState(0)
@@ -578,31 +589,51 @@ function QueueView({ queue, activeJobs, pendingJobs, doneJobs, errorJobs, onCapt
     window.dispatchEvent(new Event('queue-clear-done'))
   }
 
-  const headerMeta = activeJobs.length > 0
-    ? `${activeJobs.length} active · ${pendingJobs.length} queued · ${overallPct}%`
-    : pendingJobs.length > 0
-      ? `${pendingJobs.length} queued`
-      : `${doneJobs.length} done · ${errorJobs.length} failed`
+  const headerMeta = starting
+    ? 'Starting render…'
+    : activeJobs.length > 0
+      ? `${activeJobs.length} active · ${pendingJobs.length} queued · ${overallPct}%`
+      : pendingJobs.length > 0
+        ? `${pendingJobs.length} queued`
+        : queue.length > 0
+          ? `${doneJobs.length} done · ${errorJobs.length} failed`
+          : 'No jobs yet'
 
   return (
     <>
       <div className="mock-menu-capture-head">
         <span className="mock-menu-capture-title">
-          {activeJobs.length > 0 ? 'Rendering' : 'Queue'}
+          {starting || activeJobs.length > 0 ? 'Rendering' : 'Queue'}
         </span>
         <span className="mock-menu-capture-meta">{headerMeta}</span>
       </div>
 
-      {activeJobs.length > 0 && (
+      {(starting || activeJobs.length > 0) && (
         <div className="mock-menu-queue-overall">
           <div
             className="mock-menu-queue-overall-fill"
-            style={{ width: `${overallPct}%` }}
+            style={{ width: starting ? '5%' : `${overallPct}%` }}
           />
         </div>
       )}
 
       <div className="mock-menu-queue-scroll">
+        {starting && activeJobs.length === 0 && pendingJobs.length === 0 && (
+          <div className="mock-menu-queue-list">
+            <article className="mock-menu-queue-row" data-status="active">
+              <span className="mock-menu-queue-dot" />
+              <span className="mock-menu-queue-thumb" />
+              <div className="mock-menu-queue-body">
+                <div className="mock-menu-queue-top">
+                  <span className="mock-menu-queue-label">Capturing snapshot…</span>
+                  <span className="mock-menu-queue-time">0:00</span>
+                </div>
+                <div className="mock-menu-queue-meta">Preparing the canvas frame</div>
+              </div>
+            </article>
+          </div>
+        )}
+
         {activeJobs.length > 0 && (
           <>
             <div className="mock-menu-section-label">Active</div>
@@ -649,7 +680,7 @@ function QueueView({ queue, activeJobs, pendingJobs, doneJobs, errorJobs, onCapt
           </>
         )}
 
-        {queue.length === 0 && (
+        {queue.length === 0 && !starting && (
           <div className="mock-menu-queue-empty">
             <div className="mock-menu-queue-empty-title">Queue empty</div>
             <div className="mock-menu-queue-empty-sub">
