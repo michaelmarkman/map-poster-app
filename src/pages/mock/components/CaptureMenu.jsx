@@ -120,17 +120,18 @@ export default function CaptureMenu({ onClose }) {
   const queue = useAtomValue(queueAtom)
 
   // Phase swap — 'picker' (style + resolution) or 'queue' (in-progress
-  // + recent renders). The menu opens straight to whichever phase is
-  // most useful right now: if anything is rendering or recently rendered,
-  // the queue. Otherwise the picker. dispatchRender flips to queue and
-  // the user flips back manually via the queue's "Capture more" footer.
+  // + recent renders). Every open of the Capture pill starts on the
+  // picker (the capture view); dispatchRender flips to queue inline so
+  // the user sees their jobs progress, and the dedicated Queue button
+  // in the footer is the only way back. Closing + reopening returns to
+  // picker — the queue is a transient view, the picker is the home.
   //
   // No auto-flip-back-to-picker effect on queue.length === 0 — useQueue's
   // add-to-queue handler is async (awaits a canvas snapshot before
   // calling addJob), so right after dispatchRender the queue is briefly
   // empty. An auto-flip would race the snapshot and bounce us back to
   // picker before the user ever sees the queue populate.
-  const [phase, setPhase] = useState(() => (queue.length > 0 ? 'queue' : 'picker'))
+  const [phase, setPhase] = useState('picker')
   // True between dispatchRender() and the first time queueAtom reflects
   // the new job. Lets the queue view show a "Capturing snapshot…"
   // placeholder instead of the "queue empty" state during the snapshot
