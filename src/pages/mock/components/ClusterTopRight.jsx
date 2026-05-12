@@ -42,9 +42,9 @@ export default function ClusterTopRight() {
   const galleryCount = useAtomValue(galleryCountAtom)
   const entries = useAtomValue(galleryEntriesAtom)
 
-  // Show the 6 most recent (3×2 mini-grid). Gallery atoms hold
+  // Show the 9 most recent (3×3 mini-grid). Gallery atoms hold
   // entries oldest-first, so slice from the end.
-  const recent = entries.slice(-6).reverse()
+  const recent = entries.slice(-9).reverse()
 
   const openGallery = () => setModals((m) => ({ ...m, gallery: true }))
   const openLightboxAt = (entry) => {

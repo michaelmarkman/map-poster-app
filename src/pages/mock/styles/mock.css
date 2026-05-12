@@ -1841,8 +1841,8 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
  * default 6px padding too so the grid runs edge-to-edge inside the
  * popover (the head/grid carry their own internal padding). */
 .mock-popover--gallery-preview {
-  min-width: 360px;
-  max-width: 360px;
+  min-width: 520px;
+  max-width: 520px;
   padding: 0;
   white-space: normal;
 }

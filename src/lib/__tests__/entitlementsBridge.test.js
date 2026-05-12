@@ -40,35 +40,42 @@ describe('active profile bridge', () => {
     expect(getTierLimits().label).toBe('Free')
   })
 
+  // Phase 20 — paywall disabled. Free tier mirrors Pro across every
+  // gate. The bridge still reads through correctly; tests below verify
+  // the wiring without asserting specific cap behavior.
+
   it('canSubmitRender uses the bridge tier', () => {
     setActiveProfile({ tier: 'pro' })
     expect(canSubmitRender({ count: 9999 }).ok).toBe(true)
     setActiveProfile(null)
-    expect(canSubmitRender({ count: 9999 }).ok).toBe(false)
+    // Paywall disabled — free now allows too.
+    expect(canSubmitRender({ count: 9999 }).ok).toBe(true)
   })
 
   it('canUseResolution uses the bridge tier', () => {
-    expect(canUseResolution({ multiplier: 4 })).toBe(false) // free max 2
+    expect(canUseResolution({ multiplier: 6 })).toBe(true) // free now allows 6x
     setActiveProfile({ tier: 'pro' })
-    expect(canUseResolution({ multiplier: 4 })).toBe(true) // pro max 6
+    expect(canUseResolution({ multiplier: 6 })).toBe(true) // pro max 6
   })
 
   it('shouldShowWatermark uses the bridge tier', () => {
-    expect(shouldShowWatermark()).toBe(true) // free
+    expect(shouldShowWatermark()).toBe(false) // free — watermark disabled
     setActiveProfile({ tier: 'pro' })
-    expect(shouldShowWatermark()).toBe(false) // pro
+    expect(shouldShowWatermark()).toBe(false) // pro — watermark disabled
   })
 
   it('canSaveAnotherView uses the bridge tier', () => {
-    expect(canSaveAnotherView({ currentCount: 5 })).toBe(false) // free cap 5
+    expect(canSaveAnotherView({ currentCount: 9999 })).toBe(true) // free unlimited
     setActiveProfile({ tier: 'pro' })
-    expect(canSaveAnotherView({ currentCount: 999 })).toBe(true) // pro unlimited
+    expect(canSaveAnotherView({ currentCount: 9999 })).toBe(true) // pro unlimited
   })
 
   it('an explicit profile arg still overrides the bridge', () => {
     setActiveProfile({ tier: 'pro' })
-    // Pass null explicitly — should NOT use the pro bridge value.
+    // Bridge says pro; explicit null arg still resolves to free.
     expect(getTier(null)).toBe('free')
-    expect(canSubmitRender({ profile: null, count: 9999 }).ok).toBe(false)
+    // Both free + pro now allow renders (paywall disabled), so this
+    // just verifies the lookup path — both return ok regardless.
+    expect(canSubmitRender({ profile: null, count: 9999 }).ok).toBe(true)
   })
 })

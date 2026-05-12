@@ -34,10 +34,6 @@ function formatDistance(d) {
 export default function FocusReticle() {
   const reticleRef = useRef(null)
   const [label, setLabel] = useState('312 m')
-  // The `focusing` flag is what toggles the .is-focusing class; we
-  // remove it on animationend so the next event can re-trigger the
-  // animation cleanly via the standard remove → reflow → add dance.
-  const [focusing, setFocusing] = useState(false)
   const positionRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -45,37 +41,43 @@ export default function FocusReticle() {
       const { x, y, distance } = e.detail || {}
       if (typeof x !== 'number' || typeof y !== 'number') return
       positionRef.current = { x, y }
-      // Real distance from Scene's raycast. Pre-Phase-15 builds (and
-      // tests that don't construct the full Scene) didn't include
-      // `distance` on the event detail — fall back gracefully.
+      // Real distance from Scene's raycast (Phase 15). Falls back to
+      // ∞ if the ray missed geometry (user tapped sky).
       setLabel(formatDistance(distance))
-      // Force the class off → reflow → on so the animation restarts
-      // even on rapid taps. React state via two setters and a 0ms
-      // timeout works cleanly enough; the rAF dance from the
-      // vanilla prototype isn't needed because the class is bound
-      // via React state, not direct DOM manipulation.
-      setFocusing(false)
-      requestAnimationFrame(() => {
-        const node = reticleRef.current
-        if (node) {
-          node.style.left = `${positionRef.current.x}px`
-          node.style.top = `${positionRef.current.y}px`
-        }
-        setFocusing(true)
-      })
+
+      // Restart the animation by directly toggling the class on the
+      // DOM node — bypasses React's state batching, which would
+      // coalesce a setFocusing(false) → setFocusing(true) pair into a
+      // single render where the class stays on the whole time and
+      // the animation never re-triggers on rapid taps. The standard
+      // remove → reflow → re-add dance forces the browser to restart
+      // the keyframes from scratch.
+      const node = reticleRef.current
+      if (!node) return
+      node.style.left = `${x}px`
+      node.style.top = `${y}px`
+      node.classList.remove('is-focusing')
+      // Force a synchronous reflow so the class removal takes effect
+      // before we add it back — without this the browser collapses
+      // the toggle into a no-op.
+      void node.offsetWidth
+      node.classList.add('is-focusing')
     }
     window.addEventListener('focus-tap', onFocusTap)
     return () => window.removeEventListener('focus-tap', onFocusTap)
   }, [])
 
   const onAnimationEnd = (e) => {
-    if (e.animationName === 'reticleFocus') setFocusing(false)
+    if (e.animationName !== 'reticleFocus') return
+    // Strip the class so the reticle goes back to its hidden rest
+    // state (opacity: 0). Next tap re-adds it via the reflow dance.
+    reticleRef.current?.classList.remove('is-focusing')
   }
 
   return (
     <div
       ref={reticleRef}
-      className={`mock-reticle${focusing ? ' is-focusing' : ''}`}
+      className="mock-reticle"
       onAnimationEnd={onAnimationEnd}
       aria-hidden="true"
     >

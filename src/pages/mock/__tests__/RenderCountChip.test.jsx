@@ -22,25 +22,25 @@ function renderWith({ aiKey = '', renderCount = 0, profile = null } = {}) {
   )
 }
 
+// Phase 20 — paywall disabled. Free tier has Infinity rendersPerMonth,
+// so the chip's `if (!Number.isFinite(monthly)) return null` kicks in
+// and the chip hides for everyone. The component still works as
+// designed when a finite limit is reintroduced.
+
 describe('RenderCountChip', () => {
   beforeEach(() => {
     localStorage.clear()
     setActiveProfile(null)
   })
 
-  it('renders 5/5 for a fresh free-tier user', () => {
-    renderWith()
-    expect(screen.getByText('5/5')).toBeDefined()
+  it('hides for free-tier users (paywall disabled)', () => {
+    const { container } = renderWith()
+    expect(container.firstChild).toBe(null)
   })
 
-  it('decrements as renders consume', () => {
-    renderWith({ renderCount: 2 })
-    expect(screen.getByText('3/5')).toBeDefined()
-  })
-
-  it('shows 0/5 when at the limit', () => {
-    renderWith({ renderCount: 5 })
-    expect(screen.getByText('0/5')).toBeDefined()
+  it('hides regardless of how many renders have been consumed', () => {
+    const { container } = renderWith({ renderCount: 9999 })
+    expect(container.firstChild).toBe(null)
   })
 
   it('hides for BYOK users', () => {
@@ -53,19 +53,13 @@ describe('RenderCountChip', () => {
     expect(container.firstChild).toBe(null)
   })
 
-  it('refreshes when a gallery-add event fires', () => {
-    renderWith({ renderCount: 0 })
-    expect(screen.getByText('5/5')).toBeDefined()
+  it('still hides after a gallery-add event fires (no finite cap)', () => {
+    const { container } = renderWith({ renderCount: 0 })
+    expect(container.firstChild).toBe(null)
     act(() => {
       incrementRenderCount(2)
       window.dispatchEvent(new CustomEvent('gallery-add', { detail: {} }))
     })
-    expect(screen.getByText('3/5')).toBeDefined()
-  })
-
-  it('marks the chip as empty when count hits the cap', () => {
-    renderWith({ renderCount: 5 })
-    const chip = screen.getByText('0/5')
-    expect(chip.className).toMatch(/is-empty/)
+    expect(container.firstChild).toBe(null)
   })
 })

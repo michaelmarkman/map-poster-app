@@ -17,13 +17,21 @@
 // directly. Resolution + watermark gates still apply (those are Vedute's
 // product, not the model's).
 
+// Paywall disabled — free tier now mirrors Pro across every dimension.
+// The TIERS shape + gate functions (canSubmitRender / canUseResolution /
+// shouldShowWatermark / canSaveView) stay defined so the entitlements
+// machinery is ready to re-engage when Stripe lands. To reintroduce the
+// paywall, restore the old free-tier numbers below:
+//
+//   free: { rendersPerMonth: 5, maxResolutionMultiplier: 2,
+//           showWatermark: true, maxSavedViews: 5 }
 export const TIERS = {
   free: {
     label: 'Free',
-    rendersPerMonth: 5,
-    maxResolutionMultiplier: 2,
-    showWatermark: true,
-    maxSavedViews: 5,
+    rendersPerMonth: Infinity,
+    maxResolutionMultiplier: 6,
+    showWatermark: false,
+    maxSavedViews: Infinity,
   },
   pro: {
     label: 'Pro',

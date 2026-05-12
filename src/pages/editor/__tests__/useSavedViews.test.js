@@ -333,12 +333,11 @@ describe('useSavedViews', () => {
     detach()
   })
 
-  it('blocks saves once the free-tier entitlement cap is hit', async () => {
-    // Phase 6.1 — free-tier saved-view cap is 5. After 5 entries, the
-    // gate fires before requestCameraState so the existing list isn't
-    // touched. (The ancient MAX_VIEWS=20 trim is now downstream of the
-    // entitlement check; it only kicks in if a future Pro tier adds
-    // headroom and the user hits it.)
+  it('allows unlimited saves with paywall disabled (Phase 20)', async () => {
+    // Phase 20 — entitlements free-tier cap was 5 views; paywall is now
+    // disabled (free mirrors Pro). The gate function is still wired,
+    // it just always returns ok. New saves go through past the
+    // previous cap.
     vi.useFakeTimers()
     const existing = Array.from({ length: 5 }, (_, i) => ({
       id: 'old-' + i,
@@ -363,9 +362,9 @@ describe('useSavedViews', () => {
     })
 
     const { result } = renderHook(() => useAtomValue(savedViewsAtom))
-    // List untouched: still 5, still the originals, no 'Newest' appended.
-    expect(result.current).toHaveLength(5)
-    expect(result.current.find((v) => v.name === 'Newest')).toBeUndefined()
+    // 6th save lands — paywall disabled.
+    expect(result.current).toHaveLength(6)
+    expect(result.current.find((v) => v.name === 'Newest')).toBeDefined()
 
     detach()
   })
@@ -438,11 +437,11 @@ describe('useSavedViews', () => {
     expect(result.current.focusColorPop).toBe(77)
   })
 
-  it('lightbox-save-view also gates on the free-tier entitlement', async () => {
-    // Same entitlement gate as `save-view` — without this, a free user
-    // could click "Save view" inside the lightbox to bypass the 5-view
-    // cap. The lightbox path took entry.view directly so it skipped the
-    // requestCameraState step where the gate originally lived.
+  it('lightbox-save-view also goes through the entitlement gate', async () => {
+    // Phase 20 — gate still wired but paywall is disabled; the
+    // lightbox-save-view event saves through past the previous 5-view
+    // free-tier cap. The gate stays in place so reintroducing the
+    // paywall is a one-line change in entitlements.js.
     vi.useFakeTimers()
     const existing = Array.from({ length: 5 }, (_, i) => ({
       id: 'old-' + i,
@@ -476,9 +475,9 @@ describe('useSavedViews', () => {
     })
 
     const { result } = renderHook(() => useAtomValue(savedViewsAtom))
-    // List untouched — gate fired, "From gallery" never landed.
-    expect(result.current).toHaveLength(5)
-    expect(result.current.find((v) => v.name === 'From gallery')).toBeUndefined()
+    // 6th save lands — paywall disabled.
+    expect(result.current).toHaveLength(6)
+    expect(result.current.find((v) => v.name === 'From gallery')).toBeDefined()
   })
 
   describe('Phase 4.3 default-view auto-load', () => {

@@ -141,15 +141,21 @@ export default function GalleryModal() {
           <div className="gallery-grid" id="gallery-grid">
             {entries.map((entry) => {
               if (entry.type === 'item') {
-                // Singleton scope = all other singletons. Excludes batch
-                // items so prev/next doesn't jump into an All Styles set.
-                const singletons = gallery.filter((g) => !g.batchId)
-                const startIdx = singletons.indexOf(entry.item)
+                // Singleton scope = all other singletons (group mode)
+                // OR the full gallery (flat mode). The old code always
+                // filtered to !batchId, which meant clicking a batched
+                // item in flat mode tried to index a batched item in
+                // the singletons-only array — got -1, the lightbox
+                // bailed silently, and the click "did nothing."
+                const scope = groupBatches
+                  ? gallery.filter((g) => !g.batchId)
+                  : gallery
+                const startIdx = scope.indexOf(entry.item)
                 return (
                   <GalleryCard
                     key={entry.item.id}
                     item={entry.item}
-                    onOpen={() => openLightboxWith(singletons, startIdx)}
+                    onOpen={() => openLightboxWith(scope, startIdx)}
                   />
                 )
               }

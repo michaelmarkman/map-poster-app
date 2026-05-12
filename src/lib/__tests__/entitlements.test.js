@@ -28,15 +28,14 @@ describe('getTierLimits', () => {
   })
 })
 
+// Phase 20 — paywall disabled. Free tier now mirrors Pro across every
+// dimension. The TIERS shape + gate functions stay defined so the
+// entitlements machinery is ready to re-engage when Stripe lands.
+
 describe('canSubmitRender', () => {
-  it('allows submission below the free limit', () => {
+  it('allows submission at any count for free tier', () => {
     expect(canSubmitRender({ profile: null, count: 0 }).ok).toBe(true)
-    expect(canSubmitRender({ profile: null, count: 4 }).ok).toBe(true)
-  })
-  it('blocks once the free limit is hit', () => {
-    const r = canSubmitRender({ profile: null, count: 5 })
-    expect(r.ok).toBe(false)
-    expect(r.reason).toMatch(/Free/i)
+    expect(canSubmitRender({ profile: null, count: 9999 }).ok).toBe(true)
   })
   it('Pro users have effectively no limit', () => {
     expect(canSubmitRender({ profile: { tier: 'pro' }, count: 9999 }).ok).toBe(true)
@@ -49,10 +48,11 @@ describe('canSubmitRender', () => {
 })
 
 describe('canUseResolution', () => {
-  it('caps free at 2x', () => {
+  it('allows up to 6× for free tier', () => {
     expect(canUseResolution({ profile: null, multiplier: 1 })).toBe(true)
-    expect(canUseResolution({ profile: null, multiplier: 2 })).toBe(true)
-    expect(canUseResolution({ profile: null, multiplier: 3 })).toBe(false)
+    expect(canUseResolution({ profile: null, multiplier: 4 })).toBe(true)
+    expect(canUseResolution({ profile: null, multiplier: 6 })).toBe(true)
+    expect(canUseResolution({ profile: null, multiplier: 7 })).toBe(false)
   })
   it('Pro goes up to 6x', () => {
     expect(canUseResolution({ profile: { tier: 'pro' }, multiplier: 6 })).toBe(true)
@@ -61,26 +61,18 @@ describe('canUseResolution', () => {
 })
 
 describe('shouldShowWatermark', () => {
-  it('shows for free tier', () => {
-    expect(shouldShowWatermark({ profile: null })).toBe(true)
+  it('hides for free tier (paywall disabled)', () => {
+    expect(shouldShowWatermark({ profile: null })).toBe(false)
   })
   it('hides for Pro', () => {
     expect(shouldShowWatermark({ profile: { tier: 'pro' } })).toBe(false)
   })
-  it('still shows for free + BYOK (BYOK does NOT bypass watermark)', () => {
-    // Watermark is Vedute's product gating, not the model's — a free user
-    // pasting any string into the API-key field shouldn't be able to
-    // launder their way out of free-tier branding. The doc comment at
-    // the top of entitlements.js reads "Resolution + watermark gates
-    // still apply (those are Vedute's product, not the model's)".
-    expect(shouldShowWatermark({ profile: null, byokKey: 'sk-...' })).toBe(true)
-  })
 })
 
 describe('canSaveAnotherView', () => {
-  it('caps free at 5 views', () => {
+  it('allows unlimited saves for free tier', () => {
     expect(canSaveAnotherView({ profile: null, currentCount: 4 })).toBe(true)
-    expect(canSaveAnotherView({ profile: null, currentCount: 5 })).toBe(false)
+    expect(canSaveAnotherView({ profile: null, currentCount: 9999 })).toBe(true)
   })
   it('Pro saves unlimited', () => {
     expect(canSaveAnotherView({ profile: { tier: 'pro' }, currentCount: 99 })).toBe(true)

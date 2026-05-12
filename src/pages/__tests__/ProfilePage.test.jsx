@@ -130,11 +130,13 @@ describe('ProfilePage', () => {
     expect(screen.queryByRole('button', { name: /^Save$/ })).toBe(null)
   })
 
-  it('shows the used / monthly meter text for free users', async () => {
+  it('shows "Unlimited" for free users (Phase 20 paywall disabled)', async () => {
     incrementRenderCount(2)
     await renderPage()
-    // Free tier is 5/month; meter reads e.g. '2 of 5 AI renders used'
-    expect(screen.getByText(/2 of 5 AI renders used/i)).toBeDefined()
+    // Free tier now has Infinity rendersPerMonth — ProfilePage's
+    // !Number.isFinite check shows "Unlimited" instead of a meter.
+    expect(screen.getByText(/Unlimited renders/i)).toBeDefined()
+    expect(screen.queryByText(/of 5/)).toBe(null)
   })
 
   it('shows "Unlimited" for Pro users', async () => {
@@ -142,13 +144,14 @@ describe('ProfilePage', () => {
     setActiveProfile({ tier: 'pro' })
     await renderPage()
     expect(screen.getByText(/Unlimited renders/i)).toBeDefined()
-    // The 'X of 5' line should NOT appear
     expect(screen.queryByText(/of 5/)).toBe(null)
   })
 
-  it('appends BYOK-bypass note when an aiKey is set', async () => {
+  it('still shows "Unlimited" when an aiKey is set (BYOK + paywall off)', async () => {
     await renderPage({ aiKey: 'sk-real' })
-    expect(screen.getByText(/BYOK bypasses this limit/)).toBeDefined()
+    // Paywall disabled — no "BYOK bypasses this limit" note since
+    // there's no limit to bypass.
+    expect(screen.getByText(/Unlimited renders/i)).toBeDefined()
   })
 
   it('avatar: rejects a non-image file with a specific message (not the generic friendlyError fallback)', async () => {
