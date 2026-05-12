@@ -157,35 +157,57 @@
     overflow-y: auto;
     flex: 1;
   }
+  /* Phase 9 — MoMA gallery sheet grid. The prototype locks 5 columns
+   * at 1200+ viewport and gracefully degrades downward. Tiles are
+   * uniform 3:4 (poster ratio) instead of the previous variable-
+   * height "preserve native aspect" recipe — uniform grid reads as a
+   * deliberate sheet, not a mosaic. Old `.view-large` / `.view-list`
+   * variants stay but get sane fallbacks. */
   .gallery-grid {
     display: grid;
-    gap: 8px;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    /* Don't stretch cards to match row height — each card sizes to its own image */
+    gap: 14px;
+    grid-template-columns: repeat(5, 1fr);
     align-items: start;
   }
-  .gallery-grid.view-large { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
-  .gallery-grid.view-list { grid-template-columns: 1fr; }
+  @media (max-width: 1200px) { .gallery-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 960px)  { .gallery-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px)  { .gallery-grid { grid-template-columns: repeat(2, 1fr); } }
+  .gallery-grid.view-large {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  .gallery-grid.view-list { grid-template-columns: 1fr; gap: 8px; }
   .gallery-card {
     position: relative;
-    border-radius: 8px;
+    border-radius: 3px;
     overflow: hidden;
-    background: rgba(255,255,255,0.025);
-    border: 0.5px solid var(--ink-whisper);
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: border-color 0.18s var(--ease-out),
+                transform 0.18s var(--ease-out),
+                box-shadow 0.22s var(--ease-out);
   }
   .gallery-card:hover {
-    border-color: var(--panel-border-strong);
-    transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    border-color: rgba(155, 229, 127, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(155, 229, 127, 0.08);
   }
   .gallery-card img {
     width: 100%;
-    height: auto; /* preserve the image's natural aspect ratio */
+    aspect-ratio: 3 / 4;
+    height: auto;
     display: block;
     background: var(--bg-deep);
-    /* Cap very tall portrait posters so one giant card doesn't dominate the grid */
+    object-fit: cover;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .gallery-card:hover img { transform: scale(1.03); }
+  /* List view keeps the old "preserve native aspect" behaviour since
+   * showing the full ratio matters for the one-column layout. */
+  .gallery-grid.view-list .gallery-card img {
+    aspect-ratio: auto;
     max-height: 70vh;
     object-fit: contain;
   }
