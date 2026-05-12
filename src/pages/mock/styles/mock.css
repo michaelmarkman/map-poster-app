@@ -1544,11 +1544,20 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   min-width: 440px;
   max-width: 440px;
   white-space: normal;
+  /* Bounded to viewport height with some headroom for the BR pill
+   * + 24px cluster offset. The popover scrolls internally on the
+   * grid if cards overflow. */
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
 }
 .mock-menu-capture {
   display: flex;
   flex-direction: column;
-  min-height: 702px;        /* 730 — 14*2 padding = 702 inner */
+  /* Prototype's locked 702px footprint was for the picker↔queue
+   * phase-swap (so both views were the same height). React port
+   * doesn't have phase-swap (queue lives in AIRenderModal), so we
+   * let the menu size to content. Footer no longer needs
+   * margin-top: auto to push to bottom. */
 }
 .mock-menu-capture-head {
   display: flex;
@@ -1658,13 +1667,13 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   color: #0b0b0d;
 }
 
-/* Style grid — 3-col 4:3 cards via padding-top trick. */
+/* Style grid — 3-col 4:3 cards via padding-top trick. Grows with
+ * the menu (the popover's max-height + overflow-y catches overflow
+ * at the popover level, not here). */
 .mock-menu-capture-styles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
-  max-height: 340px;
-  overflow-y: auto;
   margin-bottom: 14px;
 }
 .mock-menu-capture-style {
@@ -1771,10 +1780,10 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 }
 .mock-menu-capture-prompt::placeholder { color: var(--ink-dim); }
 
-/* Footer — sticks to bottom of the locked 730px footprint via
- * margin-top: auto. */
+/* Footer — sits right below the grid (was margin-top: auto when the
+ * menu was a fixed-height card; now that the menu sizes to content,
+ * a normal block flow is fine). */
 .mock-menu-capture-foot {
-  margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
@@ -1813,14 +1822,28 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 .mock-menu-capture-render:hover { background: #a9eb90; }
 .mock-menu-capture-render:active { transform: scale(0.97); }
 
-/* ═══════ Gallery preview menu (Phase 16 port) ═══════
+/* Gallery preview popover — wider chassis than the default `.mock-popover`
+ * (240–320px) so the 3-col preview grid fits cleanly. */
+.mock-popover--gallery-preview {
+  min-width: 360px;
+  max-width: 360px;
+  white-space: normal;
+}
+
+/* ═══════ Gallery preview menu (Phase 16, tightened Phase 19) ═══════
  * Hover-popover shown when the Gallery pill is interacted with.
- * 3×3 mini-grid of the 9 most recent renders, plus a "View all →"
+ * 3×2 mini-grid of the 6 most recent renders, plus a "View all →"
  * link in the header that opens the full GalleryModal. Tiles are
- * 3:4 (poster portrait) with name + relative time overlay on hover.
- * Empty state copy when the user hasn't rendered anything yet. */
+ * 4:3 landscape (matches the gallery sheet's tile aspect) with
+ * name + relative time overlay on hover. Empty state copy when the
+ * user hasn't rendered anything yet.
+ *
+ * Phase 19 — was 320px wide / 9 tiles 3×3 / 3:4 portrait. That
+ * produced a popover ~600+px tall which dominated the viewport.
+ * Now: 360px wide / 6 tiles 3×2 / 4:3 landscape — fits in a
+ * ~280px-tall preview. */
 .mock-menu-gallery {
-  width: 320px;
+  width: 360px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1874,7 +1897,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 }
 .mock-menu-gallery-tile {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 3;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 2px;

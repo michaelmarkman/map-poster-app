@@ -42,18 +42,21 @@ export default function ClusterTopRight() {
   const galleryCount = useAtomValue(galleryCountAtom)
   const entries = useAtomValue(galleryEntriesAtom)
 
-  // Show the 9 most recent (3×3 mini-grid). Gallery atoms hold
+  // Show the 6 most recent (3×2 mini-grid). Gallery atoms hold
   // entries oldest-first, so slice from the end.
-  const recent = entries.slice(-9).reverse()
+  const recent = entries.slice(-6).reverse()
 
   const openGallery = () => setModals((m) => ({ ...m, gallery: true }))
   const openLightboxAt = (entry) => {
     // Lightbox.jsx's preferred open path is `open-lightbox` with the
-    // full entries list + selected index, so prev/next nav works.
+    // full entries list + `startIndex` (NOT `index` — that was the
+    // bug: Lightbox reads `detail.startIndex | 0`, so passing
+    // `index` silently fell back to 0 and always opened the oldest
+    // photo).
     const idx = entries.findIndex((e) => e.id === entry.id)
     window.dispatchEvent(
       new CustomEvent('open-lightbox', {
-        detail: { entries, index: idx >= 0 ? idx : 0 },
+        detail: { entries, startIndex: idx >= 0 ? idx : 0 },
       }),
     )
     setModals((m) => ({ ...m, lightbox: true }))
@@ -69,6 +72,7 @@ export default function ClusterTopRight() {
         align="right"
         drop="down"
         alwaysShowPopover
+        panelClassName="mock-popover--gallery-preview"
       >
         <div className="mock-menu-gallery">
           <div className="mock-menu-gallery-head">

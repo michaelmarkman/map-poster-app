@@ -41,6 +41,9 @@ export default function HoverPopoverPill({
   // When true, hover always opens the popover regardless of `active`.
   // Default behavior gates the popover on `active` so toggle-off hides it.
   alwaysShowPopover = false,
+  // Optional extra class on the popover panel (e.g. for variant
+  // sizing). Mirrors PopoverPill's `panelClassName`.
+  panelClassName = '',
   ...rest
 }) {
   const [open, setOpen] = useState(false)
@@ -124,7 +127,7 @@ export default function HoverPopoverPill({
       </Pill>
       {popoverVisible ? (
         <div
-          className={`mock-popover mock-popover--hover mock-popover--${align} mock-popover--drop-${drop}`}
+          className={`mock-popover mock-popover--hover mock-popover--${align} mock-popover--drop-${drop}${panelClassName ? ' ' + panelClassName : ''}`}
           {...panelHover}
         >
           {children}
