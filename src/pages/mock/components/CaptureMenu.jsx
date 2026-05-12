@@ -107,6 +107,7 @@ const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
 const VEDUTE_KEY = 'vedute'
 const DITHERED_KEY = 'dithered'
+const RISO_KEY = 'riso'
 
 // Resolution → pixel-height map for the meta readout.
 const RES_PX = { 1: 1080, 2: 2160, 3: 3240, 4: 4320 }
@@ -329,6 +330,20 @@ export default function CaptureMenu({ onClose }) {
         >
           <span className="mock-menu-capture-style-thumb" />
           <span className="mock-menu-capture-style-label">Dithered</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
+        {/* Riso — color-dithered 3-ink risograph. Pinned alongside
+         *  Dithered as its color sibling. Thumb is a CSS-only
+         *  layered halftone with pink / teal / yellow dots offset
+         *  to fake the registration misalignment + moiré. */}
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-riso is-pinned${selected.has(RISO_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(RISO_KEY)}
+          title="Riso — color-dithered risograph print"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-label">Riso</span>
           <span className="mock-menu-capture-style-check">✓</span>
         </button>
         <button

@@ -1884,6 +1884,30 @@ body.mock-mounted .mock-cluster--bottom-right {
    * would muddy the dots). */
   background-color: #ebe2c8;
 }
+
+/* Riso — color-dithered 3-ink print. Three separate radial-gradient
+ * halftone screens layered on cream paper, each at a slightly
+ * different cell size + offset to fake the riso registration
+ * misalignment + moiré. Pure CSS — no image asset. */
+.mock-menu-capture-style.is-riso .mock-menu-capture-style-thumb {
+  background-color: #f1ead6;
+  background-image:
+    /* Yellow screen, 5px lattice, offset top-left */
+    radial-gradient(circle at 1px 1px, rgba(244, 201, 93, 0.85) 1.1px, transparent 1.4px),
+    /* Pink screen, 4.5px lattice, offset diagonally */
+    radial-gradient(circle at 2px 2.5px, rgba(255, 78, 139, 0.75) 1.1px, transparent 1.4px),
+    /* Teal screen, 4px lattice */
+    radial-gradient(circle at 1.5px 0.5px, rgba(58, 175, 169, 0.75) 1px, transparent 1.3px);
+  background-size: 5px 5px, 4.5px 4.5px, 4px 4px;
+  filter: none;
+}
+.mock-menu-capture-style.is-riso .mock-menu-capture-style-label {
+  color: #1a1a1f;
+  text-shadow: 0 0 6px rgba(241, 234, 214, 0.9);
+}
+.mock-menu-capture-style.is-riso.is-active .mock-menu-capture-style-thumb {
+  background-color: #f7eecf;
+}
 .mock-menu-capture-style-icon {
   position: absolute;
   top: 6px;

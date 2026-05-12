@@ -54,6 +54,17 @@ import { fireToast } from '../../../lib/toast'
 // prototype used. Only the fields this hook actually needs (label, prompt)
 // are kept.
 const AI_PRESETS = {
+  riso: {
+    label: 'Riso',
+    // Color-dithered risograph print. Three-ink palette (warm pink +
+    // teal + sunshine yellow on cream paper). Each color layer carries
+    // its own halftone dot pattern at a slightly different screen
+    // angle so the dots interfere and create that signature riso
+    // moiré + visible registration misalignment between layers.
+    // Composition lock-down mirrors Vedute + Dithered.
+    prompt:
+      'Transform this into a color-dithered risograph print of the aerial cityscape. Limited 3-ink palette: warm fluorescent pink (#ff4e8b), bright teal (#3aafa9), and sunshine yellow (#f4c95d) on a warm cream paper background (#f1ead6). Each color must be rendered as its own halftone dot screen at a slightly different angle (15°, 45°, 75°) so the dots interfere and create the riso moiré pattern. Slight visible registration misalignment between ink layers (1–2px offset) for the printed-by-hand feel. NO black ink — shadows are deepened by overlapping all three colors, never by adding black. Flat shapes, no gradients, hard edges between color regions. Reads like a high-end editorial risograph poster — magazine cover, Bauhaus-school exhibition catalog, mid-century travel ephemera. No text, labels, captions, signatures, ornaments. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Keep the exact same buildings, streets, composition, and layout.',
+  },
   dithered: {
     label: 'Dithered',
     // 1-bit / halftone graphic-design treatment. Bauhaus / risograph
