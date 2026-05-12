@@ -210,6 +210,19 @@ const AI_PRESETS = {
 // thread a ref through every event handler.
 let nextJobId = 1
 
+// DoF prompt suffix — returns '' when DoF is disabled (aperture <= 0,
+// per the dofAtom doc in scene.js). Exported so the unit test pins
+// the gate; this exact regression (missing prompt instruction when
+// DoF was on) shipped to production silently when Phase 2.7 retired
+// `dof.on` but didn't update the gate here.
+export function dofPromptSuffix(aperture) {
+  if (!Number.isFinite(aperture) || aperture <= 0) return ''
+  const fStr = aperture < 10 ? aperture.toFixed(1) : String(Math.round(aperture))
+  return (
+    ` Preserve the depth-of-field blur EXACTLY as shown in the input — this was shot at approximately f/${fStr}. Keep the sharply-focused area tack-sharp, and reproduce the out-of-focus background and foreground blur with the same falloff radius and intensity. Do NOT sharpen blurred regions, do NOT add or remove blur, and do NOT shift the focal plane.`
+  )
+}
+
 function emitStatus(text) {
   window.dispatchEvent(new CustomEvent('export-status', { detail: text || '' }))
 }
@@ -582,10 +595,13 @@ export default function useQueue() {
         out +=
           ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
       }
-      if (settingsRef.current.dof?.on) {
-        out +=
-          ' Preserve the depth-of-field blur exactly as shown in the input — keep the focused area tack-sharp and reproduce the background and foreground blur with the same falloff and intensity. Do not sharpen blurred regions.'
-      }
+      // Phase 2.7 retired `dof.on` in favor of "aperture > 0 means on"
+      // (see scene.js — the /app cluster writes aperture=0 to disable).
+      // This gate was missed in that migration, so DoF-preservation
+      // was silently skipped on EVERY render even with DoF on — the AI
+      // happily sharpened the blurred regions. dofPromptSuffix is
+      // module-scoped + exported so the regression test pins the gate.
+      out += dofPromptSuffix(settingsRef.current.dof?.aperture)
       return out
     }
 
