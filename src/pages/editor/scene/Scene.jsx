@@ -253,9 +253,19 @@ function CtrlOrbit() {
 // Writes to sceneRef.dof directly (per-frame reads pick it up on the next tick).
 function ClickToFocus() {
   const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
   const invalidate = useThree((s) => s.invalidate)
   useEffect(() => {
     const canvas = gl.domElement
+    // Phase 15 — Raycaster reused per-tap to compute the real focal
+    // distance (camera → first scene-geometry intersection). Mirrors
+    // the pattern in SubjectListener / CtrlOrbit.setPivotForRay above.
+    // The distance is emitted on the `focus-tap` event detail so the
+    // MoMA reticle's rangefinder label can show real meters instead
+    // of the cosmetic random number from Phase 3.
+    const ray = new RaycasterClass()
+    const ndc = new Vector2()
     let downPos = null
     // On touch / coarse pointers a user's "tap" is rarely pixel-stable —
     // 12-14px is the accepted comfort zone for tap-vs-drag (MDN, Material).
@@ -270,13 +280,25 @@ function ClickToFocus() {
       downPos = null
       if (Math.sqrt(dx * dx + dy * dy) > tapThreshold) return
       const rect = canvas.getBoundingClientRect()
+      // Raycast from the click NDC through the scene to find the real
+      // focal target. If the ray misses geometry (e.g. user tapped sky),
+      // `distance` is null and the reticle falls back to a generic label.
+      ndc.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      ray.setFromCamera(ndc, camera)
+      const hits = ray.intersectObjects(scene.children, true)
+      const distance = hits.length > 0
+        ? camera.position.distanceTo(hits[0].point)
+        : null
       // Phase 3 — emit a `focus-tap` event regardless of DoF state so
       // the MoMA reticle plays its snap-in animation on every valid
       // tap. The DoF focal-plane update below stays gated on aperture
       // (only updates the focus point when DoF is actually on).
       window.dispatchEvent(
         new CustomEvent('focus-tap', {
-          detail: { x: e.clientX, y: e.clientY },
+          detail: { x: e.clientX, y: e.clientY, distance },
         }),
       )
       if (sceneRef.dof.aperture > 0) {
@@ -310,7 +332,7 @@ function ClickToFocus() {
       canvas.removeEventListener('pointerup', onUp, opts)
       canvas.removeEventListener('pointercancel', onCancel, opts)
     }
-  }, [gl, invalidate])
+  }, [gl, camera, scene, invalidate])
   return null
 }
 

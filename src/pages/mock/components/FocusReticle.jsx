@@ -14,13 +14,26 @@ import { useEffect, useRef, useState } from 'react'
 //   - 225ms..335ms hold (center dot pulses once)
 //   - 335ms..560ms fade out
 //
-// Distance readout randomises on each tap (180–660m) — rangefinder
-// feel from the prototype. React port deliberately keeps the value
-// random; if/when DoF's actual focal-distance is read by Scene, that
-// number can be threaded through the event detail.
+// Distance readout (Phase 15): real meters from Scene's ClickToFocus,
+// which raycasts from the tap point into the scene and emits the
+// camera-to-hit distance on the `focus-tap` event detail. If the ray
+// missed geometry (user tapped sky) the value is null and the
+// reticle falls back to a generic `FOCUS · ∞` label.
+//
+// `formatDistance` renders the same way a real rangefinder reads:
+//   <1km           → "412 m"
+//   1km – 9.9km    → "1.4 km"
+//   ≥10km          → "12 km"
+function formatDistance(d) {
+  if (d == null || !Number.isFinite(d) || d <= 0) return '∞'
+  if (d < 1000) return `${Math.round(d)} m`
+  if (d < 10_000) return `${(d / 1000).toFixed(1)} km`
+  return `${Math.round(d / 1000)} km`
+}
+
 export default function FocusReticle() {
   const reticleRef = useRef(null)
-  const [meters, setMeters] = useState(312)
+  const [label, setLabel] = useState('312 m')
   // The `focusing` flag is what toggles the .is-focusing class; we
   // remove it on animationend so the next event can re-trigger the
   // animation cleanly via the standard remove → reflow → add dance.
@@ -29,11 +42,13 @@ export default function FocusReticle() {
 
   useEffect(() => {
     const onFocusTap = (e) => {
-      const { x, y } = e.detail || {}
+      const { x, y, distance } = e.detail || {}
       if (typeof x !== 'number' || typeof y !== 'number') return
       positionRef.current = { x, y }
-      // Randomize the distance for the rangefinder feel.
-      setMeters(Math.round(180 + Math.random() * 480))
+      // Real distance from Scene's raycast. Pre-Phase-15 builds (and
+      // tests that don't construct the full Scene) didn't include
+      // `distance` on the event detail — fall back gracefully.
+      setLabel(formatDistance(distance))
       // Force the class off → reflow → on so the animation restarts
       // even on rapid taps. React state via two setters and a 0ms
       // timeout works cleanly enough; the rAF dance from the
@@ -71,7 +86,7 @@ export default function FocusReticle() {
       </div>
       <div className="mock-reticle-label">
         Focus<span className="mock-reticle-sep">·</span>
-        {meters} m
+        {label}
       </div>
     </div>
   )
