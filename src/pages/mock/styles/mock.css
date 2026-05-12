@@ -1683,12 +1683,12 @@ body.mock-mounted .mock-cluster--bottom-right {
   font-variant-numeric: tabular-nums;
 }
 
-/* Section labels inside the capture menu get more breathing room
- * than the standard `.mock-menu-section-label` (the picker has
- * higher content density). Prototype: 14px 11px 8px (matches the
- * style-card grid's inset). */
+/* Section labels inside the capture menu — flush-left with the
+ * Capture title in the head. Was 14px 11px 8px (gutter-aligned with
+ * the style-card grid); user prefers the labels to align with the
+ * menu title for a stronger left rail. */
 .mock-menu-capture .mock-menu-section-label {
-  padding: 14px 11px 8px;
+  padding: 14px 0 8px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
