@@ -15,37 +15,55 @@
 /* MoMA scoped overrides. Variables defined here cascade into every
  * downstream rule in this file via body.mock-mounted scoping. Picking
  * up these names instead of inlining literals keeps the migration
- * surface concentrated to this block. */
+ * surface concentrated to this block.
+ *
+ * Names + values mirror prototypes/editor-chrome-moma-v1.html :root
+ * verbatim (with `--moma-` prefix to avoid colliding with tokens.css).
+ * If you find yourself wanting to "tweak" a value here away from the
+ * prototype, fix the prototype first, then mirror back — they must
+ * stay 1:1. */
 body.mock-mounted {
-  /* Accent palette — chartreuse / Feijoa */
-  --moma-accent: #9be57f;
-  --moma-accent-dark: #06120a;
-  --moma-accent-glow: rgba(155, 229, 127, 0.42);
-  --moma-accent-soft: rgba(155, 229, 127, 0.12);
+  /* Page / canvas surfaces */
+  --moma-bg: #06080a;            /* Bunker — page outside the canvas */
+  --moma-canvas: #08090b;        /* Woodsmoke — canvas backdrop */
 
-  /* Pill / glass surface */
-  --moma-pill-bg: rgba(8, 10, 12, 0.55);
-  --moma-pill-bg-hover: rgba(18, 22, 24, 0.72);
-  --moma-pill-bg-active: rgba(155, 229, 127, 0.10);
+  /* Pill / glass surface — literal prototype values */
+  --moma-pill: rgba(8, 10, 12, 0.55);
   --moma-pill-border: rgba(250, 250, 250, 0.10);
-  --moma-pill-border-hover: rgba(155, 229, 127, 0.42);
-  --moma-pill-border-active: rgba(155, 229, 127, 0.85);
-  --moma-pill-blur: 7px;
+  --moma-pill-blur: blur(7px);
   --moma-pill-radius: 3px;
 
+  /* Pill state variants — derived from the prototype's hover/active
+   * literals. Names parallel `--moma-pill` so the recipe below reads
+   * cleanly. */
+  --moma-pill-bg-hover: rgba(12, 14, 18, 0.78);
+  --moma-pill-bg-active: rgba(12, 14, 18, 0.85);
+  --moma-pill-border-hover: rgba(155, 229, 127, 0.35);
+  --moma-pill-border-active: rgba(155, 229, 127, 0.50);
+  --moma-pill-shadow-hover:
+    0 6px 14px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(155, 229, 127, 0.08);
+  --moma-pill-label-bright: rgba(250, 250, 250, 0.95);
+
   /* Ink */
-  --moma-ink: rgba(250, 250, 250, 0.92);
+  --moma-ink: #fafafa;                       /* Alabaster */
   --moma-ink-soft: rgba(250, 250, 250, 0.55);
   --moma-ink-dim: rgba(250, 250, 250, 0.16);
 
-  /* Type tracks — MoMA's signature wide-spaced uppercase labels +
-   * tight monospace values. Mirrors the prototype's --label-track /
-   * --value-track / --upper-track. */
+  /* Viewfinder corner stroke */
+  --moma-vf-line: rgba(250, 250, 250, 0.70);
+
+  /* Accent palette — Feijoa chartreuse */
+  --moma-accent: #9be57f;
+  --moma-accent-dark: #06120a;
+
+  /* Type — MoMA's signature wide-spaced uppercase labels +
+   * tight monospace values. Sizes + tracks mirror the prototype. */
+  --moma-label-size: 9px;
+  --moma-value-size: 11px;
   --moma-label-track: 1.62px;
   --moma-value-track: 0.88px;
   --moma-upper-track: 1.98px;
-  --moma-label-size: 9px;
-  --moma-value-size: 11px;
 }
 
 /* Canvas always full-bleed — regardless of fillMode. The original sized-down
@@ -136,9 +154,10 @@ body.mock-mounted #canvas-container::before {
   left: var(--frame-x);
   width: var(--frame-w);
   height: var(--frame-h);
-  /* Phase 1 — MoMA chrome migration. Stroke bumped 2px → 3px to read
-   * as a deliberate frame at the new aesthetic's higher visual weight. */
-  border: 3px solid rgba(255, 255, 255, 0.95);
+  /* Phase 1 — MoMA chrome migration. Stroke matches the prototype's
+   * --frame-stroke token: 6px solid #ffffff. The thicker rail reads
+   * as deliberate poster crop at the MoMA aesthetic weight. */
+  border: 6px solid #ffffff;
   transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
               left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
               width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
@@ -162,7 +181,7 @@ body.mock-mounted #canvas-container::before {
 .mock-vf-bracket::after {
   content: '';
   position: absolute;
-  background: rgba(250, 250, 250, 0.70);
+  background: var(--moma-vf-line);
 }
 .mock-vf-bracket::before { width: 24px; height: 1px;  top: 0; left: 0; }
 .mock-vf-bracket::after  { width: 1px;  height: 14px; top: 0; left: 0; }
@@ -177,13 +196,17 @@ body.mock-mounted #canvas-container::before {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  /* 8px gap matches the prototype's `.cluster { gap: 8px }`. */
+  gap: 8px;
   z-index: 60;
   pointer-events: none;
 }
 .mock-cluster > * { pointer-events: auto; }
-.mock-cluster--top-left   { top: 18px; left: 18px; }
-.mock-cluster--top-right  { top: 18px; right: 18px; gap: 6px; }
+/* MoMA offset — 24px from each edge (was 18px). Matches the prototype's
+ * `.cluster.tl/tr/bl/br` rules; same value as the viewfinder bracket
+ * inset, so brackets and clusters share an aligned safe-frame margin. */
+.mock-cluster--top-left   { top: 24px; left: 24px; }
+.mock-cluster--top-right  { top: 24px; right: 24px; gap: 6px; }
 
 /* Top-center wordmark — non-interactive (click-through to canvas). The
  * SVG carries its own drop shadow so it stays legible over bright sky.
@@ -366,9 +389,9 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-mid { opacity: 1; }
 body[data-intro-revealed="5"] .mock-cluster--bottom-right,
 body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 
-.mock-cluster--bottom-left  { bottom: 18px; left: 18px; }
-.mock-cluster--bottom-mid   { bottom: 18px; left: 50%; transform: translateX(-50%); }
-.mock-cluster--bottom-right { bottom: 18px; right: 18px; }
+.mock-cluster--bottom-left  { bottom: 24px; left: 24px; }
+.mock-cluster--bottom-mid   { bottom: 24px; left: 50%; transform: translateX(-50%); }
+.mock-cluster--bottom-right { bottom: 24px; right: 24px; }
 
 /* Split pill — two pill-like halves sharing one glass background, divided
  * by a hairline. Used for Capture | AI Render in the bottom-mid cluster. */
@@ -429,43 +452,60 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 }
 
 /* ═══════ Pill ═══════
- * MoMA recipe (Phase 1):
- *   - 3px boxy corners (was 999px round)
- *   - dark glass via --moma-pill-bg + 7px backdrop blur (was 20px on a
- *     lighter tint — the prototype's "deep glass" feel)
- *   - JetBrains Mono uppercase 11px label with wide tracking
- *   - hover & active states tint the BORDER chartreuse (cream → chartreuse
- *     accent migration). bg stays largely the same on hover; chartreuse
- *     wash is reserved for the active/open state.
+ * MoMA recipe (Phase 1) — mirrors `.pill` in editor-chrome-moma-v1.html
+ * line-for-line:
+ *   - 28.5px height, 7px × 11px padding, 6px gap (NOT 36px / 8×14 / 10)
+ *   - 3px boxy corners
+ *   - dark-glass `--moma-pill` bg + 7px backdrop blur
+ *   - JetBrains Mono 400 (NOT 500) at 11px with --value-track on the
+ *     value slot, 9px with --label-track on the label slot
+ *   - hover: deeper bg + soft chartreuse border + DUAL box-shadow
+ *     (drop + chartreuse hairline) — this shadow was missing before
+ *   - active ([data-menu-open] in the prototype, .is-active here):
+ *     darker glass + medium chartreuse border (NOT a green tint on
+ *     the bg — the bg stays dark glass; chartreuse is border-only)
+ *
+ * The triple transition (bg + border + box-shadow) matches the
+ * prototype's mounted timing — 140ms morph + 180ms shadow.
  */
 .mock-pill {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  height: 36px;
+  gap: 6px;
+  padding: 7px 11px;
+  height: 28.5px;
   border-radius: var(--moma-pill-radius);
-  background: var(--moma-pill-bg);
-  -webkit-backdrop-filter: blur(var(--moma-pill-blur)) saturate(140%);
-          backdrop-filter: blur(var(--moma-pill-blur)) saturate(140%);
+  background: var(--moma-pill);
+  -webkit-backdrop-filter: var(--moma-pill-blur);
+          backdrop-filter: var(--moma-pill-blur);
   border: 1px solid var(--moma-pill-border);
   color: var(--moma-ink);
-  font: 500 var(--moma-value-size) / 1 var(--mono);
-  letter-spacing: var(--moma-value-track);
-  cursor: pointer;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
-  user-select: none;
   white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.18s ease;
 }
 .mock-pill:hover {
   background: var(--moma-pill-bg-hover);
   border-color: var(--moma-pill-border-hover);
-  color: #fff;
+  box-shadow: var(--moma-pill-shadow-hover);
 }
+.mock-pill:hover .mock-pill-label {
+  color: var(--moma-pill-label-bright);
+}
+/* Active = the open-menu state in the prototype. Same darker glass +
+ * chartreuse border accent; the LABEL brightens to 95% white. The bg
+ * stays dark — chartreuse is reserved for the border + (in two-slot
+ * pills) the value text. */
 .mock-pill.is-active {
   background: var(--moma-pill-bg-active);
   border-color: var(--moma-pill-border-active);
-  color: var(--moma-accent);
+}
+.mock-pill.is-active .mock-pill-label {
+  color: var(--moma-pill-label-bright);
 }
 /* Drag scrubber pills (focal-length mm, time-of-day). touch-action must
  * be `none` — without it, mobile browsers interpret a horizontal finger
@@ -473,7 +513,7 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
  * DragPill.jsx reads, leaving the slider dead on touch. */
 .mock-pill.is-drag { cursor: ew-resize; touch-action: none; }
 .mock-pill.is-dragging {
-  background: var(--moma-pill-bg-hover);
+  background: var(--moma-pill-bg-active);
   border-color: var(--moma-pill-border-active);
 }
 
@@ -481,44 +521,45 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.7;
+  width: 12px;
+  height: 12px;
+  opacity: 0.85;
+  flex-shrink: 0;
   color: var(--moma-ink-soft);
 }
-.mock-pill:hover .mock-pill-icon { opacity: 1; color: #fff; }
+.mock-pill:hover .mock-pill-icon { opacity: 1; color: var(--moma-ink); }
 .mock-pill.is-active .mock-pill-icon { opacity: 1; color: var(--moma-accent); }
 
 /* Default label slot — when Pill.jsx renders children as a single span
  * (the existing API), this rule applies. Phase 2 introduces a separate
  * .mock-pill-value slot; until then a single label carries both the
- * label and value semantics, rendered as MoMA wide-tracked uppercase. */
+ * label and value semantics, rendered as MoMA 11px mono with
+ * --value-track. Note the prototype's font-weight is 400, not 500. */
 .mock-pill-label {
-  font: 500 var(--moma-value-size) / 1 var(--mono);
+  font: 400 var(--moma-value-size) / 1 var(--mono);
   letter-spacing: var(--moma-value-track);
   font-variant-numeric: tabular-nums;
-  text-transform: uppercase;
+  color: var(--moma-ink);
+  transition: color 0.14s ease;
 }
 
-/* Phase-2 prep — when Pill.jsx eventually emits two slots, the label
- * is the dim uppercase 9px name and the value is the bright 11px
- * datum. Defining the rule now means downstream pills can opt into
- * the two-slot layout one at a time without further CSS churn. */
+/* Two-slot pill scaffolding — when Pill.jsx eventually emits a
+ * separate value span, the label drops to the dim 9px uppercase name
+ * and the value carries the bright 11px datum. The :has() selector
+ * means downstream pills can opt into two-slot layout one at a time
+ * without further CSS churn. */
 .mock-pill-value {
-  font: 500 var(--moma-value-size) / 1 var(--mono);
+  font: 400 var(--moma-value-size) / 1 var(--mono);
   letter-spacing: var(--moma-value-track);
   font-variant-numeric: tabular-nums;
-  color: inherit;
-}
-.mock-pill .mock-pill-label + .mock-pill-value {
-  /* Two-slot pills: separate the dim LABEL from the bright VALUE so
-   * both stay legible. The label gets dimmed; the value inherits the
-   * pill's primary color. */
-  margin-left: -2px;
+  color: var(--moma-ink);
+  transition: color 0.14s ease;
 }
 .mock-pill .mock-pill-label:has(+ .mock-pill-value) {
   font-size: var(--moma-label-size);
   letter-spacing: var(--moma-label-track);
+  text-transform: uppercase;
   color: var(--moma-ink-soft);
-  font-weight: 500;
 }
 .mock-pill.is-active .mock-pill-label:has(+ .mock-pill-value) {
   color: var(--moma-accent);
