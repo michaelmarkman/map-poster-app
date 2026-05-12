@@ -551,17 +551,16 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
  * .mock-mounted class is only on body during the editor's mounted
  * lifetime, so the animations don't re-fire on rerenders. */
 
-/* The bottom-mid cluster keeps its translateX(-50%) centering, so its
- * load-in animates only opacity (translating Y would fight the
- * centering transform). Other clusters get a soft 8px lift. */
-@keyframes mockClusterIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes mockClusterInCentered {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
+/* Cluster load-in is opacity-only — same constraint that kills the
+ * bracket animation if it touches transform. `animation-fill-mode:
+ * both` keeps a stacking context active on the animated element for
+ * the lifetime of the page, and ANY non-`none` transform left over
+ * from the animation (even `translateY(0)`) blocks backdrop-filter
+ * pierce-through into descendants. The pills inside the clusters
+ * use backdrop-filter for their glass effect, so a transform-touched
+ * cluster animation kills the pill blur. Was a translateY(8 → 0)
+ * lift; dropped for the same reason the FrameOverlay was dropped
+ * from the load-in. */
 @keyframes mockFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -590,23 +589,23 @@ body.mock-mounted .mock-vf-bracket {
  * inter-cluster gap keeps the cascade fast (final cluster lands at
  * ~720ms after mount) while still reading as choreographed. */
 body.mock-mounted .mock-cluster--top-left {
-  animation: mockClusterIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 320ms;
 }
 body.mock-mounted .mock-cluster--top-right {
-  animation: mockClusterIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 400ms;
 }
 body.mock-mounted .mock-cluster--bottom-left {
-  animation: mockClusterIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 480ms;
 }
 body.mock-mounted .mock-cluster--bottom-mid {
-  animation: mockClusterInCentered 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 560ms;
 }
 body.mock-mounted .mock-cluster--bottom-right {
-  animation: mockClusterIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: mockFadeIn 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: 640ms;
 }
 

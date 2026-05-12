@@ -7,6 +7,25 @@ import { sceneRef } from './stateRef'
 import { intersectEarthSphere } from '../utils/camera'
 import { dofAtom } from '../atoms/scene'
 
+// Minimum altitude above sea level for the camera. Below this the user
+// is "under the ground" — the photogrammetry tiles don't extend below
+// the surface so the view goes black + clip-buggy. 30m is roughly a
+// 6-story building, enough for street-level posters without letting
+// the camera plummet through terrain.
+const CAMERA_MIN_ALT = 30
+
+// Clamp a camera position to the altitude floor in-place. Uses the
+// Geodetic helper to convert ECEF → lat/lng/height, raises the height
+// if below floor, converts back. Preserves the radial direction so
+// lat/lng stay the same.
+function clampCameraToAltitudeFloor(cameraPosition, geo) {
+  geo.setFromECEF(cameraPosition)
+  if (geo.height < CAMERA_MIN_ALT) {
+    geo.height = CAMERA_MIN_ALT
+    geo.toECEF(cameraPosition)
+  }
+}
+
 // WASD flight — each frame, move the camera in the direction of the held keys
 // along the local tangent plane (W/S = forward along ground, A/D = strafe,
 // Q/E/Space = down/up). Speed scales with altitude so flight feels natural
@@ -58,6 +77,9 @@ function WasdFly() {
     if (k.q) move.addScaledVector(up, -speed)
 
     camera.position.add(move)
+    // Keep the camera from sinking through the terrain with the Q key
+    // or a steep forward dive.
+    clampCameraToAltitudeFloor(camera.position, geo)
   })
 
   return null
@@ -143,6 +165,10 @@ function ScrollDolly() {
       const step = -e.deltaY * alt * 0.0006
       tmpFwd.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
       camera.position.addScaledVector(tmpFwd, step)
+      // Clamp to the altitude floor — without this, zooming in too far
+      // pushes the camera below terrain and you end up looking at a
+      // black void from underground.
+      clampCameraToAltitudeFloor(camera.position, tmpGeo)
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', onWheel)

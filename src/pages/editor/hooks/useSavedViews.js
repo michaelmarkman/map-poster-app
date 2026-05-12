@@ -382,8 +382,24 @@ export default function useSavedViews() {
         if (lat != null && lng != null) {
           reverseGeocodeName(lat, lng).then((place) => {
             if (!place) return
+            // Deduplicate against existing views — if 'Manhattan' is
+            // already taken, append (2), (3), etc. Without this, the
+            // reverse-geocoder returning the same suburb for nearby
+            // viewpoints would leave the list full of identically-named
+            // entries that the user can't distinguish.
+            const taken = new Set(
+              stateRef.current.views
+                .filter((v) => v.id !== view.id)
+                .map((v) => v.name),
+            )
+            let unique = place
+            if (taken.has(unique)) {
+              let n = 2
+              while (taken.has(`${place} (${n})`)) n += 1
+              unique = `${place} (${n})`
+            }
             const next = stateRef.current.views.map((v) =>
-              v.id === view.id ? { ...v, name: place } : v,
+              v.id === view.id ? { ...v, name: unique } : v,
             )
             commitViews(next)
           })

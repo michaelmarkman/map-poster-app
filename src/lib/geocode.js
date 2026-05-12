@@ -325,15 +325,28 @@ export async function reverseGeocodeName(lat, lng) {
     // network blip; fall through
   }
   try {
+    // zoom=18 gives building-level OSM tags. At the old zoom=14 the
+    // entire island of Manhattan came back with the same suburb=
+    // 'Manhattan' tag for every saved view, so dozens of views all
+    // ended up named the same thing. Higher zoom surfaces neighbourhood
+    // (SoHo, Midtown), road (5th Avenue), and amenity tags.
     const r = await fetchWithTimeout(
-      `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
+      `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
       { headers: { 'User-Agent': USER_AGENT } },
     )
     if (!r.ok) return null
     const data = await r.json()
     const a = data?.address || {}
+    // Prefer most-specific to least. amenity catches landmarks
+    // (Brooklyn Bridge, Empire State Building); road catches a street
+    // name when there's no named neighbourhood. suburb/city_district/
+    // city are the broad fallbacks that produce the duplication
+    // problem — they're last in the chain on purpose.
     return (
-      a.neighbourhood || a.suburb || a.city_district ||
+      a.amenity || a.building || a.tourism || a.shop ||
+      a.neighbourhood || a.quarter ||
+      a.road ||
+      a.suburb || a.city_district ||
       a.town || a.village || a.hamlet || a.city ||
       (typeof data?.display_name === 'string' ? data.display_name.split(',')[0].trim() : null) ||
       null
