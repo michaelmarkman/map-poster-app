@@ -110,11 +110,14 @@ function shapePredictions(suggestions) {
 async function autocomplete(req, res) {
   const key = getApiKey()
   if (!key) {
-    return jsonResponse(res, 501, {
-      error: 'places_not_configured',
-      message:
-        'Set GOOGLE_PLACES_API_KEY (or VITE_GOOGLE_3DTILES_KEY) in env. Falling back to Nominatim.',
+    // Return 200 + fallback flag (not 501) — the browser flags any
+    // non-2xx as a console error even when the client is set up to
+    // handle it gracefully. Client checks `data.fallback === true`
+    // and falls through to Nominatim. Clean network panel.
+    return jsonResponse(res, 200, {
+      predictions: [],
       fallback: true,
+      reason: 'places_not_configured',
     })
   }
   const body = await readJsonBody(req)
@@ -148,11 +151,16 @@ async function autocomplete(req, res) {
     })
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '')
-      return jsonResponse(res, upstream.status, {
-        error: 'places_upstream_error',
+      // Same rationale as the no-key branch above: return 200 with
+      // fallback flag so the browser doesn't flag the response red.
+      // The upstream status/detail still rides along in the body for
+      // server-log debugging.
+      return jsonResponse(res, 200, {
+        predictions: [],
+        fallback: true,
+        reason: 'places_upstream_error',
         status: upstream.status,
         detail: detail.slice(0, 240),
-        fallback: true,
       })
     }
     const data = await upstream.json()
@@ -160,10 +168,11 @@ async function autocomplete(req, res) {
       predictions: shapePredictions(data?.suggestions),
     })
   } catch (e) {
-    return jsonResponse(res, 502, {
-      error: 'places_network_error',
-      detail: String(e?.message || e),
+    return jsonResponse(res, 200, {
+      predictions: [],
       fallback: true,
+      reason: 'places_network_error',
+      detail: String(e?.message || e),
     })
   }
 }
@@ -171,9 +180,9 @@ async function autocomplete(req, res) {
 async function resolve(req, res) {
   const key = getApiKey()
   if (!key) {
-    return jsonResponse(res, 501, {
-      error: 'places_not_configured',
+    return jsonResponse(res, 200, {
       fallback: true,
+      reason: 'places_not_configured',
     })
   }
   const body = await readJsonBody(req)
@@ -200,20 +209,20 @@ async function resolve(req, res) {
     })
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '')
-      return jsonResponse(res, upstream.status, {
-        error: 'places_upstream_error',
+      return jsonResponse(res, 200, {
+        fallback: true,
+        reason: 'places_upstream_error',
         status: upstream.status,
         detail: detail.slice(0, 240),
-        fallback: true,
       })
     }
     const data = await upstream.json()
     const lat = data?.location?.latitude
     const lng = data?.location?.longitude
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return jsonResponse(res, 502, {
-        error: 'places_no_location',
+      return jsonResponse(res, 200, {
         fallback: true,
+        reason: 'places_no_location',
       })
     }
     return jsonResponse(res, 200, {
@@ -224,10 +233,10 @@ async function resolve(req, res) {
       formattedAddress: data?.formattedAddress || null,
     })
   } catch (e) {
-    return jsonResponse(res, 502, {
-      error: 'places_network_error',
-      detail: String(e?.message || e),
+    return jsonResponse(res, 200, {
       fallback: true,
+      reason: 'places_network_error',
+      detail: String(e?.message || e),
     })
   }
 }
@@ -281,9 +290,9 @@ function pickBestName(results) {
 async function reverse(req, res) {
   const key = getApiKey()
   if (!key) {
-    return jsonResponse(res, 501, {
-      error: 'places_not_configured',
+    return jsonResponse(res, 200, {
       fallback: true,
+      reason: 'places_not_configured',
     })
   }
   const body = await readJsonBody(req)
@@ -300,19 +309,19 @@ async function reverse(req, res) {
     const upstream = await fetch(url)
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '')
-      return jsonResponse(res, upstream.status, {
-        error: 'places_upstream_error',
+      return jsonResponse(res, 200, {
+        fallback: true,
+        reason: 'places_upstream_error',
         status: upstream.status,
         detail: detail.slice(0, 240),
-        fallback: true,
       })
     }
     const data = await upstream.json()
     if (data?.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      return jsonResponse(res, 502, {
-        error: 'geocoding_status_' + data.status,
-        detail: (data.error_message || '').slice(0, 240),
+      return jsonResponse(res, 200, {
         fallback: true,
+        reason: 'geocoding_status_' + data.status,
+        detail: (data.error_message || '').slice(0, 240),
       })
     }
     const picked = pickBestName(data?.results)
@@ -325,10 +334,10 @@ async function reverse(req, res) {
     }
     return jsonResponse(res, 200, picked)
   } catch (e) {
-    return jsonResponse(res, 502, {
-      error: 'places_network_error',
-      detail: String(e?.message || e),
+    return jsonResponse(res, 200, {
       fallback: true,
+      reason: 'places_network_error',
+      detail: String(e?.message || e),
     })
   }
 }

@@ -176,7 +176,13 @@ export async function searchPlaces(
     })
     if (r.ok) {
       const data = await r.json()
-      if (Array.isArray(data?.predictions) && data.predictions.length) {
+      // Proxy signals fallback when the key isn't configured / upstream
+      // failed / Google returned an error. Drop through to Nominatim
+      // instead of treating this as a real empty-result response.
+      if (data?.fallback === true) {
+        // intentional fall-through — do NOT cache, the next deploy
+        // might wire Google up.
+      } else if (Array.isArray(data?.predictions) && data.predictions.length) {
         const mapped = data.predictions.slice(0, limit).map((p) => ({
           description: p.description || p.mainText || trimmed,
           placeId: p.placeId || null,
@@ -185,13 +191,12 @@ export async function searchPlaces(
         }))
         cacheWrite(key, mapped)
         return mapped
-      }
-      if (Array.isArray(data?.predictions)) {
+      } else if (Array.isArray(data?.predictions)) {
         cacheWrite(key, []) // valid empty — don't re-query
         return []
       }
     }
-    // Non-2xx OR { fallback: true } -> drop through to Nominatim
+    // Non-2xx -> drop through to Nominatim
   } catch (e) {
     // Aborted by caller (new keystroke) — propagate so caller knows
     // to discard. Network blip / timeout — fall through to Nominatim.
@@ -274,6 +279,10 @@ export async function resolvePlace(placeId, { sessionToken } = {}) {
     })
     if (!r.ok) return null
     const data = await r.json()
+    // Proxy signals fallback — Google didn't fulfill this resolve. The
+    // caller may have inline lat/lng from a Nominatim prediction; if
+    // not, there's no resolve path so return null.
+    if (data?.fallback === true) return null
     if (!Number.isFinite(data?.lat) || !Number.isFinite(data?.lng)) return null
     return {
       lat: data.lat,
