@@ -239,32 +239,9 @@ export default function CaptureMenu({ onClose }) {
     <div className="mock-menu-capture" data-phase="picker">
       <div className="mock-menu-capture-head">
         <span className="mock-menu-capture-title">Capture</span>
-        <div className="mock-menu-capture-head-right">
-          {queue.length > 0 && (
-            <button
-              type="button"
-              className="mock-menu-capture-queue-link"
-              onClick={() => setPhase('queue')}
-              title="View render queue"
-            >
-              {inflightCount > 0 && (
-                <span className="mock-menu-capture-queue-link-dot" aria-hidden="true" />
-              )}
-              <span>Queue</span>
-              <span className="mock-menu-capture-queue-link-count">
-                {queueLinkCount}
-              </span>
-              <svg viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M2.5 5h5M5.5 2l2.5 3-2.5 3" fill="none"
-                      stroke="currentColor" strokeWidth="1.4"
-                      strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
-          <span className="mock-menu-capture-meta">
-            {exportRes}× · {RES_PX[exportRes]}px
-          </span>
-        </div>
+        <span className="mock-menu-capture-meta">
+          {exportRes}× · {RES_PX[exportRes]}px
+        </span>
       </div>
 
       <div className="mock-menu-section-label">Resolution</div>
@@ -371,13 +348,31 @@ export default function CaptureMenu({ onClose }) {
         >
           More options →
         </button>
-        <button
-          type="button"
-          className="mock-menu-capture-render"
-          onClick={dispatchRender}
-        >
-          {selectionCount > 1 ? `Render ${selectionCount}` : 'Render'}
-        </button>
+        <div className="mock-menu-capture-foot-actions">
+          {queue.length > 0 && (
+            <button
+              type="button"
+              className="mock-menu-capture-queue-link"
+              onClick={() => setPhase('queue')}
+              title="View render queue"
+            >
+              {inflightCount > 0 && (
+                <span className="mock-menu-capture-queue-link-dot" aria-hidden="true" />
+              )}
+              <span>Queue</span>
+              <span className="mock-menu-capture-queue-link-count">
+                {queueLinkCount}
+              </span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="mock-menu-capture-render"
+            onClick={dispatchRender}
+          >
+            {selectionCount > 1 ? `Render ${selectionCount}` : 'Render'}
+          </button>
+        </div>
       </div>
     </div>
   )

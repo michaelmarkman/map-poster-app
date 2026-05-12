@@ -1904,6 +1904,14 @@ body.mock-mounted .mock-cluster--bottom-right {
   align-items: center;
   justify-content: space-between;
 }
+/* Right-side action cluster — keeps the Queue link glued to the
+ * Render CTA's left edge instead of letting `space-between` push them
+ * apart with More-options. */
+.mock-menu-capture-foot-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .mock-menu-capture-more {
   background: transparent;
   border: 0;
@@ -1970,16 +1978,18 @@ body.mock-mounted .mock-cluster--bottom-right {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 8px 0 8px;
+  /* Footer height matches the Render CTA (9px + 1em + 9px ≈ 29px) so the
+   * pair reads as a single action group. Padding/letter-spacing mirror
+   * the Render CTA's mono uppercase rhythm. */
+  padding: 8px 12px;
   background: rgba(155, 229, 127, 0.10);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(155, 229, 127, 0.30);
   border-radius: 2px;
   color: var(--accent);
-  font: 500 9px/1 var(--mono);
-  letter-spacing: 0.12em;
+  font: 500 10px/1 var(--mono);
+  letter-spacing: var(--moma-upper-track);
   text-transform: uppercase;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
