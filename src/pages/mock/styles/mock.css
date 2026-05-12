@@ -1667,7 +1667,9 @@ body.mock-mounted .mock-cluster--bottom-right {
   box-sizing: border-box;
   min-height: 35px;
   padding-bottom: 12px;
-  margin-bottom: 12px;
+  /* Was 12px; bumped to 20 so the first section label / segment row
+   * breathes off the bottom hairline (felt cramped before). */
+  margin-bottom: 20px;
   border-bottom: 1px solid rgba(250, 250, 250, 0.06);
 }
 .mock-menu-capture-title {
