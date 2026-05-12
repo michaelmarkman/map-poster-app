@@ -580,12 +580,12 @@ body.mock-mounted .mock-vf-bracket {
   animation-delay: 80ms;
 }
 
-/* FrameOverlay (poster crop) fades in just after the brackets. */
-body.mock-mounted .frame-overlay,
-body.mock-mounted .mock-frame-overlay {
-  animation: mockFadeIn 360ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
-  animation-delay: 220ms;
-}
+/* FrameOverlay is NOT animated in. Used to be, but `animation-fill-mode:
+ * both` keeps a stacking context active on the parent even after the
+ * keyframe lands at opacity:1 — which breaks backdrop-filter pierce-
+ * through to its `.mock-frame-blur` child, killing the off-frame blur.
+ * The chrome stagger (brackets + clusters) covers the cold-load moment
+ * well enough without the frame fading in too. */
 
 /* Corner clusters stagger left-to-right / top-to-bottom. The 80ms
  * inter-cluster gap keeps the cascade fast (final cluster lands at
@@ -621,8 +621,6 @@ body.mock-mounted .mock-cluster--bottom-right {
  * want flair; choreography is flair. */
 @media (prefers-reduced-motion: reduce) {
   body.mock-mounted .mock-vf-bracket,
-  body.mock-mounted .frame-overlay,
-  body.mock-mounted .mock-frame-overlay,
   body.mock-mounted .mock-cluster {
     animation: none;
   }
