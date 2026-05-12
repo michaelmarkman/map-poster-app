@@ -1854,6 +1854,36 @@ body.mock-mounted .mock-cluster--bottom-right {
 .mock-menu-capture-style.is-vedute.is-active .mock-menu-capture-style-vedute-mark {
   color: #c1f1a5;
 }
+
+/* Dithered — 1-bit halftone print poster preset. Cream paper +
+ * deep-ink color palette; the thumb is a radial-gradient halftone
+ * grid with a vignette gradient overlay simulating ink density
+ * falloff. Pure CSS — no image asset. */
+.mock-menu-capture-style.is-dithered .mock-menu-capture-style-thumb {
+  background-color: #f1ead6;
+  /* Two overlays:
+   *   1. A radial halftone dot pattern (deep ink dots on cream paper)
+   *   2. A diagonal density gradient (denser dots toward upper-left,
+   *      sparser toward lower-right) so the thumb reads as a
+   *      shadow-to-highlight transition. */
+  background-image:
+    linear-gradient(135deg,
+      rgba(241, 234, 214, 0) 0%,
+      rgba(241, 234, 214, 0.85) 75%),
+    radial-gradient(circle at 1px 1px, #1a1a1f 1.1px, transparent 1.2px);
+  background-size: auto, 4px 4px;
+  filter: none;
+}
+.mock-menu-capture-style.is-dithered .mock-menu-capture-style-label {
+  color: #1a1a1f;
+  text-shadow: 0 0 6px rgba(241, 234, 214, 0.9);
+}
+.mock-menu-capture-style.is-dithered.is-active .mock-menu-capture-style-thumb {
+  /* Cream paper warms slightly when active to read as ink saturating
+   * paper — without changing the dot density (a filter:contrast move
+   * would muddy the dots). */
+  background-color: #ebe2c8;
+}
 .mock-menu-capture-style-icon {
   position: absolute;
   top: 6px;

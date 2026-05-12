@@ -106,6 +106,7 @@ const photoFor = (file) =>
 const RAW_KEY = 'raw'
 const CUSTOM_KEY = 'custom'
 const VEDUTE_KEY = 'vedute'
+const DITHERED_KEY = 'dithered'
 
 // Resolution → pixel-height map for the meta readout.
 const RES_PX = { 1: 1080, 2: 2160, 3: 3240, 4: 4320 }
@@ -313,6 +314,20 @@ export default function CaptureMenu({ onClose }) {
           <span className="mock-menu-capture-style-thumb" />
           <span className="mock-menu-capture-style-vedute-mark" aria-hidden="true">V</span>
           <span className="mock-menu-capture-style-label">Vedute</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
+        {/* Dithered — Swiss / risograph graphic-design preset. Pinned
+         *  alongside the other signature styles. Thumb is a CSS-only
+         *  halftone dot pattern so it visually communicates the print
+         *  language even without a real render. */}
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-dithered is-pinned${selected.has(DITHERED_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(DITHERED_KEY)}
+          title="Dithered — 1-bit halftone print poster"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-label">Dithered</span>
           <span className="mock-menu-capture-style-check">✓</span>
         </button>
         <button

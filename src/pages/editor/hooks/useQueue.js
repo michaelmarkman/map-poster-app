@@ -54,6 +54,17 @@ import { fireToast } from '../../../lib/toast'
 // prototype used. Only the fields this hook actually needs (label, prompt)
 // are kept.
 const AI_PRESETS = {
+  dithered: {
+    label: 'Dithered',
+    // 1-bit / halftone graphic-design treatment. Bauhaus / risograph
+    // / Massimo Vignelli vocabulary — flat shapes, hard edges, no
+    // gradients, dot or line halftone for tone instead of value
+    // gradients. Two-color palette (paper + ink) reads as printed
+    // matter, not a photo. Same composition-lock pattern as the other
+    // strong-style prompts.
+    prompt:
+      'Transform this into a 1-bit / halftone graphic-design print of the aerial cityscape. Use ONLY two colors: a warm cream paper tone (#f1ead6) for the background and a deep ink color (#1a1a1f) for everything else. No greys, no gradients — all tonal value comes from a fine halftone dot pattern, denser ink dots in shadow areas and sparser in highlights. Hard-edged shapes, flat fills, no photographic detail. Reads like a high-end editorial print, risograph or screen-printed poster, Massimo Vignelli / Swiss Style poster vocabulary. Slight visible registration offset between the two layers for a printed feel. NO text, labels, captions, signatures, ships, flags, ornaments. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Keep the exact same buildings, streets, composition, and layout.',
+  },
   vedute: {
     label: 'Vedute',
     // The brand's signature style — named after the 17th-/18th-century
