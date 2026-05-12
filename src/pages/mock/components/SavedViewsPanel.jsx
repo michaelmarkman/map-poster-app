@@ -240,6 +240,11 @@ export default function SavedViewsPanel({ onClose }) {
           )}
         </div>
       )}
+      {/* Phase 17 — section header to mirror Tour's `.svp-tour-label`
+       *  so both grids feel like sections of one structured menu. */}
+      {savedViews.length > 0 && (
+        <div className="svp-tour-label">Saved Views</div>
+      )}
       {savedViews.length === 0 ? (
         <div className="svp-empty">
           <div className="svp-empty-text">No saved views yet.</div>
