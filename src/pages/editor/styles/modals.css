@@ -205,16 +205,34 @@
    * render image-bg with a brightness filter + overlay gradient
    * + label/time at the bottom — replaces the previous "img +
    * separate text labels" flow layout with a single absolute-
-   * positioned card recipe. */
+   * positioned card recipe.
+   *
+   * Phase 20 — bottom fade mask. Without it, the partial next row
+   * peeking through the scroll boundary reads as a broken cutoff
+   * rather than "more content below." A 60px linear-gradient mask
+   * fades the bottom tiles into the sheet background, signaling
+   * scrollability cleanly. */
   .gallery-grid {
     display: grid;
     gap: 14px;
     grid-template-columns: repeat(5, 1fr);
     align-items: start;
     overflow-y: auto;
-    padding-bottom: 20px;
+    padding-bottom: 40px;
     flex: 1;
     min-height: 0;
+    mask-image: linear-gradient(
+      to bottom,
+      black 0,
+      black calc(100% - 60px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      black 0,
+      black calc(100% - 60px),
+      transparent 100%
+    );
   }
   @media (max-width: 1200px) { .gallery-grid { grid-template-columns: repeat(4, 1fr); } }
   @media (max-width: 960px)  { .gallery-grid { grid-template-columns: repeat(3, 1fr); } }
