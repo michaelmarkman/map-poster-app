@@ -1667,9 +1667,7 @@ body.mock-mounted .mock-cluster--bottom-right {
   box-sizing: border-box;
   min-height: 35px;
   padding-bottom: 12px;
-  /* Was 12px; bumped to 20 so the first section label / segment row
-   * breathes off the bottom hairline (felt cramped before). */
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border-bottom: 1px solid rgba(250, 250, 250, 0.06);
 }
 .mock-menu-capture-title {
@@ -1686,11 +1684,11 @@ body.mock-mounted .mock-cluster--bottom-right {
 }
 
 /* Section labels inside the capture menu — flush-left with the
- * Capture title in the head. Was 14px 11px 8px (gutter-aligned with
- * the style-card grid); user prefers the labels to align with the
- * menu title for a stronger left rail. */
+ * Capture title in the head. Subheading↔chips gap bumped to 14px
+ * (was 8px) so 'Resolution' and 'Style' breathe off the segment /
+ * category rows below them. */
 .mock-menu-capture .mock-menu-section-label {
-  padding: 14px 0 8px;
+  padding: 14px 0 14px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1743,7 +1741,9 @@ body.mock-mounted .mock-cluster--bottom-right {
 .mock-menu-capture-cats {
   display: flex;
   gap: 3px;
-  margin-bottom: 10px;
+  /* Bumped to 16px (was 10) so the category strip breathes off the
+   * style-card grid below it. */
+  margin-bottom: 16px;
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
