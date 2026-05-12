@@ -219,7 +219,7 @@
    * height of the body so when the list is shorter than the viewport, the
    * empty region below the cards still reads as intentional workspace. */
   background:
-    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(200, 184, 151, 0.03), transparent 70%),
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(155, 229, 127, 0.03), transparent 70%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.32) 100%);
   box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
 }
@@ -386,8 +386,8 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px 3px 10px;
-  background: rgba(200, 184, 151, 0.1);
-  border: 1px solid rgba(200, 184, 151, 0.3);
+  background: rgba(155, 229, 127, 0.1);
+  border: 1px solid rgba(155, 229, 127, 0.3);
   border-radius: 999px;
   color: var(--rs-accent-bright);
   font: 11px/1 inherit;
@@ -396,7 +396,7 @@
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.mock-render-sheet .rs-chip:hover { background: rgba(200, 184, 151, 0.18); }
+.mock-render-sheet .rs-chip:hover { background: rgba(155, 229, 127, 0.18); }
 .mock-render-sheet .rs-chip-x { font-size: 13px; line-height: 1; opacity: 0.7; padding: 0 1px 2px; }
 .mock-render-sheet .rs-chip:hover .rs-chip-x { opacity: 1; }
 
@@ -435,8 +435,8 @@
 .mock-render-sheet .rs-raw-desc { font-size: 11px; color: var(--rs-text-dim); letter-spacing: 0.01em; line-height: 1.4; }
 .mock-render-sheet .rs-raw.is-active {
   background: rgba(20, 20, 22, 0.82);
-  border-color: rgba(200, 184, 151, 0.6);
-  box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.14), 0 0 14px rgba(200, 184, 151, 0.18);
+  border-color: rgba(155, 229, 127, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(155, 229, 127, 0.14), 0 0 14px rgba(155, 229, 127, 0.18);
 }
 .mock-render-sheet .rs-raw.is-active .rs-raw-title { color: var(--rs-accent-bright); }
 .mock-render-sheet .rs-raw.is-active .rs-raw-desc { color: rgba(232, 220, 192, 0.7); }
@@ -455,7 +455,7 @@
 .mock-render-sheet .rs-raw.is-active .rs-raw-check {
   opacity: 1; transform: scale(1);
   background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
-  border-color: rgba(200, 184, 151, 0.7);
+  border-color: rgba(155, 229, 127, 0.7);
 }
 .mock-render-sheet .rs-raw.is-active .rs-raw-check::after {
   content: ''; width: 9px; height: 5px;
@@ -547,8 +547,8 @@
   padding-top: 4px;
 }
 .mock-render-sheet .rs-card.is-active .rs-card-photo {
-  border-color: rgba(200, 184, 151, 0.9);
-  box-shadow: 0 0 0 1px rgba(200, 184, 151, 0.4), 0 0 22px rgba(200, 184, 151, 0.3), 0 8px 22px rgba(0, 0, 0, 0.48);
+  border-color: rgba(155, 229, 127, 0.9);
+  box-shadow: 0 0 0 1px rgba(155, 229, 127, 0.4), 0 0 22px rgba(155, 229, 127, 0.3), 0 8px 22px rgba(0, 0, 0, 0.48);
 }
 .mock-render-sheet .rs-card.is-active .rs-card-label { color: var(--rs-accent-bright); }
 .mock-render-sheet .rs-card-check {
@@ -565,7 +565,7 @@
 .mock-render-sheet .rs-card.is-active .rs-card-check {
   opacity: 1; transform: scale(1);
   background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
-  border-color: rgba(200, 184, 151, 0.7);
+  border-color: rgba(155, 229, 127, 0.7);
 }
 .mock-render-sheet .rs-card.is-active .rs-card-check::after {
   content: ''; width: 10px; height: 5px;
@@ -599,7 +599,7 @@
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .mock-render-sheet .rs-input::placeholder { color: var(--rs-text-dim); }
-.mock-render-sheet .rs-input:focus { border-color: rgba(200, 184, 151, 0.5); background: var(--rs-surface-2); }
+.mock-render-sheet .rs-input:focus { border-color: rgba(155, 229, 127, 0.5); background: var(--rs-surface-2); }
 
 /* Provider toggle + API key — collapsed under the Styles pane footer area */
 .mock-render-sheet .rs-provider {
@@ -639,8 +639,8 @@
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .mock-render-sheet .rs-toggle.is-on {
-  background: rgba(200, 184, 151, 0.3);
-  border-color: rgba(200, 184, 151, 0.55);
+  background: rgba(155, 229, 127, 0.3);
+  border-color: rgba(155, 229, 127, 0.55);
 }
 .mock-render-sheet .rs-toggle.is-on::after { transform: translateX(13px); background: var(--rs-accent-bright); }
 .mock-render-sheet .rs-toggle[disabled] { opacity: 0.4; cursor: not-allowed; }
@@ -654,7 +654,7 @@
   gap: 14px;
   padding: 0 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background: linear-gradient(to bottom, rgba(200, 184, 151, 0.04), transparent);
+  background: linear-gradient(to bottom, rgba(155, 229, 127, 0.04), transparent);
   transition: opacity 0.3s ease, height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
   flex: 0 0 auto;
@@ -695,7 +695,7 @@
   inset: 0;
   width: var(--rs-session-progress, 0%);
   background: linear-gradient(to right, var(--rs-accent), var(--rs-accent-bright));
-  box-shadow: 0 0 10px rgba(200, 184, 151, 0.45);
+  box-shadow: 0 0 10px rgba(155, 229, 127, 0.45);
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -740,8 +740,8 @@
 .mock-render-sheet .rs-qcard:hover { background: var(--rs-surface-2); border-color: rgba(255, 255, 255, 0.14); }
 .mock-render-sheet .rs-qcard.is-dragging { opacity: 0.55; transform: scale(0.99); }
 .mock-render-sheet .rs-qcard.is-drop-target {
-  border-color: rgba(200, 184, 151, 0.45);
-  box-shadow: 0 0 0 1px rgba(200, 184, 151, 0.25), 0 0 18px rgba(200, 184, 151, 0.2);
+  border-color: rgba(155, 229, 127, 0.45);
+  box-shadow: 0 0 0 1px rgba(155, 229, 127, 0.25), 0 0 18px rgba(155, 229, 127, 0.2);
 }
 
 .mock-render-sheet .rs-qgutter {
@@ -790,9 +790,9 @@
   background: linear-gradient(
     110deg,
     transparent 0%, transparent 35%,
-    rgba(200, 184, 151, 0) 42%,
+    rgba(155, 229, 127, 0) 42%,
     rgba(232, 220, 192, 0.32) 50%,
-    rgba(200, 184, 151, 0) 58%,
+    rgba(155, 229, 127, 0) 58%,
     transparent 65%, transparent 100%
   );
   background-size: 260% 100%;
@@ -851,14 +851,14 @@
   z-index: 3;
 }
 .mock-render-sheet .rs-qcard[data-status="active"] .rs-qribbon {
-  background: rgba(200, 184, 151, 0.22);
+  background: rgba(155, 229, 127, 0.22);
   color: var(--rs-accent-bright);
-  border-color: rgba(200, 184, 151, 0.5);
+  border-color: rgba(155, 229, 127, 0.5);
 }
 .mock-render-sheet .rs-qcard[data-status="done"] .rs-qribbon {
   background: rgba(14, 14, 16, 0.8);
   color: var(--rs-accent-bright);
-  border-color: rgba(200, 184, 151, 0.3);
+  border-color: rgba(155, 229, 127, 0.3);
 }
 .mock-render-sheet .rs-qcard[data-status="error"] .rs-qribbon {
   background: rgba(80, 25, 20, 0.78);
@@ -880,7 +880,7 @@
 .mock-render-sheet .rs-qcard[data-status="done"] .rs-qbadge {
   opacity: 1; transform: scale(1);
   background: linear-gradient(180deg, var(--rs-accent-bright), var(--rs-accent));
-  border: 1px solid rgba(200, 184, 151, 0.7);
+  border: 1px solid rgba(155, 229, 127, 0.7);
 }
 .mock-render-sheet .rs-qcard[data-status="done"] .rs-qbadge::after {
   content: ''; width: 9px; height: 5px;
@@ -973,7 +973,7 @@
 }
 .mock-render-sheet .rs-qact:hover { color: var(--rs-text-primary); border-bottom-color: rgba(255, 255, 255, 0.28); }
 .mock-render-sheet .rs-qact.is-primary { color: var(--rs-accent-bright); }
-.mock-render-sheet .rs-qact.is-primary:hover { color: var(--rs-accent-bright); border-bottom-color: rgba(200, 184, 151, 0.55); }
+.mock-render-sheet .rs-qact.is-primary:hover { color: var(--rs-accent-bright); border-bottom-color: rgba(155, 229, 127, 0.55); }
 .mock-render-sheet .rs-qact.is-danger { color: rgba(216, 138, 126, 0.75); }
 .mock-render-sheet .rs-qact.is-danger:hover { color: #f5c8c0; border-bottom-color: rgba(216, 138, 126, 0.45); }
 
@@ -990,7 +990,7 @@
   inset: 0;
   width: var(--rs-progress, 0%);
   background: linear-gradient(to right, var(--rs-accent), var(--rs-accent-bright));
-  box-shadow: 0 0 8px rgba(200, 184, 151, 0.4);
+  box-shadow: 0 0 8px rgba(155, 229, 127, 0.4);
   transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .mock-render-sheet .rs-qcard[data-status="done"] .rs-qprogress { opacity: 0; }
@@ -1043,15 +1043,15 @@
 .mock-render-sheet .rs-qempty-art {
   position: relative;
   width: 120px; height: 72px;
-  border: 1px dashed rgba(200, 184, 151, 0.28);
+  border: 1px dashed rgba(155, 229, 127, 0.28);
   border-radius: 6px;
-  background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(200, 184, 151, 0.04) 6px 7px);
+  background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(155, 229, 127, 0.04) 6px 7px);
 }
 .mock-render-sheet .rs-qempty-art::before,
 .mock-render-sheet .rs-qempty-art::after {
   content: '';
   position: absolute;
-  background: rgba(200, 184, 151, 0.3);
+  background: rgba(155, 229, 127, 0.3);
 }
 .mock-render-sheet .rs-qempty-art::before { left: 50%; top: 50%; width: 16px; height: 1px; transform: translate(-50%, -50%); }
 .mock-render-sheet .rs-qempty-art::after  { left: 50%; top: 50%; width: 1px; height: 16px; transform: translate(-50%, -50%); }
