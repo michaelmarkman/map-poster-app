@@ -85,7 +85,8 @@ export default function ClusterBottomLeft() {
   return (
     <div className="mock-cluster mock-cluster--bottom-left">
       <HoverPopoverPill
-        label={ratioLabel}
+        label="Aspect"
+        value={ratioLabel}
         active={!fillMode}
         onToggle={() => setFillMode((v) => !v)}
         alwaysShowPopover

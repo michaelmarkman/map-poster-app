@@ -14,12 +14,12 @@ export default function ClusterBottomMid() {
   return (
     <div className="mock-cluster mock-cluster--bottom-mid">
       <Pill
+        className="mock-pill--capture"
         icon={<CameraSnapIcon />}
+        value="Capture"
         onClick={() => setModals((m) => ({ ...m, aiRender: true }))}
         aria-label="Capture poster — opens render menu"
-      >
-        Capture
-      </Pill>
+      />
     </div>
   )
 }

@@ -14,10 +14,10 @@ export default function ClusterBottomRight() {
       <HelpPill />
       <Pill
         icon={<ImageIcon />}
+        label="Gallery"
+        value={galleryCount || 0}
         onClick={() => setModals((m) => ({ ...m, gallery: true }))}
-      >
-        Gallery{galleryCount ? ` · ${galleryCount}` : ''}
-      </Pill>
+      />
     </div>
   )
 }

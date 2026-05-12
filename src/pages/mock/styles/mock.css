@@ -211,7 +211,13 @@ body.mock-mounted #canvas-container::before {
 /* Top-center wordmark — non-interactive (click-through to canvas). The
  * SVG carries its own drop shadow so it stays legible over bright sky.
  * z-index 500 keeps it above poster-preview / gallery / AI-render
- * modals so the brand mark stays put when any of those open. */
+ * modals so the brand mark stays put when any of those open.
+ *
+ * Phase 1 (MoMA): hidden in the editor. The prototype's chrome has no
+ * persistent top-center brand mark — the viewfinder bracket vocabulary
+ * carries the camera identity. The element is still rendered (so the
+ * intro can animate it during the cold-load sequence if we ever bring
+ * the intro back), just visually clipped under .mock-mounted. */
 .mock-wordmark {
   position: fixed;
   top: 24px;
@@ -222,6 +228,7 @@ body.mock-mounted #canvas-container::before {
   pointer-events: none;
   user-select: none;
   z-index: 500;
+  display: none;
 }
 /* Hidden during the intro until the settle phase — the intro renders
  * its own larger centered wordmark and animates it; once the intro
@@ -564,6 +571,55 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 .mock-pill.is-active .mock-pill-label:has(+ .mock-pill-value) {
   color: var(--moma-accent);
   opacity: 0.7;
+}
+
+/* ═══════ Capture pill (accent CTA) ═══════
+ * Mirrors `.pill.capture` in the prototype: chartreuse fill, dark-bean
+ * text, no backdrop blur, uppercase value with --upper-track. Adds a
+ * radial glow ::before that fades in on hover and a tactile press
+ * scale on :active. */
+.mock-pill--capture {
+  background: var(--moma-accent);
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+  padding: 8px 16px;
+  height: 29px;
+  color: var(--moma-accent-dark);
+  gap: 8px;
+  position: relative;
+  isolation: isolate;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+.mock-pill--capture::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 8px;
+  background: radial-gradient(closest-side, rgba(155, 229, 127, 0.5), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+.mock-pill--capture:hover {
+  background: #a9eb90;
+  border-color: transparent;
+  box-shadow: none;
+}
+.mock-pill--capture:hover::before { opacity: 1; }
+.mock-pill--capture:active { transform: scale(0.97); }
+.mock-pill--capture .mock-pill-icon {
+  opacity: 1;
+  color: var(--moma-accent-dark);
+}
+.mock-pill--capture:hover .mock-pill-icon { color: var(--moma-accent-dark); }
+.mock-pill--capture .mock-pill-value,
+.mock-pill--capture .mock-pill-label {
+  color: var(--moma-accent-dark);
+  text-transform: uppercase;
+  letter-spacing: var(--moma-upper-track);
+  font-weight: 500;
 }
 
 /* ═══════ Account chip (avatar + dropdown) ═══════ */

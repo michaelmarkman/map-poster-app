@@ -70,14 +70,18 @@ describe('ClusterTopLeft', () => {
         { id: 'b', name: 'View B' },
       ],
     })
-    expect(screen.getByText(/Views/)).toBeDefined()
-    expect(screen.getByText(/·\s*2/)).toBeDefined()
+    // Phase 1 — Pill is two-slot now: "Views" in .mock-pill-label and
+    // the count in .mock-pill-value (no "·" separator).
+    expect(screen.getByText('Views')).toBeDefined()
+    expect(screen.getByText('2')).toBeDefined()
   })
 
-  it('renders just "Views" when there are no saved views (no count)', () => {
+  it('renders "Views 0" when there are no saved views (prototype always shows count)', () => {
     renderWith({ savedViews: [] })
-    const label = screen.getByText(/Views/)
-    expect(label.textContent).toBe('Views')
+    expect(screen.getByText('Views')).toBeDefined()
+    // The prototype's data-views-count is always rendered — "0" is
+    // legitimate copy, not a UX edge case to hide.
+    expect(screen.getByText('0')).toBeDefined()
   })
 
   it('typing fires searchPlaces with sessionToken + bias from current camera', async () => {

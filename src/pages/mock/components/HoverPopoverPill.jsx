@@ -31,6 +31,8 @@ function useCoarsePointer() {
 export default function HoverPopoverPill({
   icon,
   label,
+  value, // Phase 1 — when paired with `label`, renders the prototype's
+         // two-slot LABEL VALUE recipe via Pill's value prop.
   active,
   onToggle,
   children,
@@ -109,6 +111,8 @@ export default function HoverPopoverPill({
     >
       <Pill
         icon={icon}
+        label={value != null ? label : undefined}
+        value={value}
         active={active}
         onClick={handlePillClick}
         aria-pressed={!!active}
@@ -116,7 +120,7 @@ export default function HoverPopoverPill({
         aria-expanded={popoverVisible}
         {...rest}
       >
-        {label}
+        {value == null ? label : null}
       </Pill>
       {popoverVisible ? (
         <div

@@ -2,9 +2,16 @@ import { useRef, useState, useEffect } from 'react'
 import Pill from './Pill'
 
 // Click-to-open popover pill. Click outside closes. Esc closes.
+//
+// Phase 1 — Pill now supports the prototype's two-slot LABEL VALUE
+// recipe. Pass `value` alongside `label` to render both slots; pass
+// `value` alone (no label) for icon-only-pills like the search pill
+// (icon + value, no label). Single-slot callers can keep passing
+// `label` only and the existing single-slot rendering stands.
 export default function PopoverPill({
   icon,
   label,
+  value,
   children,
   align = 'left',
   drop = 'down',
@@ -37,13 +44,17 @@ export default function PopoverPill({
     <div ref={wrapRef} className="mock-popover-pill-wrap">
       <Pill
         icon={icon}
+        label={value != null ? label : undefined}
+        value={value}
         active={active || open}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
         {...rest}
       >
-        {label}
+        {/* Single-slot path (no value): pass label as children so Pill's
+            unchanged single-slot rendering picks it up. */}
+        {value == null ? label : null}
       </Pill>
       {open ? (
         <div

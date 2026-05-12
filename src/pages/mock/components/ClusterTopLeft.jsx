@@ -192,22 +192,16 @@ export default function ClusterTopLeft() {
 
   return (
     <div className="mock-cluster mock-cluster--top-left">
-      <AccountChip />
-
-      <PopoverPill
-        icon={<PinIcon />}
-        label={`Views${savedViews.length ? ` · ${savedViews.length}` : ''}`}
-        align="left"
-        panelClassName="mock-popover--saved svp-panel"
-      >
-        {({ close }) => <SavedViewsPanel onClose={close} />}
-      </PopoverPill>
-
+      {/* Prototype order: search FIRST (value-only pill — icon + the
+       *  current location string), Views SECOND (two-slot
+       *  LABEL VALUE). AccountChip stays at the end as the product
+       *  affordance the prototype doesn't model. */}
       <PopoverPill
         icon={<SearchIcon />}
-        label=""
+        value={locationLabel}
         align="left"
         panelClassName="mock-popover--search"
+        className="mock-pill--search"
         aria-label={`Search location (current: ${locationLabel})`}
       >
         {({ close }) => (
@@ -268,6 +262,18 @@ export default function ClusterTopLeft() {
           </div>
         )}
       </PopoverPill>
+
+      <PopoverPill
+        icon={<PinIcon />}
+        label="Views"
+        value={savedViews.length || 0}
+        align="left"
+        panelClassName="mock-popover--saved svp-panel"
+      >
+        {({ close }) => <SavedViewsPanel onClose={close} />}
+      </PopoverPill>
+
+      <AccountChip />
     </div>
   )
 }

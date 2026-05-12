@@ -62,4 +62,37 @@ describe('Pill', () => {
     render(<Pill innerRef={ref}>R</Pill>)
     expect(ref.current).toBeInstanceOf(HTMLButtonElement)
   })
+
+  // Two-slot LABEL VALUE pattern (MoMA prototype). Both props must be
+  // passed for the two-slot recipe to activate; passing only one
+  // falls back to the single-slot path so unmigrated call sites stay
+  // stable.
+  describe('two-slot label/value', () => {
+    it('emits label + value spans when both props are passed', () => {
+      const { container } = render(<Pill label="Aspect" value="3:4" />)
+      expect(container.querySelector('.mock-pill-label')?.textContent).toBe('Aspect')
+      expect(container.querySelector('.mock-pill-value')?.textContent).toBe('3:4')
+    })
+
+    it('falls back to single-slot when only label is passed', () => {
+      const { container } = render(<Pill label="Save" />)
+      expect(container.querySelector('.mock-pill-value')).toBe(null)
+      expect(container.querySelector('.mock-pill-label')?.textContent).toBe('Save')
+    })
+
+    it('value-only (no label, no children) renders just the value span', () => {
+      // Matches the prototype's search pill: icon + value, no label.
+      const { container } = render(<Pill value="New York, NY" />)
+      expect(container.querySelector('.mock-pill-label')).toBe(null)
+      expect(container.querySelector('.mock-pill-value')?.textContent).toBe('New York, NY')
+    })
+
+    it('value + children: value takes precedence (single-value pattern)', () => {
+      // When a caller passes both `value` (new API) and `children`
+      // (legacy API), value-only wins — it's the more explicit signal.
+      const { container } = render(<Pill value="42">Foo</Pill>)
+      expect(container.querySelector('.mock-pill-value')?.textContent).toBe('42')
+      expect(container.querySelector('.mock-pill-label')).toBe(null)
+    })
+  })
 })
