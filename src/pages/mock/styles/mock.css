@@ -993,17 +993,19 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   }
 }
 
-/* ═══════ Form bits ═══════ */
+/* ═══════ Form bits ═══════
+ * Phase 8 — Inputs adopt the MoMA prototype's recipe: 2px corners
+ * (not 8px round), mono 11px, chartreuse-tinted focus border. */
 .mock-input {
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 9px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 12px;
+  border-radius: 2px;
+  color: var(--ink);
+  font: 400 11px/1.2 var(--mono);
+  letter-spacing: var(--moma-value-track);
   outline: none;
-  font-family: inherit;
 }
 .mock-input:focus { border-color: rgba(155, 229, 127, 0.5); }
 .mock-input--block { display: block; margin-bottom: 8px; }
@@ -1022,9 +1024,14 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   overflow-y: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+/* Phase 8 — search predictions adopt the prototype's menu-item recipe:
+ * compact rows, 2px corners, mono name + small uppercase secondary,
+ * chartreuse hover tint. The two-line layout (main + secondary) is
+ * preserved since secondary often shows the city/country context
+ * that disambiguates same-named places. */
 .mock-search-prediction {
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 2px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -1032,23 +1039,23 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   user-select: none;
   transition: background 0.08s ease;
 }
-.mock-search-prediction.is-active {
-  background: rgba(155, 229, 127, 0.12);
-}
+.mock-search-prediction.is-active,
 .mock-search-prediction:hover {
-  background: rgba(155, 229, 127, 0.18);
+  background: rgba(155, 229, 127, 0.10);
 }
 .mock-search-prediction-main {
-  font-size: 13px;
-  color: #9be57f;
-  font-weight: 500;
+  font: 400 12px/1.2 var(--mono);
+  letter-spacing: var(--moma-value-track);
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .mock-search-prediction-secondary {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  font: 400 9px/1 var(--mono);
+  letter-spacing: var(--moma-label-track);
+  text-transform: uppercase;
+  color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1332,9 +1339,60 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   margin-top: var(--s-2);
 }
 
-/* ═══════ Saved views panel (Phase 2.3) ═══════ */
+/* ═══════ Saved views panel (Phase 2.3 + Phase 8 compact rows) ═══════ */
 .svp-panel { width: 320px; max-width: 90vw; }
-.svp { display: flex; flex-direction: column; gap: var(--s-3); }
+.svp { display: flex; flex-direction: column; gap: var(--s-2); }
+
+/* Phase 8 — filter input. Surfaces only when count > FILTER_THRESHOLD
+ * (6) in SavedViewsPanel.jsx. Mirrors the prototype's `.menu-views-
+ * filter` rule: dark glass field with magnifier icon left, optional
+ * clear-X right. The filter sits ABOVE the scrolling list so the
+ * Tour + Save action stay anchored. */
+.svp-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+}
+.svp-filter-icon {
+  width: 11px;
+  height: 11px;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.svp-filter-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font: 400 11px/1 var(--mono);
+  letter-spacing: var(--moma-value-track);
+}
+.svp-filter-input::placeholder { color: var(--ink-dim); }
+.svp-filter-clear {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  border-radius: 2px;
+  font: 500 12px/1 var(--mono);
+}
+.svp-filter-clear:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+.svp-empty--filtered { padding: var(--s-5) var(--s-4); }
 .svp-empty {
   text-align: center;
   padding: var(--s-7) var(--s-4);
@@ -1354,30 +1412,35 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  max-height: 360px;
+  gap: 1px;
+  /* Phase 8 — cap the scroll height tighter (was 360px). With compact
+   * rows ~32px tall, 240px shows ~7 rows — enough to imply "more
+   * below" while leaving room for the Tour + Save action under it. */
+  max-height: 240px;
   overflow-y: auto;
 }
+/* Phase 8 — compact single-line row recipe matching the prototype's
+ * `.menu-view-item`. Old recipe had 56×56 thumb + 2-line body + 5×5
+ * action grid at 80px row height; new recipe is 36×24 thumb +
+ * single-line name + lens chip + hover-revealed actions at ~32px.
+ * Two-line `view.name + meta` body collapses to just `name`; meta
+ * (lat/lng/lens) is dropped — thumbnail already conveys "where". */
 .svp-row {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: var(--s-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--r-md);
-  padding: var(--s-3);
-  transition: background var(--d-fast) var(--ease-out),
-              border-color var(--d-fast) var(--ease-out);
+  gap: var(--s-2);
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  padding: 4px 6px;
+  transition: background var(--d-fast) var(--ease-out);
 }
-.svp-row:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-soft);
-}
+.svp-row:hover { background: rgba(155, 229, 127, 0.08); }
 .svp-row-main {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 10px;
   background: transparent;
   border: 0;
   padding: 0;
@@ -1390,12 +1453,12 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 }
 .svp-thumb {
   flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--r-sm);
+  width: 36px;
+  height: 24px;
+  border-radius: 2px;
   overflow: hidden;
   background: var(--ink-whisper);
-  border: 1px solid var(--panel-border);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   display: block;
 }
 .svp-thumb img {
@@ -1415,7 +1478,8 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
       rgba(155, 229, 127, 0.12) 100%);
 }
 .svp-name {
-  font: 500 var(--t-sm)/1.3 var(--body);
+  font: 400 12px/1 var(--mono);
+  letter-spacing: var(--moma-value-track);
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1435,22 +1499,28 @@ body[data-intro-phase="settle"] .mock-cluster--bottom-right { opacity: 1; }
 }
 .svp-rename:focus { outline: none; border-color: var(--accent); }
 .svp-actions {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: inline-flex;
+  align-items: center;
   gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
 }
+/* Hover reveals actions; default star (is-active) stays visible. */
+.svp-row:hover .svp-actions,
+.svp-row:focus-within .svp-actions { opacity: 1; }
+.svp-actions:has(.is-active) { opacity: 1; }
 .svp-action {
   background: transparent;
   border: 0;
   color: var(--ink-soft);
-  font: 500 var(--t-base)/1 var(--body);
-  width: 24px;
-  height: 24px;
+  font: 500 11px/1 var(--mono);
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: var(--r-sm);
+  border-radius: 2px;
   transition: background var(--d-fast) var(--ease-out),
               color var(--d-fast) var(--ease-out);
 }

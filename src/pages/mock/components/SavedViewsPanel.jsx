@@ -153,9 +153,15 @@ function ViewRow({ view, index, total, isDefault, onClose }) {
   )
 }
 
+// Filter threshold — show the filter input only when saved-views count
+// exceeds this. Below the threshold the list is short enough to scan.
+// Mirrors the prototype's `.menu-views.has-filter` toggle.
+const FILTER_THRESHOLD = 6
+
 export default function SavedViewsPanel({ onClose }) {
   const savedViews = useAtomValue(savedViewsAtom)
   const [defaultId, setDefaultId] = useAtom(defaultSavedViewIdAtom)
+  const [filter, setFilter] = useState('')
 
   // Listen for set-default-view. The original implementation attached
   // a listener during render guarded by a window-global flag — that's
@@ -172,6 +178,14 @@ export default function SavedViewsPanel({ onClose }) {
     return () => window.removeEventListener('set-default-view', onSetDefault)
   }, [setDefaultId])
 
+  // Filter views by name substring (case-insensitive). When the panel
+  // is below the threshold or the input is empty, return all views.
+  const needle = filter.trim().toLowerCase()
+  const visibleViews = needle
+    ? savedViews.filter((v) => (v.name || '').toLowerCase().includes(needle))
+    : savedViews
+  const showFilter = savedViews.length > FILTER_THRESHOLD
+
   const flyToPreset = (preset) => {
     dispatchFlyTo({
       lat: preset.lat,
@@ -186,6 +200,46 @@ export default function SavedViewsPanel({ onClose }) {
 
   return (
     <div className="svp">
+      {showFilter && (
+        <div className="svp-filter">
+          <svg
+            className="svp-filter-icon"
+            viewBox="0 0 11 11"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <circle cx="4.5" cy="4.5" r="3" />
+            <path d="M6.7 6.7 9 9" />
+          </svg>
+          <input
+            className="svp-filter-input"
+            type="text"
+            value={filter}
+            placeholder="Filter saved views…"
+            aria-label="Filter saved views"
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setFilter('')
+              }
+            }}
+          />
+          {filter && (
+            <button
+              type="button"
+              className="svp-filter-clear"
+              onClick={() => setFilter('')}
+              aria-label="Clear filter"
+              title="Clear"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
       {savedViews.length === 0 ? (
         <div className="svp-empty">
           <div className="svp-empty-text">No saved views yet.</div>
@@ -193,18 +247,27 @@ export default function SavedViewsPanel({ onClose }) {
             Frame a shot, then hit Save current view below — or pick a tour.
           </div>
         </div>
+      ) : visibleViews.length === 0 ? (
+        <div className="svp-empty svp-empty--filtered">
+          <div className="svp-empty-text">No matches.</div>
+        </div>
       ) : (
         <ul className="svp-list">
-          {savedViews.map((view, idx) => (
-            <ViewRow
-              key={view.id}
-              view={view}
-              index={idx}
-              total={savedViews.length}
-              isDefault={view.id === defaultId}
-              onClose={onClose}
-            />
-          ))}
+          {visibleViews.map((view) => {
+            // index/total derived from the FULL saved-views list so
+            // reorder up/down arrows stay correct under filter.
+            const idx = savedViews.findIndex((v) => v.id === view.id)
+            return (
+              <ViewRow
+                key={view.id}
+                view={view}
+                index={idx}
+                total={savedViews.length}
+                isDefault={view.id === defaultId}
+                onClose={onClose}
+              />
+            )
+          })}
         </ul>
       )}
 
