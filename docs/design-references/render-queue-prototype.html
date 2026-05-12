@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Render queue — inside the glass sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ═════════════════════════════════════════════════════════════════
+     Tokens — verbatim from render-menu-prototype.html so the queue
+     and render menu share one design vocabulary. Any change here must
+     happen in both files.
+     ═════════════════════════════════════════════════════════════════ */
+  :root {
+    --sheet-width: 560px;
+    --bg-scene: #191713;
+    --sheet-bg: rgba(14, 14, 16, 0.96);
+    --sheet-border: rgba(255, 255, 255, 0.08);
+    --text-primary: rgba(255, 255, 255, 0.92);
+    --text-secondary: rgba(255, 255, 255, 0.55);
+    --text-dim: rgba(255, 255, 255, 0.38);
+    --accent: #c8b897;
+    --accent-bright: #e8dcc0;
+    --accent-glow: rgba(200, 184, 151, 0.25);
+    --surface-1: rgba(255, 255, 255, 0.03);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --error: #d97a6d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 90% 65% at 30% 0%, rgba(80, 65, 40, 0.28), transparent 60%),
+      radial-gradient(ellipse 80% 55% at 80% 110%, rgba(40, 55, 85, 0.26), transparent 60%),
+      var(--bg-scene);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ═════════════ Page chrome (mock scene + scenario switcher) ═════════════ */
+
+  .page-head {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(10,10,12,0.85), rgba(10,10,12,0.25));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .page-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+  }
+  .page-title em {
+    color: var(--accent-bright);
+    font-style: normal;
+  }
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+  }
+  .tab-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 6px 14px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.is-active {
+    background: rgba(200, 184, 151, 0.14);
+    color: var(--accent-bright);
+    box-shadow: inset 0 0 0 1px rgba(200, 184, 151, 0.3);
+  }
+
+  .scene-mock {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: var(--sheet-width);
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 50% 50% at 25% 35%, rgba(180, 140, 85, 0.32), transparent 60%),
+      radial-gradient(ellipse 55% 60% at 75% 70%, rgba(50, 80, 110, 0.35), transparent 60%),
+      linear-gradient(135deg, #1d1a16 0%, #14120f 40%, #0f1014 70%, #0a0d12 100%);
+    overflow: hidden;
+  }
+  .scene-mock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 6px);
+    opacity: 0.5;
+  }
+  .scene-pill-row {
+    position: absolute;
+    display: flex;
+    gap: 8px;
+  }
+  .scene-pill-row.tl { top: 24px; left: 24px; }
+  .scene-pill-row.br { bottom: 24px; right: 24px; flex-direction: row-reverse; }
+  .scene-pill {
+    height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 22, 0.7);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.02em;
+  }
+
+  /* ═════════════ The sheet ═════════════ */
+
+  .sheet {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--sheet-width);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border-left: 1px solid var(--sheet-border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sheet-head-l { display: flex; flex-direction: column; gap: 6px; }
+  .sheet-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1;
+  }
+  .sheet-head-meta {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-dim);
+  }
+  .sheet-head-meta b {
+    color: var(--accent-bright);
+    font-weight: 400;
+  }
+  .sheet-close {
+    background: transparent;
+    border: 0;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .sheet-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+  .sheet-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sheet-tab {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 8px 14px 12px;
+    font: 12px/1 inherit;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    transition: color 0.15s ease, border-color 0.2s ease;
+  }
+  .sheet-tab:hover { color: var(--text-primary); }
+  .sheet-tab .tab-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1em;
+  }
+  .sheet-tab.is-active {
+    color: var(--accent-bright);
+    border-bottom-color: var(--accent);
+  }
+  .sheet-tab.is-active .tab-count { color: rgba(232,220,192,0.6); }
+
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 20px 20px;
+  }
+  .sheet-body::-webkit-scrollbar { width: 6px; }
+  .sheet-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+  }
+
+  .sheet-footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    background: var(--sheet-bg);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .footer-active-pill {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 12px 10px;
+    background: linear-gradient(180deg, rgba(200,184,151,0.10), rgba(200,184,151,0.04));
+    border: 1px solid rgba(200,184,151,0.32);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .footer-active-pill-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .footer-active-pill-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    color: var(--accent-bright);
+    line-height: 1;
+  }
+  .footer-active-pill-meta {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(232,220,192,0.62);
+    font-variant-numeric: tabular-nums;
+  }
+  .footer-active-pill-bar {
+    height: 2px;
+    width: 100%;
+    background: rgba(200,184,151,0.14);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .footer-active-pill-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    width: 0%;
+    transition: width 0.25s ease;
+  }
+  .footer-idle {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    padding: 0 4px;
+  }
+  .btn-ghost {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    color: rgba(255,255,255,0.8);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font: 11px/1 inherit;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  }
+  .btn-ghost:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.16); }
+  .btn-ghost[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+  /* ═════════════ Queue rows ═════════════ */
+
+  .q-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Batch wrapper — thin cream rail down the left clusters rows
+     sharing a batchId without changing the row recipe itself. */
+  .q-batch {
+    position: relative;
+    padding-left: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .q-batch::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 22px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 1px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-bright));
+    opacity: 0.7;
+  }
+  .q-batch-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+  }
+  .q-batch-head .q-batch-label b {
+    color: var(--accent-bright);
+    font-weight: 400;
+    margin-right: 4px;
+  }
+  .q-batch-head .q-batch-count {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .q-row {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 14px;
+    padding: 10px 12px 10px 10px;
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    align-items: center;
+    transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.22s ease, opacity 0.18s ease;
+    animation: qRowIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes qRowIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .q-row:hover {
+    background: var(--surface-2);
+    border-color: rgba(255,255,255,0.14);
+  }
+
+  /* Thumbnail — frozen snapshot, 3:2, 10px radius */
+  .q-row-thumb {
+    position: relative;
+    width: 140px;
+    aspect-ratio: 3 / 2;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    flex: 0 0 auto;
+  }
+  .q-row-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), filter 0.3s ease, opacity 0.3s ease;
+  }
+
+  /* Pending: small position chip top-left of thumbnail */
+  .q-row-pos {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: rgba(14,14,16,0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(200,184,151,0.45);
+    color: var(--accent-bright);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Active progress bar — 3px sliver flush with thumb bottom */
+  .q-row-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .q-row-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 12px rgba(200,184,151,0.45);
+    transition: width 0.28s ease;
+  }
+
+  /* Done checkmark — same recipe as render-menu .a-card.is-active .a-card-check */
+  .q-row-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+    border: 1px solid rgba(200,184,151,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: qCheckPop 0.22s cubic-bezier(0.22,1,0.36,1);
+  }
+  .q-row-check::after {
+    content: '';
+    width: 10px;
+    height: 5px;
+    border-left: 2.2px solid #1a1812;
+    border-bottom: 2.2px solid #1a1812;
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  @keyframes qCheckPop {
+    from { opacity: 0; transform: scale(0.7); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* Body */
+  .q-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .q-row-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    line-height: 1.1;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .q-row-status {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .q-row-status .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+  }
+  .q-row-detail {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Actions cluster — right side, ghost buttons, fade in on hover */
+  .q-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+  }
+  .q-row:hover .q-row-actions { opacity: 1; }
+  .q-row[data-status="active"] .q-row-actions,
+  .q-row[data-status="error"] .q-row-actions,
+  .q-row[data-status="done"] .q-row-actions { opacity: 1; }
+
+  .q-act {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  }
+  .q-act:hover {
+    background: var(--surface-2);
+    border-color: var(--surface-border);
+    color: var(--text-primary);
+  }
+  .q-act[disabled] {
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .q-act svg { width: 13px; height: 13px; display: block; }
+
+  /* Primary action variants */
+  .q-act.is-retry,
+  .q-act.is-open {
+    width: auto;
+    padding: 0 10px;
+    gap: 5px;
+    font: 10px/1 inherit;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent-bright);
+    border-color: rgba(200,184,151,0.32);
+    background: rgba(200,184,151,0.06);
+  }
+  .q-act.is-retry:hover,
+  .q-act.is-open:hover {
+    background: rgba(200,184,151,0.14);
+    border-color: rgba(200,184,151,0.5);
+    color: var(--accent-bright);
+  }
+  .q-act.is-stop {
+    color: var(--error);
+  }
+  .q-act.is-stop:hover {
+    background: rgba(217,122,109,0.10);
+    border-color: rgba(217,122,109,0.4);
+    color: var(--error);
+  }
+
+  /* ═════════════ Per-state row treatments ═════════════ */
+
+  /* Pending — soft, lower-contrast, position chip visible */
+  .q-row[data-status="pending"] {
+    background: var(--surface-1);
+  }
+  .q-row[data-status="pending"] .q-row-thumb img {
+    opacity: 0.78;
+    filter: saturate(0.85);
+  }
+  .q-row[data-status="pending"] .q-row-status .dot {
+    background: var(--text-secondary);
+  }
+
+  /* Active — cream ring + glow on thumbnail, progress visible */
+  .q-row[data-status="active"] {
+    background: rgba(20,20,22,0.6);
+    border-color: rgba(200,184,151,0.22);
+  }
+  .q-row[data-status="active"] .q-row-thumb {
+    border-color: rgba(200,184,151,0.9);
+    box-shadow:
+      0 0 0 1px rgba(200,184,151,0.4),
+      0 0 22px rgba(200,184,151,0.3),
+      0 8px 22px rgba(0,0,0,0.4);
+    animation: qActivePulse 2.4s ease-in-out infinite;
+  }
+  @keyframes qActivePulse {
+    0%, 100% { box-shadow:
+      0 0 0 1px rgba(200,184,151,0.4),
+      0 0 22px rgba(200,184,151,0.26),
+      0 8px 22px rgba(0,0,0,0.4);
+    }
+    50% { box-shadow:
+      0 0 0 1px rgba(200,184,151,0.55),
+      0 0 30px rgba(200,184,151,0.4),
+      0 8px 22px rgba(0,0,0,0.4);
+    }
+  }
+  .q-row[data-status="active"] .q-row-label {
+    color: var(--accent-bright);
+  }
+  .q-row[data-status="active"] .q-row-status .dot {
+    background: var(--accent-bright);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: qDotPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes qDotPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+  }
+
+  /* Done — checkmark badge, soft cream hover glow, whole row pointer */
+  .q-row[data-status="done"] {
+    cursor: pointer;
+  }
+  .q-row[data-status="done"]:hover {
+    border-color: rgba(200,184,151,0.5);
+    box-shadow: 0 0 18px rgba(200,184,151,0.16);
+  }
+  .q-row[data-status="done"]:hover .q-row-thumb img { transform: scale(1.04); }
+  .q-row[data-status="done"] .q-row-check { display: flex; }
+  .q-row[data-status="done"] .q-row-label {
+    color: var(--text-primary);
+  }
+  .q-row[data-status="done"] .q-row-status .dot {
+    background: var(--accent-bright);
+  }
+
+  /* Error — desaturated thumb, red dot, error text in detail line */
+  .q-row[data-status="error"] {
+    background: rgba(217,122,109,0.04);
+    border-color: rgba(217,122,109,0.22);
+  }
+  .q-row[data-status="error"] .q-row-thumb img {
+    opacity: 0.55;
+    filter: saturate(0.4);
+  }
+  .q-row[data-status="error"] .q-row-status {
+    color: var(--error);
+  }
+  .q-row[data-status="error"] .q-row-status .dot {
+    background: var(--error);
+  }
+  .q-row[data-status="error"] .q-row-detail {
+    color: rgba(217,122,109,0.85);
+  }
+  .q-row[data-status="error"].is-shake { animation: qErrShake 0.36s ease-out; }
+  @keyframes qErrShake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-3px); }
+    50%      { transform: translateX(3px); }
+    75%      { transform: translateX(-2px); }
+  }
+
+  /* ═════════════ Empty state ═════════════ */
+
+  .q-empty {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 90px 24px 40px;
+    gap: 14px;
+  }
+  .q-empty.is-active { display: flex; }
+  .q-empty-icon {
+    width: 56px;
+    height: 56px;
+    color: var(--accent);
+    opacity: 0.5;
+  }
+  .q-empty-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    margin: 4px 0 0;
+    line-height: 1.1;
+  }
+  .q-empty-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    max-width: 280px;
+    line-height: 1.5;
+  }
+  .q-empty-cta {
+    margin-top: 8px;
+    background: transparent;
+    border: 1px solid rgba(200,184,151,0.35);
+    color: var(--accent-bright);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font: 11px/1 inherit;
+    font-family: inherit;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease;
+  }
+  .q-empty-cta:hover {
+    background: rgba(200,184,151,0.10);
+    border-color: rgba(200,184,151,0.55);
+  }
+
+  /* ═════════════ Render-tab stub (so the tab swap reads) ═════════════ */
+
+  .render-stub {
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .render-stub.is-active { display: flex; }
+  .stub-section-head {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    margin: 4px 0 -2px;
+  }
+  .stub-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 10px;
+  }
+  .stub-card {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+  }
+  .stub-card-photo {
+    position: relative;
+    aspect-ratio: 3/2;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d0d10;
+    border: 1px solid var(--surface-border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+  }
+  .stub-card-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .stub-card-body {
+    padding: 10px 4px 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .stub-card-label {
+    font-family: 'Instrument Serif', serif;
+    font-size: 16px;
+    color: rgba(255,255,255,0.88);
+  }
+  .stub-card-sub {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-dim);
+  }
+
+  /* ═════════════ Cross-fade between Render / Queue panes ═════════════ */
+
+  .pane { animation: paneIn 0.18s ease-out; }
+  @keyframes paneIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ═════════════ Design note (page-level) ═════════════ */
+
+  .design-note {
+    position: fixed;
+    bottom: 20px;
+    left: 28px;
+    right: calc(var(--sheet-width) + 28px);
+    padding: 14px 18px;
+    background: rgba(14,14,16,0.8);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.78);
+    z-index: 20;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .design-note h3 {
+    margin: 0 0 4px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--accent-bright);
+    letter-spacing: 0.01em;
+  }
+  .design-note p { margin: 0 0 6px; }
+  .design-note code {
+    font-family: ui-monospace, 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: rgba(232,220,192,0.9);
+  }
+  .design-note .note-row {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+  }
+  .design-note .note-row b { color: rgba(255,255,255,0.7); font-weight: 500; }
+
+  @media (max-width: 1100px) {
+    .design-note { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene-mock">
+  <div class="scene-pill-row tl">
+    <span class="scene-pill">4:3</span>
+    <span class="scene-pill">Edit</span>
+  </div>
+  <div class="scene-pill-row br">
+    <span class="scene-pill">DoF: ON</span>
+    <span class="scene-pill">Clouds: ON</span>
+  </div>
+</div>
+
+<header class="page-head">
+  <div class="page-title">Render queue — <em>inside the glass sheet</em></div>
+  <div class="tab-bar" role="tablist" aria-label="Scenario">
+    <button class="tab-btn is-active" data-scenario="default">Default</button>
+    <button class="tab-btn" data-scenario="empty">Empty</button>
+    <button class="tab-btn" data-scenario="all-done">All done</button>
+    <button class="tab-btn" data-scenario="all-error">All error</button>
+    <button class="tab-btn" data-scenario="single-active">Single active</button>
+  </div>
+</header>
+
+<aside class="design-note">
+  <h3>Queue, inside the same sheet</h3>
+  <p>Same 560px glass sheet, same tokens, same Instrument Serif. Render-menu's 3:2 cards turn into single-column rows when they have to carry progress + status + actions. Active rows borrow the cream ring + glow recipe from <code>.a-card.is-active</code>; done rows borrow the checkmark badge from <code>.a-card-check</code>. Reorder ↑↓ on pending; Stop on active; Retry on error; whole-row click on done opens the lightbox.</p>
+  <div class="note-row">
+    <div><b>Tokens</b> shared with render-menu-prototype.html</div>
+    <div><b>Width</b> 560 (locked)</div>
+    <div><b>Events</b> match useQueue.js contract</div>
+  </div>
+</aside>
+
+<aside class="sheet">
+  <header class="sheet-head">
+    <div class="sheet-head-l">
+      <h2 class="sheet-title">Render</h2>
+      <div class="sheet-head-meta">
+        <b data-head="active">0</b> active · <b data-head="pending">0</b> queued · <b data-head="done">0</b> done
+      </div>
+    </div>
+    <button class="sheet-close" aria-label="Close">×</button>
+  </header>
+
+  <nav class="sheet-tabs" role="tablist">
+    <button class="sheet-tab" data-pane="render">Render</button>
+    <button class="sheet-tab is-active" data-pane="queue">
+      Queue <span class="tab-count" data-tab-count>0</span>
+    </button>
+  </nav>
+
+  <div class="sheet-body">
+    <!-- Queue pane -->
+    <div class="pane pane-queue" data-pane-content="queue">
+      <div class="q-empty" data-q-empty>
+        <svg class="q-empty-icon" viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 18 V8 H18" />
+          <path d="M38 8 H48 V18" />
+          <path d="M48 38 V48 H38" />
+          <path d="M18 48 H8 V38" />
+          <circle cx="28" cy="28" r="6" />
+          <line x1="28" y1="20" x2="28" y2="22" />
+          <line x1="28" y1="34" x2="28" y2="36" />
+          <line x1="20" y1="28" x2="22" y2="28" />
+          <line x1="34" y1="28" x2="36" y2="28" />
+        </svg>
+        <div class="q-empty-title">Nothing rendering</div>
+        <div class="q-empty-sub">Pick a style on the Render tab. Anything you send here lands as a row you can reorder, retry, or open in the gallery.</div>
+        <button class="q-empty-cta" data-jump-render>→ Render</button>
+      </div>
+
+      <div class="q-list" data-q-list></div>
+    </div>
+
+    <!-- Render-tab stub (for the tab-swap demo) -->
+    <div class="pane render-stub" data-pane-content="render">
+      <div class="stub-section-head">Photography</div>
+      <div class="stub-grid">
+        <button class="stub-card">
+          <div class="stub-card-photo">
+            <img src="/style-photos/vedute-realistic-2x-20260422-1705.png" alt="Realistic" />
+          </div>
+          <div class="stub-card-body">
+            <span class="stub-card-label">Realistic</span>
+            <span class="stub-card-sub">PHOTO</span>
+          </div>
+        </button>
+        <button class="stub-card">
+          <div class="stub-card-photo">
+            <img src="/style-photos/vedute-golden-hour-2x-20260422-1706.png" alt="Golden Hour" />
+          </div>
+          <div class="stub-card-body">
+            <span class="stub-card-label">Golden Hour</span>
+            <span class="stub-card-sub">WARM</span>
+          </div>
+        </button>
+      </div>
+      <div class="stub-section-head">Art Styles</div>
+      <div class="stub-grid">
+        <button class="stub-card">
+          <div class="stub-card-photo">
+            <img src="/style-photos/vedute-watercolor-2x-20260422-1708.png" alt="Watercolor" />
+          </div>
+          <div class="stub-card-body">
+            <span class="stub-card-label">Watercolor</span>
+            <span class="stub-card-sub">PAINT</span>
+          </div>
+        </button>
+        <button class="stub-card">
+          <div class="stub-card-photo">
+            <img src="/style-photos/vedute-cyberpunk-2x-20260422-1710.png" alt="Cyberpunk" />
+          </div>
+          <div class="stub-card-body">
+            <span class="stub-card-label">Cyberpunk</span>
+            <span class="stub-card-sub">NEON</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="sheet-footer" data-footer></footer>
+</aside>
+
+<script>
+  // ═════════════════════════════════════════════════════════════════
+  // Mock data — mirrors the shape of `queueAtom` entries from
+  // src/pages/editor/hooks/useQueue.js so the React port is a direct
+  // field-by-field translation.
+  // ═════════════════════════════════════════════════════════════════
+
+  const NOW = Date.now();
+  const SNAP = {
+    cyberpunk:    '/style-photos/vedute-cyberpunk-2x-20260422-1710.png',
+    night:        '/style-photos/vedute-night-2x-20260422-1707.png',
+    foggy:        '/style-photos/vedute-foggy-dawn-2x-20260422-1708.png',
+    realistic:    '/style-photos/vedute-realistic-2x-20260422-1705.png',
+    watercolor:   '/style-photos/vedute-watercolor-2x-20260422-1708.png',
+    autumn:       '/style-photos/vedute-autumn-2x-20260422-1707.png',
+    snowfall:     '/style-photos/vedute-snowfall-2x-20260422-1707.png',
+    polaroid:     '/style-photos/vedute-polaroid-2x-20260422-1706.png',
+    travelposter: '/style-photos/vedute-travel-poster-2x-20260422-1711.png',
+    ghibli:       '/style-photos/vedute-studio-ghibli-2x-20260422-1711.png',
+  };
+
+  const SCENARIOS = {
+    default: [
+      { id: 1, status: 'active',  label: 'Cyberpunk',   progress: 62, startedAt: NOW - 24_000, snapshot: SNAP.cyberpunk,
+        batchId: 'b1', batchLabel: '3 styles' },
+      { id: 2, status: 'pending', label: 'Night',       progress: 0,  startedAt: NOW - 25_000, snapshot: SNAP.night,
+        batchId: 'b1', batchLabel: '3 styles' },
+      { id: 3, status: 'pending', label: 'Foggy Dawn',  progress: 0,  startedAt: NOW - 26_000, snapshot: SNAP.foggy,
+        batchId: 'b1', batchLabel: '3 styles' },
+      { id: 4, status: 'pending', label: 'Autumn',      progress: 0,  startedAt: NOW - 14_000, snapshot: SNAP.autumn },
+      { id: 5, status: 'done',    label: 'Realistic',   progress: 100, startedAt: NOW - 92_000, snapshot: SNAP.realistic, finishedAt: NOW - 12_000 },
+      { id: 6, status: 'error',   label: 'Watercolor',  progress: 0,   startedAt: NOW - 48_000, snapshot: SNAP.watercolor, statusText: 'Render timed out (90s) — try again' },
+    ],
+    empty: [],
+    'all-done': [
+      { id: 1, status: 'done', label: 'Cyberpunk',     progress: 100, startedAt: NOW - 180_000, snapshot: SNAP.cyberpunk, finishedAt: NOW - 60_000 },
+      { id: 2, status: 'done', label: 'Snowfall',      progress: 100, startedAt: NOW - 200_000, snapshot: SNAP.snowfall,  finishedAt: NOW - 90_000 },
+      { id: 3, status: 'done', label: 'Polaroid',      progress: 100, startedAt: NOW - 240_000, snapshot: SNAP.polaroid,  finishedAt: NOW - 120_000 },
+      { id: 4, status: 'done', label: 'Studio Ghibli', progress: 100, startedAt: NOW - 300_000, snapshot: SNAP.ghibli,    finishedAt: NOW - 200_000 },
+    ],
+    'all-error': [
+      { id: 1, status: 'error', label: 'Cyberpunk',   progress: 0, snapshot: SNAP.cyberpunk,  statusText: 'No image returned' },
+      { id: 2, status: 'error', label: 'Watercolor',  progress: 0, snapshot: SNAP.watercolor, statusText: 'Render timed out (90s) — try again' },
+      { id: 3, status: 'error', label: 'Night',       progress: 0, snapshot: SNAP.night,      statusText: 'Gemini quota exhausted' },
+    ],
+    'single-active': [
+      { id: 1, status: 'active', label: 'Travel Poster', progress: 38, startedAt: NOW - 14_000, snapshot: SNAP.travelposter },
+    ],
+  };
+
+  // ═════════════════════════════════════════════════════════════════
+  // DOM helpers — small wrappers, no innerHTML.
+  // ═════════════════════════════════════════════════════════════════
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, ...children) {
+    const n = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class')         n.className = v;
+      else if (k === 'text')     n.textContent = v;
+      else if (k === 'dataset')  Object.assign(n.dataset, v);
+      else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);
+      else if (v === true)       n.setAttribute(k, '');
+      else if (v != null && v !== false) n.setAttribute(k, v);
+    }
+    for (const c of children) if (c != null) n.append(c);
+    return n;
+  }
+  function svgIcon(paths, attrs = {}) {
+    const s = document.createElementNS(SVG_NS, 'svg');
+    s.setAttribute('viewBox', '0 0 16 16');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '1.7');
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
+    for (const d of (Array.isArray(paths) ? paths : [paths])) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', d);
+      s.appendChild(p);
+    }
+    return s;
+  }
+  const ICONS = {
+    up:    () => svgIcon('M8 13V3 M3 8l5-5 5 5'),
+    down:  () => svgIcon('M8 3v10 M3 8l5 5 5-5'),
+    x:     () => svgIcon('M4 4l8 8 M12 4l-8 8'),
+    open:  () => svgIcon('M4 12l8-8 M6 4h6v6'),
+    retry: () => svgIcon('M13 8a5 5 0 1 1 -1.5 -3.5 L13 6 V3'),
+  };
+
+  function fmtElapsed(ms) {
+    if (ms == null || ms < 0) return '';
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  }
+  function fmtAgo(ms) {
+    if (ms == null) return '';
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s} SEC AGO`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} MIN AGO`;
+    const h = Math.floor(m / 60);
+    return `${h}H AGO`;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // Row construction
+  // ═════════════════════════════════════════════════════════════════
+
+  function statusLine(job, ctx) {
+    switch (job.status) {
+      case 'pending': return `QUEUED · POSITION ${ctx.position}`;
+      case 'active':  return `RENDERING · ${fmtElapsed(Date.now() - job.startedAt)} · ${Math.round(job.progress)}%`;
+      case 'done':    return `DONE · ${fmtAgo(Date.now() - (job.finishedAt || job.startedAt))}`;
+      case 'error':   return 'FAILED · TAP RETRY';
+      default:        return '';
+    }
+  }
+
+  function actionButton(icon, title, opts) {
+    const { onClick, disabled = false, extraClass = '', textLabel = null } = opts;
+    const cls = `q-act${extraClass ? ' ' + extraClass : ''}`;
+    const btn = el('button', {
+      class: cls, title, type: 'button', disabled,
+      onclick: (e) => { e.stopPropagation(); onClick(); },
+    });
+    btn.appendChild(icon);
+    if (textLabel) btn.appendChild(el('span', { text: textLabel }));
+    return btn;
+  }
+
+  function renderRow(job, ctx) {
+    const row = el('div', {
+      class: 'q-row',
+      dataset: { status: job.status, id: String(job.id) },
+    });
+
+    // Thumbnail
+    const thumb = el('div', { class: 'q-row-thumb' });
+    thumb.appendChild(el('img', { src: job.snapshot, alt: job.label }));
+
+    if (job.status === 'pending' && ctx.position != null) {
+      thumb.appendChild(el('div', { class: 'q-row-pos', text: String(ctx.position) }));
+    }
+    if (job.status === 'active') {
+      const fill = el('div', { class: 'q-row-progress-fill' });
+      fill.style.width = (job.progress || 0) + '%';
+      thumb.appendChild(el('div', { class: 'q-row-progress' }, fill));
+    }
+    if (job.status === 'done') {
+      thumb.appendChild(el('div', { class: 'q-row-check' }));
+    }
+    row.appendChild(thumb);
+
+    // Body
+    const body = el('div', { class: 'q-row-body' });
+    body.appendChild(el('div', { class: 'q-row-label', text: job.label }));
+    const status = el('div', { class: 'q-row-status' },
+      el('span', { class: 'dot' }),
+      el('span', { text: statusLine(job, ctx) }),
+    );
+    body.appendChild(status);
+    if (job.status === 'error' && job.statusText) {
+      body.appendChild(el('div', { class: 'q-row-detail', text: job.statusText }));
+    }
+    row.appendChild(body);
+
+    // Actions
+    const actions = el('div', { class: 'q-row-actions' });
+    if (job.status === 'pending') {
+      actions.appendChild(actionButton(ICONS.up(),   'Move up',   { onClick: () => fireReorder(job.id, 'up'),   disabled: ctx.isFirstPending }));
+      actions.appendChild(actionButton(ICONS.down(), 'Move down', { onClick: () => fireReorder(job.id, 'down'), disabled: ctx.isLastPending }));
+      actions.appendChild(actionButton(ICONS.x(),    'Remove',    { onClick: () => fireRemove(job.id) }));
+    } else if (job.status === 'active') {
+      actions.appendChild(actionButton(ICONS.x(),    'Stop',      { onClick: () => fireRemove(job.id), extraClass: 'is-stop' }));
+    } else if (job.status === 'done') {
+      actions.appendChild(actionButton(ICONS.open(), 'Open',      { onClick: () => fireOpen(job.id),   extraClass: 'is-open',  textLabel: 'OPEN' }));
+      actions.appendChild(actionButton(ICONS.x(),    'Remove',    { onClick: () => fireRemove(job.id) }));
+    } else if (job.status === 'error') {
+      actions.appendChild(actionButton(ICONS.retry(),'Retry',     { onClick: () => fireRetry(job.id),  extraClass: 'is-retry', textLabel: 'RETRY' }));
+      actions.appendChild(actionButton(ICONS.x(),    'Remove',    { onClick: () => fireRemove(job.id) }));
+    }
+    row.appendChild(actions);
+
+    if (job.status === 'done') {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.q-row-actions')) return;
+        fireOpen(job.id);
+      });
+    }
+
+    return row;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // List + footer + head meta
+  // ═════════════════════════════════════════════════════════════════
+
+  function renderList(jobs) {
+    const list  = document.querySelector('[data-q-list]');
+    const empty = document.querySelector('[data-q-empty]');
+    list.replaceChildren();
+    empty.classList.toggle('is-active', jobs.length === 0);
+
+    if (jobs.length > 0) {
+      const pendingIds = jobs.filter(j => j.status === 'pending').map(j => j.id);
+      let currentBatch = null;
+      let openBatchId = null;
+
+      jobs.forEach((job) => {
+        const ctx = {
+          position: job.status === 'pending' ? pendingIds.indexOf(job.id) + 1 : null,
+          isFirstPending: job.status === 'pending' && pendingIds.indexOf(job.id) === 0,
+          isLastPending:  job.status === 'pending' && pendingIds.indexOf(job.id) === pendingIds.length - 1,
+        };
+        const row = renderRow(job, ctx);
+
+        if (job.batchId) {
+          if (job.batchId !== openBatchId) {
+            // Open a new batch wrapper with header
+            currentBatch = el('div', { class: 'q-batch' });
+            const batchJobs = jobs.filter(j => j.batchId === job.batchId);
+            const doneCount = batchJobs.filter(j => j.status === 'done').length;
+            const head = el('div', { class: 'q-batch-head' });
+            const lbl = el('span', { class: 'q-batch-label' });
+            lbl.append(el('b', { text: 'Batch' }), ' ' + (job.batchLabel || (batchJobs.length + ' styles')));
+            const cnt = el('span', { class: 'q-batch-count', text: `${doneCount} / ${batchJobs.length} DONE` });
+            head.append(lbl, cnt);
+            currentBatch.appendChild(head);
+            list.appendChild(currentBatch);
+            openBatchId = job.batchId;
+          }
+          currentBatch.appendChild(row);
+        } else {
+          openBatchId = null;
+          currentBatch = null;
+          list.appendChild(row);
+        }
+      });
+    }
+
+    updateHeadMeta(jobs);
+    updateFooter(jobs);
+  }
+
+  function updateHeadMeta(jobs) {
+    const a = jobs.filter(j => j.status === 'active').length;
+    const p = jobs.filter(j => j.status === 'pending').length;
+    const d = jobs.filter(j => j.status === 'done').length;
+    document.querySelector('[data-head="active"]').textContent  = a;
+    document.querySelector('[data-head="pending"]').textContent = p;
+    document.querySelector('[data-head="done"]').textContent    = d;
+    document.querySelector('[data-tab-count]').textContent      = jobs.length;
+  }
+
+  function updateFooter(jobs) {
+    const footer = document.querySelector('[data-footer]');
+    footer.replaceChildren();
+    const active  = jobs.find(j => j.status === 'active');
+    const hasDone = jobs.some(j => j.status === 'done');
+
+    if (active) {
+      const fill = el('div', { class: 'footer-active-pill-fill' });
+      fill.style.width = (active.progress || 0) + '%';
+      const meta = el('span', {
+        class: 'footer-active-pill-meta',
+        text: `${fmtElapsed(Date.now() - active.startedAt)} · ${Math.round(active.progress)}%`,
+      });
+      const pill = el('div', { class: 'footer-active-pill' },
+        el('div', { class: 'footer-active-pill-head' },
+          el('span', { class: 'footer-active-pill-label', text: 'Rendering ' + active.label }),
+          meta,
+        ),
+        el('div', { class: 'footer-active-pill-bar' }, fill),
+      );
+      footer.appendChild(pill);
+    } else {
+      footer.appendChild(el('div', {
+        class: 'footer-idle',
+        text: jobs.length > 0 && hasDone ? 'All caught up.' : 'Nothing rendering.',
+      }));
+    }
+
+    if (hasDone) {
+      footer.appendChild(el('button', {
+        class: 'btn-ghost', type: 'button', text: 'Clear done',
+        onclick: clearDone,
+      }));
+    }
+    if (jobs.length > 0) {
+      footer.appendChild(el('button', {
+        class: 'btn-ghost', type: 'button', text: 'Clear all',
+        onclick: clearAll,
+      }));
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // Live state + interaction. In the React port, these emit window
+  // CustomEvents that useQueue.js already listens for.
+  // ═════════════════════════════════════════════════════════════════
+
+  let state = JSON.parse(JSON.stringify(SCENARIOS.default));
+
+  function fireReorder(id, direction) {
+    const idx = state.findIndex(j => j.id === id);
+    if (idx < 0 || state[idx].status !== 'pending') return;
+    const target = direction === 'up' ? idx - 1 : idx + 1;
+    if (target < 0 || target >= state.length) return;
+    if (state[target].status !== 'pending') return;
+    [state[idx], state[target]] = [state[target], state[idx]];
+    renderList(state);
+  }
+
+  function fireRemove(id) {
+    state = state.filter(j => j.id !== id);
+    renderList(state);
+  }
+
+  function fireRetry(id) {
+    state = state.map(j => j.id === id
+      ? { ...j, status: 'pending', progress: 0, statusText: '' }
+      : j);
+    renderList(state);
+  }
+
+  function fireOpen(id) {
+    // In React: opens the Lightbox with the resultUrl. Here, flash the row.
+    const row = document.querySelector(`.q-row[data-id="${id}"]`);
+    if (!row) return;
+    row.classList.add('is-shake');
+    setTimeout(() => row.classList.remove('is-shake'), 380);
+  }
+
+  function clearDone() {
+    state = state.filter(j => j.status !== 'done');
+    renderList(state);
+  }
+  function clearAll() {
+    state = [];
+    renderList(state);
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // Scenario switcher
+  // ═════════════════════════════════════════════════════════════════
+
+  document.querySelectorAll('.tab-bar [data-scenario]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar [data-scenario]').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      const key = btn.dataset.scenario;
+      state = JSON.parse(JSON.stringify(SCENARIOS[key] || []));
+      renderList(state);
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════
+  // Tab swap (Render ↔ Queue inside the sheet)
+  // ═════════════════════════════════════════════════════════════════
+
+  function showPane(name) {
+    document.querySelectorAll('[data-pane-content]').forEach((node) => {
+      const match = node.dataset.paneContent === name;
+      node.classList.toggle('is-active', match);
+      node.style.display = match ? '' : 'none';
+      if (match) {
+        node.classList.remove('pane');
+        void node.offsetWidth;
+        node.classList.add('pane');
+      }
+    });
+    document.querySelectorAll('.sheet-tab').forEach((t) => {
+      t.classList.toggle('is-active', t.dataset.pane === name);
+    });
+  }
+  document.querySelectorAll('.sheet-tab').forEach((t) => {
+    t.addEventListener('click', () => showPane(t.dataset.pane));
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-jump-render]')) showPane('render');
+  });
+  showPane('queue');
+
+  // ═════════════════════════════════════════════════════════════════
+  // Simulate progress on the active job for the live demo
+  // ═════════════════════════════════════════════════════════════════
+
+  setInterval(() => {
+    const active = state.find(j => j.status === 'active');
+    if (!active) return;
+    active.progress = Math.min(100, (active.progress || 0) + Math.random() * 4);
+    if (active.progress >= 100) {
+      active.status = 'done';
+      active.finishedAt = Date.now();
+      const nextPending = state.find(j => j.status === 'pending');
+      if (nextPending) {
+        nextPending.status = 'active';
+        nextPending.progress = 0;
+        nextPending.startedAt = Date.now();
+      }
+    }
+    renderList(state);
+  }, 700);
+
+  setInterval(() => {
+    if (state.find(j => j.status === 'active')) renderList(state);
+  }, 1000);
+
+  // Initial paint
+  renderList(state);
+</script>
+
+</body>
+</html>

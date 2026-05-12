@@ -1,0 +1,4482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Editor chrome — Vedute MoMA mockup v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ─── Tokens (lifted from MoMA Figma design) ─────────────────────── */
+  :root {
+    --bg:           #06080A;          /* Bunker — page outside the canvas */
+    --canvas:       #08090B;          /* Woodsmoke — canvas backdrop */
+    --pill:         rgba(8, 10, 12, 0.55);
+    --pill-border:  rgba(250, 250, 250, 0.10);
+    --pill-blur:    blur(7px);
+
+    --ink:          #FAFAFA;          /* Alabaster */
+    --ink-soft:     rgba(250, 250, 250, 0.55);
+    --ink-dim:      rgba(250, 250, 250, 0.16);
+    --vf-line:      rgba(250, 250, 250, 0.70);   /* viewfinder corner brackets */
+
+    --accent:       #9BE57F;          /* Feijoa / chartreuse */
+    --accent-dark:  #06120A;          /* Black Bean — text-on-green */
+
+    --frame-stroke: 6px solid #ffffff;            /* aspect-ratio frame */
+
+    --label-size:   9px;
+    --value-size:   11px;
+    --label-track:  1.62px;
+    --value-track:  0.88px;
+    --upper-track:  1.98px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 11px/1 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ─── Stage: full-bleed canvas with floating pill chrome ─────────── */
+  .stage {
+    position: relative;
+    height: 100vh;
+    background: var(--canvas);
+    overflow: hidden;
+  }
+
+  /* The 3D editor canvas / cityscape. Full-bleed in prod — the
+   * MoMA design's aspect-ratio frame extends off-viewport at default
+   * zoom, so visually the cityscape reads as edge-to-edge. */
+  .canvas {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.45)),
+      url('/style-photos/vedute-realistic-2x-20260422-1705.png') center / cover;
+  }
+
+  /* ─── Aspect-ratio frame ────────────────────────────────────────
+   * Mirrors src/pages/mock/components/FrameOverlay.jsx:
+   * a viewport-sized blur+dim strip with a frame-shaped cutout
+   * (so off-frame area reads as blurred), and a white border drawn
+   * at the frame rectangle. The rectangle is computed from
+   * `--frame-ratio` (w/h) with clamped viewport padding. Tween on
+   * the mask + border via the same cubic-bezier(0.22, 1, 0.36, 1) as
+   * production, so swapping aspects animates instead of snapping.
+   *
+   * Hidden via `.is-hidden` when Fill mode is active. */
+  .aspect-frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;                          /* above .canvas, below .vf-bracket */
+    --frame-ratio: 0.75;                 /* default 3:4; JS sets this */
+    --frame-h-padding: clamp(80px, 14vw, 280px);
+    --frame-v-padding: clamp(120px, 16vh, 200px);
+    --frame-w: min(
+      calc((100vh - var(--frame-v-padding)) * var(--frame-ratio)),
+      calc(100vw - var(--frame-h-padding))
+    );
+    --frame-h: min(
+      calc(100vh - var(--frame-v-padding)),
+      calc((100vw - var(--frame-h-padding)) / var(--frame-ratio))
+    );
+    --frame-x: calc((100vw - var(--frame-w)) / 2);
+    --frame-y: calc((100vh - var(--frame-h)) / 2);
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+  .aspect-frame.is-hidden { opacity: 0; }
+
+  /* Single full-viewport blur layer with a frame-shaped cutout. The
+   * two-rect mask + composite:exclude trick punches the frame out
+   * of the blurred dim sheet. */
+  .aspect-frame-blur {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    mask-image:
+      linear-gradient(#000, #000),
+      linear-gradient(#000, #000);
+    -webkit-mask-image:
+      linear-gradient(#000, #000),
+      linear-gradient(#000, #000);
+    mask-position: 0 0, var(--frame-x) var(--frame-y);
+    -webkit-mask-position: 0 0, var(--frame-x) var(--frame-y);
+    mask-size: 100% 100%, var(--frame-w) var(--frame-h);
+    -webkit-mask-size: 100% 100%, var(--frame-w) var(--frame-h);
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    transition:
+      mask-position 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      mask-size     0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      -webkit-mask-position 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      -webkit-mask-size     0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* The white frame stroke itself — sits at the cutout edge. */
+  .aspect-frame-border {
+    position: absolute;
+    top: var(--frame-y);
+    left: var(--frame-x);
+    width: var(--frame-w);
+    height: var(--frame-h);
+    border: 3px solid rgba(255, 255, 255, 0.95);
+    transition:
+      top    0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      left   0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      width  0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Viewfinder corners need to render above the blur strips so they
+   * stay crisp when an aspect is active. */
+  .vf-bracket { z-index: 5; }
+
+  /* ─── Viewfinder corner brackets (L-shaped, 24px inset from edges) ─ */
+  /* Same visual family as the center reticle — they bracket the
+   * safe-frame / crop area. White at 70% opacity over the canvas;
+   * 24px horizontal arm × 14px vertical arm, 1px stroke. Mirrors the
+   * center reticle bracket so the four outer brackets read as "outer
+   * frame" and the center bracket reads as "AF lock point". */
+  .vf-bracket {
+    position: absolute; pointer-events: none;
+    width: 24px; height: 14px;
+  }
+  .vf-bracket::before, .vf-bracket::after {
+    content: '';
+    position: absolute; background: var(--vf-line);
+  }
+  /* Horizontal arm */
+  .vf-bracket::before { width: 24px; height: 1px; top: 0; left: 0; }
+  /* Vertical arm */
+  .vf-bracket::after  { width: 1px;  height: 14px; top: 0; left: 0; }
+  .vf-bracket.tl { top: 64px;    left: 24px; }
+  .vf-bracket.tr { top: 64px;    right: 24px;  transform: scaleX(-1); }
+  .vf-bracket.bl { bottom: 64px; left: 24px;   transform: scaleY(-1); }
+  .vf-bracket.br { bottom: 64px; right: 24px;  transform: scale(-1, -1); }
+
+  /* ─── Pill clusters (absolutely positioned around the canvas) ──── */
+  .cluster {
+    position: absolute;
+    display: flex; gap: 8px;
+    align-items: flex-start;
+    z-index: 10;
+  }
+  .cluster.tl { top: 24px;    left: 24px; }
+  .cluster.tr { top: 24px;    right: 24px; }
+  .cluster.bl { bottom: 24px; left: 24px; }
+  .cluster.br { bottom: 24px; right: 24px; }
+
+  /* ─── Pill primitive ──────────────────────────────────────────── */
+  .pill {
+    height: 28.5px;
+    padding: 7px 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--pill);
+    -webkit-backdrop-filter: var(--pill-blur);
+    backdrop-filter: var(--pill-blur);
+    border: 1px solid var(--pill-border);
+    border-radius: 3px;
+    color: var(--ink);
+    white-space: nowrap;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  /* Hover state — pure CSS :hover, gated by :not([data-scrubbing]).
+   * Why this is the right shape:
+   *   - CSS :hover is fast (handled by the engine, no JS overhead).
+   *   - The :not([data-scrubbing]) gate means hover styles are
+   *     never APPLIED during a drag, so the cursor crossing the
+   *     pill's edges mid-drag doesn't toggle paint properties.
+   *   - The stuck-hover-after-capture problem (browser's hit-test
+   *     gets glued to the captured element) is solved with a
+   *     one-frame pointer-events flicker on pointerup — see the
+   *     scrub block below. No JS state to manage, no events to
+   *     wire, no class to keep in sync. */
+  .pill:hover:not([data-scrubbing]) {
+    background: rgba(12, 14, 18, 0.78);
+    border-color: rgba(155, 229, 127, 0.35);
+    box-shadow:
+      0 6px 14px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(155, 229, 127, 0.08);
+  }
+  .pill:hover:not([data-scrubbing]) .label {
+    color: rgba(250, 250, 250, 0.95);
+  }
+  .pill {
+    transition:
+      background 0.14s ease,
+      border-color 0.14s ease,
+      box-shadow 0.18s ease;
+  }
+  .pill .label { transition: color 0.14s ease; }
+
+  /* Scrubbable pills: extra hint on hover — a 1px chartreuse "scrub
+   * track" peeks just below the pill, reads as a parameter slider
+   * rail without taking over. Drawn as a pseudo-element so it never
+   * affects hit-testing, and same :not([data-scrubbing]) gate so it
+   * doesn't fight the active scrub state. */
+  .pill.scrubbable::after {
+    content: '';
+    position: absolute;
+    left: 11px; right: 11px;
+    bottom: -3px;
+    height: 1px;
+    background: rgba(155, 229, 127, 0.5);
+    opacity: 0;
+    transition: opacity 0.14s ease;
+    pointer-events: none;
+  }
+  .pill.scrubbable:hover:not([data-scrubbing])::after { opacity: 1; }
+  /* Kill the morph transition during scrub so the bg/border swap is
+   * instant — otherwise the 120ms ease overlaps the first few frames
+   * of the drag and reads as "the value lags by a beat." */
+  /* Kill ALL transitions during scrub — on the pill AND its descendants.
+   *
+   * The single-selector version (only on .pill itself) didn't catch:
+   *   - `.pill .label { transition: color 0.14s }` — when scrub starts,
+   *     the label was mid-fading from hover-bright to default-dim,
+   *     repainting text every frame for 140ms. That was the "caught
+   *     on something" hitch right at drag start.
+   *   - `.pill.scrubbable::after { transition: opacity 0.14s }` — the
+   *     scrub-track rail was fading out over the same window.
+   *
+   * Killing all transitions on the pill subtree means pointerdown
+   * snaps to scrub state in one frame, no compositor work queued
+   * behind the user's first pointermoves. The exit fade is
+   * unaffected because these rules only apply WHILE data-scrubbing
+   * is set; on release, base transitions resume immediately. */
+  /* Kill TRANSITIONS during scrub (so the morph snaps in/out in
+   * one frame). Do NOT kill animations — the pill itself has the
+   * one-time entrance animation `pillIn` set on `.pill`, and
+   * including `animation: none` here would re-trigger it from
+   * scratch (with its delay!) when scrub ends. */
+  .pill.scrubbable[data-scrubbing="true"],
+  .pill.scrubbable[data-scrubbing="true"] *,
+  .pill.scrubbable[data-scrubbing="true"]::after,
+  .pill.scrubbable[data-scrubbing="true"] *::after,
+  .pill.scrubbable[data-scrubbing="true"] *::before {
+    transition: none !important;
+  }
+
+  /* Drag-exit snap: when scrub ends we don't want the pill to fade
+   * from scrub-bg back to rest/hover-bg over 140ms — the user wants
+   * an instant return. JS sets data-just-released for one frame on
+   * pointerup; this rule disables transitions for that frame so the
+   * style change snaps in. After the rAF, the attribute is removed
+   * and future state changes (e.g. hover→rest) animate normally. */
+  .pill[data-just-released],
+  .pill[data-just-released] *,
+  .pill[data-just-released]::after,
+  .pill[data-just-released] *::after,
+  .pill[data-just-released] *::before {
+    transition: none !important;
+  }
+  /* The classic 9px uppercase label + 11px value pattern */
+  .pill .label {
+    font: 400 var(--label-size)/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+  }
+  .pill .value {
+    font: 400 var(--value-size)/1 'JetBrains Mono', monospace;
+    color: var(--ink);
+    letter-spacing: var(--value-track);
+  }
+  .pill .icon {
+    width: 12px; height: 12px;
+    opacity: 0.85;
+    flex-shrink: 0;
+  }
+
+  /* Search pill — wider, has icon + searchable placeholder text */
+  .pill.search { padding-right: 14px; }
+  .pill.search .value { color: var(--ink); }
+  .pill.search .icon { opacity: 0.65; }
+
+  /* ─── Scrub state (camera-pill drag affordance) ──────────────────
+   * When the user mouses down on a scrubbable pill it morphs into a
+   * "scrub track":
+   *   - bg lightens (rgba(92,94,96,0.55))
+   *   - left/right borders disappear → only top + bottom 1px stay
+   *   - border-radius drops to 0 (sharp edges, since the sides are
+   *     gone — round corners with no side border look wrong)
+   *   - the LABEL hides, only the VALUE remains
+   *   - two chevrons flank the value (drag-direction hints)
+   *   - a floating tooltip appears ABOVE showing `LABEL value` so the
+   *     user remembers what they're scrubbing while reading the value
+   * ───────────────────────────────────────────────────────────────── */
+  .pill.scrubbable {
+    position: relative;
+    cursor: ew-resize;
+    user-select: none;
+    /* Critical for scrub reliability. Without this, the browser may
+     * decide mid-drag that the pointer gesture should be a pan or
+     * scroll, silently revokes setPointerCapture, and stops
+     * delivering pointermove/up to the pill. Symptom: scrub feels
+     * laggy at start AND "doesn't release properly." Production
+     * DragPill/ReadoutPill rely on this. */
+    touch-action: none;
+  }
+  /* Lock each scrubbable pill to a fixed min-width sized for its
+   * longest possible display value. Without this, the pill width
+   * reflows as the user scrubs (e.g. 99mm → 100mm adds a character
+   * and the whole pill widens by one char), which causes the
+   * neighboring pills to shift sideways. The min-widths below are
+   * the widths needed for each pill's largest formatted value:
+   *   DoF    → "f/2.8"   (5 chars, 11px mono)
+   *   Lens   → "200mm"   (5 chars)
+   *   Time   → "12:59PM" (7 chars)
+   *   Clouds → "100%"    (4 chars)
+   * plus the label, gap, and padding. tabular-nums ensures all
+   * digits render at uniform width even on fallback fonts. */
+  .pill.scrubbable .value { font-variant-numeric: tabular-nums; }
+  .pill.scrubbable[data-pill="dof"]    { min-width: 96px; }
+  .pill.scrubbable[data-pill="lens"]   { min-width: 100px; }
+  .pill.scrubbable[data-pill="time"]   { min-width: 112px; }
+  .pill.scrubbable[data-pill="clouds"] { min-width: 104px; }
+  .pill.scrubbable .chevrons {
+    display: none;
+    align-items: center; gap: 6px;
+    width: 100%; justify-content: space-between;
+    pointer-events: none;
+  }
+  .pill.scrubbable .chevrons .chev {
+    width: 10px; height: 10px;
+    color: rgba(250, 250, 250, 0.55);
+    flex-shrink: 0;
+  }
+  .pill.scrubbable .chevrons .chev svg {
+    width: 100%; height: 100%;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .pill.scrubbable .scrub-tooltip {
+    position: absolute;
+    left: 50%; bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    /* Always rendered, just invisible at rest. Switch is instant —
+     * tried 80ms opacity fade earlier but it added enough perceived
+     * latency that the scrub felt "behind the cursor." Pro scrubbers
+     * pop the readout in with zero delay. */
+    opacity: 0;
+    visibility: hidden;
+    height: 28.5px;
+    padding: 7px 11px;
+    display: inline-flex;
+    align-items: center; gap: 6px;
+    background: var(--pill);
+    -webkit-backdrop-filter: var(--pill-blur);
+    backdrop-filter: var(--pill-blur);
+    border: 1px solid var(--pill-border);
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    /* Float above the cluster (z=10) so the tooltip never hides
+     * behind an adjacent pill's stacking context. */
+    z-index: 20;
+  }
+
+  /* Active scrub — pill goes OPAQUE.
+   *
+   * This is the critical perf fix. The rest-state pill uses
+   * backdrop-filter: blur(7px) over a 1554×1195 cityscape image.
+   * Every time the value text inside the pill changes during a
+   * drag, the browser invalidates the cached backdrop blur and
+   * has to recompute the gaussian over the source area. That's
+   * an O(width × height) GPU op per pointermove, ~100Hz of it,
+   * and the paint queue can't keep up — perceived as "value lags
+   * the cursor."
+   *
+   * Going opaque during scrub eliminates the filter entirely.
+   * Paint cost per move drops to "fill a rectangle + render text"
+   * — both essentially free. The pill keeps its size, borders, and
+   * radius so the shape doesn't change visually; only the fill
+   * swaps from glass to solid. */
+  .pill.scrubbable[data-scrubbing="true"] {
+    background: rgb(40, 42, 46);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    cursor: ew-resize;
+  }
+  /* Morph: hide the value-stack (so its label+value disappear),
+   * show the chevrons (drag-direction hints flanking the value),
+   * and pop in the floating scrub-tooltip above the pill (full
+   * LABEL+VALUE readout for context). All three switch in a single
+   * frame thanks to the transition-kill rule above. */
+  .pill.scrubbable[data-scrubbing="true"] .value-stack { display: none; }
+  .pill.scrubbable[data-scrubbing="true"] .chevrons { display: flex; }
+  .pill.scrubbable[data-scrubbing="true"] .scrub-tooltip {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Default: show the .value-stack (label + value), hide chevrons */
+  .pill.scrubbable .value-stack {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+
+  /* Capture pill — the primary CTA. Solid chartreuse, dark text,
+   * mono-cased label with strong tracking. */
+  .pill.capture {
+    background: var(--accent);
+    border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 8px 16px;
+    height: 29px;
+    color: var(--accent-dark);
+    gap: 8px;
+  }
+  .pill.capture:hover {
+    background: #a9eb90;
+    border-color: transparent;
+  }
+  .pill.capture .icon { opacity: 1; color: var(--accent-dark); }
+  .pill.capture .value {
+    color: var(--accent-dark);
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+    font-weight: 500;
+  }
+
+  /* ─── Center focus reticle ──────────────────────────────────────── */
+  /* Tap-to-focus: hidden at rest, JS positions the reticle at the
+   * click point and toggles `.is-focusing` to play the snap-in →
+   * hold → fade animation. */
+  .reticle {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: none;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    z-index: 10;
+    white-space: nowrap;
+    opacity: 0;
+  }
+  .reticle-bracket {
+    position: relative;
+    width: 80px; height: 80px;
+  }
+  /* Four L-corners forming a square bracket */
+  .reticle-bracket::before,
+  .reticle-bracket::after,
+  .reticle-bracket > span:first-child,
+  .reticle-bracket > span:last-child {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border: 1.25px solid var(--accent);
+  }
+  .reticle-bracket::before { top: 0;    left: 0;    border-right: none; border-bottom: none; }
+  .reticle-bracket::after  { top: 0;    right: 0;   border-left:  none; border-bottom: none; }
+  .reticle-bracket > span:first-child { bottom: 0; left: 0;  border-right: none; border-top: none; }
+  .reticle-bracket > span:last-child  { bottom: 0; right: 0; border-left:  none; border-top: none; }
+  /* Center dot — locks the focus point */
+  .reticle-bracket > span.center {
+    width: 4px; height: 4px;
+    border: none; border-radius: 50%;
+    background: var(--accent);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 12px rgba(155, 229, 127, 0.6);
+  }
+  .reticle-label {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--accent);
+    letter-spacing: var(--upper-track);
+    text-transform: uppercase;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .reticle-label .sep { opacity: 0.7; padding: 0 6px; }
+
+  /* ─── Icons (inline SVG) ────────────────────────────────────────── */
+  .icon-search,
+  .icon-download,
+  .icon-folder,
+  .icon-aperture,
+  .icon-lens,
+  .icon-clock,
+  .icon-cloud { stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ─── Subtle motion ──────────────────────────────────────────────
+   * All entrance animations run once on page load — staggered so the
+   * chrome reads as "camera waking up": viewfinder corners snap in
+   * first (drafting-mark feel), then the center reticle locks, then
+   * the pills float in from their respective edges. None of these
+   * animations touch the scrub path so drag responsiveness is
+   * untouched.
+   * ───────────────────────────────────────────────────────────────── */
+
+  /* Viewfinder corners — opacity-only so the per-corner orientation
+   * transforms (scaleX/scaleY/scale(-1,-1)) aren't disturbed. */
+  .vf-bracket { animation: vfIn 360ms ease-out backwards; }
+  .vf-bracket.tl { animation-delay: 100ms; }
+  .vf-bracket.tr { animation-delay: 140ms; }
+  .vf-bracket.bl { animation-delay: 180ms; }
+  .vf-bracket.br { animation-delay: 220ms; }
+  @keyframes vfIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Reticle — click-driven focus animation. Corners snap inward
+   * from scale(1.5) to scale(1.0), micro-overshoot for the "lock"
+   * feel, hold ~500ms with the center dot pulsing, then fade out.
+   * `forwards` keeps the reticle at opacity:0 after the run so it
+   * doesn't linger between clicks. */
+  .reticle.is-focusing {
+    animation: reticleFocus 560ms cubic-bezier(0.2, 0.85, 0.3, 1) forwards;
+  }
+  @keyframes reticleFocus {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+    22%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    30%  { opacity: 1; transform: translate(-50%, -50%) scale(0.94); }
+    40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
+  }
+  /* Center dot pulse — one quick breath while the reticle is held. */
+  .reticle.is-focusing .reticle-bracket > span.center {
+    animation: focusPulse 360ms ease-in-out 100ms 1;
+  }
+  @keyframes focusPulse {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(155, 229, 127, 0.55);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      box-shadow: 0 0 18px rgba(155, 229, 127, 0.9);
+      transform: translate(-50%, -50%) scale(1.25);
+    }
+  }
+
+  /* Pill entrance — fade up from 4px below, staggered. backwards
+   * fill-mode so the keyframe's `from` applies during the delay
+   * (pills are invisible before their cue, not flickering in).
+   *
+   * Selectors use the direct-child combinator on the cluster so
+   * they work whether the pill is wrapped in a .menu-anchor (TL,
+   * TR, BL) or is a direct child of the cluster (BR scrubbable). */
+  .pill { animation: pillIn 280ms cubic-bezier(0.2, 0.8, 0.3, 1) backwards; }
+  /* Top-left cluster — wrapped in menu-anchor */
+  .cluster.tl > :nth-child(1) .pill { animation-delay: 360ms; }
+  .cluster.tl > :nth-child(2) .pill { animation-delay: 420ms; }
+  /* Top-right cluster — wrapped */
+  .cluster.tr > :nth-child(1) .pill { animation-delay: 480ms; }
+  /* Bottom-left cluster — wrapped */
+  .cluster.bl > :nth-child(1) .pill { animation-delay: 540ms; }
+  /* Bottom-right cluster — first 4 are direct scrubbable pills,
+   * 5th is the wrapped Capture pill with its menu. */
+  .cluster.br > .pill:nth-child(1) { animation-delay: 600ms; }
+  .cluster.br > .pill:nth-child(2) { animation-delay: 650ms; }
+  .cluster.br > .pill:nth-child(3) { animation-delay: 700ms; }
+  .cluster.br > .pill:nth-child(4) { animation-delay: 750ms; }
+  .cluster.br > :nth-child(5) .pill { animation-delay: 820ms; }
+  @keyframes pillIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Capture CTA hover glow — chartreuse halo bleeds out from behind
+   * the pill when hovered. Reads as a "ready" LED. The halo is a
+   * pseudo-element so it never affects hit-testing or the scrub path. */
+  .pill.capture { position: relative; isolation: isolate; }
+  .pill.capture::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 8px;
+    background: radial-gradient(closest-side, rgba(155, 229, 127, 0.5), transparent 70%);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 220ms ease;
+    pointer-events: none;
+  }
+  .pill.capture:hover::before { opacity: 1; }
+
+  /* Tactile press for the Capture button only. Scrubbable pills
+   * already get visual confirmation from the scrub-state morph,
+   * so they don't need a press scale. */
+  .pill.capture { transition: background 0.12s ease, transform 0.08s ease; }
+  .pill.capture:active { transform: scale(0.97); }
+
+  /* Honor reduced-motion. Hover transitions are kept (don't loop)
+   * but all entrance + ambient animations are killed. */
+  @media (prefers-reduced-motion: reduce) {
+    .vf-bracket, .reticle, .pill { animation: none; }
+    .reticle-bracket > span.center {
+      animation: none;
+      box-shadow: 0 0 12px rgba(155, 229, 127, 0.6);
+    }
+  }
+
+  /* ─── Menu system ───────────────────────────────────────────────
+   * Pop-out menus anchored to their trigger pill. Same MoMA glass
+   * vocabulary: JetBrains Mono, 3px radius, chartreuse accents,
+   * solid dark backdrop with subtle blur over the canvas. Triggered
+   * by click; close on outside-click or Esc. */
+  .menu-anchor { position: relative; }
+  .menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 50;
+    min-width: 240px;
+    padding: 6px;
+    background: rgba(8, 10, 12, 0.92);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid rgba(250, 250, 250, 0.10);
+    border-radius: 3px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    font: 11px/1.3 'JetBrains Mono', monospace;
+    color: var(--ink);
+    white-space: nowrap;
+    /* Entrance: small downward slide + fade, GPU-only. */
+    transform-origin: top left;
+    animation: menuIn 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .menu[hidden] { display: none; }
+  @keyframes menuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  /* Right-anchored menus (Gallery in TR) drop down + flush right. */
+  .menu-anchor.is-right .menu {
+    left: auto;
+    right: 0;
+    transform-origin: top right;
+  }
+  /* Up-anchored menus (Aspect in BL) drop UP. */
+  .menu-anchor.is-up .menu {
+    top: auto;
+    bottom: calc(100% + 8px);
+    transform-origin: bottom left;
+    animation-name: menuInUp;
+  }
+  @keyframes menuInUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Active pill (menu open) — chartreuse accent border + label
+   * brightens, mirrors the hover effect but stays glued while menu
+   * is open. */
+  .pill[data-menu-open] {
+    background: rgba(12, 14, 18, 0.85);
+    border-color: rgba(155, 229, 127, 0.5);
+  }
+  .pill[data-menu-open] .label { color: rgba(250, 250, 250, 0.95); }
+
+  /* Section heading inside a menu. */
+  .menu-section + .menu-section { margin-top: 4px; }
+  .menu-section-label {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    padding: 8px 10px 4px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .menu-section-label .menu-count {
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .menu-divider {
+    height: 1px;
+    background: rgba(250, 250, 250, 0.06);
+    margin: 4px 4px;
+  }
+
+  /* Generic item row. */
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink);
+    font: 400 12px/1.2 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+  }
+  .menu-item:hover { background: rgba(155, 229, 127, 0.10); }
+  .menu-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .menu-item-tag {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    flex-shrink: 0;
+  }
+  /* Subtitle variant — mixed-case city name on Tour rows. Mono font,
+   * dim ink, no uppercase transform (proper nouns read better cased). */
+  .menu-item-sub {
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--value-track);
+    flex-shrink: 0;
+  }
+  .menu-item.is-active { color: var(--accent); }
+  .menu-item.is-active::after {
+    content: '';
+    display: block;
+    width: 12px; height: 12px;
+    margin-left: auto;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.5l2.5 2.5L10 3' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 12px no-repeat;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.5l2.5 2.5L10 3' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 12px no-repeat;
+  }
+
+  /* Search menu */
+  .menu-search { min-width: 320px; }
+  .menu-search-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+  .menu-search-input svg { width: 12px; height: 12px; opacity: 0.55; flex-shrink: 0; }
+  .menu-search-input input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    font: 400 12px 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+  }
+  .menu-search-input input::placeholder { color: var(--ink-dim); }
+
+  /* Views menu */
+  .menu-views { min-width: 280px; }
+  .menu-action {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--accent);
+    font: 500 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+  }
+  .menu-action:hover { background: rgba(155, 229, 127, 0.10); }
+  .menu-action .menu-action-icon {
+    width: 16px; height: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    flex: 0 0 auto;
+  }
+  .menu-action .menu-action-icon svg {
+    width: 9px; height: 9px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: square;
+  }
+  /* ─── Saved-view row (compact, single-line) ─────────────────────
+   * Original two-line recipe ate ~44px per row and capped the menu at
+   * ~6 visible saved views before bumping the Tour section off the
+   * fold. Compact single-line is ~28px per row — twice the density,
+   * scrollable above ~10 items, with the same affordances.
+   *
+   *   [thumb 36×24]  Name…………………………………………  35mm  ★  ×
+   *
+   * - thumb: 36×24 (lighter than 42×32, still readable)
+   * - name: flex:1 ellipsis
+   * - lens chip: 9px uppercase, right-side, only useful meta after
+   *   the thumb already conveys "where"
+   * - star: tap to mark default (filled = default). Hover-only when
+   *   not set; always visible when active.
+   * - delete: hover-only, same recipe as before
+   */
+  .menu-view-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 5px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink);
+    position: relative;
+  }
+  .menu-view-item:hover { background: rgba(155, 229, 127, 0.08); }
+  .menu-view-thumb {
+    width: 36px; height: 24px;
+    border-radius: 2px;
+    background: linear-gradient(135deg, #2a2c30, #404550);
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+  }
+  .menu-view-name {
+    flex: 1;
+    font: 500 12px/1 'JetBrains Mono', monospace;
+    color: var(--ink);
+    letter-spacing: var(--value-track);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0;
+  }
+  .menu-view-lens {
+    flex-shrink: 0;
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .menu-view-pin {
+    width: 16px; height: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-dim);
+    opacity: 0;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: transparent; border: none; padding: 0;
+    cursor: pointer;
+    transition: color 0.15s ease, opacity 0.15s ease;
+  }
+  .menu-view-item:hover .menu-view-pin { opacity: 0.55; }
+  .menu-view-pin:hover { opacity: 1; color: var(--accent); }
+  .menu-view-pin svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .menu-view-item.is-default .menu-view-pin { opacity: 1; color: var(--accent); }
+  .menu-view-item.is-default .menu-view-pin svg { fill: currentColor; }
+  .menu-view-delete {
+    width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-dim);
+    opacity: 0;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: transparent; border: none; padding: 0;
+    cursor: pointer;
+  }
+  .menu-view-item:hover .menu-view-delete { opacity: 1; }
+  .menu-view-delete:hover { color: var(--status-error, #d99a8a); background: rgba(217, 154, 138, 0.12); }
+  .menu-view-delete svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 1.6; fill: none; }
+
+  /* Scrollable saved-views container. Caps the list height so Tour +
+   * Save action stay anchored regardless of how many views the user
+   * accumulates. Native scrollbar styled to match the menu. */
+  .menu-views-list {
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+  .menu-views-list::-webkit-scrollbar { width: 6px; }
+  .menu-views-list::-webkit-scrollbar-track { background: transparent; }
+  .menu-views-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+  }
+  .menu-views-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(155, 229, 127, 0.2);
+  }
+
+  /* Filter input — surfaces when count is high enough to make
+   * scrolling annoying (>6 in the prototype; React port can read N
+   * from savedViewsAtom and toggle the .has-filter class). */
+  .menu-views-filter {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+    padding: 5px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+  }
+  .menu-views.has-filter .menu-views-filter { display: flex; }
+  .menu-views-filter svg {
+    width: 11px; height: 11px;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+  .menu-views-filter input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    font: 400 11px/1 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+    min-width: 0;
+  }
+  .menu-views-filter input::placeholder { color: var(--ink-dim); }
+  .menu-views-filter-clear {
+    background: transparent; border: none; padding: 0;
+    cursor: pointer;
+    width: 14px; height: 14px;
+    display: none;
+    align-items: center; justify-content: center;
+    color: var(--ink-dim);
+    border-radius: 2px;
+  }
+  .menu-views-filter-clear:hover { color: var(--ink); background: rgba(255,255,255,0.06); }
+  .menu-views-filter.has-value .menu-views-filter-clear { display: inline-flex; }
+  .menu-views-filter-clear svg { width: 9px; height: 9px; }
+
+  /* Empty filter state */
+  .menu-views-noresults {
+    display: none;
+    padding: 18px 8px;
+    text-align: center;
+    font: 400 10px/1.4 'JetBrains Mono', monospace;
+    color: var(--ink-dim);
+    letter-spacing: var(--value-track);
+  }
+  .menu-views-list.is-empty .menu-views-noresults { display: block; }
+
+  /* ─── Gallery menu ─────────────────────────────────────────────
+   * Same locked footprint as the capture menu (440px × min 730px)
+   * so the two major surfaces feel like the same kind of window. */
+  .menu-gallery {
+    width: 440px;
+    min-height: 730px;
+    padding: 14px;
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header — same layout as capture: title left, meta right. */
+  .menu-gallery-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 35px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(250, 250, 250, 0.06);
+  }
+  .menu-gallery-title {
+    font: 500 13px/1 'JetBrains Mono', monospace;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+  }
+  .menu-gallery-meta {
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Header right-side row: count + view-all pill. */
+  .menu-gallery-head-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  /* "View all" pill — same vocabulary as the queue-return pill in
+   * the capture menu (chartreuse-tinted glass with arrow icon). */
+  .menu-gallery-viewall {
+    height: 22px;
+    padding: 0 9px;
+    background: rgba(155, 229, 127, 0.10);
+    border: 1px solid rgba(155, 229, 127, 0.30);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .menu-gallery-viewall:hover {
+    background: rgba(155, 229, 127, 0.20);
+    border-color: rgba(155, 229, 127, 0.5);
+  }
+  .menu-gallery-viewall svg {
+    width: 9px; height: 9px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Filter chips — single row, no wrap (matches the capture menu
+   * category tabs). */
+  .menu-gallery-cats {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .menu-gallery-cats::-webkit-scrollbar { display: none; }
+  .menu-gallery-cat {
+    height: 26px;
+    padding: 0 11px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .menu-gallery-cat:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+  .menu-gallery-cat.is-active { background: #fff; color: #0b0b0d; }
+  .menu-gallery-cat .menu-gallery-cat-count {
+    font-size: 8px;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .menu-gallery-cat.is-active .menu-gallery-cat-count { color: rgba(11, 11, 13, 0.55); }
+
+  /* Tile grid — 3 columns, scrollable, native overlay scrollbar. */
+  .menu-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    overflow-y: auto;
+    margin-bottom: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Single tile.
+   * 4:3 aspect via padding-top (same trick as capture cards — grid
+   * tracks pick up the intrinsic block size correctly that way).
+   * Each tile has a thumbnail, optional favorite/public chips, and
+   * an info overlay that appears on hover. */
+  .menu-gallery-tile {
+    position: relative;
+    padding-top: 75%;
+    border-radius: 2px;
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+  }
+  .menu-gallery-tile:hover { border-color: rgba(155, 229, 127, 0.35); }
+  .menu-gallery-tile-thumb {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: brightness(0.88);
+    transition: filter 0.15s ease;
+  }
+  .menu-gallery-tile:hover .menu-gallery-tile-thumb { filter: brightness(1); }
+
+  /* Top-left favorite (star). Always rendered; opacity 0 when not
+   * favorited so users can hover to favorite. */
+  .menu-gallery-tile-fav {
+    position: absolute;
+    top: 5px; left: 5px;
+    width: 16px; height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 50%;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+    z-index: 2;
+  }
+  .menu-gallery-tile:hover .menu-gallery-tile-fav { opacity: 1; }
+  .menu-gallery-tile-fav.is-on {
+    opacity: 1;
+    color: var(--accent);
+    background: rgba(155, 229, 127, 0.18);
+  }
+  .menu-gallery-tile-fav svg {
+    width: 9px; height: 9px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.4;
+  }
+  .menu-gallery-tile-fav.is-on svg { fill: currentColor; }
+
+  /* Top-right public badge — visible when the render is shared
+   * publicly (community page). */
+  .menu-gallery-tile-public {
+    position: absolute;
+    top: 5px; right: 5px;
+    height: 16px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 500 7.5px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    z-index: 2;
+  }
+  .menu-gallery-tile-public::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 4px rgba(155, 229, 127, 0.6);
+  }
+
+  /* Bottom overlay with style label + relative time. */
+  .menu-gallery-tile-info {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 7px 6px;
+    background: linear-gradient(180deg,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0.55) 50%,
+      rgba(0, 0, 0, 0.85) 100%);
+    color: #fff;
+    z-index: 1;
+  }
+  .menu-gallery-tile-label {
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    color: #fff;
+    letter-spacing: var(--value-track);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+  .menu-gallery-tile-time {
+    font: 400 8px/1 'JetBrains Mono', monospace;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    margin-top: 3px;
+    display: block;
+  }
+
+  /* Selected state — chartreuse border + check overlay. */
+  .menu-gallery-tile.is-selected {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .menu-gallery-tile.is-selected .menu-gallery-tile-thumb { filter: brightness(0.7) saturate(1.1); }
+  .menu-gallery-tile-check {
+    position: absolute;
+    top: 5px; right: 5px;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    color: var(--accent-dark);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font: 700 10px/1 'JetBrains Mono', monospace;
+    z-index: 3;
+  }
+  .menu-gallery-tile.is-selected .menu-gallery-tile-check { display: inline-flex; }
+  .menu-gallery-tile.is-selected .menu-gallery-tile-public,
+  .menu-gallery-tile.is-selected .menu-gallery-tile-fav { display: none; }
+
+  /* Footer — selection + bulk actions. */
+  .menu-gallery-foot {
+    padding-top: 12px;
+    border-top: 1px solid rgba(250, 250, 250, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+  }
+  .menu-gallery-foot-meta {
+    flex: 1;
+    color: var(--ink-soft);
+    font: 400 10px/1.2 'JetBrains Mono', monospace;
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+  }
+  .menu-gallery-foot-meta .menu-gallery-foot-sel {
+    color: var(--accent);
+    margin-left: 8px;
+  }
+  .menu-gallery-action {
+    height: 34px;
+    padding: 0 12px;
+    background: transparent;
+    border: 1px solid var(--pill-border);
+    border-radius: 3px;
+    color: var(--ink);
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .menu-gallery-action:hover { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.16); }
+  .menu-gallery-action.is-primary {
+    background: var(--accent);
+    color: var(--accent-dark);
+    border-color: transparent;
+  }
+  .menu-gallery-action.is-primary:hover { background: #a9eb90; }
+  .menu-gallery-action.is-primary:disabled,
+  .menu-gallery-action:disabled { opacity: 0.4; cursor: not-allowed; }
+  .menu-gallery-action svg {
+    width: 11px; height: 11px;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Category filter: when data-g-cat is set on the grid, hide all
+   * tiles, then show only those whose data-g-tag includes the cat. */
+  .menu-gallery-grid[data-g-cat]:not([data-g-cat="all"]) .menu-gallery-tile { display: none; }
+  .menu-gallery-grid[data-g-cat="today"]     .menu-gallery-tile[data-g-tag~="today"]     { display: block; }
+  .menu-gallery-grid[data-g-cat="week"]      .menu-gallery-tile[data-g-tag~="week"]      { display: block; }
+  .menu-gallery-grid[data-g-cat="favorites"] .menu-gallery-tile[data-g-tag~="favorites"] { display: block; }
+  .menu-gallery-grid[data-g-cat="public"]    .menu-gallery-tile[data-g-tag~="public"]    { display: block; }
+
+  /* ─── Gallery sheet (full-screen "view all" overlay) ─────────────
+   * Takes over the editor canvas with a dedicated browse surface.
+   * Same MoMA vocabulary, just bigger: 5-col grid, larger tiles
+   * with more metadata, persistent filter chips + search. */
+  .gallery-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(6, 8, 10, 0.95);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    padding: 60px 80px 80px;
+    animation: gallerySheetIn 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .gallery-sheet[hidden] { display: none; }
+  @keyframes gallerySheetIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .gallery-sheet-head {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+  .gallery-sheet-title {
+    font: italic 600 44px/1 'Bodoni Moda', 'Times New Roman', serif;
+    font-variation-settings: 'opsz' 96;
+    letter-spacing: -0.012em;
+    color: #fff;
+    margin: 0;
+  }
+  .gallery-sheet-meta {
+    flex: 1;
+    font: 400 11px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-sheet-search {
+    flex: 0 0 240px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 3px;
+  }
+  .gallery-sheet-search svg {
+    width: 12px; height: 12px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+  .gallery-sheet-search input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink);
+    font: 400 12px 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+  }
+  .gallery-sheet-search input::placeholder { color: var(--ink-dim); }
+  .gallery-sheet-close {
+    width: 36px; height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 3px;
+    color: var(--ink);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .gallery-sheet-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .gallery-sheet-close svg {
+    width: 14px; height: 14px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .gallery-sheet-cats {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+  }
+  .gallery-sheet-cat {
+    height: 30px;
+    padding: 0 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .gallery-sheet-cat:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+  .gallery-sheet-cat.is-active { background: #fff; color: #0b0b0d; }
+  .gallery-sheet-cat .gallery-sheet-cat-count {
+    font-size: 9px;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-sheet-cat.is-active .gallery-sheet-cat-count { color: rgba(11, 11, 13, 0.55); }
+
+  /* Big-tile grid: 5 columns. */
+  .gallery-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    overflow-y: auto;
+    padding-bottom: 20px;
+    flex: 1;
+    min-height: 0;
+  }
+  .gallery-sheet-tile {
+    position: relative;
+    padding-top: 75%;
+    border-radius: 3px;
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+  }
+  .gallery-sheet-tile:hover { border-color: rgba(155, 229, 127, 0.4); }
+  .gallery-sheet-tile-thumb {
+    position: absolute; inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.92);
+    transition: filter 0.2s ease;
+  }
+  .gallery-sheet-tile:hover .gallery-sheet-tile-thumb { filter: brightness(1.04); }
+  .gallery-sheet-tile-info {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 24px 12px 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.92) 100%);
+    color: #fff;
+  }
+  .gallery-sheet-tile-label {
+    font: 500 13px/1 'JetBrains Mono', monospace;
+    color: #fff;
+    letter-spacing: var(--value-track);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gallery-sheet-tile-time {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    margin-top: 5px;
+    display: block;
+  }
+  .gallery-sheet-tile-fav {
+    position: absolute;
+    top: 8px; left: 8px;
+    width: 22px; height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    color: var(--ink-soft);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+    z-index: 2;
+  }
+  .gallery-sheet-tile:hover .gallery-sheet-tile-fav { opacity: 1; }
+  .gallery-sheet-tile-fav.is-on {
+    opacity: 1;
+    color: var(--accent);
+    background: rgba(155, 229, 127, 0.18);
+  }
+  .gallery-sheet-tile-fav svg {
+    width: 11px; height: 11px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.4;
+  }
+  .gallery-sheet-tile-fav.is-on svg { fill: currentColor; }
+  .gallery-sheet-tile-public {
+    position: absolute;
+    top: 8px; right: 8px;
+    height: 22px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    z-index: 2;
+  }
+  .gallery-sheet-tile-public::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(155, 229, 127, 0.6);
+  }
+
+  /* ─── Lightbox (individual picture view) ─────────────────────────
+   * Opens when a gallery tile is clicked. Big centered image with
+   * a metadata + actions sidebar on the right. Navigation arrows
+   * on the left/right edges, close in the top-right. */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(4, 5, 7, 0.96);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 0;
+    animation: lightboxIn 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .lightbox[hidden] { display: none; }
+  @keyframes lightboxIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Left: image stage */
+  .lightbox-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    overflow: hidden;
+  }
+  .lightbox-image {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+    border: 6px solid #fff;
+    background: #111 center / cover no-repeat;
+    aspect-ratio: 3 / 4;
+    width: auto;
+    height: 88%;
+  }
+
+  /* Navigation arrows on left/right edges of the stage. */
+  .lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 50%;
+    color: var(--ink);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .lightbox-nav:hover {
+    background: rgba(155, 229, 127, 0.10);
+    border-color: rgba(155, 229, 127, 0.35);
+    color: var(--accent);
+  }
+  .lightbox-nav.is-prev { left: 24px; }
+  .lightbox-nav.is-next { right: 24px; }
+  .lightbox-nav svg {
+    width: 16px; height: 16px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Image counter at top of stage. */
+  .lightbox-counter {
+    position: absolute;
+    top: 28px; left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Right: sidebar with metadata + actions */
+  .lightbox-side {
+    background: rgba(8, 10, 12, 0.65);
+    border-left: 1px solid rgba(250, 250, 250, 0.06);
+    padding: 32px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  /* Top: close button row */
+  .lightbox-close-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: -8px -8px 0 0;
+  }
+  .lightbox-close {
+    width: 32px; height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 3px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .lightbox-close:hover { background: rgba(255, 255, 255, 0.08); }
+  .lightbox-close svg {
+    width: 12px; height: 12px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  /* Header: location title + style/time meta */
+  .lightbox-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lightbox-location {
+    font: italic 500 32px/1.1 'Bodoni Moda', 'Times New Roman', serif;
+    font-variation-settings: 'opsz' 96;
+    letter-spacing: -0.012em;
+    color: #fff;
+  }
+  .lightbox-style-meta {
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .lightbox-style-meta::before {
+    content: '';
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 6px;
+    vertical-align: 0.1em;
+    box-shadow: 0 0 4px rgba(155, 229, 127, 0.5);
+  }
+
+  /* Action row: favorite, share, download, more */
+  .lightbox-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .lightbox-action {
+    height: 32px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 3px;
+    color: var(--ink);
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    flex: 1;
+  }
+  .lightbox-action:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  .lightbox-action.is-on {
+    background: rgba(155, 229, 127, 0.16);
+    border-color: rgba(155, 229, 127, 0.45);
+    color: var(--accent);
+  }
+  .lightbox-action.is-primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: var(--accent-dark);
+  }
+  .lightbox-action.is-primary:hover { background: #a9eb90; }
+  .lightbox-action svg {
+    width: 11px; height: 11px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .lightbox-action.is-on svg { fill: currentColor; }
+
+  /* Metadata table — key/value rows */
+  .lightbox-meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .lightbox-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 12px;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .lightbox-meta-key {
+    color: var(--ink-soft);
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    flex-shrink: 0;
+  }
+  .lightbox-meta-val {
+    color: var(--ink);
+    font: 500 11px/1.2 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Prompt block */
+  .lightbox-prompt {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    border-radius: 3px;
+    padding: 12px;
+  }
+  .lightbox-prompt-label {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .lightbox-prompt-body {
+    color: rgba(250, 250, 250, 0.85);
+    font: 400 11px/1.55 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+  }
+
+  /* Footer destructive action (delete) */
+  .lightbox-danger {
+    height: 32px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(217, 154, 138, 0.30);
+    border-radius: 3px;
+    color: #d99a8a;
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    margin-top: auto;
+  }
+  .lightbox-danger:hover { background: rgba(217, 154, 138, 0.10); }
+  .lightbox-danger svg {
+    width: 11px; height: 11px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Aspect menu */
+  .menu-aspect { min-width: 200px; }
+  .menu-aspect-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink);
+    font: 400 11px/1 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+  }
+  .menu-aspect-item:hover { background: rgba(155, 229, 127, 0.10); }
+  .menu-aspect-item.is-active { color: var(--accent); }
+  .menu-aspect-icon {
+    width: 18px; height: 16px;
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .menu-aspect-icon::before {
+    content: '';
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+  }
+  .menu-aspect-icon[data-ratio="fill"]::before {
+    width: 16px; height: 14px;
+    background: currentColor;
+    opacity: 0.35;
+    border: none;
+  }
+  .menu-aspect-icon[data-ratio="1:1"]::before  { width: 12px; height: 12px; }
+  .menu-aspect-icon[data-ratio="4:5"]::before  { width: 11px; height: 14px; }
+  .menu-aspect-icon[data-ratio="3:4"]::before  { width: 10px; height: 13px; }
+  .menu-aspect-icon[data-ratio="2:3"]::before  { width: 10px; height: 15px; }
+  .menu-aspect-icon[data-ratio="9:16"]::before { width: 9px; height: 14px; }
+  .menu-aspect-icon[data-ratio="5:4"]::before  { width: 15px; height: 12px; }
+  .menu-aspect-icon[data-ratio="4:3"]::before  { width: 14px; height: 11px; }
+  .menu-aspect-icon[data-ratio="3:2"]::before  { width: 15px; height: 10px; }
+  .menu-aspect-icon[data-ratio="16:9"]::before { width: 16px; height: 9px; }
+  /* Custom — dashed outline glyph signals "you decide". */
+  .menu-aspect-icon[data-ratio="custom"]::before {
+    width: 12px; height: 12px;
+    border: 1px dashed currentColor;
+    opacity: 0.7;
+  }
+
+  /* Custom W:H row — narrow number inputs + Set button. The whole
+   * row is a label-shaped cell so it lines up with the other aspect
+   * items (same icon column, same padding). */
+  .menu-aspect-custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    color: var(--ink);
+  }
+  .menu-aspect-custom .menu-aspect-icon { flex-shrink: 0; }
+  .menu-aspect-custom-fields {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .menu-aspect-custom-input {
+    width: 40px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--ink);
+    font: 500 11px/1 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+    padding: 5px 6px;
+    border-radius: 2px;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+    appearance: textfield;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .menu-aspect-custom-input::-webkit-outer-spin-button,
+  .menu-aspect-custom-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .menu-aspect-custom-input::placeholder { color: var(--ink-dim); }
+  .menu-aspect-custom-input:hover { border-color: rgba(255, 255, 255, 0.18); }
+  .menu-aspect-custom-input:focus {
+    border-color: var(--accent);
+    background: rgba(155, 229, 127, 0.05);
+  }
+  .menu-aspect-custom-sep {
+    color: var(--ink-soft);
+    font: 400 11px/1 'JetBrains Mono', monospace;
+  }
+  .menu-aspect-custom-set {
+    background: transparent;
+    border: 1px solid rgba(155, 229, 127, 0.45);
+    color: var(--accent);
+    padding: 5px 10px;
+    border-radius: 2px;
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .menu-aspect-custom-set:hover {
+    background: rgba(155, 229, 127, 0.10);
+    border-color: var(--accent);
+  }
+  .menu-aspect-custom-set[disabled] {
+    opacity: 0.30;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--ink-dim);
+  }
+  /* When a custom ratio is the active selection, the row gets the
+   * same accent tint as any other is-active aspect item. */
+  .menu-aspect-custom.is-active .menu-aspect-icon { color: var(--accent); }
+  .menu-aspect-custom.is-active .menu-aspect-custom-input {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .menu-aspect-ratio { flex-shrink: 0; min-width: 32px; }
+  .menu-aspect-name {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    margin-left: auto;
+  }
+  .menu-aspect-item.is-active .menu-aspect-name { color: var(--accent); opacity: 0.7; }
+
+  /* ─── Capture menu ────────────────────────────────────────────
+   * The "moment of decision" menu. Larger than the other menus
+   * because it carries Resolution + Style grid + Custom prompt +
+   * CTA in a single surface. Anchored up-and-right from the
+   * chartreuse CAPTURE button. */
+  .menu-capture {
+    /* Lock width AND height so the menu is the same size in both
+     * phases (picker + queue). 440px wide × 730px tall. Width was
+     * previously min-width:420 / max-width:460 which let content
+     * push the menu around; now both phases occupy an identical
+     * fixed footprint. Queue view fills its space by pushing its
+     * footer to the bottom with margin-top: auto. */
+    width: 440px;
+    padding: 14px;
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+    min-height: 730px;
+  }
+  .menu-capture-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-capture-view > .menu-capture-foot {
+    margin-top: auto;
+  }
+  .menu-capture-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* Lock total header height (including padding-bottom + border)
+     * to 35px so the title sits at the same Y position in both
+     * phases. In the picker, this matches the natural height of
+     * the queue-return pill row (22px) + 12px padding-bottom +
+     * 1px border. The queue header (which lacks the taller pill)
+     * gets padded out to the same total so its title centers at
+     * the same offset. */
+    box-sizing: border-box;
+    min-height: 35px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(250, 250, 250, 0.06);
+  }
+  .menu-capture-title {
+    font: 500 13px/1 'JetBrains Mono', monospace;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+  }
+  .menu-capture-meta {
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--label-track);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Resolution segmented control. */
+  .menu-capture-seg {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .menu-capture-seg-btn {
+    height: 32px;
+    padding: 0 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    border-radius: 2px;
+    color: var(--ink-soft);
+    font: 500 11px/1 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+  .menu-capture-seg-btn:hover { background: rgba(255, 255, 255, 0.06); color: var(--ink); }
+  .menu-capture-seg-btn.is-active {
+    background: rgba(155, 229, 127, 0.14);
+    border-color: rgba(155, 229, 127, 0.4);
+    color: var(--accent);
+  }
+  .menu-capture-seg-btn.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .menu-capture-seg-btn.is-locked:hover { background: rgba(255, 255, 255, 0.04); color: var(--ink-soft); }
+  .menu-capture-seg-btn small {
+    font-size: 8px;
+    letter-spacing: var(--label-track);
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+
+  /* Style grid — 3-column compact cards with thumbnail bg + label. */
+  .menu-capture-styles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .menu-capture-style {
+    position: relative;
+    /* 4:3 aspect ratio via padding-top instead of `aspect-ratio: 4/3`.
+     * The aspect-ratio property doesn't give CSS Grid tracks an
+     * intrinsic height when the card has no flow content (everything
+     * inside is position: absolute / inset: 0). The grid was sizing
+     * rows to min-content (= 0) and the cards rendered at their
+     * preferred height but overlapped the next row by 60px each.
+     * padding-top: 75% gives the card a definite intrinsic block
+     * size that grid auto-rows can pick up correctly. */
+    padding-top: 75%;
+    border-radius: 2px;
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+  }
+  .menu-capture-style:hover { border-color: rgba(155, 229, 127, 0.4); }
+  .menu-capture-style-thumb {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: brightness(0.65) saturate(1.05);
+  }
+  /* Raw / Custom cards get a flat fill instead of an image bg. */
+  .menu-capture-style.is-raw .menu-capture-style-thumb {
+    background: repeating-linear-gradient(135deg,
+      rgba(255,255,255,0.04) 0 6px,
+      rgba(255,255,255,0.06) 6px 12px);
+    filter: none;
+  }
+  .menu-capture-style.is-custom .menu-capture-style-thumb {
+    background: linear-gradient(135deg, #2f3526 0%, #1b1d18 100%);
+    filter: none;
+  }
+  .menu-capture-style-icon {
+    position: absolute;
+    top: 6px; left: 6px;
+    width: 12px; height: 12px;
+    color: var(--ink-soft);
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+  .menu-capture-style.is-custom .menu-capture-style-icon { color: var(--accent); }
+  .menu-capture-style-label {
+    position: absolute;
+    left: 6px; bottom: 5px; right: 5px;
+    font: 500 10px/1 'JetBrains Mono', monospace;
+    color: #fff;
+    letter-spacing: var(--value-track);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .menu-capture-style.is-active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .menu-capture-style.is-active .menu-capture-style-thumb {
+    filter: brightness(0.85) saturate(1.1);
+  }
+  .menu-capture-style-check {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    color: var(--accent-dark);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .menu-capture-style.is-active .menu-capture-style-check { display: inline-flex; }
+
+  /* Bigger breathing room around section labels inside the capture
+   * menu — the picker has more content density than the smaller
+   * menus, so its section headings get more vertical padding above
+   * and below to keep the hierarchy readable. */
+  .menu-capture .menu-section-label {
+    padding: 14px 11px 8px;
+  }
+
+  /* Picker header right-side row: queue-return link + quality meta. */
+  .menu-capture-head-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Queue-return link — small chartreuse pill that takes the user
+   * back to the queue view from the picker. Pulse dot indicates an
+   * active job is running. */
+  .menu-capture-queue-link {
+    height: 22px;
+    padding: 0 8px 0 7px;
+    background: rgba(155, 229, 127, 0.10);
+    border: 1px solid rgba(155, 229, 127, 0.30);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .menu-capture-queue-link:hover {
+    background: rgba(155, 229, 127, 0.20);
+    border-color: rgba(155, 229, 127, 0.5);
+  }
+  .menu-capture-queue-link-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(155, 229, 127, 0.16);
+    animation: queueDotPulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .menu-capture-queue-link-count {
+    color: rgba(155, 229, 127, 0.85);
+    font-variant-numeric: tabular-nums;
+  }
+  .menu-capture-queue-link svg {
+    width: 9px; height: 9px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Category tabs — always visible above the full styles grid. */
+  .menu-capture-cats {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 10px;
+    /* Never wrap — if for any reason the tabs don't fit, they
+     * scroll horizontally instead of stacking onto a second row. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .menu-capture-cats::-webkit-scrollbar { display: none; }
+  .menu-capture-cat {
+    height: 26px;
+    padding: 0 11px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .menu-capture-cat:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
+  .menu-capture-cat.is-active {
+    background: #fff;
+    color: #0b0b0d;
+  }
+  /* Grid is the ONLY scrollable region in the capture menu — the
+   * rest of the menu stays anchored. Full grid is always visible
+   * (no curated/expanded toggle anymore); cards beyond the visible
+   * area scroll inside the fixed-height grid container.
+   *
+   * Extends edge-to-edge: negative horizontal margin negates the
+   * menu's 14px side padding so cards touch the menu's interior
+   * border. Scrollbar uses NO gutter — it floats above the content
+   * (macOS overlay scrollbar by default; on platforms without
+   * overlay scrollbars the styled 6px webkit scrollbar still
+   * appears thin and translucent enough to read as "floating"). */
+  .menu-capture-styles {
+    max-height: 340px;
+    overflow-y: auto;
+    /* Inside the menu's standard 14px padding — matches the width
+     * of the custom-prompt textarea below. Scrollbar still uses
+     * native OS overlay (no custom ::-webkit-scrollbar styling) so
+     * cards stay the same width whether the scrollbar's visible or
+     * not. */
+    margin-bottom: 14px;
+  }
+  /* Category filter (only meaningful when expanded — the cats tab
+   * strip is only visible then). When data-cat is anything but "all",
+   * hide all cards by default and then show:
+   *   1. Pinned cards (Raw, Custom — always available)
+   *   2. Cards whose data-cat-tag matches the active category */
+  .menu-capture-styles:not([data-cat="all"]) .menu-capture-style { display: none; }
+  .menu-capture-styles .menu-capture-style.is-pinned { display: block; }
+  .menu-capture-styles[data-cat="photo"]   .menu-capture-style[data-cat-tag~="photo"]   { display: block; }
+  .menu-capture-styles[data-cat="film"]    .menu-capture-style[data-cat-tag~="film"]    { display: block; }
+  .menu-capture-styles[data-cat="art"]     .menu-capture-style[data-cat-tag~="art"]     { display: block; }
+  .menu-capture-styles[data-cat="ink"]     .menu-capture-style[data-cat-tag~="ink"]     { display: block; }
+  .menu-capture-styles[data-cat="neon"]    .menu-capture-style[data-cat-tag~="neon"]    { display: block; }
+  .menu-capture-styles[data-cat="weather"] .menu-capture-style[data-cat-tag~="weather"] { display: block; }
+  .menu-capture-styles[data-cat="print"]   .menu-capture-style[data-cat-tag~="print"]   { display: block; }
+  /* (Inner-grid scrollbar styles removed — scroll moved up to the
+   * parent .menu-capture so the whole menu scrolls as one.) */
+
+  /* Custom prompt textarea. */
+  .menu-capture-prompt {
+    width: 100%;
+    min-height: 56px;
+    max-height: 120px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    border-radius: 2px;
+    color: var(--ink);
+    font: 400 11px/1.5 'JetBrains Mono', monospace;
+    letter-spacing: var(--value-track);
+    resize: vertical;
+    outline: none;
+    margin-bottom: 12px;
+  }
+  .menu-capture-prompt:focus {
+    border-color: rgba(155, 229, 127, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .menu-capture-prompt::placeholder { color: var(--ink-dim); }
+
+  /* Footer: Capture CTA — full-width chartreuse button. */
+  .menu-capture-foot {
+    padding-top: 12px;
+    border-top: 1px solid rgba(250, 250, 250, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .menu-capture-foot-meta {
+    flex: 1;
+    color: var(--ink-soft);
+    font: 400 10px/1.2 'JetBrains Mono', monospace;
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+  }
+  .menu-capture-cta {
+    height: 38px;
+    padding: 0 18px;
+    background: var(--accent);
+    color: var(--accent-dark);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font: 600 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: var(--upper-track);
+    flex-shrink: 0;
+  }
+  .menu-capture-cta:hover { background: #a9eb90; }
+  .menu-capture-cta:active { transform: scale(0.98); }
+  .menu-capture-cta svg {
+    width: 12px; height: 12px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .menu-capture-cta:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Phase swap: picker ↔ queue views are siblings inside the menu.
+   * Hide the inactive view, show the active one. */
+  .menu-capture[data-phase="picker"] [data-view="queue"]  { display: none; }
+  .menu-capture[data-phase="queue"]  [data-view="picker"] { display: none; }
+
+  /* ─── Queue view ────────────────────────────────────────────── */
+
+  /* Overall progress bar — under the header, ~3px tall. */
+  .menu-queue-overall {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .menu-queue-overall-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    transition: width 200ms ease;
+  }
+
+  /* Queue row list. Each row: status-dot · thumbnail · body · actions */
+  .menu-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+  }
+  .menu-queue-row {
+    display: grid;
+    grid-template-columns: 12px 56px 1fr auto;
+    column-gap: 10px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background 120ms ease;
+  }
+  .menu-queue-row:hover { background: rgba(155, 229, 127, 0.06); }
+  .menu-queue-row.is-clickable { cursor: pointer; }
+
+  /* Status dot */
+  .menu-queue-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--status-pending);
+    box-shadow: 0 0 0 3px var(--status-pending-soft);
+    justify-self: center;
+  }
+  .menu-queue-row[data-status="active"]  .menu-queue-dot {
+    background: var(--status-active);
+    box-shadow: 0 0 0 3px var(--status-active-soft);
+    animation: queueDotPulse 1.4s ease-in-out infinite;
+  }
+  .menu-queue-row[data-status="done"]    .menu-queue-dot {
+    background: var(--status-done, #b9c4ad);
+    box-shadow: 0 0 0 3px rgba(185, 196, 173, 0.14);
+  }
+  .menu-queue-row[data-status="error"]   .menu-queue-dot {
+    background: var(--status-error, #d99a8a);
+    box-shadow: 0 0 0 3px rgba(217, 154, 138, 0.14);
+  }
+  @keyframes queueDotPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+  }
+
+  /* Status tokens (reused) */
+  .menu-queue-row {
+    --status-active: #9be57f;
+    --status-active-soft: rgba(155, 229, 127, 0.16);
+    --status-pending: #6c6962;
+    --status-pending-soft: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Thumbnail */
+  .menu-queue-thumb {
+    width: 56px; height: 42px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.04) center / cover no-repeat;
+    border: 1px solid rgba(250, 250, 250, 0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .menu-queue-thumb::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.35) 100%);
+  }
+  /* Active: animated shimmer */
+  .menu-queue-row[data-status="active"] .menu-queue-thumb::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(110deg,
+      rgba(155,229,127,0) 30%,
+      rgba(155,229,127,0.18) 50%,
+      rgba(155,229,127,0) 70%);
+    background-size: 220% 100%;
+    animation: queueShimmer 1.6s linear infinite;
+    z-index: 1;
+  }
+  @keyframes queueShimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -120% 0; }
+  }
+  /* Pending: dimmed thumbnail */
+  .menu-queue-row[data-status="pending"] .menu-queue-thumb {
+    filter: grayscale(0.5) brightness(0.65);
+  }
+  /* Done: cream ✓ overlay */
+  .menu-queue-row[data-status="done"] .menu-queue-thumb::before {
+    content: '✓';
+    position: absolute; top: 3px; right: 3px;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    color: var(--accent-dark);
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 700 9px/1 'JetBrains Mono', monospace;
+    z-index: 1;
+  }
+  /* Error: × overlay */
+  .menu-queue-row[data-status="error"] .menu-queue-thumb::before {
+    content: '×';
+    position: absolute; top: 3px; right: 3px;
+    width: 14px; height: 14px;
+    background: #d99a8a;
+    color: #0b0b0d;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 700 11px/1 'JetBrains Mono', monospace;
+    z-index: 1;
+  }
+
+  /* Body: top row (label + time), meta, optional progress */
+  .menu-queue-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .menu-queue-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .menu-queue-label {
+    font: 500 12px/1 'JetBrains Mono', monospace;
+    color: var(--ink);
+    letter-spacing: var(--value-track);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .menu-queue-time {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .menu-queue-row[data-status="active"] .menu-queue-time { color: var(--accent); }
+  .menu-queue-meta {
+    font: 400 10px/1 'JetBrains Mono', monospace;
+    color: var(--ink-soft);
+    letter-spacing: var(--label-track);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .menu-queue-error {
+    font: 400 10px/1.2 'JetBrains Mono', monospace;
+    color: #d99a8a;
+    letter-spacing: var(--label-track);
+  }
+
+  /* Per-row progress bar (for active jobs) */
+  .menu-queue-progress {
+    margin-top: 2px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .menu-queue-progress span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    transition: width 200ms ease;
+  }
+
+  /* Right rail: actions (cancel / retry / open). Subtle by default,
+   * brighten on row hover. */
+  .menu-queue-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .menu-queue-action {
+    width: 22px; height: 22px;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .menu-queue-row:hover .menu-queue-action { opacity: 1; }
+  .menu-queue-action.is-primary {
+    color: var(--accent);
+    opacity: 1;
+    background: rgba(155, 229, 127, 0.10);
+  }
+  .menu-queue-action:hover {
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .menu-queue-action.is-primary:hover { background: rgba(155, 229, 127, 0.18); }
+  .menu-queue-action svg {
+    width: 11px; height: 11px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Ghost variant of the capture CTA — used for "Capture more" in
+   * the queue view footer. Less loud than the chartreuse-filled CTA. */
+  .menu-capture-cta-ghost {
+    background: transparent;
+    border: 1px solid var(--pill-border);
+    color: var(--ink);
+  }
+  .menu-capture-cta-ghost:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- 3D editor canvas (stand-in: realistic NYC style photo with a 6px
+       white aspect-ratio frame overlay, matches FrameOverlay.jsx) -->
+  <div class="canvas" aria-hidden="true"></div>
+
+  <!-- Aspect-ratio frame overlay — blur+dim sheet with a frame-shaped
+       cutout, white stroke at the cutout edge. Hidden in Fill mode.
+       Default ratio is 3:4 (matches the active aspect-menu item). -->
+  <div class="aspect-frame" data-aspect-frame style="--frame-ratio: 0.75;">
+    <div class="aspect-frame-blur"></div>
+    <div class="aspect-frame-border"></div>
+  </div>
+
+  <!-- Four viewfinder corner brackets — safe-frame / crop indicators,
+       same visual family as the center AF reticle below. -->
+  <div class="vf-bracket tl"></div>
+  <div class="vf-bracket tr"></div>
+  <div class="vf-bracket bl"></div>
+  <div class="vf-bracket br"></div>
+
+  <!-- ─── Top-left cluster: search + saved views ─────────────────── -->
+  <div class="cluster tl">
+
+    <!-- Search pill + dropdown -->
+    <div class="menu-anchor">
+      <button class="pill search" type="button" data-menu-trigger="search">
+        <svg class="icon icon-search" viewBox="0 0 12 12">
+          <circle cx="5" cy="5" r="3.25"/>
+          <path d="M7.3 7.3 10 10"/>
+        </svg>
+        <span class="value" data-search-display>New York, NY</span>
+      </button>
+      <div class="menu menu-search" data-menu="search" hidden>
+        <div class="menu-search-input">
+          <svg class="icon-search" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="5" cy="5" r="3.25"/>
+            <path d="M7.3 7.3 10 10"/>
+          </svg>
+          <input type="text" placeholder="Search a location…" />
+        </div>
+        <div class="menu-section">
+          <div class="menu-section-label">Recent</div>
+          <button class="menu-item" data-search-pick="Brooklyn Bridge">
+            <span class="menu-item-name">Brooklyn Bridge</span>
+            <span class="menu-item-tag">Landmark</span>
+          </button>
+          <button class="menu-item" data-search-pick="Central Park">
+            <span class="menu-item-name">Central Park</span>
+            <span class="menu-item-tag">Park</span>
+          </button>
+          <button class="menu-item" data-search-pick="Empire State">
+            <span class="menu-item-name">Empire State</span>
+            <span class="menu-item-tag">Landmark</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Views pill + dropdown -->
+    <div class="menu-anchor">
+      <button class="pill" type="button" data-menu-trigger="views">
+        <span class="label">Views</span>
+        <span class="value" data-views-count>15</span>
+      </button>
+      <div class="menu menu-views has-filter" data-menu="views" hidden>
+        <div class="menu-section-label">
+          <span>Saved Views</span>
+          <span class="menu-count" data-views-count-label>15</span>
+        </div>
+        <button class="menu-action" data-views-save>
+          <span class="menu-action-icon">
+            <svg viewBox="0 0 9 9" aria-hidden="true"><path d="M4.5 1v7M1 4.5h7"/></svg>
+          </span>
+          <span>Save current view</span>
+        </button>
+        <div class="menu-divider"></div>
+
+        <!-- Filter input — surfaces when count > 6 (toggled via the
+             .has-filter class on .menu-views). Stays inside the menu,
+             above the scrolling list. -->
+        <div class="menu-views-filter" data-views-filter>
+          <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="4.5" cy="4.5" r="3"/><path d="M6.7 6.7 9 9"/>
+          </svg>
+          <input type="text" placeholder="Filter saved views…" data-views-filter-input />
+          <button type="button" class="menu-views-filter-clear" data-views-filter-clear aria-label="Clear">
+            <svg viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 3l5 5M8 3l-5 5"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Scroll container — caps height at 240px (~8 rows) so Tour
+             + Save stay anchored. Empty-state message shows when the
+             filter eliminates all rows. -->
+        <div class="menu-views-list" data-views-list>
+          <button class="menu-view-item is-default" data-view-name="Williamsburg Bridge">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></div>
+            <span class="menu-view-name">Williamsburg Bridge</span>
+            <span class="menu-view-lens">35mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Default view" title="Default — opens on cold load">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Empire State, Dusk">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></div>
+            <span class="menu-view-name">Empire State, Dusk</span>
+            <span class="menu-view-lens">50mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Times Square, Night">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></div>
+            <span class="menu-view-name">Times Square, Night</span>
+            <span class="menu-view-lens">28mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Central Park, Fog">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></div>
+            <span class="menu-view-name">Central Park, Fog</span>
+            <span class="menu-view-lens">24mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Brooklyn Heights">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></div>
+            <span class="menu-view-name">Brooklyn Heights</span>
+            <span class="menu-view-lens">35mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Coney Island">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></div>
+            <span class="menu-view-name">Coney Island</span>
+            <span class="menu-view-lens">85mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Statue of Liberty">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></div>
+            <span class="menu-view-name">Statue of Liberty</span>
+            <span class="menu-view-lens">70mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Lower East Side">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-rainy-2x-20260422-1708.png')"></div>
+            <span class="menu-view-name">Lower East Side</span>
+            <span class="menu-view-lens">40mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Hudson Yards">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-night-2x-20260422-1707.png')"></div>
+            <span class="menu-view-name">Hudson Yards</span>
+            <span class="menu-view-lens">50mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Soho Rooftops">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-watercolor-2x-20260422-1708.png')"></div>
+            <span class="menu-view-name">Soho Rooftops</span>
+            <span class="menu-view-lens">35mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="High Line, Late">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-pastel-dream-2x-20260422-1709.png')"></div>
+            <span class="menu-view-name">High Line, Late</span>
+            <span class="menu-view-lens">28mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Chrysler, Above">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-architect-marker-2x-20260422-1712.png')"></div>
+            <span class="menu-view-name">Chrysler, Above</span>
+            <span class="menu-view-lens">85mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Brooklyn Bridge, Pano">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-gouache-2x-20260422-1709.png')"></div>
+            <span class="menu-view-name">Brooklyn Bridge, Pano</span>
+            <span class="menu-view-lens">24mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Wall St, Tight">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></div>
+            <span class="menu-view-name">Wall St, Tight</span>
+            <span class="menu-view-lens">100mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <button class="menu-view-item" data-view-name="Queensboro, Wide">
+            <div class="menu-view-thumb" style="background-image: url('/style-photos/vedute-oil-painting-2x-20260422-1709.png')"></div>
+            <span class="menu-view-name">Queensboro, Wide</span>
+            <span class="menu-view-lens">18mm</span>
+            <button class="menu-view-pin" type="button" aria-label="Set default">
+              <svg viewBox="0 0 11 11"><path d="M5.5 1l1.4 2.85 3.15.45-2.27 2.22.54 3.13L5.5 8.18 2.68 9.65l.54-3.13L.95 4.3l3.15-.45L5.5 1z"/></svg>
+            </button>
+            <button class="menu-view-delete" type="button" aria-label="Delete">
+              <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+            </button>
+          </button>
+          <div class="menu-views-noresults">No matches.</div>
+        </div>
+        <div class="menu-divider"></div>
+        <!-- Tour — curated starting points (presetViews.json in production).
+             Single-line rows, no thumbnail, no delete: clearly not the user's
+             own saved views. Click to fly the camera to the preset. -->
+        <div class="menu-section">
+          <div class="menu-section-label">Tour</div>
+          <button class="menu-item" data-tour-pick="manhattan">
+            <span class="menu-item-name">Manhattan</span>
+            <span class="menu-item-sub">New York</span>
+          </button>
+          <button class="menu-item" data-tour-pick="hong-kong">
+            <span class="menu-item-name">Victoria Harbour</span>
+            <span class="menu-item-sub">Hong Kong</span>
+          </button>
+          <button class="menu-item" data-tour-pick="paris">
+            <span class="menu-item-name">Eiffel Tower</span>
+            <span class="menu-item-sub">Paris</span>
+          </button>
+          <button class="menu-item" data-tour-pick="tokyo">
+            <span class="menu-item-name">Shibuya</span>
+            <span class="menu-item-sub">Tokyo</span>
+          </button>
+          <button class="menu-item" data-tour-pick="venice">
+            <span class="menu-item-name">Grand Canal</span>
+            <span class="menu-item-sub">Venice</span>
+          </button>
+          <button class="menu-item" data-tour-pick="dubai">
+            <span class="menu-item-name">Burj Khalifa</span>
+            <span class="menu-item-sub">Dubai</span>
+          </button>
+          <button class="menu-item" data-tour-pick="rio">
+            <span class="menu-item-name">Christ the Redeemer</span>
+            <span class="menu-item-sub">Rio de Janeiro</span>
+          </button>
+          <button class="menu-item" data-tour-pick="london">
+            <span class="menu-item-name">London Skyline</span>
+            <span class="menu-item-sub">London</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Top-right cluster: gallery ─────────────────────────────── -->
+  <div class="cluster tr">
+    <div class="menu-anchor is-right">
+      <button class="pill" type="button" data-menu-trigger="gallery">
+        <span class="label">Gallery</span>
+        <span class="value" data-gallery-count>127</span>
+      </button>
+      <div class="menu menu-gallery" data-menu="gallery" hidden>
+
+        <!-- Header: title + count + "View all" pill (opens the full
+             gallery sheet — primary action surfaced at top-right). -->
+        <div class="menu-gallery-head">
+          <span class="menu-gallery-title">Gallery</span>
+          <div class="menu-gallery-head-right">
+            <span class="menu-gallery-meta" data-gallery-meta>127</span>
+            <button class="menu-gallery-viewall" data-g-action="view-all" type="button">
+              <span>View all</span>
+              <svg viewBox="0 0 11 11" aria-hidden="true">
+                <path d="M3 5.5h5M5.5 3l2.5 2.5-2.5 2.5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter chips -->
+        <div class="menu-gallery-cats" data-gallery-cats>
+          <button class="menu-gallery-cat is-active" data-g-cat="all">
+            <span>All</span><span class="menu-gallery-cat-count">127</span>
+          </button>
+          <button class="menu-gallery-cat" data-g-cat="today">
+            <span>Today</span><span class="menu-gallery-cat-count">4</span>
+          </button>
+          <button class="menu-gallery-cat" data-g-cat="week">
+            <span>Week</span><span class="menu-gallery-cat-count">22</span>
+          </button>
+          <button class="menu-gallery-cat" data-g-cat="favorites">
+            <span>★ Favorites</span><span class="menu-gallery-cat-count">9</span>
+          </button>
+          <button class="menu-gallery-cat" data-g-cat="public">
+            <span>Public</span><span class="menu-gallery-cat-count">3</span>
+          </button>
+        </div>
+
+        <!-- Tile grid -->
+        <div class="menu-gallery-grid" data-gallery-grid>
+          <button class="menu-gallery-tile" data-tile data-fav data-g-tag="today public">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+            <span class="menu-gallery-tile-public">Public</span>
+            <span class="menu-gallery-tile-fav is-on" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Brooklyn Bridge</span>
+              <span class="menu-gallery-tile-time">2h · Realistic</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="today">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Empire State</span>
+              <span class="menu-gallery-tile-time">3h · Golden Hour</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-fav data-g-tag="today favorites">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+            <span class="menu-gallery-tile-fav is-on" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Williamsburg</span>
+              <span class="menu-gallery-tile-time">5h · Night City</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="today">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Central Park</span>
+              <span class="menu-gallery-tile-time">7h · Cinematic</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-fav data-g-tag="week favorites public">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-gallery-tile-public">Public</span>
+            <span class="menu-gallery-tile-fav is-on" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Times Square</span>
+              <span class="menu-gallery-tile-time">1d · B&amp;W</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="week">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Brooklyn Heights</span>
+              <span class="menu-gallery-tile-time">2d · 70s Film</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-fav data-g-tag="week favorites">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+            <span class="menu-gallery-tile-fav is-on" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Coney Island</span>
+              <span class="menu-gallery-tile-time">3d · Polaroid</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="week">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Manhattan</span>
+              <span class="menu-gallery-tile-time">4d · Winter</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="week">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Statue of Liberty</span>
+              <span class="menu-gallery-tile-time">5d · Realistic</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-fav data-g-tag="favorites">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-gallery-tile-fav is-on" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Lower East Side</span>
+              <span class="menu-gallery-tile-time">1w · Travel Poster</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Soho</span>
+              <span class="menu-gallery-tile-time">2w · Charcoal</span>
+            </div>
+          </button>
+          <button class="menu-gallery-tile" data-tile data-g-tag="">
+            <span class="menu-gallery-tile-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+            <span class="menu-gallery-tile-fav" data-fav-toggle>
+              <svg viewBox="0 0 10 10"><path d="M5 1l1.2 2.6L9 4l-2 2 .5 2.8L5 7.3 2.5 8.8 3 6 1 4l2.8-.4z"/></svg>
+            </span>
+            <span class="menu-gallery-tile-check">✓</span>
+            <div class="menu-gallery-tile-info">
+              <span class="menu-gallery-tile-label">Hudson Yards</span>
+              <span class="menu-gallery-tile-time">3w · Foggy Dawn</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- (Footer dropped — multi-select removed from the menu.
+             Tile click now opens the lightbox; bulk export lives in
+             the full Gallery sheet if needed.) -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Bottom-left cluster: aspect ratio ──────────────────────── -->
+  <div class="cluster bl">
+    <div class="menu-anchor is-up">
+      <button class="pill" type="button" data-menu-trigger="aspect">
+        <span class="label">Aspect</span>
+        <span class="value" data-aspect-display>3:4</span>
+      </button>
+      <div class="menu menu-aspect" data-menu="aspect" hidden>
+        <div class="menu-section-label">Aspect ratio</div>
+        <button class="menu-aspect-item" data-aspect="fill" data-aspect-display="Fill">
+          <span class="menu-aspect-icon" data-ratio="fill"></span>
+          <span class="menu-aspect-ratio">—</span>
+          <span class="menu-aspect-name">Fill</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="1:1">
+          <span class="menu-aspect-icon" data-ratio="1:1"></span>
+          <span class="menu-aspect-ratio">1:1</span>
+          <span class="menu-aspect-name">Square</span>
+        </button>
+        <div class="menu-divider"></div>
+        <div class="menu-section-label">Portrait</div>
+        <button class="menu-aspect-item" data-aspect="4:5">
+          <span class="menu-aspect-icon" data-ratio="4:5"></span>
+          <span class="menu-aspect-ratio">4:5</span>
+          <span class="menu-aspect-name">16 × 20</span>
+        </button>
+        <button class="menu-aspect-item is-active" data-aspect="3:4">
+          <span class="menu-aspect-icon" data-ratio="3:4"></span>
+          <span class="menu-aspect-ratio">3:4</span>
+          <span class="menu-aspect-name">18 × 24</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="2:3">
+          <span class="menu-aspect-icon" data-ratio="2:3"></span>
+          <span class="menu-aspect-ratio">2:3</span>
+          <span class="menu-aspect-name">24 × 36</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="9:16">
+          <span class="menu-aspect-icon" data-ratio="9:16"></span>
+          <span class="menu-aspect-ratio">9:16</span>
+          <span class="menu-aspect-name">Vertical</span>
+        </button>
+        <div class="menu-divider"></div>
+        <div class="menu-section-label">Landscape</div>
+        <button class="menu-aspect-item" data-aspect="5:4">
+          <span class="menu-aspect-icon" data-ratio="5:4"></span>
+          <span class="menu-aspect-ratio">5:4</span>
+          <span class="menu-aspect-name">20 × 16</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="4:3">
+          <span class="menu-aspect-icon" data-ratio="4:3"></span>
+          <span class="menu-aspect-ratio">4:3</span>
+          <span class="menu-aspect-name">24 × 18</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="3:2">
+          <span class="menu-aspect-icon" data-ratio="3:2"></span>
+          <span class="menu-aspect-ratio">3:2</span>
+          <span class="menu-aspect-name">36 × 24</span>
+        </button>
+        <button class="menu-aspect-item" data-aspect="16:9">
+          <span class="menu-aspect-icon" data-ratio="16:9"></span>
+          <span class="menu-aspect-ratio">16:9</span>
+          <span class="menu-aspect-name">Wide</span>
+        </button>
+        <div class="menu-divider"></div>
+        <div class="menu-section-label">Custom</div>
+        <form class="menu-aspect-custom" data-aspect-custom>
+          <span class="menu-aspect-icon" data-ratio="custom"></span>
+          <span class="menu-aspect-custom-fields">
+            <input class="menu-aspect-custom-input"
+                   type="number" inputmode="decimal" step="0.1" min="0.1"
+                   placeholder="W" aria-label="Custom width"
+                   data-aspect-custom-w />
+            <span class="menu-aspect-custom-sep">:</span>
+            <input class="menu-aspect-custom-input"
+                   type="number" inputmode="decimal" step="0.1" min="0.1"
+                   placeholder="H" aria-label="Custom height"
+                   data-aspect-custom-h />
+          </span>
+          <button class="menu-aspect-custom-set" type="submit" disabled
+                  data-aspect-custom-set>Set</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Bottom-right cluster: camera strip + Capture CTA ─────────
+       Each scrubbable pill has three internal slots:
+       - .value-stack  (label + value, visible at rest)
+       - .chevrons     (drag hints, visible during scrub)
+       - .scrub-tooltip (floating LABEL+VALUE pill above, visible during
+                         scrub — gives the user the "what am I scrubbing"
+                         readout while the pill itself is just the value) -->
+  <div class="cluster br">
+
+    <button class="pill scrubbable" type="button"
+            data-pill="dof"
+            data-min="1.4" data-max="22" data-step="0.05">
+      <span class="value-stack">
+        <span class="label">DoF</span>
+        <span class="value" data-display>f/2.8</span>
+      </span>
+      <span class="chevrons">
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M6.5 2 3 5l3.5 3"/></svg></span>
+        <span class="value" data-display>f/2.8</span>
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M3.5 2 7 5l-3.5 3"/></svg></span>
+      </span>
+      <span class="scrub-tooltip">
+        <span class="label">DoF</span>
+        <span class="value" data-display>f/2.8</span>
+      </span>
+    </button>
+
+    <button class="pill scrubbable" type="button"
+            data-pill="lens"
+            data-min="14" data-max="200" data-step="0.5">
+      <span class="value-stack">
+        <span class="label">Lens</span>
+        <span class="value" data-display>35mm</span>
+      </span>
+      <span class="chevrons">
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M6.5 2 3 5l3.5 3"/></svg></span>
+        <span class="value" data-display>35mm</span>
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M3.5 2 7 5l-3.5 3"/></svg></span>
+      </span>
+      <span class="scrub-tooltip">
+        <span class="label">Lens</span>
+        <span class="value" data-display>35mm</span>
+      </span>
+    </button>
+
+    <button class="pill scrubbable" type="button"
+            data-pill="time"
+            data-min="0" data-max="1440" data-step="2">
+      <span class="value-stack">
+        <span class="label">Time</span>
+        <span class="value" data-display>3:30PM</span>
+      </span>
+      <span class="chevrons">
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M6.5 2 3 5l3.5 3"/></svg></span>
+        <span class="value" data-display>3:30PM</span>
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M3.5 2 7 5l-3.5 3"/></svg></span>
+      </span>
+      <span class="scrub-tooltip">
+        <span class="label">Time</span>
+        <span class="value" data-display>3:30PM</span>
+      </span>
+    </button>
+
+    <button class="pill scrubbable" type="button"
+            data-pill="clouds"
+            data-min="0" data-max="100" data-step="0.5">
+      <span class="value-stack">
+        <span class="label">Clouds</span>
+        <span class="value" data-display>20%</span>
+      </span>
+      <span class="chevrons">
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M6.5 2 3 5l3.5 3"/></svg></span>
+        <span class="value" data-display>20%</span>
+        <span class="chev"><svg viewBox="0 0 10 10"><path d="M3.5 2 7 5l-3.5 3"/></svg></span>
+      </span>
+      <span class="scrub-tooltip">
+        <span class="label">Clouds</span>
+        <span class="value" data-display>20%</span>
+      </span>
+    </button>
+
+    <div class="menu-anchor is-up is-right">
+      <button class="pill capture" type="button" data-menu-trigger="capture">
+        <svg class="icon icon-download" viewBox="0 0 12 12">
+          <path d="M6 1.25v6M3.25 5l2.75 2.75L8.75 5"/>
+          <path d="M2 9.75h8"/>
+        </svg>
+        <span class="value">Capture</span>
+      </button>
+      <div class="menu menu-capture" data-menu="capture" data-phase="picker" hidden>
+
+        <!-- ─── PICKER VIEW (style + resolution selection) ─────────── -->
+        <div class="menu-capture-view" data-view="picker">
+
+        <!-- Header: title + quick-return-to-queue link + quality readout -->
+        <div class="menu-capture-head">
+          <span class="menu-capture-title">Capture</span>
+          <div class="menu-capture-head-right">
+            <!-- Queue-return link. Only meaningful when there are
+                 pending/active jobs; in the prototype it's always
+                 visible since we always show the mocked queue. -->
+            <button class="menu-capture-queue-link" data-show-queue type="button">
+              <span class="menu-capture-queue-link-dot"></span>
+              <span>Queue</span>
+              <span class="menu-capture-queue-link-count">4</span>
+              <svg viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2.5 5h5M5.5 2l2.5 3-2.5 3"/>
+              </svg>
+            </button>
+            <span class="menu-capture-meta" data-capture-meta>2× · 2048px</span>
+          </div>
+        </div>
+
+        <!-- Resolution segmented control -->
+        <div class="menu-section-label">Resolution</div>
+        <div class="menu-capture-seg" data-capture-resolution>
+          <button class="menu-capture-seg-btn" data-res="1">1×</button>
+          <button class="menu-capture-seg-btn is-active" data-res="2">2×</button>
+          <button class="menu-capture-seg-btn" data-res="4">4×</button>
+          <button class="menu-capture-seg-btn is-locked" data-res="6">6× <small>Pro</small></button>
+        </div>
+
+        <!-- Style grid (multi-select) -->
+        <div class="menu-section-label">
+          <span>Style</span>
+          <span class="menu-count" data-capture-count>2 selected</span>
+        </div>
+
+        <!-- Category tabs — shown when grid is expanded. -->
+        <div class="menu-capture-cats" data-capture-cats>
+          <button class="menu-capture-cat is-active" data-cat="all">All</button>
+          <button class="menu-capture-cat" data-cat="photo">Photo</button>
+          <button class="menu-capture-cat" data-cat="film">Film</button>
+          <button class="menu-capture-cat" data-cat="art">Art</button>
+          <button class="menu-capture-cat" data-cat="ink">Ink</button>
+          <button class="menu-capture-cat" data-cat="neon">Neon</button>
+          <button class="menu-capture-cat" data-cat="weather">Weather</button>
+          <button class="menu-capture-cat" data-cat="print">Print</button>
+        </div>
+
+        <div class="menu-capture-styles" data-cat="all">
+          <!-- Curated 9 (always visible). is-pinned keeps Raw + Custom
+               visible across category filters. -->
+          <button class="menu-capture-style is-raw is-pinned" data-style="raw" data-cat-tag="photo film art ink neon weather print">
+            <span class="menu-capture-style-thumb"></span>
+            <svg class="menu-capture-style-icon" viewBox="0 0 12 12">
+              <path d="M2 4V2h2M10 4V2h-2M2 8v2h2M10 8v2h-2"/>
+            </svg>
+            <span class="menu-capture-style-label">Raw</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style is-custom is-pinned" data-style="custom" data-cat-tag="photo film art ink neon weather print">
+            <span class="menu-capture-style-thumb"></span>
+            <svg class="menu-capture-style-icon" viewBox="0 0 12 12" fill="currentColor" stroke="none">
+              <path d="M6 1l.7 2.6L9.3 4.3 6.7 5l-.7 2.6L5.3 5l-2.6-.7 2.6-.7L6 1zM9 7l.3 1.3L10.7 9 9.3 9.3 9 10.7 8.7 9.3 7.3 9l1.4-.3L9 7z"/>
+            </svg>
+            <span class="menu-capture-style-label">Custom</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style is-active" data-style="realistic" data-cat-tag="photo">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+            <span class="menu-capture-style-label">Realistic</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style is-active" data-style="golden" data-cat-tag="photo">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Golden Hour</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="cinematic" data-cat-tag="film">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+            <span class="menu-capture-style-label">Cinematic</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="bw" data-cat-tag="photo film">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-capture-style-label">B&amp;W</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="polaroid" data-cat-tag="film">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Polaroid</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="cyberpunk" data-cat-tag="neon">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+            <span class="menu-capture-style-label">Night City</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="snowfall" data-cat-tag="weather">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></span>
+            <span class="menu-capture-style-label">Winter</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+
+          <!-- The "+ 18 more" set — hidden until grid is expanded. -->
+          <button class="menu-capture-style" data-style="retro70s" data-cat-tag="film">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">70s Film</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="postcard" data-cat-tag="print">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+            <span class="menu-capture-style-label">Postcard</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="travelposter" data-cat-tag="print">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Travel Poster</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="night" data-cat-tag="weather neon">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+            <span class="menu-capture-style-label">Night</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="autumn" data-cat-tag="weather">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Autumn</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="cherry" data-cat-tag="weather">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Cherry Blossom</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="rainy" data-cat-tag="weather">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+            <span class="menu-capture-style-label">Rainy</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="foggy" data-cat-tag="weather">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+            <span class="menu-capture-style-label">Foggy Dawn</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="watercolor" data-cat-tag="art">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Watercolor</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="oilpaint" data-cat-tag="art">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Oil Painting</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="lineart" data-cat-tag="ink">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-capture-style-label">Line Art</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="charcoal" data-cat-tag="ink art">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-capture-style-label">Charcoal</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="inkhatch" data-cat-tag="ink">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-capture-style-label">Ink Hatch</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="pixelart" data-cat-tag="ink">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+            <span class="menu-capture-style-label">Pixel Art</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="blueprint" data-cat-tag="ink">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+            <span class="menu-capture-style-label">Blueprint</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="ukiyoe" data-cat-tag="art print">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></span>
+            <span class="menu-capture-style-label">Ukiyo-e</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="stainedglass" data-cat-tag="art print">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+            <span class="menu-capture-style-label">Stained Glass</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+          <button class="menu-capture-style" data-style="pastel" data-cat-tag="art">
+            <span class="menu-capture-style-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+            <span class="menu-capture-style-label">Pastel</span>
+            <span class="menu-capture-style-check">✓</span>
+          </button>
+        </div>
+
+        <!-- Custom prompt -->
+        <div class="menu-section-label">Custom prompt</div>
+        <textarea
+          class="menu-capture-prompt"
+          placeholder="Re-render this aerial scene as a photoreal daylight cityscape…"
+        ></textarea>
+
+        <!-- Footer: capture CTA -->
+        <div class="menu-capture-foot">
+          <span class="menu-capture-foot-meta" data-capture-cta-meta>2 styles · 2× quality</span>
+          <button class="menu-capture-cta" data-capture-go>
+            <svg viewBox="0 0 12 12">
+              <path d="M6 1.25v6M3.25 5l2.75 2.75L8.75 5"/>
+            </svg>
+            <span data-capture-cta-text>Capture 2</span>
+            <svg viewBox="0 0 12 12">
+              <path d="M3 6h6M6.5 3l2.5 3-2.5 3"/>
+            </svg>
+          </button>
+        </div>
+
+        </div><!-- /picker view -->
+
+        <!-- ─── QUEUE VIEW (post-capture render progress) ─────────── -->
+        <div class="menu-capture-view" data-view="queue">
+
+          <!-- Header: status + count -->
+          <div class="menu-capture-head">
+            <span class="menu-capture-title">Rendering</span>
+            <span class="menu-capture-meta" data-queue-meta>1 of 4 · 35%</span>
+          </div>
+
+          <!-- Overall progress bar -->
+          <div class="menu-queue-overall">
+            <div class="menu-queue-overall-fill" data-queue-overall style="width: 35%"></div>
+          </div>
+
+          <!-- Active section -->
+          <div class="menu-section-label">Active</div>
+          <div class="menu-queue-list">
+            <article class="menu-queue-row" data-status="active">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">Realistic</span>
+                  <span class="menu-queue-time">0:42</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · diffusing strokes</div>
+                <div class="menu-queue-progress"><span style="width: 62%"></span></div>
+              </div>
+              <button class="menu-queue-action" data-q-action="cancel" title="Cancel">
+                <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+              </button>
+            </article>
+          </div>
+
+          <!-- Queued section -->
+          <div class="menu-section-label">
+            <span>Queued</span>
+            <span class="menu-count">3 waiting</span>
+          </div>
+          <div class="menu-queue-list">
+            <article class="menu-queue-row" data-status="pending">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">Golden Hour</span>
+                  <span class="menu-queue-time">#1</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · waiting</div>
+              </div>
+              <div class="menu-queue-actions">
+                <button class="menu-queue-action" data-q-action="up" title="Move earlier">
+                  <svg viewBox="0 0 11 11"><path d="M5.5 3v5M3 5.5L5.5 3 8 5.5"/></svg>
+                </button>
+                <button class="menu-queue-action" data-q-action="cancel" title="Remove">
+                  <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+                </button>
+              </div>
+            </article>
+            <article class="menu-queue-row" data-status="pending">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">Cinematic</span>
+                  <span class="menu-queue-time">#2</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · waiting</div>
+              </div>
+              <div class="menu-queue-actions">
+                <button class="menu-queue-action" data-q-action="up" title="Move earlier">
+                  <svg viewBox="0 0 11 11"><path d="M5.5 3v5M3 5.5L5.5 3 8 5.5"/></svg>
+                </button>
+                <button class="menu-queue-action" data-q-action="cancel" title="Remove">
+                  <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+                </button>
+              </div>
+            </article>
+            <article class="menu-queue-row" data-status="pending">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">B&amp;W</span>
+                  <span class="menu-queue-time">#3</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · waiting</div>
+              </div>
+              <div class="menu-queue-actions">
+                <button class="menu-queue-action" data-q-action="up" title="Move earlier">
+                  <svg viewBox="0 0 11 11"><path d="M5.5 3v5M3 5.5L5.5 3 8 5.5"/></svg>
+                </button>
+                <button class="menu-queue-action" data-q-action="cancel" title="Remove">
+                  <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Recent section -->
+          <div class="menu-section-label">
+            <span>Recent</span>
+            <span class="menu-count">2 done · 1 failed</span>
+          </div>
+          <div class="menu-queue-list">
+            <article class="menu-queue-row is-clickable" data-status="done">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">Moody</span>
+                  <span class="menu-queue-time">3m ago</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · in gallery</div>
+              </div>
+              <button class="menu-queue-action is-primary" data-q-action="open" title="Open in lightbox">
+                <svg viewBox="0 0 11 11"><path d="M2.5 8.5L8 3M4 3h4v4"/></svg>
+              </button>
+            </article>
+            <article class="menu-queue-row is-clickable" data-status="done">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">70s Film</span>
+                  <span class="menu-queue-time">5m ago</span>
+                </div>
+                <div class="menu-queue-meta">2× · 2048px · in gallery</div>
+              </div>
+              <button class="menu-queue-action is-primary" data-q-action="open" title="Open in lightbox">
+                <svg viewBox="0 0 11 11"><path d="M2.5 8.5L8 3M4 3h4v4"/></svg>
+              </button>
+            </article>
+            <article class="menu-queue-row" data-status="error">
+              <span class="menu-queue-dot"></span>
+              <span class="menu-queue-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+              <div class="menu-queue-body">
+                <div class="menu-queue-top">
+                  <span class="menu-queue-label">Night City</span>
+                  <span class="menu-queue-time">2m ago</span>
+                </div>
+                <div class="menu-queue-error">Model returned 503 — server overloaded.</div>
+              </div>
+              <div class="menu-queue-actions">
+                <button class="menu-queue-action is-primary" data-q-action="retry" title="Retry">
+                  <svg viewBox="0 0 11 11"><path d="M2.5 5.5a3 3 0 1 0 1-2.25L2 4.5M2 2v2.5h2.5"/></svg>
+                </button>
+                <button class="menu-queue-action" data-q-action="dismiss" title="Dismiss">
+                  <svg viewBox="0 0 11 11"><path d="M3 3l5 5M8 3l-5 5"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Footer: capture-more action -->
+          <div class="menu-capture-foot">
+            <span class="menu-capture-foot-meta" data-queue-foot-meta>2 done · 1 active · 3 queued</span>
+            <button class="menu-capture-cta menu-capture-cta-ghost" data-capture-back>
+              <svg viewBox="0 0 12 12">
+                <path d="M2.5 6h7M6 3v6"/>
+              </svg>
+              <span>Capture more</span>
+            </button>
+          </div>
+
+        </div><!-- /queue view -->
+
+      </div><!-- /menu-capture -->
+    </div>
+  </div>
+
+  <!-- ─── Center focus reticle ──────────────────────────────────── -->
+  <div class="reticle">
+    <div class="reticle-bracket">
+      <span></span>
+      <span class="center"></span>
+      <span></span>
+    </div>
+    <div class="reticle-label">Focus<span class="sep">·</span>312 m</div>
+  </div>
+
+</div>
+
+<!-- ─── Full-screen gallery sheet (opened from menu "View all") ─────
+     Takes over the editor with a richer browse surface: 5-col grid,
+     larger tiles with hover-metadata, persistent filter row +
+     search input. Closes on × button, Esc, or click on backdrop. -->
+<div class="gallery-sheet" data-gallery-sheet hidden>
+  <div class="gallery-sheet-head">
+    <h2 class="gallery-sheet-title">Gallery</h2>
+    <span class="gallery-sheet-meta">127 renders</span>
+    <div class="gallery-sheet-search">
+      <svg viewBox="0 0 12 12"><circle cx="5" cy="5" r="3.25"/><path d="M7.3 7.3 10 10"/></svg>
+      <input type="text" placeholder="Search renders…" />
+    </div>
+    <button class="gallery-sheet-close" data-gallery-sheet-close type="button" aria-label="Close">
+      <svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+    </button>
+  </div>
+
+  <div class="gallery-sheet-cats">
+    <button class="gallery-sheet-cat is-active" data-gs-cat="all">
+      <span>All</span><span class="gallery-sheet-cat-count">127</span>
+    </button>
+    <button class="gallery-sheet-cat" data-gs-cat="today">
+      <span>Today</span><span class="gallery-sheet-cat-count">4</span>
+    </button>
+    <button class="gallery-sheet-cat" data-gs-cat="week">
+      <span>Week</span><span class="gallery-sheet-cat-count">22</span>
+    </button>
+    <button class="gallery-sheet-cat" data-gs-cat="favorites">
+      <span>★ Favorites</span><span class="gallery-sheet-cat-count">9</span>
+    </button>
+    <button class="gallery-sheet-cat" data-gs-cat="public">
+      <span>Public</span><span class="gallery-sheet-cat-count">3</span>
+    </button>
+  </div>
+
+  <div class="gallery-sheet-grid">
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+      <span class="gallery-sheet-tile-public">Public</span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Brooklyn Bridge</span><span class="gallery-sheet-tile-time">2h ago · 4× · Realistic</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Empire State</span><span class="gallery-sheet-tile-time">3h ago · 2× · Golden Hour</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Williamsburg</span><span class="gallery-sheet-tile-time">5h ago · 2× · Night City</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Central Park</span><span class="gallery-sheet-tile-time">7h ago · 4× · Cinematic</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+      <span class="gallery-sheet-tile-public">Public</span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Times Square</span><span class="gallery-sheet-tile-time">Yesterday · 2× · B&amp;W</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Brooklyn Heights</span><span class="gallery-sheet-tile-time">2d ago · 4× · 70s Film</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-polaroid-2x-20260422-1706.png')"></span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Coney Island</span><span class="gallery-sheet-tile-time">3d ago · 2× · Polaroid</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Manhattan</span><span class="gallery-sheet-tile-time">4d ago · 2× · Winter</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Statue of Liberty</span><span class="gallery-sheet-tile-time">5d ago · 3× · Realistic</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-golden-hour-2x-20260422-1706.png')"></span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Lower East Side</span><span class="gallery-sheet-tile-time">1w ago · 4× · Travel Poster</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-charcoal-2x-20260422-1712.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Soho</span><span class="gallery-sheet-tile-time">2w ago · 2× · Charcoal</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-foggy-dawn-2x-20260422-1708.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Hudson Yards</span><span class="gallery-sheet-tile-time">3w ago · 3× · Foggy Dawn</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-cyberpunk-2x-20260422-1710.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Midtown</span><span class="gallery-sheet-tile-time">1m ago · 6× · Night City</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-snowfall-2x-20260422-1707.png')"></span>
+      <span class="gallery-sheet-tile-fav is-on"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Central Park</span><span class="gallery-sheet-tile-time">1m ago · 2× · Winter</span></div>
+    </button>
+    <button class="gallery-sheet-tile">
+      <span class="gallery-sheet-tile-thumb" style="background-image: url('/style-photos/vedute-70s-film-2x-20260422-1706.png')"></span>
+      <span class="gallery-sheet-tile-fav"><svg viewBox="0 0 12 12"><path d="M6 1.5l1.4 3L10.5 5l-2.3 2.2.6 3.3L6 8.9l-2.8 1.6.6-3.3L1.5 5l3.1-.5z"/></svg></span>
+      <div class="gallery-sheet-tile-info"><span class="gallery-sheet-tile-label">Astoria</span><span class="gallery-sheet-tile-time">2m ago · 4× · 70s Film</span></div>
+    </button>
+  </div>
+</div>
+
+<!-- ─── Lightbox (single picture view) ─────────────────────────────
+     Opens when a gallery tile is clicked. Big poster on the left,
+     metadata + actions sidebar on the right. Esc / × / backdrop
+     click closes; arrows navigate between renders. -->
+<div class="lightbox" data-lightbox hidden>
+
+  <div class="lightbox-stage">
+    <button class="lightbox-nav is-prev" data-lb-prev type="button" aria-label="Previous">
+      <svg viewBox="0 0 16 16"><path d="M10 3L4 8l6 5"/></svg>
+    </button>
+    <button class="lightbox-nav is-next" data-lb-next type="button" aria-label="Next">
+      <svg viewBox="0 0 16 16"><path d="M6 3l6 5-6 5"/></svg>
+    </button>
+    <div class="lightbox-counter" data-lb-counter>27 of 127</div>
+    <div class="lightbox-image" data-lb-image style="background-image: url('/style-photos/vedute-realistic-2x-20260422-1705.png')"></div>
+  </div>
+
+  <aside class="lightbox-side">
+
+    <div class="lightbox-close-row">
+      <button class="lightbox-close" data-lb-close type="button" aria-label="Close">
+        <svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+      </button>
+    </div>
+
+    <div class="lightbox-head">
+      <span class="lightbox-location" data-lb-location>Brooklyn Bridge</span>
+      <span class="lightbox-style-meta" data-lb-style>Realistic · 2h ago</span>
+    </div>
+
+    <div class="lightbox-actions">
+      <button class="lightbox-action is-on" data-lb-fav type="button">
+        <svg viewBox="0 0 11 11"><path d="M5.5 1l1.2 2.6 2.8.4-2 2 .5 2.8L5.5 7.5l-2.5 1.3L3.5 6l-2-2 2.8-.4z"/></svg>
+        Favorite
+      </button>
+      <button class="lightbox-action" data-lb-share type="button">
+        <svg viewBox="0 0 11 11"><path d="M3 5.5h5M5.5 3l2.5 2.5-2.5 2.5M8 1.5h1.5v8H8M3 1.5H1.5v8H3"/></svg>
+        Share
+      </button>
+      <button class="lightbox-action is-primary" data-lb-download type="button">
+        <svg viewBox="0 0 11 11"><path d="M5.5 1.5v6M3 5l2.5 2.5L8 5M2 9.5h7"/></svg>
+        Download
+      </button>
+    </div>
+
+    <div class="lightbox-meta-list">
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Style</span>
+        <span class="lightbox-meta-val">Realistic</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Captured</span>
+        <span class="lightbox-meta-val">Apr 22, 17:05</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Resolution</span>
+        <span class="lightbox-meta-val">4× · 4096px</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Aspect</span>
+        <span class="lightbox-meta-val">3:4</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Lens</span>
+        <span class="lightbox-meta-val">35mm · f/2.8</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Time of day</span>
+        <span class="lightbox-meta-val">3:30 PM</span>
+      </div>
+      <div class="lightbox-meta-row">
+        <span class="lightbox-meta-key">Visibility</span>
+        <span class="lightbox-meta-val">Public</span>
+      </div>
+    </div>
+
+    <div class="lightbox-prompt">
+      <span class="lightbox-prompt-label">Prompt</span>
+      <p class="lightbox-prompt-body">Re-render this aerial scene as a photoreal daylight cityscape — natural sunlight, realistic building materials, soft shadows. Only change lighting, materials, and texture realism. Keep the exact same buildings, streets, and composition.</p>
+    </div>
+
+    <button class="lightbox-danger" data-lb-delete type="button">
+      <svg viewBox="0 0 11 11"><path d="M2 3h7M4 3v-1.5h3V3M3.5 3l.5 6.5h3L7.5 3"/></svg>
+      Delete
+    </button>
+
+  </aside>
+</div>
+
+<script>
+  /* ─── Drag-to-scrub for the BR camera pills ─────────────────────────
+   * Pointer-down on a .scrubbable pill enters "scrub" mode (sets
+   * data-scrubbing="true" so the CSS swaps in the chevrons + tooltip
+   * and morphs the pill into a scrub track). Horizontal pointer-move
+   * delta drives the value via each pill's data-step (units per CSS
+   * pixel). Pointer-up exits scrub. Pointer-capture keeps the drag
+   * alive if the cursor leaves the pill bounds — same UX as Figma's
+   * own number scrubbers.
+   * ──────────────────────────────────────────────────────────────── */
+
+  const FORMATTERS = {
+    dof:    (v) => `f/${v.toFixed(1).replace(/\.0$/, '')}`,
+    lens:   (v) => `${Math.round(v)}mm`,
+    clouds: (v) => `${Math.round(v)}%`,
+    // Time is stored as minutes-since-midnight; format as 12h.
+    time:   (v) => {
+      const total = Math.round(v);
+      const h24 = Math.floor(total / 60) % 24;
+      const mm  = total % 60;
+      const ampm = h24 < 12 ? 'AM' : 'PM';
+      const h12 = ((h24 + 11) % 12) + 1;
+      return `${h12}:${mm.toString().padStart(2, '0')}${ampm}`;
+    },
+  };
+
+  // Seed initial values so we can scrub from them. Read by parsing the
+  // visible text, so the data and the markup stay in sync.
+  const INITIAL = { dof: 2.8, lens: 35, time: 15 * 60 + 30, clouds: 20 };
+  const state = { ...INITIAL };
+
+  function updatePillDisplay(pill) {
+    const id = pill.dataset.pill;
+    const v = state[id];
+    const text = FORMATTERS[id](v);
+    pill.querySelectorAll('[data-display]').forEach((el) => { el.textContent = text; });
+  }
+
+  function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+
+  // Drag-to-scrub — first-principles minimum:
+  //
+  //   pointerdown   capture, record start, mark scrubbing
+  //   pointermove   compute dx, update value + display synchronously
+  //   pointerup     release capture, clear scrubbing
+  //
+  // No deadzone. No rAF coalescing. No hover gymnastics. The
+  // responsiveness win comes from the CSS — during scrub the pill
+  // and tooltip drop backdrop-filter and use solid backgrounds,
+  // which is why text updates 60-120 times/sec no longer queue up
+  // expensive blur recomputes in the paint pipeline.
+  //
+  // step/min/max parsed once, display elements queried once, on
+  // setup. The pointermove hot path is pure arithmetic + text writes.
+  document.querySelectorAll('.pill.scrubbable').forEach((pill) => {
+    const displays = [...pill.querySelectorAll('[data-display]')];
+    const pillStep = parseFloat(pill.dataset.step);
+    const pillMin  = parseFloat(pill.dataset.min);
+    const pillMax  = parseFloat(pill.dataset.max);
+    const id       = pill.dataset.pill;
+    const fmt      = FORMATTERS[id];
+
+    let startX = 0;
+    let startValue = 0;
+    let dragging = false;
+
+    function render(v) {
+      const text = fmt(v);
+      for (const el of displays) el.textContent = text;
+    }
+
+    pill.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      startX = e.clientX;
+      startValue = state[id];
+      dragging = true;
+      pill.dataset.scrubbing = 'true';
+      pill.setPointerCapture(e.pointerId);
+    });
+
+    pill.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const factor = e.shiftKey ? 0.1 : 1;
+      const dx = e.clientX - startX;
+      const next = Math.max(pillMin, Math.min(pillMax, startValue + dx * pillStep * factor));
+      if (state[id] === next) return;   // skip DOM writes if display unchanged
+      state[id] = next;
+      render(next);
+    });
+
+    const endScrub = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      pill.dataset.justReleased = 'true';   // disables transitions for 1 frame
+      delete pill.dataset.scrubbing;
+      try { pill.releasePointerCapture(e.pointerId); } catch {}
+      // Force the browser to re-run hover hit-testing on the next
+      // paint. setPointerCapture leaves :hover stuck on the
+      // captured element regardless of where the cursor actually
+      // is — without this, after release the pill snaps to its
+      // rest state (semi-transparent, very subtle) even when the
+      // cursor is still hovering it, which reads as "the pill
+      // disappeared." Toggling pointer-events forces hit-test
+      // re-eval; the pill then correctly applies :hover and stays
+      // visibly under the cursor.
+      pill.style.pointerEvents = 'none';
+      requestAnimationFrame(() => {
+        pill.style.pointerEvents = '';
+        delete pill.dataset.justReleased;
+      });
+    };
+
+    pill.addEventListener('pointerup',     endScrub);
+    pill.addEventListener('pointercancel', endScrub);
+    pill.addEventListener('click',         (e) => { e.preventDefault(); });
+
+    render(state[id]);
+  });
+
+  // ─── Menus: open/close/Esc/outside-click ───────────────────────
+  //
+  // Each trigger pill has `data-menu-trigger="<name>"` and its menu
+  // has matching `data-menu="<name>"`. Clicking the trigger toggles
+  // the menu (closing any other open menus first). Outside clicks
+  // and Escape close all menus. Clicks inside the menu don't
+  // bubble up to close it.
+  function closeAllMenus() {
+    document.querySelectorAll('[data-menu]').forEach((m) => { m.hidden = true; });
+    document.querySelectorAll('[data-menu-open]').forEach((el) => { delete el.dataset.menuOpen; });
+  }
+  document.querySelectorAll('[data-menu-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = trigger.dataset.menuTrigger;
+      const menu = document.querySelector(`[data-menu="${name}"]`);
+      const wasOpen = !menu.hidden;
+      closeAllMenus();
+      if (!wasOpen) {
+        menu.hidden = false;
+        trigger.dataset.menuOpen = 'true';
+        // Auto-focus the search input when opening the search menu.
+        if (name === 'search') {
+          const input = menu.querySelector('input');
+          if (input) requestAnimationFrame(() => input.focus());
+        }
+      }
+    });
+  });
+  // Clicks inside menus shouldn't bubble up to the document-level
+  // close handler.
+  document.querySelectorAll('[data-menu]').forEach((menu) => {
+    menu.addEventListener('click', (e) => e.stopPropagation());
+  });
+  document.addEventListener('click', closeAllMenus);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAllMenus();
+  });
+
+  // ─── Aspect-ratio selection ─────────────────────────────────────
+  // Click an aspect item → update the pill, mark active, swap the
+  // frame overlay's ratio (or hide it for Fill), close the menu.
+  // Items can override the pill's text via `data-aspect-display`
+  // (used by Fill, which shouldn't display as "fill" verbatim).
+  const ASPECT_RATIOS = {
+    'fill': null,        // sentinel — hide the frame
+    '1:1': 1,
+    '4:5': 4 / 5,
+    '3:4': 3 / 4,
+    '2:3': 2 / 3,
+    '9:16': 9 / 16,
+    '5:4': 5 / 4,
+    '4:3': 4 / 3,
+    '3:2': 3 / 2,
+    '16:9': 16 / 9,
+  };
+  const aspectFrame = document.querySelector('[data-aspect-frame]');
+
+  function applyAspectFrame(ratio) {
+    if (!aspectFrame) return;
+    if (ratio == null) {
+      aspectFrame.classList.add('is-hidden');
+    } else {
+      aspectFrame.classList.remove('is-hidden');
+      aspectFrame.style.setProperty('--frame-ratio', String(ratio));
+    }
+  }
+
+  function setAspectActive(item, displayText, explicitRatio) {
+    document.querySelectorAll('[data-aspect]').forEach((other) => {
+      other.classList.toggle('is-active', other === item);
+    });
+    // Custom row is a <form>, not [data-aspect] — clear its active state
+    // unless it's the one being activated.
+    const customRow = document.querySelector('[data-aspect-custom]');
+    if (customRow && customRow !== item) customRow.classList.remove('is-active');
+
+    const display = document.querySelector('[data-aspect-display]');
+    if (display && displayText) display.textContent = displayText;
+
+    // Resolve the ratio: explicit (Custom passes its own value) wins,
+    // otherwise look up by the item's data-aspect key.
+    let ratio = explicitRatio;
+    if (ratio === undefined) {
+      const key = item.dataset && item.dataset.aspect;
+      ratio = (key in ASPECT_RATIOS) ? ASPECT_RATIOS[key] : undefined;
+    }
+    if (ratio !== undefined) applyAspectFrame(ratio);
+  }
+
+  document.querySelectorAll('[data-aspect]').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = item.dataset.aspectDisplay || item.dataset.aspect;
+      setAspectActive(item, text);
+      closeAllMenus();
+    });
+  });
+
+  // ─── Custom W:H ─────────────────────────────────────────────────
+  // Two number inputs + Set button. Set is disabled until both have
+  // positive values. On submit: compute the simplest integer w:h
+  // (or keep the user's literal inputs if both are integers), apply
+  // as the active aspect, close the menu. React port: dispatches
+  // `aspect-changed` with the computed ratio.
+  (function wireAspectCustom() {
+    const form = document.querySelector('[data-aspect-custom]');
+    if (!form) return;
+    const wInput = form.querySelector('[data-aspect-custom-w]');
+    const hInput = form.querySelector('[data-aspect-custom-h]');
+    const setBtn = form.querySelector('[data-aspect-custom-set]');
+
+    // Clicks/typing inside the form shouldn't bubble to the menu
+    // outside-click handler.
+    ['click', 'mousedown', 'pointerdown'].forEach((ev) => {
+      form.addEventListener(ev, (e) => e.stopPropagation());
+    });
+
+    function valid() {
+      const w = parseFloat(wInput.value);
+      const h = parseFloat(hInput.value);
+      return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0;
+    }
+    function refreshBtn() {
+      setBtn.disabled = !valid();
+    }
+    [wInput, hInput].forEach((input) => {
+      input.addEventListener('input', refreshBtn);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (valid()) submit();
+        }
+      });
+    });
+
+    function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+    function asRatioLabel(w, h) {
+      // If both are integers, show as-is in lowest terms.
+      const wi = Math.round(w);
+      const hi = Math.round(h);
+      if (Math.abs(wi - w) < 1e-6 && Math.abs(hi - h) < 1e-6) {
+        const g = gcd(wi, hi) || 1;
+        return `${wi / g}:${hi / g}`;
+      }
+      // Otherwise: show one-decimal as "1.4:1" style.
+      const r = w / h;
+      return `${r.toFixed(2)}:1`;
+    }
+
+    function submit() {
+      const w = parseFloat(wInput.value);
+      const h = parseFloat(hInput.value);
+      const label = asRatioLabel(w, h);
+      form.classList.add('is-active');
+      setAspectActive(form, label, w / h);
+      closeAllMenus();
+    }
+    form.addEventListener('submit', (e) => { e.preventDefault(); if (valid()) submit(); });
+
+    refreshBtn();
+  })();
+
+  // ─── Search-pick handlers ─────────────────────────────────────
+  // Click a recent/suggested location → update the search-pill text.
+  document.querySelectorAll('[data-search-pick]').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const display = document.querySelector('[data-search-display]');
+      if (display) display.textContent = item.dataset.searchPick;
+      closeAllMenus();
+    });
+  });
+
+  // ─── Capture menu: resolution + style multi-select + CTA text ──
+  //
+  // Resolution: single-select segmented control. Active button has
+  // .is-active. Locked button (6× Pro) is non-interactive.
+  // Style: multi-select grid. Clicking toggles .is-active.
+  // The CTA below updates its label to "Capture N" based on selected
+  // styles, and disables when nothing is selected.
+  const RES_PX = { 1: 1024, 2: 2048, 3: 3072, 4: 4096, 6: 6144 };
+
+  function refreshCaptureCTA() {
+    const selected = document.querySelectorAll('.menu-capture-style.is-active').length;
+    const activeRes = document.querySelector('[data-capture-resolution] .is-active');
+    const res = activeRes ? +activeRes.dataset.res : 2;
+    const px = RES_PX[res] || 2048;
+
+    const meta = document.querySelector('[data-capture-meta]');
+    if (meta) meta.textContent = `${res}× · ${px}px`;
+
+    const count = document.querySelector('[data-capture-count]');
+    if (count) count.textContent = selected === 0 ? 'None selected' : (selected === 1 ? '1 selected' : `${selected} selected`);
+
+    const ctaText = document.querySelector('[data-capture-cta-text]');
+    if (ctaText) ctaText.textContent = selected === 0 ? 'Pick a style' : (selected === 1 ? 'Capture' : `Capture ${selected}`);
+
+    const ctaMeta = document.querySelector('[data-capture-cta-meta]');
+    if (ctaMeta) {
+      ctaMeta.textContent = selected === 0
+        ? 'Tap a style above'
+        : `${selected} style${selected === 1 ? '' : 's'} · ${res}× quality`;
+    }
+
+    const cta = document.querySelector('[data-capture-go]');
+    if (cta) cta.disabled = selected === 0;
+  }
+
+  // Resolution segmented control
+  document.querySelectorAll('[data-capture-resolution] [data-res]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.classList.contains('is-locked')) return;
+      document.querySelectorAll('[data-capture-resolution] [data-res]').forEach((other) => {
+        other.classList.toggle('is-active', other === btn);
+      });
+      refreshCaptureCTA();
+    });
+  });
+
+  // Style multi-select
+  document.querySelectorAll('.menu-capture-style[data-style]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.classList.toggle('is-active');
+      refreshCaptureCTA();
+    });
+  });
+
+  // Capture button — transitions the menu from picker → queue view.
+  // The queue is the post-capture state: shows what's rendering,
+  // what's waiting, what's done/failed. Click "Capture more" in the
+  // queue view to swap back to the picker.
+  const captureMenu = document.querySelector('[data-menu="capture"]');
+  document.querySelector('[data-capture-go]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.currentTarget.disabled) return;
+    captureMenu.dataset.phase = 'queue';
+  });
+  document.querySelector('[data-capture-back]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    captureMenu.dataset.phase = 'picker';
+  });
+  // Picker-header queue-return link → switches phase back to queue.
+  // Symmetric counterpart to "+ Capture more" in the queue footer.
+  document.querySelector('[data-show-queue]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    captureMenu.dataset.phase = 'queue';
+  });
+
+  // ─── Gallery menu interactions ─────────────────────────────────
+  //   - Category tabs filter the grid via data-g-cat
+  //   - Click a tile → open the lightbox (single-picture view).
+  //     Multi-select and bulk Export removed from the menu; that
+  //     lives in the full Gallery sheet if needed.
+  //   - Click the favorite star to toggle is-on (stop bubbling so
+  //     it doesn't also open the lightbox).
+  const galleryGrid = document.querySelector('[data-gallery-grid]');
+
+  document.querySelectorAll('.menu-gallery-cat').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cat = tab.dataset.gCat;
+      if (galleryGrid) galleryGrid.dataset.gCat = cat;
+      document.querySelectorAll('.menu-gallery-cat').forEach((other) => {
+        other.classList.toggle('is-active', other === tab);
+      });
+    });
+  });
+
+  document.querySelectorAll('.menu-gallery-tile[data-tile]').forEach((tile) => {
+    tile.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Open lightbox; close the menu so the lightbox owns the view.
+      closeAllMenus();
+      openLightboxFromMenuTile();
+    });
+  });
+
+  document.querySelectorAll('[data-fav-toggle]').forEach((fav) => {
+    fav.addEventListener('click', (e) => {
+      // Don't bubble to the tile's click (which opens lightbox).
+      e.stopPropagation();
+      fav.classList.toggle('is-on');
+    });
+  });
+
+  // ─── Gallery sheet (full "view all" surface) ──────────────────
+  // "View all" in the menu opens the fullscreen sheet. Close on
+  // × button, Esc, or click on the backdrop (sheet container).
+  const gallerySheet = document.querySelector('[data-gallery-sheet]');
+  function openGallerySheet() {
+    if (!gallerySheet) return;
+    gallerySheet.hidden = false;
+    closeAllMenus();
+  }
+  function closeGallerySheet() {
+    if (!gallerySheet) return;
+    gallerySheet.hidden = true;
+  }
+  document.querySelector('[data-g-action="view-all"]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openGallerySheet();
+  });
+  document.querySelector('[data-gallery-sheet-close]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeGallerySheet();
+  });
+  // Click on the sheet backdrop (not on children) closes.
+  gallerySheet?.addEventListener('click', (e) => {
+    if (e.target === gallerySheet) closeGallerySheet();
+  });
+  // Esc closes the sheet (and the menu close handler also runs but
+  // is a no-op when nothing is open).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && gallerySheet && !gallerySheet.hidden) closeGallerySheet();
+  });
+
+  // Category chip filtering inside the sheet (visual only — toggles
+  // the active state).
+  document.querySelectorAll('.gallery-sheet-cat').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.gallery-sheet-cat').forEach((other) => {
+        other.classList.toggle('is-active', other === tab);
+      });
+    });
+  });
+  // Sheet tile favorite toggle.
+  document.querySelectorAll('.gallery-sheet-tile-fav').forEach((fav) => {
+    fav.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fav.classList.toggle('is-on');
+    });
+  });
+
+  // ─── Lightbox (single picture view) ───────────────────────────
+  // Click a gallery tile (sheet or menu) → open the lightbox. The
+  // prototype keeps a static demo image; in prod we'd populate
+  // from the clicked render's data.
+  const lightbox = document.querySelector('[data-lightbox]');
+  function openLightbox() {
+    if (!lightbox) return;
+    lightbox.hidden = false;
+  }
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.hidden = true;
+  }
+  // Exposed for the menu-tile click handler (defined above before
+  // this block runs). Same body as openLightbox.
+  function openLightboxFromMenuTile() { openLightbox(); }
+  // Clicking any sheet tile opens the lightbox. Clicking the
+  // favorite star is intercepted above (stopPropagation), so this
+  // only fires for the tile body itself.
+  document.querySelectorAll('.gallery-sheet-tile').forEach((tile) => {
+    tile.addEventListener('click', openLightbox);
+  });
+  document.querySelector('[data-lb-close]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeLightbox();
+  });
+  // Click on the lightbox stage backdrop (not on image / nav) closes.
+  document.querySelector('.lightbox-stage')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('lightbox-stage')) closeLightbox();
+  });
+  // Lightbox favorite toggle (on the sidebar button).
+  document.querySelector('[data-lb-fav]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.currentTarget.classList.toggle('is-on');
+  });
+  // Esc closes the lightbox (sits above the gallery sheet).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox && !lightbox.hidden) closeLightbox();
+  });
+
+  // Cache the grid element for category-tab filtering.
+  const captureGrid = document.querySelector('.menu-capture-styles');
+
+  // Category tab filtering. Click any tab → swap data-cat on the grid.
+  document.querySelectorAll('.menu-capture-cat').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cat = tab.dataset.cat;
+      captureGrid.dataset.cat = cat;
+      document.querySelectorAll('.menu-capture-cat').forEach((other) => {
+        other.classList.toggle('is-active', other === tab);
+      });
+    });
+  });
+
+  // Initial render
+  refreshCaptureCTA();
+
+  // ─── Saved views: filter + pin ──────────────────────────────────
+  // Filter input — name-substring match, case-insensitive. Sets
+  // .is-empty on the list container when nothing matches so the
+  // "No matches." message can render. The pill's count value stays
+  // total-count; the section-label count tracks visible.
+  (function wireViewsFilter() {
+    const menu       = document.querySelector('.menu-views');
+    const filterEl   = menu?.querySelector('[data-views-filter]');
+    const input      = menu?.querySelector('[data-views-filter-input]');
+    const clearBtn   = menu?.querySelector('[data-views-filter-clear]');
+    const listEl     = menu?.querySelector('[data-views-list]');
+    const countLabel = menu?.querySelector('[data-views-count-label]');
+    if (!menu || !input || !listEl) return;
+
+    const rows = Array.from(listEl.querySelectorAll('.menu-view-item'));
+    const TOTAL = rows.length;
+
+    // Auto-toggle the filter input: only show when > 6 saved views.
+    // React port reads N from savedViewsAtom.length.
+    menu.classList.toggle('has-filter', TOTAL > 6);
+
+    function applyFilter(q) {
+      const needle = (q || '').trim().toLowerCase();
+      filterEl.classList.toggle('has-value', needle.length > 0);
+      let visible = 0;
+      for (const row of rows) {
+        const name = (row.dataset.viewName || '').toLowerCase();
+        const match = needle === '' || name.includes(needle);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+      }
+      listEl.classList.toggle('is-empty', visible === 0);
+      if (countLabel) countLabel.textContent = needle ? `${visible} / ${TOTAL}` : String(TOTAL);
+    }
+
+    input.addEventListener('input', (e) => applyFilter(e.target.value));
+    input.addEventListener('click', (e) => e.stopPropagation()); // don't let the menu's outside-click close
+    clearBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      input.value = '';
+      applyFilter('');
+      input.focus();
+    });
+  })();
+
+  // Pin (default-view) — exactly one default at a time, like
+  // defaultSavedViewIdAtom in production. Click the pin to set; click
+  // the current default's pin to unset.
+  document.querySelectorAll('.menu-view-item .menu-view-pin').forEach((pin) => {
+    pin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = pin.closest('.menu-view-item');
+      if (!row) return;
+      const wasDefault = row.classList.contains('is-default');
+      document.querySelectorAll('.menu-view-item.is-default').forEach((r) => r.classList.remove('is-default'));
+      if (!wasDefault) row.classList.add('is-default');
+    });
+  });
+
+  // Delete clicks shouldn't bubble to the row's main click handler
+  document.querySelectorAll('.menu-view-item .menu-view-delete').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = btn.closest('.menu-view-item');
+      // Demo: just collapse the row away
+      if (row) row.style.display = 'none';
+    });
+  });
+
+  // ─── Tap-to-focus reticle ──────────────────────────────────────
+  // Hidden at rest. Clicks on the scene (anywhere outside UI chrome)
+  // position the reticle at the click point and run the corners-snap
+  // animation. React port: dispatches `focus-tap` with {x,y} so Scene
+  // can also drive the camera's actual focus distance if DoF is on.
+  (function wireFocusTap() {
+    const reticle = document.querySelector('.reticle');
+    const stage   = document.querySelector('.stage');
+    if (!reticle || !stage) return;
+    const labelDist = reticle.querySelector('.reticle-label');
+
+    // Chrome we should NOT trigger a focus on. Everything else
+    // (canvas, viewfinder area, design-note backdrop) is fair game.
+    const CHROME = [
+      '.pill', '.menu', '.menu-anchor', '.menu-action',
+      '.cluster', '.gallery-sheet', '.lightbox',
+      '.menu-aspect-custom', '.menu-views-filter',
+      'button', 'input', 'label', 'form',
+    ].join(',');
+
+    function focusAt(x, y) {
+      reticle.style.left = `${x}px`;
+      reticle.style.top  = `${y}px`;
+      // Restart the animation: remove → reflow → re-add.
+      reticle.classList.remove('is-focusing');
+      void reticle.offsetWidth;
+      reticle.classList.add('is-focusing');
+
+      // Randomize the distance readout each tap — rangefinder feel.
+      if (labelDist) {
+        const meters = Math.round(180 + Math.random() * 480);
+        labelDist.innerHTML = '';
+        labelDist.append(
+          document.createTextNode('Focus'),
+          Object.assign(document.createElement('span'), { className: 'sep', textContent: '·' }),
+          document.createTextNode(`${meters} m`),
+        );
+      }
+    }
+
+    stage.addEventListener('click', (e) => {
+      if (e.target.closest(CHROME)) return;
+      const rect = stage.getBoundingClientRect();
+      focusAt(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    // Strip the lingering class when the animation finishes so the
+    // next click can restart cleanly without the reflow trick
+    // racing it.
+    reticle.addEventListener('animationend', (e) => {
+      if (e.animationName === 'reticleFocus') reticle.classList.remove('is-focusing');
+    });
+  })();
+</script>
+
+</body>
+</html>

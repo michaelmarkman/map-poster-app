@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Render modal — Vedute mockup v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=DM+Mono:wght@400;500&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ─── Tokens ─────────────────────────────────────────────────── */
+  :root {
+    --bg: #0a0a0c;
+    --sheet: #0f0f12;
+    --sheet-border: rgba(255, 255, 255, 0.05);
+
+    --pill: rgba(255, 255, 255, 0.035);
+    --pill-border: rgba(255, 255, 255, 0.08);
+    --pill-hover: rgba(255, 255, 255, 0.06);
+
+    --ink: #ebe7df;
+    --ink-soft: #a4a098;
+    --ink-dim: #5e5b54;
+
+    /* Cream brand accent — for selection, render CTA */
+    --accent:        #c8b897;
+    --accent-bright: #ddd0b1;
+    --accent-soft:   rgba(200, 184, 151, 0.12);
+    --accent-strong: rgba(200, 184, 151, 0.55);
+
+    /* Olive — Custom card fill (subtler than the selection border) */
+    --olive-fill: #2f3526;
+    --olive-border: rgba(200, 184, 151, 0.55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 13px/1.5 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ─── Layout: 50/50 split, preview on the left, sheet on the right ─ */
+  .stage { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
+  @media (max-width: 800px)  { .stage { grid-template-columns: 1fr; } .preview { display: none; } }
+
+  /* ─── Left: dummy editor preview ─────────────────────────────── */
+  .preview {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 30% 35%, rgba(120, 130, 145, 0.4), transparent 60%),
+      linear-gradient(180deg, #25292e 0%, #0e0f12 100%);
+    overflow: hidden;
+  }
+  .preview::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(118deg, rgba(255,255,255,0.045) 0 2px, transparent 2px 32px),
+      repeating-linear-gradient(28deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 22px);
+    opacity: 0.65;
+  }
+  .preview-pills { position: absolute; top: 22px; left: 22px; display: flex; gap: 8px; z-index: 2; }
+  .preview-pill {
+    height: 38px; padding: 0 16px;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(20,20,22,0.75);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    color: rgba(255,255,255,0.86);
+    font: 13px/1 'Geist', system-ui;
+  }
+  .preview-pill svg { width: 14px; height: 14px; opacity: 0.8; }
+  .preview-aspect {
+    position: absolute; left: 28px; bottom: 28px; z-index: 2;
+    color: rgba(255,255,255,0.7); font: 13px/1 'Geist', system-ui;
+  }
+  .preview-compare {
+    position: absolute; right: 28px; bottom: 28px; z-index: 2;
+    height: 38px; padding: 0 18px;
+    display: inline-flex; align-items: center; gap: 10px;
+    background: rgba(20,20,22,0.75);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    color: rgba(255,255,255,0.86);
+    font: 13px/1 'Geist', system-ui;
+  }
+  .preview-compare svg { width: 14px; height: 14px; opacity: 0.8; }
+
+  /* ─── Right: render sheet ─────────────────────────────────────── */
+  .sheet {
+    background: var(--sheet);
+    border-left: 1px solid var(--sheet-border);
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 32px 36px 22px;
+  }
+  .title {
+    /* Bodoni Moda italic — Italian editorial punchcutter, way more
+     * personality than a flat sans-serif title. opsz pushed to 96 for
+     * the dramatic high-contrast hairlines you only get at display
+     * sizes. */
+    font: italic 600 44px/1 'Bodoni Moda', 'Times New Roman', serif;
+    font-variation-settings: 'opsz' 96;
+    letter-spacing: -0.012em;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .sub { color: var(--ink-soft); font-size: 14px; letter-spacing: -0.005em; }
+  .close {
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--pill); border: 1px solid var(--pill-border);
+    border-radius: 14px; color: var(--ink);
+    font-size: 18px; line-height: 1;
+  }
+  .close:hover { background: var(--pill-hover); }
+
+  /* ── Top control row ─────────────────────────────────────────── */
+  .controls {
+    display: flex; gap: 10px;
+    padding: 0 36px 20px;
+    flex-wrap: wrap;
+  }
+  .ctrl {
+    height: 44px; padding: 0 16px;
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--pill); border: 1px solid var(--pill-border);
+    border-radius: 14px;
+    color: var(--ink);
+    font: 500 13px/1 'Geist', system-ui;
+  }
+  .ctrl:hover { background: var(--pill-hover); }
+  .ctrl svg { width: 15px; height: 15px; opacity: 0.85; }
+  .ctrl-label { color: var(--ink-soft); font-weight: 500; }
+  .ctrl-x      { color: var(--ink); font-weight: 500; font-family: 'DM Mono', ui-monospace, monospace; font-feature-settings: 'tnum'; font-size: 12.5px; }
+  .ctrl-px     { color: var(--ink); font-weight: 400; font-family: 'DM Mono', ui-monospace, monospace; font-feature-settings: 'tnum'; font-size: 12.5px; }
+
+  .api {
+    height: 44px; padding: 0 14px;
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--pill); border: 1px solid var(--pill-border);
+    border-radius: 14px;
+    color: var(--ink);
+    font: 500 13px/1 'Geist', system-ui;
+    margin-left: auto;
+  }
+  .api-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.18);
+  }
+  .api-caret { color: var(--ink-soft); font-size: 11px; line-height: 1; }
+
+  /* ── Category tab bar ────────────────────────────────────────── */
+  .tabs {
+    display: flex; gap: 4px;
+    padding: 0 36px 20px;
+    align-items: center;
+  }
+  .tab {
+    height: 36px; padding: 0 16px;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 14px/1 'Geist', system-ui;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.is-active {
+    background: #fff; color: #0b0b0d;
+  }
+  .tab-filter {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--pill); border: 1px solid var(--pill-border);
+    border-radius: 10px;
+    color: var(--ink-soft);
+  }
+  .tab-filter svg { width: 16px; height: 16px; }
+
+  /* ── Preset grid ─────────────────────────────────────────────── */
+  .body {
+    padding: 0 36px 24px;
+    overflow-y: auto;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: #1a1a1d;
+    border: 1px solid var(--pill-border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    text-align: left;
+    padding: 0;
+  }
+  .card:hover {
+    border-color: rgba(255,255,255,0.18);
+    transform: translateY(-1px);
+  }
+  .card.is-selected {
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 0 1px var(--accent-strong);
+  }
+  .card-thumb {
+    position: absolute; inset: 0;
+    overflow: hidden;
+  }
+  .card-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .card-thumb::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.65) 100%);
+  }
+  .card-label {
+    position: absolute; left: 14px; bottom: 12px;
+    color: #fff;
+    font: 600 16px/1.2 'Geist', system-ui;
+    letter-spacing: -0.01em;
+    z-index: 1;
+  }
+  .card-desc {
+    color: rgba(255,255,255,0.62);
+    font: 400 12px/1.35 'Geist', system-ui;
+    margin-top: 3px;
+    font-weight: 400;
+  }
+  .card-check {
+    position: absolute; top: 10px; right: 10px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0b0b0d;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    z-index: 2;
+  }
+
+  /* Raw card — empty dark with corner-bracket icon top-right */
+  .card.is-raw {
+    background: #18181c;
+  }
+  .card.is-raw .card-thumb { background: transparent; }
+  .card.is-raw .card-thumb::after { display: none; }
+  .card.is-raw .card-corner {
+    position: absolute; top: 12px; right: 12px;
+    width: 20px; height: 20px;
+    color: rgba(255,255,255,0.55);
+  }
+  .card.is-raw .card-label { color: #fff; }
+
+  /* Custom card — olive fill, sparkles centered, bold cream border */
+  .card.is-custom {
+    background: var(--olive-fill);
+    border-color: var(--olive-border);
+    box-shadow: 0 0 0 1px var(--olive-border);
+  }
+  .card.is-custom .card-thumb { background: transparent; }
+  .card.is-custom .card-thumb::after { display: none; }
+  .card.is-custom .card-spark {
+    position: absolute;
+    left: 50%; top: 36%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    width: 26px; height: 26px;
+    filter: drop-shadow(0 0 14px rgba(255,255,255,0.5));
+  }
+
+  /* ── Bottom selection tray + Render CTA ──────────────────────── */
+  .foot {
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding: 18px 24px;
+    display: flex; align-items: center; gap: 18px;
+  }
+  .tray { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+  .tray-thumbs { display: flex; gap: 6px; }
+  .tray-thumb {
+    position: relative;
+    width: 50px; height: 38px;
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--pill-border);
+    background: #1a1c1f;
+  }
+  .tray-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tray-thumb-x {
+    position: absolute; top: -5px; right: -5px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #fff; font-size: 11px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .tray-meta {
+    display: flex; flex-direction: column; gap: 2px;
+    margin-left: 6px;
+  }
+  .tray-count { color: var(--ink); font-weight: 500; font-size: 14px; line-height: 1.2; }
+  .tray-clear { color: var(--ink-soft); font-size: 13px; cursor: pointer; }
+  .tray-clear:hover { color: var(--ink); }
+
+  .render-btn {
+    height: 60px; padding: 0 28px;
+    border: none;
+    border-radius: 16px;
+    /* Confident solid button — dark olive base with cream text. The
+     * target screenshot reads as a solid filled CTA, not an outlined
+     * pill. */
+    background: #3a4434;
+    color: #d8c89e;
+    font: 600 15px/1 'Geist', system-ui;
+    display: inline-flex; align-items: center; gap: 18px;
+    transition: background 0.12s ease, transform 0.12s ease;
+    min-width: 260px;
+    justify-content: space-between;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  }
+  .render-btn:hover { background: #44503e; }
+  .render-btn:active { transform: translateY(1px); box-shadow: none; }
+  .render-arrow {
+    color: #d8c89e;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* Scrollbar */
+  .body::-webkit-scrollbar { width: 8px; }
+  .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- Left: dummy editor preview -->
+  <div class="preview">
+    <div class="preview-pills">
+      <button class="preview-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7l9 5 9-5-9-5zM3 7v10l9 5 9-5V7M12 12v10"/></svg>
+        3D View
+      </button>
+      <button class="preview-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="4"/><path d="M3 7h4l2-3h6l2 3h4v13H3z"/></svg>
+        Camera
+      </button>
+    </div>
+    <div class="preview-aspect">1:1</div>
+    <button class="preview-compare">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      Compare
+    </button>
+  </div>
+
+  <!-- Right: render sheet -->
+  <aside class="sheet" role="dialog" aria-label="Render">
+    <header class="head">
+      <div>
+        <h2 class="title">Render</h2>
+        <p class="sub">Turn your scene into a finished image.</p>
+      </div>
+      <button class="close" aria-label="Close">×</button>
+    </header>
+
+    <div class="controls">
+      <button class="ctrl">
+        <span class="ctrl-label">Quality</span>
+        <span class="ctrl-x">2×</span>
+        <span class="ctrl-px">2048px</span>
+      </button>
+      <button class="ctrl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></svg>
+        Raw scene
+      </button>
+      <button class="ctrl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+        Custom prompt
+      </button>
+      <span class="api">
+        <span class="api-dot"></span>
+        API: Local
+        <span class="api-caret">▾</span>
+      </span>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active">All</button>
+      <button class="tab">Photo</button>
+      <button class="tab">Film</button>
+      <button class="tab">Illustration</button>
+      <button class="tab">Neon</button>
+      <button class="tab">Technical</button>
+      <button class="tab">Ink</button>
+      <button class="tab-filter" aria-label="More filters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6"  x2="14" y2="6"/><circle cx="18" cy="6" r="2"/><line x1="4" y1="12" x2="8"  y2="12"/><circle cx="12" cy="12" r="2"/><line x1="16" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="16" y2="18"/><circle cx="20" cy="18" r="2"/></svg>
+      </button>
+    </nav>
+
+    <div class="body">
+      <div class="grid">
+
+        <!-- Raw — empty dark, corner-bracket icon top-right -->
+        <button class="card is-raw">
+          <div class="card-thumb"></div>
+          <svg class="card-corner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/>
+          </svg>
+          <div class="card-label">Raw<div class="card-desc">No stylization</div></div>
+        </button>
+
+        <!-- Custom — olive fill, sparkles centered (currently styled as "selected") -->
+        <button class="card is-custom">
+          <div class="card-thumb"></div>
+          <svg class="card-spark" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l1.4 5.2L18 8.4l-4.6 1.2L12 14.4l-1.4-4.8L6 8.4l4.6-1.2zM18 14l.7 2.6L21 17l-2.3.4L18 19.6l-.7-2.2L15 17l2.3-.4zM6 14l.7 2.6L9 17l-2.3.4L6 19.6 5.3 17.4 3 17l2.3-.4z"/>
+          </svg>
+          <div class="card-label">Custom<div class="card-desc">Write your own style</div></div>
+        </button>
+
+        <!-- Realistic — selected ✓ -->
+        <button class="card is-selected">
+          <div class="card-thumb">
+            <img src="/style-photos/vedute-realistic-2x-20260422-1705.png" alt="" />
+          </div>
+          <span class="card-check">✓</span>
+          <div class="card-label">Realistic</div>
+        </button>
+
+        <!-- Golden Hour — selected ✓ -->
+        <button class="card is-selected">
+          <div class="card-thumb">
+            <img src="/style-photos/vedute-golden-hour-2x-20260422-1706.png" alt="" />
+          </div>
+          <span class="card-check">✓</span>
+          <div class="card-label">Golden Hour</div>
+        </button>
+
+        <!-- Row 2 -->
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-realistic-2x-20260422-1705.png" alt="" /></div>
+          <div class="card-label">Cinematic</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-foggy-dawn-2x-20260422-1708.png" alt="" /></div>
+          <div class="card-label">Moody</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-charcoal-2x-20260422-1712.png" alt="" /></div>
+          <div class="card-label">B&amp;W</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-polaroid-2x-20260422-1706.png" alt="" /></div>
+          <div class="card-label">Polaroid</div>
+        </button>
+
+        <!-- Row 3 -->
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-cyberpunk-2x-20260422-1710.png" alt="" /></div>
+          <div class="card-label">Night City</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-golden-hour-2x-20260422-1706.png" alt="" /></div>
+          <div class="card-label">Teal &amp; Orange</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-70s-film-2x-20260422-1706.png" alt="" /></div>
+          <div class="card-label">Soft Film</div>
+        </button>
+        <button class="card">
+          <div class="card-thumb"><img src="/style-photos/vedute-snowfall-2x-20260422-1707.png" alt="" /></div>
+          <div class="card-label">Winter</div>
+        </button>
+
+      </div>
+    </div>
+
+    <footer class="foot">
+      <div class="tray">
+        <div class="tray-thumbs">
+          <span class="tray-thumb">
+            <img src="/style-photos/vedute-realistic-2x-20260422-1705.png" alt="" />
+            <span class="tray-thumb-x">×</span>
+          </span>
+          <span class="tray-thumb">
+            <img src="/style-photos/vedute-golden-hour-2x-20260422-1706.png" alt="" />
+            <span class="tray-thumb-x">×</span>
+          </span>
+          <span class="tray-thumb">
+            <img src="/style-photos/vedute-cyberpunk-2x-20260422-1710.png" alt="" />
+            <span class="tray-thumb-x">×</span>
+          </span>
+        </div>
+        <div class="tray-meta">
+          <span class="tray-count">4 selected</span>
+          <span class="tray-clear">Clear</span>
+        </div>
+      </div>
+      <button class="render-btn">
+        <span>Render 4 styles</span>
+        <span class="render-arrow">→</span>
+      </button>
+    </footer>
+  </aside>
+
+</div>
+
+</body>
+</html>

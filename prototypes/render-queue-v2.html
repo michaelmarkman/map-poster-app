@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Render queue — Vedute mockup v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=DM+Mono:wght@400;500&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ─── Tokens (mirrored from render-modal-v2.html so the queue lives in the same glass sheet) ─── */
+  :root {
+    --bg: #0a0a0c;
+    --sheet: #0f0f12;
+    --sheet-border: rgba(255, 255, 255, 0.05);
+
+    --pill: rgba(255, 255, 255, 0.035);
+    --pill-border: rgba(255, 255, 255, 0.08);
+    --pill-hover: rgba(255, 255, 255, 0.06);
+
+    --ink: #ebe7df;
+    --ink-soft: #a4a098;
+    --ink-dim: #5e5b54;
+
+    --accent:        #c8b897;
+    --accent-bright: #ddd0b1;
+    --accent-soft:   rgba(200, 184, 151, 0.12);
+    --accent-strong: rgba(200, 184, 151, 0.55);
+
+    --olive-fill: #2f3526;
+    --olive-border: rgba(200, 184, 151, 0.55);
+
+    /* Status palette — quiet, glanceable. No darkroom metaphor. */
+    --status-active:  #c8b897;       /* cream pulse */
+    --status-active-soft: rgba(200, 184, 151, 0.12);
+    --status-pending: #6c6962;
+    --status-pending-soft: rgba(255, 255, 255, 0.06);
+    --status-done:    #b9c4ad;       /* sage green-cream */
+    --status-done-soft: rgba(185, 196, 173, 0.12);
+    --status-error:   #d99a8a;       /* soft terracotta, not aggressive red */
+    --status-error-soft: rgba(217, 154, 138, 0.14);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 13px/1.5 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ─── Stage: 50/50 split, preview on the left, sheet on the right ─ */
+  .stage { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
+  @media (max-width: 800px) { .stage { grid-template-columns: 1fr; } .preview { display: none; } }
+
+  /* ─── Left: dummy editor preview (placeholder; matches render modal v2) ─ */
+  .preview {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 30% 35%, rgba(120, 130, 145, 0.4), transparent 60%),
+      linear-gradient(180deg, #25292e 0%, #0e0f12 100%);
+    overflow: hidden;
+  }
+  .preview::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(118deg, rgba(255,255,255,0.045) 0 2px, transparent 2px 32px),
+      repeating-linear-gradient(28deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 22px);
+    opacity: 0.65;
+  }
+  .preview-pills { position: absolute; top: 22px; left: 22px; display: flex; gap: 8px; z-index: 2; }
+  .preview-pill {
+    height: 38px; padding: 0 16px;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(20,20,22,0.75);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    color: rgba(255,255,255,0.86);
+    font: 13px/1 'Geist', system-ui;
+  }
+  .preview-pill svg { width: 14px; height: 14px; opacity: 0.8; }
+  .preview-aspect {
+    position: absolute; left: 28px; bottom: 28px; z-index: 2;
+    color: rgba(255,255,255,0.7); font: 13px/1 'Geist', system-ui;
+  }
+  .preview-compare {
+    position: absolute; right: 28px; bottom: 28px; z-index: 2;
+    height: 38px; padding: 0 18px;
+    display: inline-flex; align-items: center; gap: 10px;
+    background: rgba(20,20,22,0.75);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    color: rgba(255,255,255,0.86);
+    font: 13px/1 'Geist', system-ui;
+  }
+  .preview-compare svg { width: 14px; height: 14px; opacity: 0.8; }
+
+  /* ─── Right: queue sheet ───────────────────────────────────────── */
+  .sheet {
+    background: var(--sheet);
+    border-left: 1px solid var(--sheet-border);
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 32px 36px 18px;
+  }
+  .title {
+    /* Bodoni Moda italic — same display voice as the render modal so
+     * the queue feels like a continuation of the same sheet. */
+    font: italic 600 44px/1 'Bodoni Moda', 'Times New Roman', serif;
+    font-variation-settings: 'opsz' 96;
+    letter-spacing: -0.012em;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .sub { color: var(--ink-soft); font-size: 14px; letter-spacing: -0.005em; max-width: 380px; }
+  .close {
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--pill); border: 1px solid var(--pill-border);
+    border-radius: 14px; color: var(--ink);
+    font-size: 18px; line-height: 1;
+  }
+  .close:hover { background: var(--pill-hover); }
+
+  /* ── Tab bar (Styles | Queue), the queue swap point ────────── */
+  .segbar {
+    display: flex; gap: 4px;
+    padding: 0 36px 18px;
+    align-items: center;
+  }
+  .seg {
+    height: 36px; padding: 0 16px;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 14px/1 'Geist', system-ui;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .seg:hover { color: var(--ink); }
+  .seg.is-active { background: #fff; color: #0b0b0d; }
+  .seg-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.18);
+    color: inherit;
+    font: 600 11px/1 'Geist', system-ui;
+  }
+  .seg.is-active .seg-count { background: rgba(0,0,0,0.16); color: #0b0b0d; }
+  .seg.is-pulsing .seg-count {
+    background: var(--accent-soft);
+    color: var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  /* ── Session meter (overall progress) ───────────────────────── */
+  .meter {
+    margin: 0 36px 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--pill-border);
+    border-radius: 14px;
+    background: var(--pill);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    row-gap: 6px;
+  }
+  .meter-label {
+    font: 600 13px/1.1 'Geist', system-ui;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .meter-counts {
+    color: var(--ink-soft); font-size: 12px;
+    font-family: 'DM Mono', ui-monospace, monospace;
+    font-feature-settings: 'tnum';
+    text-align: right;
+  }
+  .meter-bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+    position: relative;
+  }
+  .meter-bar::after {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--pct, 0%);
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-bright) 100%);
+    border-radius: inherit;
+    transition: width 240ms ease;
+  }
+
+  /* ── Queue list ─────────────────────────────────────────────── */
+  .body {
+    padding: 0 36px 24px;
+    overflow-y: auto;
+  }
+  .qlist { display: flex; flex-direction: column; gap: 10px; }
+
+  .batch-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 14px 4px 6px;
+  }
+  .batch-label {
+    font: 500 12px/1 'Geist', system-ui;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+  }
+  .batch-sub {
+    color: var(--ink-soft); font-size: 12px;
+    font-family: 'DM Mono', ui-monospace, monospace;
+    font-feature-settings: 'tnum';
+  }
+
+  .qcard {
+    display: grid;
+    grid-template-columns: 6px 84px 1fr auto;
+    align-items: stretch;
+    gap: 14px;
+    padding: 12px;
+    background: var(--pill);
+    border: 1px solid var(--pill-border);
+    border-radius: 14px;
+    text-align: left;
+    width: 100%;
+    transition: background 0.12s ease, border-color 0.12s ease;
+    overflow: hidden;
+    position: relative;
+  }
+  .qcard:hover { background: var(--pill-hover); border-color: rgba(255,255,255,0.12); }
+  .qcard.is-clickable { cursor: pointer; }
+
+  /* Left gutter: status dot + drag handle */
+  .qgutter {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 4px 0;
+  }
+  .qstatus-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--status-pending);
+    box-shadow: 0 0 0 3px var(--status-pending-soft);
+  }
+  .qcard[data-status="active"]  .qstatus-dot {
+    background: var(--status-active);
+    box-shadow: 0 0 0 3px var(--status-active-soft);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .qcard[data-status="done"]    .qstatus-dot { background: var(--status-done); box-shadow: 0 0 0 3px var(--status-done-soft); }
+  .qcard[data-status="error"]   .qstatus-dot { background: var(--status-error); box-shadow: 0 0 0 3px var(--status-error-soft); }
+  .qdrag {
+    color: var(--ink-dim);
+    font-size: 14px; line-height: 1;
+    cursor: grab;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    user-select: none;
+  }
+  .qcard:hover .qdrag { opacity: 0.7; }
+
+  /* Thumbnail (4:3) */
+  .qphoto {
+    position: relative;
+    width: 84px; height: 64px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #1a1a1d;
+    border: 1px solid var(--pill-border);
+  }
+  .qphoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .qphoto::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.45) 100%);
+  }
+  /* Active: animated developing-shimmer overlay */
+  .qcard[data-status="active"] .qphoto::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(110deg,
+      rgba(200, 184, 151, 0) 30%,
+      rgba(200, 184, 151, 0.18) 50%,
+      rgba(200, 184, 151, 0) 70%);
+    background-size: 220% 100%;
+    animation: shimmer 1.6s linear infinite;
+    z-index: 1;
+  }
+  @keyframes shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -120% 0; }
+  }
+  /* Done: cream check chip top-right */
+  .qcard[data-status="done"] .qphoto::before {
+    content: '✓';
+    position: absolute; top: 6px; right: 6px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0b0b0d;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 700 10px/1 'Geist', system-ui;
+    z-index: 1;
+  }
+  /* Error: × chip top-right */
+  .qcard[data-status="error"] .qphoto::before {
+    content: '×';
+    position: absolute; top: 6px; right: 6px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--status-error);
+    color: #0b0b0d;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 700 13px/1 'Geist', system-ui;
+    z-index: 1;
+  }
+  /* Pending: dim the thumbnail (will only develop later) */
+  .qcard[data-status="pending"] .qphoto img { opacity: 0.55; filter: grayscale(0.4); }
+
+  /* Body */
+  .qbody {
+    display: flex; flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .qtop {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .qpill {
+    height: 20px; padding: 0 8px;
+    border-radius: 999px;
+    font: 600 11px/1 'Geist', system-ui;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-transform: lowercase;
+    letter-spacing: 0.005em;
+    background: var(--status-pending-soft);
+    color: var(--ink-soft);
+  }
+  .qcard[data-status="active"]  .qpill { background: var(--status-active-soft); color: var(--accent); }
+  .qcard[data-status="done"]    .qpill { background: var(--status-done-soft); color: var(--status-done); }
+  .qcard[data-status="error"]   .qpill { background: var(--status-error-soft); color: var(--status-error); }
+  .qmeta-inline {
+    color: var(--ink-soft); font-size: 12px;
+    font-family: 'DM Mono', ui-monospace, monospace;
+    font-feature-settings: 'tnum';
+  }
+  .qlabel {
+    font: 600 15px/1.2 'Geist', system-ui;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .qmeta {
+    color: var(--ink-soft); font-size: 12px;
+  }
+  .qerror {
+    color: var(--status-error); font-size: 12px;
+  }
+  .qprogress {
+    margin-top: 6px;
+    height: 3px; border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    overflow: hidden;
+    position: relative;
+  }
+  .qprogress::after {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--progress, 0%);
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-bright) 100%);
+    border-radius: inherit;
+    transition: width 240ms ease;
+  }
+  /* Pending: indeterminate hair-line in the bar */
+  .qcard[data-status="pending"] .qprogress::after {
+    width: 30%;
+    background: rgba(255,255,255,0.12);
+    animation: drift 2.4s ease-in-out infinite;
+  }
+  @keyframes drift {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(330%); }
+  }
+
+  /* Right rail: action affordances. Inline icons; no per-state heavy buttons */
+  .qactions {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 0;
+    align-self: center;
+  }
+  .qact {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--ink-soft);
+  }
+  .qact:hover {
+    background: var(--pill-hover);
+    border-color: var(--pill-border);
+    color: var(--ink);
+  }
+  .qact svg { width: 15px; height: 15px; }
+  .qact.is-primary {
+    background: var(--accent-soft);
+    color: var(--accent-bright);
+    border-color: var(--accent-strong);
+  }
+  .qact.is-primary:hover { background: rgba(200, 184, 151, 0.2); }
+  .qact.is-danger:hover { color: var(--status-error); }
+
+  /* ── Empty state ─────────────────────────────────────────────── */
+  .qempty {
+    margin: 24px 4px;
+    padding: 56px 24px;
+    border: 1px dashed var(--pill-border);
+    border-radius: 18px;
+    text-align: center;
+    background: var(--pill);
+  }
+  .qempty-art {
+    width: 56px; height: 56px;
+    margin: 0 auto 18px;
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at 30% 30%, var(--accent-soft), transparent 65%),
+      linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border: 1px solid var(--pill-border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qempty-art svg { width: 22px; height: 22px; color: var(--accent); }
+  .qempty-title {
+    font: 600 16px/1.2 'Geist', system-ui;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .qempty-body {
+    color: var(--ink-soft);
+    font-size: 13px;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  /* ── Footer ─────────────────────────────────────────────────── */
+  .foot {
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .foot-status {
+    flex: 1;
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-family: 'DM Mono', ui-monospace, monospace;
+    font-feature-settings: 'tnum';
+  }
+  .foot-status b { color: var(--ink); font-weight: 600; margin-right: 4px; }
+  .foot-status b + span { margin-right: 12px; }
+  .ghost-btn {
+    height: 36px; padding: 0 14px;
+    background: transparent; border: 1px solid var(--pill-border);
+    border-radius: 10px;
+    color: var(--ink-soft);
+    font: 500 13px/1 'Geist', system-ui;
+  }
+  .ghost-btn:hover { background: var(--pill-hover); color: var(--ink); }
+  .ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ghost-btn.is-danger:hover { color: var(--status-error); border-color: rgba(217,154,138,0.4); }
+
+  /* Scrollbar */
+  .body::-webkit-scrollbar { width: 8px; }
+  .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- Left: dummy editor preview (same as render-modal-v2.html) -->
+  <div class="preview">
+    <div class="preview-pills">
+      <button class="preview-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7l9 5 9-5-9-5zM3 7v10l9 5 9-5V7M12 12v10"/></svg>
+        3D View
+      </button>
+      <button class="preview-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="4"/><path d="M3 7h4l2-3h6l2 3h4v13H3z"/></svg>
+        Camera
+      </button>
+    </div>
+    <div class="preview-aspect">1:1</div>
+    <button class="preview-compare">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      Compare
+    </button>
+  </div>
+
+  <!-- Right: queue sheet -->
+  <aside class="sheet" role="dialog" aria-label="Render queue">
+    <header class="head">
+      <div>
+        <h2 class="title">Queue</h2>
+        <p class="sub">Renders develop one at a time. Reorder, retry, or open finished pieces.</p>
+      </div>
+      <button class="close" aria-label="Close">×</button>
+    </header>
+
+    <!-- Same tab bar shape as the render modal: Styles | Queue. Queue is active. -->
+    <nav class="segbar" role="tablist">
+      <button class="seg" role="tab">Styles</button>
+      <button class="seg is-active is-pulsing" role="tab" aria-selected="true">
+        Queue
+        <span class="seg-count">5</span>
+      </button>
+    </nav>
+
+    <!-- Session meter -->
+    <div class="meter" style="--pct: 35%">
+      <div class="meter-label">Rendering · 35%</div>
+      <div class="meter-counts">1 done · 1 active · 3 queued</div>
+      <div class="meter-bar"></div>
+    </div>
+
+    <!-- Queue list -->
+    <div class="body">
+      <div class="qlist">
+
+        <!-- Batch header -->
+        <div class="batch-head">
+          <div class="batch-label">Batch · 4 styles</div>
+          <div class="batch-sub">1 / 4 · 2× 2048px</div>
+        </div>
+
+        <!-- Active card -->
+        <article class="qcard is-clickable" data-status="active">
+          <div class="qgutter">
+            <span class="qstatus-dot"></span>
+            <span class="qdrag">⋮⋮</span>
+          </div>
+          <div class="qphoto">
+            <img src="/style-photos/vedute-realistic-2x-20260422-1705.png" alt="" />
+          </div>
+          <div class="qbody">
+            <div class="qtop">
+              <span class="qpill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="10" height="10"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                rendering
+              </span>
+              <span class="qmeta-inline">0:42 elapsed</span>
+            </div>
+            <div class="qlabel">Realistic</div>
+            <div class="qmeta">2× 2048px · diffusing strokes</div>
+            <div class="qprogress" style="--progress: 62%"></div>
+          </div>
+          <div class="qactions">
+            <button class="qact is-danger" title="Stop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+          </div>
+        </article>
+
+        <!-- Pending card 1 -->
+        <article class="qcard" data-status="pending">
+          <div class="qgutter">
+            <span class="qstatus-dot"></span>
+            <span class="qdrag">⋮⋮</span>
+          </div>
+          <div class="qphoto">
+            <img src="/style-photos/vedute-golden-hour-2x-20260422-1706.png" alt="" />
+          </div>
+          <div class="qbody">
+            <div class="qtop">
+              <span class="qpill">queued</span>
+              <span class="qmeta-inline">waiting · #1</span>
+            </div>
+            <div class="qlabel">Golden Hour</div>
+            <div class="qmeta">2× 2048px</div>
+            <div class="qprogress"></div>
+          </div>
+          <div class="qactions">
+            <button class="qact" title="Move earlier" aria-label="Move earlier">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+            <button class="qact" title="Move later" aria-label="Move later">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+            </button>
+            <button class="qact is-danger" title="Remove">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/></svg>
+            </button>
+          </div>
+        </article>
+
+        <!-- Pending card 2 -->
+        <article class="qcard" data-status="pending">
+          <div class="qgutter">
+            <span class="qstatus-dot"></span>
+            <span class="qdrag">⋮⋮</span>
+          </div>
+          <div class="qphoto">
+            <img src="/style-photos/vedute-cyberpunk-2x-20260422-1710.png" alt="" />
+          </div>
+          <div class="qbody">
+            <div class="qtop">
+              <span class="qpill">queued</span>
+              <span class="qmeta-inline">waiting · #2</span>
+            </div>
+            <div class="qlabel">Night City</div>
+            <div class="qmeta">2× 2048px</div>
+            <div class="qprogress"></div>
+          </div>
+          <div class="qactions">
+            <button class="qact" title="Move earlier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <button class="qact" title="Move later"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
+            <button class="qact is-danger" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/></svg></button>
+          </div>
+        </article>
+
+        <!-- Done card (clickable - opens in lightbox) -->
+        <article class="qcard is-clickable" data-status="done">
+          <div class="qgutter">
+            <span class="qstatus-dot"></span>
+            <span class="qdrag">⋮⋮</span>
+          </div>
+          <div class="qphoto">
+            <img src="/style-photos/vedute-foggy-dawn-2x-20260422-1708.png" alt="" />
+          </div>
+          <div class="qbody">
+            <div class="qtop">
+              <span class="qpill">done</span>
+              <span class="qmeta-inline">3 min ago</span>
+            </div>
+            <div class="qlabel">Moody</div>
+            <div class="qmeta">2× 2048px · in gallery</div>
+          </div>
+          <div class="qactions">
+            <button class="qact is-primary" title="Open in lightbox">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7M21 3l-9 9M10 21H3v-7"/></svg>
+            </button>
+            <button class="qact is-danger" title="Remove from queue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/></svg>
+            </button>
+          </div>
+        </article>
+
+        <!-- Solo (no batch) error card -->
+        <div class="batch-head">
+          <div class="batch-label">Solo</div>
+          <div class="batch-sub">1 job</div>
+        </div>
+        <article class="qcard" data-status="error">
+          <div class="qgutter">
+            <span class="qstatus-dot"></span>
+            <span class="qdrag">⋮⋮</span>
+          </div>
+          <div class="qphoto">
+            <img src="/style-photos/vedute-charcoal-2x-20260422-1712.png" alt="" />
+          </div>
+          <div class="qbody">
+            <div class="qtop">
+              <span class="qpill">failed</span>
+              <span class="qmeta-inline">2 min ago</span>
+            </div>
+            <div class="qlabel">B&amp;W</div>
+            <div class="qerror">Model returned 503 — server overloaded.</div>
+          </div>
+          <div class="qactions">
+            <button class="qact is-primary" title="Retry">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>
+            </button>
+            <button class="qact is-danger" title="Remove">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/></svg>
+            </button>
+          </div>
+        </article>
+
+      </div>
+    </div>
+
+    <footer class="foot">
+      <div class="foot-status">
+        <b>1</b><span>done</span>
+        <b>1</b><span>active</span>
+        <b>3</b><span>queued</span>
+      </div>
+      <button class="ghost-btn">Clear done</button>
+      <button class="ghost-btn is-danger">Clear all</button>
+    </footer>
+
+  </aside>
+</div>
+
+</body>
+</html>
