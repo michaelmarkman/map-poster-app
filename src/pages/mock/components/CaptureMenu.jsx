@@ -287,9 +287,9 @@ export default function CaptureMenu({ onClose }) {
       </div>
 
       <div className="mock-menu-capture-styles">
-        {/* Raw + Custom are pinned cards: always visible regardless of
-            active category. Raw uses a stripe-pattern thumb; Custom
-            uses a flat gradient with a sparkle icon. */}
+        {/* Raw + Custom stay pinned at the top — they're the action
+            primitives ("no AI" / "I'll write the prompt"), not aesthetic
+            choices, so they belong above the visual catalog. */}
         <button
           type="button"
           className={`mock-menu-capture-style is-raw is-pinned${selected.has(RAW_KEY) ? ' is-active' : ''}`}
@@ -301,49 +301,6 @@ export default function CaptureMenu({ onClose }) {
             <path d="M2 4V2h2M10 4V2h-2M2 8v2h2M10 8v2h-2" />
           </svg>
           <span className="mock-menu-capture-style-label">Raw</span>
-          <span className="mock-menu-capture-style-check">✓</span>
-        </button>
-        {/* Vedute — the brand's signature style (18th-c. veduta painting).
-         *  Pinned alongside Raw + Custom so it's always reachable across
-         *  category filters. Custom thumb treatment in CSS so it reads
-         *  as "house" rather than a generic preset. */}
-        <button
-          type="button"
-          className={`mock-menu-capture-style is-vedute is-pinned${selected.has(VEDUTE_KEY) ? ' is-active' : ''}`}
-          onClick={() => togglePreset(VEDUTE_KEY)}
-          title="Vedute — our signature painterly cityscape"
-        >
-          <span className="mock-menu-capture-style-thumb" />
-          <span className="mock-menu-capture-style-vedute-mark" aria-hidden="true">V</span>
-          <span className="mock-menu-capture-style-label">Vedute</span>
-          <span className="mock-menu-capture-style-check">✓</span>
-        </button>
-        {/* Dithered — Swiss / risograph graphic-design preset. Pinned
-         *  alongside the other signature styles. Thumb is a CSS-only
-         *  halftone dot pattern so it visually communicates the print
-         *  language even without a real render. */}
-        <button
-          type="button"
-          className={`mock-menu-capture-style is-dithered is-pinned${selected.has(DITHERED_KEY) ? ' is-active' : ''}`}
-          onClick={() => togglePreset(DITHERED_KEY)}
-          title="Dithered — 1-bit halftone print poster"
-        >
-          <span className="mock-menu-capture-style-thumb" />
-          <span className="mock-menu-capture-style-label">Dithered</span>
-          <span className="mock-menu-capture-style-check">✓</span>
-        </button>
-        {/* Riso — color-dithered 3-ink risograph. Pinned alongside
-         *  Dithered as its color sibling. Thumb is a CSS-only
-         *  layered halftone with pink / teal / yellow dots offset
-         *  to fake the registration misalignment + moiré. */}
-        <button
-          type="button"
-          className={`mock-menu-capture-style is-riso is-pinned${selected.has(RISO_KEY) ? ' is-active' : ''}`}
-          onClick={() => togglePreset(RISO_KEY)}
-          title="Riso — color-dithered risograph print"
-        >
-          <span className="mock-menu-capture-style-thumb" />
-          <span className="mock-menu-capture-style-label">Riso</span>
           <span className="mock-menu-capture-style-check">✓</span>
         </button>
         <button
@@ -375,6 +332,44 @@ export default function CaptureMenu({ onClose }) {
             <span className="mock-menu-capture-style-check">✓</span>
           </button>
         ))}
+        {/* Signature pinned styles — Vedute (painterly), Dithered
+         *  (1-bit print), Riso (color print). Pinned at the END of
+         *  the grid: they sit alongside Custom as an "if none of the
+         *  presets fit, try one of these" cap. They stay rendered
+         *  across category filters since they're hardcoded
+         *  unconditionally. CSS thumbs (no photo asset) so they
+         *  visually telegraph "this isn't a photo style". */}
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-vedute is-pinned${selected.has(VEDUTE_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(VEDUTE_KEY)}
+          title="Vedute — our signature painterly cityscape"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-vedute-mark" aria-hidden="true">V</span>
+          <span className="mock-menu-capture-style-label">Vedute</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-dithered is-pinned${selected.has(DITHERED_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(DITHERED_KEY)}
+          title="Dithered — 1-bit halftone print poster"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-label">Dithered</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
+        <button
+          type="button"
+          className={`mock-menu-capture-style is-riso is-pinned${selected.has(RISO_KEY) ? ' is-active' : ''}`}
+          onClick={() => togglePreset(RISO_KEY)}
+          title="Riso — color-dithered risograph print"
+        >
+          <span className="mock-menu-capture-style-thumb" />
+          <span className="mock-menu-capture-style-label">Riso</span>
+          <span className="mock-menu-capture-style-check">✓</span>
+        </button>
       </div>
 
       {customSelected && (
