@@ -196,8 +196,8 @@ export default function CaptureMenu({ onClose }) {
     // user can watch their jobs progress. Was: onClose() which dropped
     // them back to the canvas and forced them to re-open the menu to
     // see status. The picker phase swap is one click away via the
-    // queue-link in the header.
-    pendingDispatchRef.current = true
+    // queue-link in the footer.
+    setPendingDispatch(true)
     setPhase('queue')
   }
 

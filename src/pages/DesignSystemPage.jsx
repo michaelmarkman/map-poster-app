@@ -190,8 +190,8 @@ export default function DesignSystemPage() {
             }
             spec={
               <Spec>
-                <p><code>font: italic 500 32px/1.1 'Bodoni Moda'</code></p>
-                <p><code>font-variation-settings: 'opsz' 96</code></p>
+                <p><code>{`font: italic 500 32px/1.1 'Bodoni Moda'`}</code></p>
+                <p><code>{`font-variation-settings: 'opsz' 96`}</code></p>
                 <p>Tight tracking (<code>-0.012em</code>) to read as a place-name, not a headline.</p>
               </Spec>
             }
@@ -269,7 +269,7 @@ export default function DesignSystemPage() {
             }
             spec={
               <Spec>
-                <p>Click to toggle the active state above — same recipe as the editor's real pills.</p>
+                <p>Click to toggle the active state above — same recipe as the editor&apos;s real pills.</p>
                 <p>Open / active state: <code>border-color rgba(155,229,127,0.50)</code> + label brightens.</p>
               </Spec>
             }
