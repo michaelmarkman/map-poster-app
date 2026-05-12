@@ -230,6 +230,18 @@ export default function Lightbox() {
     downloadCurrent()
   }
 
+  const onDelete = (e) => {
+    e.stopPropagation()
+    if (!entry) return
+    if (!window.confirm(`Delete "${entry.label || 'this render'}"?`)) return
+    window.dispatchEvent(
+      new CustomEvent('gallery-remove', { detail: { id: entry.id } }),
+    )
+    // Close the lightbox — caller scopes the list, so the next index
+    // would be stale anyway after the entry is removed.
+    closeSelf()
+  }
+
   const onPrevClick = (e) => { e.stopPropagation(); goPrev() }
   const onNextClick = (e) => { e.stopPropagation(); goNext() }
   const onCloseClick = (e) => { e.stopPropagation(); closeSelf() }
@@ -239,6 +251,32 @@ export default function Lightbox() {
   const hasView = !!entry?.view
   const label = entry?.label || ''
   const positionSuffix = total > 1 ? ` (${index + 1}/${total})` : ''
+
+  // Metadata table values, derived from the entry. Each row only
+  // renders if it has data (filename always present; lens/tod from
+  // the saved camera view if available; aspect & resolution would
+  // need encoding into the entry — left as TODOs).
+  const captured = entry?.time
+    ? (typeof entry.time === 'number' ? new Date(entry.time) : entry.time)
+    : null
+  const capturedStr = captured
+    ? captured.toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : null
+  const lensMm = entry?.view?.fovMm
+    ? `${Math.round(entry.view.fovMm)}mm`
+    : null
+  const todHour = entry?.view?.tod
+  const todStr = Number.isFinite(todHour)
+    ? (() => {
+        const hh = Math.floor(todHour)
+        const mm = Math.round((todHour - hh) * 60)
+        const ap = hh >= 12 ? 'pm' : 'am'
+        const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+        return `${h12}:${String(mm).padStart(2, '0')}${ap}`
+      })()
+    : null
 
   return (
     <div
@@ -354,6 +392,54 @@ export default function Lightbox() {
       <div className="lb-label" id="lb-label">
         {label + positionSuffix}
       </div>
+
+      {/* Phase 21 — metadata table mirroring the prototype's
+       *  `.lightbox-meta-list`. Only renders when at least one row
+       *  has data; sidebar reflow keeps the title flush at the top. */}
+      {(label || capturedStr || lensMm || todStr) && (
+        <div className="lb-meta-list" onClick={(e) => e.stopPropagation()}>
+          {label && (
+            <div className="lb-meta-row">
+              <span className="lb-meta-key">Style</span>
+              <span className="lb-meta-val">{label}</span>
+            </div>
+          )}
+          {capturedStr && (
+            <div className="lb-meta-row">
+              <span className="lb-meta-key">Captured</span>
+              <span className="lb-meta-val">{capturedStr}</span>
+            </div>
+          )}
+          {lensMm && (
+            <div className="lb-meta-row">
+              <span className="lb-meta-key">Lens</span>
+              <span className="lb-meta-val">{lensMm}</span>
+            </div>
+          )}
+          {todStr && (
+            <div className="lb-meta-row">
+              <span className="lb-meta-key">Time of day</span>
+              <span className="lb-meta-val">{todStr}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Footer destructive — terracotta-bordered Delete button.
+       *  Confirms then dispatches `gallery-remove` and closes self. */}
+      <button
+        type="button"
+        className="lb-danger"
+        onClick={onDelete}
+        aria-label="Delete this render"
+      >
+        <svg viewBox="0 0 11 11" aria-hidden="true">
+          <path d="M3 4h5M3.5 4v5.5M7.5 4v5.5M3 4l.5-1.5h4l.5 1.5"
+                fill="none" stroke="currentColor" strokeWidth="1.4"
+                strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>Delete</span>
+      </button>
 
       {total > 1 && (
         <div className="lb-strip" onClick={(e) => e.stopPropagation()}>
