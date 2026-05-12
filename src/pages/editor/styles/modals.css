@@ -359,7 +359,21 @@
     color: var(--ink);
   }
 
-  /* ═══════ LIGHTBOX ═══════ */
+  /* ═══════ LIGHTBOX ═══════
+   * Phase 10 — 2-column sidebar layout (image stage left, action /
+   * metadata column right) per the MoMA prototype. Without changing
+   * the JSX, the children land in CSS-grid positions:
+   *
+   *   ┌────────────────────────────┬──────────────────┐
+   *   │  ‹  [image]  ›             │  × (close)       │
+   *   │                            │  Bodoni Title    │
+   *   │                            │  (actions stack) │
+   *   │  [thumbnail strip]         │                  │
+   *   └────────────────────────────┴──────────────────┘
+   *
+   * Image stage fills the left column (1fr); sidebar is 320px on
+   * desktop, collapses to a bottom row on narrow screens via a
+   * media-query fallback. */
   #lightbox {
     position: fixed;
     inset: 0;
@@ -367,25 +381,59 @@
     display: none;
     background: rgba(6, 5, 8, 0.96);
     backdrop-filter: blur(16px);
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: 1fr;
   }
-  #lightbox.open { display: flex; }
+  #lightbox.open { display: grid; }
   #lightbox #lb-img {
-    max-width: 90vw;
-    max-height: 72vh; /* leave room for the thumbnail strip */
+    /* The image lives in the left column. Center it visually inside
+     * the column without using margin: auto (which fights the
+     * touch-drag transform applied inline). */
+    grid-column: 1;
+    grid-row: 1;
+    place-self: center;
+    max-width: calc(100vw - 320px - 80px);
+    max-height: 80vh;
     border-radius: 2px;
     object-fit: contain;
-    box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
   }
-  /* Thumbnail strip — sits at the bottom of the lightbox, horizontal
-     scroll if there are more than fit. Active thumb gets the accent
-     ring so users can see where they are. Clicks jump the lightbox
-     to that index. */
+  /* Sidebar — the column on the right. Borrows from the prototype's
+   * `.lightbox-sidebar`: dark glass, 1px left border to read as a
+   * pane separator. */
+  #lightbox::after {
+    content: '';
+    grid-column: 2;
+    grid-row: 1;
+    background: rgba(8, 10, 12, 0.55);
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 0;
+  }
+  /* Mobile fallback — drop the sidebar, let the image fill the whole
+   * viewport. Actions reflow inline (the existing flex-wrap rule
+   * below handles this), label collapses to its compact form. */
+  @media (max-width: 720px) {
+    #lightbox {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto;
+    }
+    #lightbox #lb-img {
+      max-width: 92vw;
+      max-height: 72vh;
+    }
+    #lightbox::after { display: none; }
+  }
+  /* Thumbnail strip — sits at the bottom of the IMAGE COLUMN now
+   * (Phase 10), constrained to `right: 320px` so it doesn't slide
+   * under the sidebar. Below the 720px sidebar-collapse breakpoint
+   * the strip spans full width again. */
   .lb-strip {
     position: absolute;
-    left: 0; right: 0; bottom: 14px;
+    left: 0;
+    right: 320px;
+    bottom: 14px;
     display: flex;
     gap: 6px;
     padding: 0 24px;
@@ -395,6 +443,9 @@
     justify-content: center;
     align-items: center;
     z-index: 2;
+  }
+  @media (max-width: 720px) {
+    .lb-strip { right: 0; }
   }
   .lb-strip::-webkit-scrollbar { display: none; }
   .lb-thumb {
@@ -417,12 +468,33 @@
     transform: translateY(-2px);
   }
   .lb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Phase 10 — label moves into the sidebar column and reads as the
+   * big italic Bodoni location title. Was a 10px dim uppercase line
+   * under the image. The `(2/5)` position suffix appended by Lightbox
+   * stays inline; it reads as a quiet "of N" qualifier next to the
+   * editorial title. */
   .lb-label {
-    font-size: 10px;
-    color: var(--ink-dim);
-    margin-top: 18px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: start;
+    margin: 88px 24px 0;
+    font: italic 600 26px/1.1 'Bodoni Moda', 'Times New Roman', serif;
+    font-variation-settings: 'opsz' 96;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    text-transform: none;
+    z-index: 2;
+    max-width: 272px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  }
+  @media (max-width: 720px) {
+    .lb-label {
+      grid-column: 1;
+      grid-row: 2;
+      margin: 0 24px 18px;
+      font-size: 18px;
+    }
   }
   .lb-nav {
     position: absolute;
@@ -446,23 +518,45 @@
     background: rgba(30,29,33,0.85);
     color: var(--ink);
   }
+  /* Phase 10 — nav arrows constrained to the image column; `next` arrow
+   * lives 320px + 24px from the right edge to avoid overlapping the
+   * sidebar. Below the 720px sidebar-collapse breakpoint the offsets
+   * fall back to the original 24px from each viewport edge. */
   .lb-nav.prev { left: 24px; }
-  .lb-nav.next { right: 24px; }
-  .lb-close { position: absolute; top: 18px; right: 18px; }
+  .lb-nav.next { right: calc(320px + 24px); }
+  @media (max-width: 720px) {
+    .lb-nav.next { right: 24px; }
+  }
+  /* Close button stays absolute; offset accounts for the sidebar
+   * (it should sit at the top-right of the sidebar, not the viewport). */
+  .lb-close { position: absolute; top: 18px; right: 18px; z-index: 3; }
 
-  /* Action row sits inline across the top, with the close button on the
-     far right. Flex/gap/flex-wrap replaces the old `right: 160px/260px…`
-     cascade that pushed Share off-screen once a fifth button landed. */
+  /* Phase 10 — action stack lives in the sidebar as a vertical column
+   * (was a horizontal row across the top). The close button stays
+   * docked top-right via .lb-close's existing `position: absolute`. */
   .lb-actions {
-    position: absolute;
-    top: 14px;
-    right: 58px; /* leave room for lb-close at right: 18px */
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: stretch;
+    margin: 160px 24px 0;
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: calc(100vw - 80px);
+    align-items: stretch;
+    justify-content: flex-start;
+    z-index: 2;
+    max-width: 272px;
+  }
+  @media (max-width: 720px) {
+    .lb-actions {
+      grid-column: 1;
+      grid-row: 2;
+      flex-direction: row;
+      flex-wrap: wrap;
+      margin: 0 24px 14px;
+      max-width: calc(100vw - 48px);
+    }
   }
   .lb-actions .gallery-btn,
   .lb-actions .lb-download {
