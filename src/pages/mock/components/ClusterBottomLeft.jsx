@@ -20,16 +20,16 @@ import { modalsAtom } from '../../editor/atoms/modals'
 // ratio column gives the more compact W:H shorthand for the data-
 // minded.
 const PORTRAIT_RATIOS = [
-  { ratioKey: '4:5',  name: '16 × 20', ratio: 4 / 5 },
-  { ratioKey: '3:4',  name: '18 × 24', ratio: 3 / 4 },
-  { ratioKey: '2:3',  name: '24 × 36', ratio: 2 / 3 },
-  { ratioKey: '9:16', name: '9 × 16',  ratio: 9 / 16 },
+  { ratioKey: '4:5',  name: '16 × 20',  ratio: 4 / 5 },
+  { ratioKey: '3:4',  name: '18 × 24',  ratio: 3 / 4 },
+  { ratioKey: '2:3',  name: '24 × 36',  ratio: 2 / 3 },
+  { ratioKey: '9:16', name: 'Vertical', ratio: 9 / 16 },
 ]
 const LANDSCAPE_RATIOS = [
   { ratioKey: '5:4',  name: '20 × 16', ratio: 5 / 4 },
   { ratioKey: '4:3',  name: '24 × 18', ratio: 4 / 3 },
   { ratioKey: '3:2',  name: '36 × 24', ratio: 3 / 2 },
-  { ratioKey: '16:9', name: '16 × 9',  ratio: 16 / 9 },
+  { ratioKey: '16:9', name: 'Wide',    ratio: 16 / 9 },
 ]
 const ALL_RATIOS = [
   { ratioKey: '1:1', name: 'Square', ratio: 1 },

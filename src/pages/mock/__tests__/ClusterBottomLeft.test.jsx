@@ -29,8 +29,9 @@ function openAspectPopover(container) {
 describe('ClusterBottomLeft', () => {
   it('shows the active ratio label on the trigger pill', () => {
     renderWith({ aspectRatio: 16 / 9 })
-    // 16:9 renders as the "16 × 9" mnemonic in the label.
-    expect(screen.getAllByText('16 × 9').length).toBeGreaterThan(0)
+    // 16:9 renders as "Wide" — descriptive name per the prototype
+    // (was "16 × 9" until the iter-5 prototype audit).
+    expect(screen.getAllByText('Wide').length).toBeGreaterThan(0)
   })
 
   it('shows "Fill" on the trigger when in fill mode', () => {
