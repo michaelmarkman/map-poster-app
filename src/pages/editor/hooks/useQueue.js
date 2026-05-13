@@ -4,14 +4,17 @@ import {
   aiApiKeyAtom,
   aiCleanArtifactsAtom,
   aiEnhanceAtom,
+  aiModifiersAtom,
   aiPresetAtom,
   aiPromptAtom,
   exportResolutionAtom,
+  locationContextAtom,
   queueAtom,
   savedViewsAtom,
 } from '../atoms/sidebar'
 import { dofAtom } from '../atoms/scene'
 import { textFieldsAtom } from '../atoms/ui'
+import { appendModifierPrompts } from '../../../data/promptModifiers'
 import {
   applyWatermark,
   buildFilename,
@@ -64,6 +67,8 @@ const AI_PRESETS = {
     // Composition lock-down mirrors Vedute + Dithered.
     prompt:
       'Transform this into a color-dithered risograph print of the aerial cityscape. Limited 3-ink palette: warm fluorescent pink (#ff4e8b), bright teal (#3aafa9), and sunshine yellow (#f4c95d) on a warm cream paper background (#f1ead6). Each color must be rendered as its own halftone dot screen at a slightly different angle (15°, 45°, 75°) so the dots interfere and create the riso moiré pattern. Slight visible registration misalignment between ink layers (1–2px offset) for the printed-by-hand feel. NO black ink — shadows are deepened by overlapping all three colors, never by adding black. Flat shapes, no gradients, hard edges between color regions. Reads like a high-end editorial risograph poster — magazine cover, Bauhaus-school exhibition catalog, mid-century travel ephemera. No text, labels, captions, signatures, ornaments. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Keep the exact same buildings, streets, composition, and layout.',
+    naturePrompt:
+      'Transform this into a color-dithered risograph print of the aerial landscape. Limited 3-ink palette: warm fluorescent pink (#ff4e8b), bright teal (#3aafa9), and sunshine yellow (#f4c95d) on a warm cream paper background (#f1ead6). Each color rendered as its own halftone dot screen at a slightly different angle (15°, 45°, 75°) — dots interfere to create the riso moiré pattern. Slight visible registration misalignment between ink layers (1–2px offset). NO black ink — deepened tones come from overlapping all three colors. Flat shapes, no gradients, hard edges between regions. Reads like a mid-century national-park poster — simplified tree masses, flattened ridgelines, water as solid teal or stippled cream. No text, labels, animals, ornaments. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any landform. Keep the exact same composition and layout.',
   },
   dithered: {
     label: 'Dithered',
@@ -75,6 +80,8 @@ const AI_PRESETS = {
     // strong-style prompts.
     prompt:
       'Transform this into a 1-bit / halftone graphic-design print of the aerial cityscape. Use ONLY two colors: a warm cream paper tone (#f1ead6) for the background and a deep ink color (#1a1a1f) for everything else. No greys, no gradients — all tonal value comes from a fine halftone dot pattern, denser ink dots in shadow areas and sparser in highlights. Hard-edged shapes, flat fills, no photographic detail. Reads like a high-end editorial print, risograph or screen-printed poster, Massimo Vignelli / Swiss Style poster vocabulary. Slight visible registration offset between the two layers for a printed feel. NO text, labels, captions, signatures, ships, flags, ornaments. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Keep the exact same buildings, streets, composition, and layout.',
+    naturePrompt:
+      'Transform this into a 1-bit / halftone graphic-design print of the aerial landscape. Use ONLY two colors: a warm cream paper tone (#f1ead6) for the background and a deep ink color (#1a1a1f) for everything else. No greys, no gradients — all tonal value comes from a fine halftone dot pattern, denser ink dots in shadow areas and sparser in highlights. Hard-edged shapes, flat fills, no photographic detail. Reads like a Vignelli national-park poster — flattened ridgelines, simplified tree masses, water surfaces as solid cream paper or ink-stippled depending on tone. Slight visible registration offset between the two layers for a printed feel. NO text, labels, captions, signatures, animals, banners. Only change the rendering style — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any landform. Keep the exact same composition and layout.',
   },
   vedute: {
     label: 'Vedute',
@@ -89,6 +96,8 @@ const AI_PRESETS = {
     // the model doesn't redraw buildings to match its painting prior.
     prompt:
       'Transform this into an 18th-century Italian veduta painting in the tradition of Canaletto, Bellotto, and Guardi. Highly detailed, atmospheric cityscape painting with theatrical golden-hour light, careful linear perspective, luminous sky with soft cumulus clouds, painterly brushwork on rooftops and stone facades, subtle warm-cool color modulation across the depth of the scene, a slightly cinematic vantage that reads as a hand-painted aerial vista. Limited 18th-century palette: warm cream, terracotta, soft umber, sage green, dusty teal, pale gold. Visible brushwork in the sky and shadows; cleaner edges on the buildings. Only change the lighting, materials, color palette, and painterly texture — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Do NOT add cars, people, signage, text, ships, flags, banners, watermarks, or any element not visible in the source. Keep the exact same buildings, streets, composition, and layout.',
+    naturePrompt:
+      'Transform this into an 18th-century classical landscape painting in the tradition of Claude Lorrain, Salvator Rosa, and Jacob van Ruisdael. Highly detailed atmospheric landscape with theatrical golden-hour light, careful aerial perspective, luminous sky with soft cumulus clouds, painterly brushwork on valleys, ridgelines, river bends, and tree canopies, subtle warm-cool color modulation across the depth of the scene, a sublime cinematic vantage that reads as a hand-painted vista. Limited 18th-century palette: warm cream, terracotta, soft umber, sage green, dusty teal, pale gold. Visible brushwork in the sky and shadows; cleaner edges on rock faces and ridges. Only change the lighting, materials, color palette, and painterly texture — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any landform. Do NOT add figures, ships, flags, banners, signage, text, watermarks, or any element not visible in the source. Keep the exact same composition and layout.',
   },
   realistic: {
     label: 'Realistic',
@@ -103,6 +112,8 @@ const AI_PRESETS = {
     // and Travel Poster, which hold composition well) pins geometry.
     prompt:
       'Re-render this aerial scene as a photoreal daylight cityscape — natural sunlight, realistic building materials and roof textures, soft shadows, real-world surface detail on streets and rooftops. Only change the lighting, materials, and texture realism — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any building. Do NOT add cars, people, signage, text, lens flares, watermarks, or any element not already visible in the source. Keep the exact same buildings, streets, composition, and layout.',
+    naturePrompt:
+      'Re-render this aerial scene as a photoreal daylight landscape — natural sunlight, realistic foliage and tree canopy detail, accurate rock face and soil textures, true-to-life water surface reflections and depth, soft shadows raking across terrain. Only change the lighting, materials, and texture realism — do NOT change the camera angle, perspective, or framing. Do NOT add, remove, relocate, or resize any landform, ridge, water body, or major tree cluster. Do NOT add cars, people, animals, signage, text, lens flares, watermarks, or any element not already visible in the source. Keep the exact same composition and layout.',
   },
   golden: {
     label: 'Golden Hour',
@@ -128,6 +139,8 @@ const AI_PRESETS = {
     label: 'Travel Poster',
     prompt:
       'Transform this into a vintage 1930s travel poster illustration in the style of Roger Broders or Cassandre. Bold flat colors, art deco stylization, simplified geometric shapes, strong diagonal composition, limited 4-5 color palette with warm oranges, deep teals, and cream. Clean hard-edged shapes with no photographic detail, graphic illustration feel. NO text or labels. Keep the exact same buildings, streets, and composition recognizable.',
+    naturePrompt:
+      'Transform this into a vintage 1930s national-park travel poster illustration in the style of Roger Broders or the WPA Federal Art Project posters. Bold flat colors, art deco stylization of mountains, valleys, lakes, and tree masses into simplified geometric shapes, strong diagonal composition, limited 4-5 color palette with warm oranges, deep teals, sage greens, and cream. Clean hard-edged shapes with no photographic detail, graphic illustration feel. NO text or labels. Keep the exact same composition recognizable.',
   },
   night: {
     label: 'Night',
@@ -158,16 +171,22 @@ const AI_PRESETS = {
     label: 'Foggy Dawn',
     prompt:
       'Add thick low-lying fog rolling between the buildings at dawn. Tops of taller buildings poke above the fog layer, soft golden sunrise light filtering through, ethereal and dreamlike. Keep the exact same buildings and layout.',
+    naturePrompt:
+      'Add thick low-lying fog rolling between the valleys and ridges at dawn. Tops of taller peaks and treelines poke above the fog layer, soft golden sunrise light filtering through, ethereal and dreamlike. Keep the exact same composition and layout.',
   },
   watercolor: {
     label: 'Watercolor',
     prompt:
       'Render this as a beautiful watercolor painting. Soft wet-on-wet washes of color, visible paper texture, gentle color bleeding at edges, artistic and painterly feel. Keep the same composition and buildings.',
+    naturePrompt:
+      'Render this as a beautiful English-tradition landscape watercolor in the spirit of J.M.W. Turner or John Sell Cotman. Soft wet-on-wet washes of color across hills, water, and sky, visible paper texture, gentle color bleeding at edges of ridgelines and tree masses, luminous atmospheric depth. Keep the same composition and landforms.',
   },
   oilpaint: {
     label: 'Oil Painting',
     prompt:
       'Transform this into a rich oil painting with visible thick impasto brushstrokes, deep saturated colors, and dramatic chiaroscuro lighting. Think classic Dutch Golden Age cityscape painting but from an aerial view. Keep the same composition and buildings.',
+    naturePrompt:
+      'Transform this into a rich Dutch landscape oil painting in the tradition of Jacob van Ruisdael, Meindert Hobbema, or the Hudson River School. Visible thick impasto brushstrokes across tree canopies and skies, deep saturated greens and warm earth tones, dramatic chiaroscuro from a low sun, atmospheric perspective into the distance. Keep the same composition and landforms.',
   },
   lineart: {
     label: 'Line Drawing',
@@ -178,6 +197,8 @@ const AI_PRESETS = {
     label: 'Pastel Dream',
     prompt:
       'Transform this into a soft pastel dreamscape. Muted cotton candy colors — lavender, peach, mint, baby blue. Soft diffused light, everything looks gentle and dreamy like a tilt-shift architectural model render. Keep the exact same buildings and layout.',
+    naturePrompt:
+      'Transform this into a soft pastel dreamscape of the landscape. Muted cotton candy colors — lavender, peach, mint, baby blue — washing over hills, water, and sky. Soft diffused light, everything looks gentle and dreamy like a watercolor sketch on warm paper. Keep the exact same composition and layout.',
   },
   blueprint: {
     label: 'Blueprint',
@@ -198,11 +219,15 @@ const AI_PRESETS = {
     label: 'Studio Ghibli',
     prompt:
       'Transform this into Studio Ghibli anime art style. Lush hand-painted look with rich greens and warm light, puffy cumulus clouds, whimsical and slightly fantastical atmosphere, the signature Miyazaki feeling of a lived-in, beautiful world seen from above. Keep the exact same buildings and layout.',
+    naturePrompt:
+      "Transform this into Studio Ghibli pastoral landscape art style — the wide aerial vistas of My Neighbor Totoro, Princess Mononoke, or Howl's Moving Castle. Lush hand-painted hillsides and forest canopies in rich greens, soft watercolor-like skies with puffy cumulus clouds, golden light raking across meadows, whimsical and slightly fantastical atmosphere. Keep the exact same composition and layout.",
   },
   gouache: {
     label: 'Gouache',
     prompt:
       "Render this as an opaque gouache painting in the style of a mid-century children's storybook illustration — Miroslav Šašek or Alice and Martin Provensen. Matte flat paint with visible brushstrokes, warm earthy palette, naive simplified architectural forms, gentle storybook feel. Keep the same composition and buildings recognizable.",
+    naturePrompt:
+      "Render this as an opaque gouache landscape painting in the style of a mid-century children's storybook — Alice and Martin Provensen or Brian Wildsmith. Matte flat paint with visible brushstrokes, warm earthy palette, naive simplified landforms and tree shapes, gentle storybook feel. Keep the same composition recognizable.",
   },
   stainedglass: {
     label: 'Stained Glass',
@@ -213,6 +238,8 @@ const AI_PRESETS = {
     label: 'Pencil Sketch',
     prompt:
       "Transform this into a detailed graphite pencil sketch on cream textured paper. Visible pencil strokes with varying pressure, soft shading on building facades, darker edges where shadows fall, subtle smudges and eraser marks, the unfinished spontaneous feel of an architect's field sketch. No color — only graphite tones on off-white paper. Keep the exact same buildings, streets, and composition.",
+    naturePrompt:
+      "Transform this into a detailed graphite pencil sketch on cream textured paper. Visible pencil strokes with varying pressure, soft shading on ridges and tree masses, darker edges where shadows fall in valleys and under canopies, subtle smudges and eraser marks, the unfinished spontaneous feel of a naturalist's field sketch. No color — only graphite tones on off-white paper. Keep the exact same composition.",
   },
   crosshatch: {
     label: 'Ink Crosshatch',
@@ -223,6 +250,8 @@ const AI_PRESETS = {
     label: 'Charcoal',
     prompt:
       'Transform this into an expressive charcoal drawing on off-white paper. Bold smudgy charcoal strokes, rich velvety blacks in the shadows, soft rubbed-in grey mid-tones, white highlights where the paper shows through, dramatic chiaroscuro. The energetic loose quality of a life drawing. No color — charcoal tones only. Keep the exact same composition and buildings.',
+    naturePrompt:
+      'Transform this into an expressive charcoal landscape drawing on off-white paper, in the tradition of 19th-century landscape studies. Bold smudgy charcoal strokes across tree masses and rocky terrain, rich velvety blacks in valleys and under canopies, soft rubbed-in grey mid-tones on slopes, white highlights where the paper shows through. The energetic loose quality of a plein-air study. No color — charcoal tones only. Keep the exact same composition.',
   },
   architect: {
     label: 'Architect Marker',
@@ -233,11 +262,15 @@ const AI_PRESETS = {
     label: 'Travel Journal',
     prompt:
       'Transform this into a loose urban sketcher travel journal page in the style of Danny Gregory or Felix Scheinberger. Quick confident ink lines with imperfect hand-drawn perspective, watercolor washes dropped on top with soft color bleeds spilling beyond the lines, visible cream paper texture, unpainted areas of white paper, warm earth tones and pale sky blue, the spontaneous look of an in-situ sketch done on location. No text or captions. Keep the same composition and buildings recognizable.',
+    naturePrompt:
+      'Transform this into a loose travel-journal landscape page in the spirit of a mountain-trek field book. Quick confident ink lines tracing ridges, treelines, and water edges, watercolor washes dropped on top with soft color bleeds, visible cream paper texture, unpainted areas of white paper, warm earth tones and pale sky blue, the spontaneous look of an in-situ sketch done on location. No text or captions. Keep the same composition recognizable.',
   },
   woodblock: {
     label: 'Ukiyo-e Print',
     prompt:
       'Transform this into a traditional Japanese ukiyo-e woodblock print in the style of Hokusai or Hiroshige. Bold black outlines with flat areas of muted color — prussian blue, soft vermilion, cream, pale green, mustard — using the characteristic flattened perspective and graphic simplification of architectural forms. Slight visible registration offsets between color blocks, subtle wood-grain texture in the flat color fields. No text. Keep the same composition and buildings recognizable.',
+    naturePrompt:
+      'Transform this into a traditional Japanese ukiyo-e landscape woodblock print in the style of Hokusai\'s 36 Views of Mount Fuji or Hiroshige\'s 53 Stations of the Tōkaidō. Bold black outlines with flat areas of muted color — prussian blue, soft vermilion, cream, pale green, mustard — using the characteristic flattened perspective and graphic simplification of mountains, valleys, water, and tree masses. Slight visible registration offsets between color blocks, subtle wood-grain texture. No text. Keep the same composition recognizable.',
   },
 }
 
@@ -382,6 +415,8 @@ export default function useQueue() {
   const aiPreset = useAtomValue(aiPresetAtom)
   const aiKey = useAtomValue(aiApiKeyAtom)
   const aiCleanArtifacts = useAtomValue(aiCleanArtifactsAtom)
+  const aiModifiers = useAtomValue(aiModifiersAtom)
+  const locationContext = useAtomValue(locationContextAtom)
   const resolution = useAtomValue(exportResolutionAtom)
   const savedViews = useAtomValue(savedViewsAtom)
   const dof = useAtomValue(dofAtom)
@@ -409,6 +444,8 @@ export default function useQueue() {
       aiPreset,
       aiKey,
       aiCleanArtifacts,
+      aiModifiers,
+      locationContext,
       resolution: clampedResolution,
       savedViews,
       dof,
@@ -420,6 +457,8 @@ export default function useQueue() {
     aiPreset,
     aiKey,
     aiCleanArtifacts,
+    aiModifiers,
+    locationContext,
     clampedResolution,
     savedViews,
     dof,
@@ -638,12 +677,26 @@ export default function useQueue() {
       // happily sharpened the blurred regions. dofPromptSuffix is
       // module-scoped + exported so the regression test pins the gate.
       out += dofPromptSuffix(settingsRef.current.dof?.aperture)
+      // Modifier prompts — composites first (gather implies), then
+      // atoms filtered by the implied set. See src/data/promptModifiers.js
+      // for the registry + composition rules.
+      out = appendModifierPrompts(out, settingsRef.current.aiModifiers)
       return out
     }
 
     function promptFor(presetKey, fallback) {
       const p = AI_PRESETS[presetKey]
-      if (p) return appendEffectPrompts(p.prompt)
+      if (p) {
+        // Pick the nature variant when (a) the classifier flagged the
+        // current camera target as nature AND (b) the preset ships a
+        // naturePrompt. 'mixed' keeps the urban variant — cityscape
+        // prompts read fine over Central Park / Hyde Park. Inherently
+        // urban presets (Cyberpunk, Night, Blueprint, Architect) don't
+        // ship naturePrompts so they always get their default text.
+        const ctx = settingsRef.current.locationContext
+        const base = (ctx === 'nature' && p.naturePrompt) ? p.naturePrompt : p.prompt
+        return appendEffectPrompts(base)
+      }
       return appendEffectPrompts(
         fallback ||
           // Mirrors AI_PRESETS.realistic — composition-anchored

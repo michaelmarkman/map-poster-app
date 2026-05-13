@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
+  aiModifiersAtom,
   aiPromptAtom,
   exportResolutionAtom,
+  locationContextAtom,
   queueAtom,
 } from '../../editor/atoms/sidebar'
 import { galleryEntriesAtom } from '../../editor/atoms/gallery'
 import { modalsAtom } from '../../editor/atoms/modals'
+import {
+  PROMPT_MODIFIERS,
+  applyModifierToggle,
+  impliedAtomKeys,
+} from '../../../data/promptModifiers'
 
 // Phase 18 — Capture menu refined to match the prototype's
 // `.menu-capture` recipe pixel-for-pixel:
@@ -119,6 +126,12 @@ export default function CaptureMenu({ onClose }) {
   const [aiPrompt, setAiPrompt] = useAtom(aiPromptAtom)
   const setModals = useSetAtom(modalsAtom)
   const queue = useAtomValue(queueAtom)
+  const [aiModifiers, setAiModifiers] = useAtom(aiModifiersAtom)
+  const locationContext = useAtomValue(locationContextAtom)
+  const impliedKeys = impliedAtomKeys(aiModifiers)
+  const toggleMod = (key) => {
+    setAiModifiers((prev) => applyModifierToggle(prev, key))
+  }
 
   // Phase swap — 'picker' (style + resolution) or 'queue' (in-progress
   // + recent renders). Every open of the Capture pill starts on the
@@ -263,6 +276,30 @@ export default function CaptureMenu({ onClose }) {
           </button>
         ))}
       </div>
+
+      {/* Modifier chip strip — composites first ("Themes") then atoms
+       *  ("Add things"). Each chip's `appliesTo` is matched against the
+       *  detected `locationContext`; non-matching chips are dimmed but
+       *  still clickable so the user can override the detector.
+       *  An atom that's `implied` by an active composite renders in an
+       *  outline-only state (chartreuse border, no fill) — its prompt
+       *  is already covered by the composite. */}
+      <ModifierSection
+        title="Themes"
+        kind="composite"
+        active={aiModifiers}
+        impliedKeys={impliedKeys}
+        context={locationContext}
+        onToggle={toggleMod}
+      />
+      <ModifierSection
+        title="Add things"
+        kind="atom"
+        active={aiModifiers}
+        impliedKeys={impliedKeys}
+        context={locationContext}
+        onToggle={toggleMod}
+      />
 
       <div className="mock-menu-section-label">
         <span>Style</span>
@@ -417,6 +454,65 @@ export default function CaptureMenu({ onClose }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Modifier chip strip ───────────────────────────────────────────
+// Renders one section (composite or atom). Each chip = one modifier
+// in PROMPT_MODIFIERS, filtered by `kind`. Visual states:
+//   - .is-active        — modifier is in aiModifiers (chartreuse fill)
+//   - .is-implied       — atom covered by an active composite
+//                          (chartreuse OUTLINE only, no fill — clicking
+//                           still toggles, just visually distinct)
+//   - .is-inapplicable  — modifier's appliesTo doesn't match the
+//                          detected locationContext (dimmed; still
+//                          clickable so the user can override)
+function ModifierSection({ title, kind, active, impliedKeys, context, onToggle }) {
+  const mods = PROMPT_MODIFIERS.filter((m) => m.kind === kind)
+  if (mods.length === 0) return null
+  return (
+    <>
+      <div className="mock-menu-section-label">
+        <span>{title}</span>
+        {/* Context badge — only the FIRST section renders it so we don't
+         *  duplicate the chip on both Themes + Add things. */}
+        {kind === 'composite' && context && (
+          <span
+            className="mock-menu-modifier-context"
+            title="Auto-detected from the camera location"
+          >
+            {context}
+          </span>
+        )}
+      </div>
+      <div className="mock-menu-capture-mods" role="group" aria-label={title}>
+        {mods.map((m) => {
+          const isActive = active.has(m.key)
+          const isImplied = m.kind === 'atom' && impliedKeys.has(m.key) && !isActive
+          const isInapplicable = context && m.appliesTo !== 'all' && m.appliesTo !== context
+          const cls = [
+            'mock-menu-capture-mod',
+            isActive && 'is-active',
+            isImplied && 'is-implied',
+            isInapplicable && !isActive && !isImplied && 'is-inapplicable',
+          ].filter(Boolean).join(' ')
+          return (
+            <button
+              key={m.key}
+              type="button"
+              className={cls}
+              onClick={() => onToggle(m.key)}
+              aria-pressed={isActive}
+              title={m.appliesTo === 'all'
+                ? m.label
+                : `${m.label} — best for ${m.appliesTo}`}
+            >
+              {m.label}
+            </button>
+          )
+        })}
+      </div>
+    </>
   )
 }
 

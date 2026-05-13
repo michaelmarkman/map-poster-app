@@ -68,3 +68,22 @@ export const savedViewsAtom = atom([])
 // Queue entries — {id, status, resolution, startedAt, preset, result?}.
 // Driven by useQueue hook; sidebar just displays count + empty state.
 export const queueAtom = atom([])
+
+// Active prompt modifiers — a Set<string> of modifier keys from the
+// PROMPT_MODIFIERS registry in src/data/promptModifiers.js. Multiple
+// can be active simultaneously (atoms freely combine; composites are
+// mutex within `group`). useQueue's appendEffectPrompts walks this
+// set on every render dispatch to layer the corresponding prompt
+// fragments onto the base preset.
+//
+// Stored as a Set (not array) so .has() lookups in the chip click
+// handler + the prompt composer are O(1).
+export const aiModifiersAtom = atom(new Set())
+
+// Detected location context for the current camera target:
+//   'urban'  | 'nature' | 'mixed' | null (not yet detected / fallback)
+// Populated by useLocationContextSync on `location-changed` events.
+// Used by useQueue to pick the nature-variant prompt when set to
+// 'nature' AND the preset ships a `naturePrompt`. CaptureMenu reads
+// this to dim modifier chips whose `appliesTo` doesn't match.
+export const locationContextAtom = atom(null)

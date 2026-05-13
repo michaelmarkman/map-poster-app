@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import {
+  __resetGeocodeCachesForTest,
   geocodeSearch,
   newSessionToken,
   resolvePlace,
@@ -11,6 +12,9 @@ const ORIG_FETCH = global.fetch
 
 beforeEach(() => {
   global.fetch = vi.fn()
+  // Reset the search + reverse-geocode caches so tests that reuse
+  // identical coords / queries don't share state.
+  __resetGeocodeCachesForTest()
 })
 afterEach(() => {
   global.fetch = ORIG_FETCH

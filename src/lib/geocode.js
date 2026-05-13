@@ -324,34 +324,87 @@ export async function reverseGeocodeName(lat, lng) {
   } catch {
     // network blip; fall through
   }
+  // reverseGeocodeRaw caches + handles the network — reuse it so the
+  // Nominatim hit isn't fired twice when both naming and location
+  // classification run together (saved-view auto-name flow).
+  const raw = await reverseGeocodeRaw(lat, lng)
+  if (!raw) return null
+  const a = raw.address || {}
+  // Prefer most-specific to least. amenity catches landmarks
+  // (Brooklyn Bridge, Empire State Building); road catches a street
+  // name when there's no named neighbourhood. suburb/city_district/
+  // city are the broad fallbacks that produce the duplication
+  // problem — they're last in the chain on purpose.
+  return (
+    a.amenity || a.building || a.tourism || a.shop ||
+    a.neighbourhood || a.quarter ||
+    a.road ||
+    a.suburb || a.city_district ||
+    a.town || a.village || a.hamlet || a.city ||
+    (typeof raw.display_name === 'string' ? raw.display_name.split(',')[0].trim() : null) ||
+    null
+  )
+}
+
+// Per-session in-memory cache of full Nominatim reverse responses.
+// Lat/lng rounded to a ~250m grid so small camera moves don't re-fire.
+// Same LRU-by-insertion-order pattern as the searchCache above.
+const REVERSE_CACHE_LIMIT = 64
+const reverseCache = new Map()
+function reverseCacheKey(lat, lng) {
+  // 0.0025° lat ≈ 278m; lng grid is wider near the poles but the
+  // editor's typical use is mid-latitude so this is fine.
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`
+}
+
+// Test-only: drop both caches so consecutive tests don't share state.
+// Cheap to call (Map.clear is O(1) amortized) and ignored in prod
+// since nothing in /app calls it.
+export function __resetGeocodeCachesForTest() {
+  searchCache.clear()
+  reverseCache.clear()
+}
+
+// Return the full Nominatim reverse-geocode response (or null on miss).
+// Used by:
+//   - reverseGeocodeName() — picks a single display label from address tags
+//   - locationContext.classifyLocation() — reads category/type/address
+//     to decide urban-vs-nature
+// Tries the /api/places proxy first (Google Geocoding), falls back to
+// Nominatim. Nominatim's response shape is the documented one:
+//   { place_id, lat, lon, category, type, addresstype, display_name,
+//     address: { ... }, ... }
+// The Google proxy returns a normalized subset (displayName, placeId,
+// formattedAddress) so the classifier can only run when Nominatim
+// answers — which is fine since Nominatim is the typical fallback.
+export async function reverseGeocodeRaw(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  const key = reverseCacheKey(lat, lng)
+  if (reverseCache.has(key)) {
+    const v = reverseCache.get(key)
+    reverseCache.delete(key)
+    reverseCache.set(key, v)
+    return v
+  }
   try {
-    // zoom=18 gives building-level OSM tags. At the old zoom=14 the
-    // entire island of Manhattan came back with the same suburb=
-    // 'Manhattan' tag for every saved view, so dozens of views all
-    // ended up named the same thing. Higher zoom surfaces neighbourhood
-    // (SoHo, Midtown), road (5th Avenue), and amenity tags.
+    // zoom=18 gives building-level OSM tags. Same as the name path.
     const r = await fetchWithTimeout(
       `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
       { headers: { 'User-Agent': USER_AGENT } },
     )
-    if (!r.ok) return null
+    if (!r.ok) {
+      reverseCache.set(key, null)
+      return null
+    }
     const data = await r.json()
-    const a = data?.address || {}
-    // Prefer most-specific to least. amenity catches landmarks
-    // (Brooklyn Bridge, Empire State Building); road catches a street
-    // name when there's no named neighbourhood. suburb/city_district/
-    // city are the broad fallbacks that produce the duplication
-    // problem — they're last in the chain on purpose.
-    return (
-      a.amenity || a.building || a.tourism || a.shop ||
-      a.neighbourhood || a.quarter ||
-      a.road ||
-      a.suburb || a.city_district ||
-      a.town || a.village || a.hamlet || a.city ||
-      (typeof data?.display_name === 'string' ? data.display_name.split(',')[0].trim() : null) ||
-      null
-    )
+    if (reverseCache.size >= REVERSE_CACHE_LIMIT) {
+      const oldest = reverseCache.keys().next().value
+      if (oldest) reverseCache.delete(oldest)
+    }
+    reverseCache.set(key, data)
+    return data
   } catch {
     return null
   }
 }
+

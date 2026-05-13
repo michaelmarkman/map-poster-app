@@ -1654,6 +1654,7 @@ body.mock-mounted .mock-cluster--bottom-right {
 .mock-menu-capture > .mock-menu-capture-seg,
 .mock-menu-capture > .mock-menu-section-label,
 .mock-menu-capture > .mock-menu-capture-cats,
+.mock-menu-capture > .mock-menu-capture-mods,
 .mock-menu-capture > .mock-menu-capture-prompt,
 .mock-menu-capture > .mock-menu-capture-foot { flex-shrink: 0; }
 .mock-menu-capture-head {
@@ -1786,6 +1787,71 @@ body.mock-mounted .mock-cluster--bottom-right {
   min-height: 0;
   overflow-y: auto;
   align-content: start;
+}
+
+/* Modifier chip strip — wraps below the section label. Same visual
+ * family as .mock-menu-capture-cat (26px tall, 999px radius, mono
+ * 9px uppercase), but allowed to wrap into multiple rows since
+ * there are 5 composites + 8 atoms. */
+.mock-menu-capture-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.mock-menu-capture-mod {
+  height: 26px;
+  padding: 0 11px;
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(250, 250, 250, 0.08);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.mock-menu-capture-mod:hover:not(.is-inapplicable) {
+  background: rgba(155, 229, 127, 0.08);
+  border-color: rgba(155, 229, 127, 0.30);
+  color: var(--ink);
+}
+/* Active — chartreuse fill, same vocabulary as is-active categories. */
+.mock-menu-capture-mod.is-active {
+  background: rgba(155, 229, 127, 0.16);
+  border-color: rgba(155, 229, 127, 0.55);
+  color: var(--accent);
+}
+/* Implied — atom covered by an active composite. Outline only, no fill,
+ * so the user sees "this is included" without confusion about whether
+ * the atomic prompt would fire twice. */
+.mock-menu-capture-mod.is-implied {
+  background: transparent;
+  border-color: rgba(155, 229, 127, 0.45);
+  color: var(--accent);
+  border-style: dashed;
+}
+/* Inapplicable — modifier's appliesTo doesn't match the detected
+ * locationContext. Dimmed but still clickable; the user can override. */
+.mock-menu-capture-mod.is-inapplicable {
+  opacity: 0.4;
+}
+.mock-menu-capture-mod.is-inapplicable:hover {
+  opacity: 0.7;
+}
+
+/* Context badge next to the "Themes" section label — shows the
+ * detected locationContext (urban / nature / mixed) in chartreuse. */
+.mock-menu-modifier-context {
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 .mock-menu-capture-style {
   position: relative;

@@ -9,6 +9,7 @@ import PosterPreviewModal from '../editor/modals/PosterPreviewModal'
 import useSessionPersistence from '../editor/hooks/useSessionPersistence'
 import useSavedViews from '../editor/hooks/useSavedViews'
 import useQueue from '../editor/hooks/useQueue'
+import useLocationContextSync from '../editor/hooks/useLocationContextSync'
 import useMockKeyboardShortcuts from './hooks/useMockKeyboardShortcuts'
 import { aspectRatioAtom, fillModeAtom } from '../editor/atoms/ui'
 import ClusterTopLeft from './components/ClusterTopLeft'
@@ -111,6 +112,7 @@ export default function MockEditorShell() {
   // render is in flight.
   useSavedViews()
   useQueue()
+  useLocationContextSync()
   useAspectSync()
   useMockEscape()
   useMockKeyboardShortcuts()
