@@ -1685,24 +1685,15 @@ body.mock-mounted .mock-cluster--bottom-right {
  * (was 8px) so 'Resolution' and 'Style' breathe off the segment /
  * category rows below them. */
 .mock-menu-capture .mock-menu-section-label {
-  /* Was 14px top — felt too tight between the Resolution segment and
-   * the Themes label below it. 22px reads as a clear section break. */
-  padding: 22px 0 14px;
+  /* The vertical gap above each section label is owned by the
+   * PREVIOUS element's margin-bottom (e.g., .mock-menu-capture-seg has
+   * margin-bottom: 22px). That keeps the spacing robust whether the
+   * label is a <div> (Resolution / Style) or a <button> via the
+   * ModifierSection toggle (Themes / Add things). */
+  padding: 0 0 14px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-}
-/* The label IMMEDIATELY after the head — i.e., 'Resolution' — sits
- * close to the head already (head has margin-bottom + a bottom
- * hairline border). Zero its top padding so head→Resolution stays
- * tight; the 22px rule above governs the spacing between subsequent
- * sections (Themes, Add things, Style).
- *
- * Don't use :first-of-type — it matches by tag type, and the Themes
- * label is a <button> while Resolution is a <div>, so :first-of-type
- * picks Themes (first button) instead of Resolution (second div). */
-.mock-menu-capture .mock-menu-capture-head + .mock-menu-section-label {
-  padding-top: 0;
 }
 .mock-menu-count {
   font: 400 var(--moma-label-size) / 1 var(--mono);
@@ -1711,11 +1702,19 @@ body.mock-mounted .mock-cluster--bottom-right {
   color: var(--accent);
 }
 
-/* Resolution segment — 4 button grid, 32px tall. */
+/* Resolution segment — 4 button grid, 32px tall. The margin-bottom
+ * is the load-bearing spacer between the resolution row and the
+ * Themes label below it; relying on the next section-label's
+ * padding-top alone failed because section labels are heterogeneous
+ * here (Resolution is a <div>, Themes is a <button> via the
+ * ModifierSection toggle) and CSS resets between the two were
+ * tangled. Setting margin on the SEGMENT instead anchors the gap
+ * regardless of what element follows. */
 .mock-menu-capture-seg {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
+  margin-bottom: 22px;
 }
 .mock-menu-capture-seg-btn {
   height: 32px;
@@ -1808,7 +1807,10 @@ body.mock-mounted .mock-cluster--bottom-right {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 12px;
+  /* Matches .mock-menu-capture-seg margin-bottom so the rhythm
+   * between section blocks (Themes → Add things → Style) reads
+   * the same whether or not the chips are expanded. */
+  margin-bottom: 22px;
 }
 .mock-menu-capture-mod {
   height: 26px;
