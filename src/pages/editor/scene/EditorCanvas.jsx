@@ -4,10 +4,21 @@ import Scene from './Scene'
 import Controls from './Controls'
 import { IS_MOBILE } from '../atoms/scene'
 
-// dpr: desktop runs the full 2x pixel pipeline; mobile caps at ~1.5×
-// device pixel ratio (so a 3× phone renders at 1.5×, halving fragment
-// work — the single biggest perf win on a thermal-throttled device).
-const CANVAS_DPR = IS_MOBILE ? Math.min(1.5, window.devicePixelRatio || 1) : 2
+// dpr: desktop runs the full 2x pixel pipeline. Mobile renders at 1×
+// device pixel ratio and lets CSS scale up — on a 3× iPhone screen
+// that's a 9× reduction in fragment work compared to native 3×, which
+// is the single biggest perf lever for thermal-constrained devices.
+// The visible blur from CSS upscaling is comparable to (and softer
+// than) the artifacts we'd see from running the full pipeline at 3×
+// and hitting the watchdog.
+const CANVAS_DPR = IS_MOBILE ? 1 : 2
+
+// MSAA in the WebGL context is wasted on mobile: the postprocessing
+// pipeline writes to render targets, so the default-framebuffer AA
+// only ever helps the final blit. Disabling it saves the multisample
+// resolve cost on every frame.
+const GL_BASE = { depth: false, preserveDrawingBuffer: true, toneMapping: NoToneMapping }
+const GL_PROPS = IS_MOBILE ? { ...GL_BASE, antialias: false, powerPreference: 'low-power' } : GL_BASE
 
 export default function EditorCanvas() {
   return (
@@ -29,7 +40,7 @@ export default function EditorCanvas() {
       // "washed-out" look. Disable renderer tone mapping so AGX in the
       // composer is the sole operator. Exposure (EXPOSURE=10) still feeds
       // AGX via `renderer.toneMappingExposure`.
-      gl={{ depth: false, preserveDrawingBuffer: true, toneMapping: NoToneMapping }}
+      gl={GL_PROPS}
       style={{ width: '100%', height: '100%' }}
     >
       <Scene />

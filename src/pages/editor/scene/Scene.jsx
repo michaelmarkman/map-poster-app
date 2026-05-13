@@ -32,6 +32,7 @@ import {
 } from '../atoms/scene'
 
 import Globe from './Globe'
+import MobileSky from './MobileSky'
 import PostProcessing from './PostProcessing'
 import SavedViewMarkers from './SavedViewMarkers'
 import { sceneRef, useSceneRefSync } from './stateRef'
@@ -597,6 +598,34 @@ export default function Scene() {
     syncCameraToUI(camera, setCameraReadout)
   })
 
+  // On mobile we replace the @takram volumetric stack entirely:
+  //   - No <Atmosphere> (its sky raymarching + setup cost is too high)
+  //   - No <Clouds> (volumetric cloud shader is the single biggest cost
+  //     and the most common cause of mobile context-lost crashes)
+  //   - No <AerialPerspective> (depends on Atmosphere; sky + sunLight +
+  //     skyLight all gone)
+  //   - <MobileSky> renders a cheap gradient dome around the camera
+  //   - PostProcessing still runs (CustomDof, Dithering, ToneMapping)
+  // Google 3D Tiles imagery is pre-textured, so terrain still reads
+  // even without scene lights.
+  if (IS_MOBILE) {
+    return (
+      <>
+        <Globe>
+          <GlobeControls enableDamping adjustHeight={false} maxAltitude={Math.PI * 0.55} />
+        </Globe>
+        <MobileSky />
+        <ClickToFocus />
+        <SubjectListener />
+        <SavedViewMarkers />
+
+        <PostProcessing composerRef={composerRef} dofRef={dofRef}>
+          <Dithering />
+        </PostProcessing>
+      </>
+    )
+  }
+
   return (
     <Atmosphere ref={atmosphereRef} correctAltitude>
       <Globe>
@@ -615,7 +644,7 @@ export default function Scene() {
           localWeatherVelocity={[0.001, 0]}
         />
         <AerialPerspective ref={aerialRef} sky sunLight skyLight correctGeometricError albedoScale={2 / Math.PI} />
-        {!IS_MOBILE && <LensFlare />}
+        <LensFlare />
         <Dithering />
       </PostProcessing>
     </Atmosphere>

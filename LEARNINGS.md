@@ -449,3 +449,36 @@ file is the raw log — CLAUDE.md is the curated summary.
   neutralize its effect via uniform/texture data instead. `Object.assign`
   won't copy accessor properties from a prototype — use a Proxy when
   the forwarded object uses classes.
+
+## 2026-05-13 — Mobile compat: bypassed Atmosphere/Clouds/AerialPerspective entirely, swapped in a gradient sky dome
+
+- Before: even at IS_MOBILE we were mounting `<Atmosphere>`, `<Clouds>`,
+  and `<AerialPerspective>` and just dialing knobs (coverage 0.18,
+  shadows off, qualityPreset still "high"). The volumetric cloud shader
+  + atmosphere raymarching together push the GPU past the iOS
+  watchdog on anything older than an A15.
+- Fix (Scene.jsx around line 600): early-return a separate JSX tree on
+  mobile. No Atmosphere context, no Clouds, no AerialPerspective, no
+  LensFlare. Replace with `<MobileSky>` (a back-side sphere with a
+  ~30-line GLSL gradient driven by `uTime`), positioned at the camera
+  every frame and rotated so its local +Y matches `camera.up`. Google
+  3D Tiles' baked imagery still reads fine without sunLight/skyLight
+  because the textures already contain the lighting.
+- Side notes:
+  - Mobile DPR dropped from `min(1.5, dpr)` to `1` — biggest single
+    GPU win on a 3× phone. CSS upscaling is softer than the watchdog
+    crashes from running native 3×.
+  - DoF mobile kernel reduced from 37 samples (3 rings) to 13 samples
+    (2 rings, wider radial spacing). Per-pixel angle hash + AGX
+    softening keep banding invisible at the radii a phone runs.
+  - Mobile `gl.antialias = false` saves the multisample-resolve cost
+    every frame; postprocessing handles the perceived softness.
+  - Added `localStorage.forceMobile='1'` override in `src/lib/isMobile.js`
+    so the mobile path can be exercised from desktop DevTools without
+    needing real touch hardware.
+- General rule: when a third-party volumetric stack drags you past a
+  thermal budget on lower-tier hardware, swap the whole stack — don't
+  try to dial it down. Atmosphere/Clouds/AerialPerspective are tightly
+  coupled (Aerial reads Atmosphere context, Clouds writes shadow into
+  Aerial), so a "lower-quality" version is rarely cheap enough. A
+  hand-written cheap replacement at the same insertion point is.
