@@ -3633,30 +3633,57 @@ body.mock-mounted #poster-preview .pp-scene {
 
   /* ───────── Top / bottom strips ─────────
    * Single horizontal scrolling row each, pinned to the viewport edges.
-   * `pointer-events: none` on the strip itself + `auto` on the children
-   * lets canvas drags pass through the gradient backdrop while still
-   * hitting the pills. */
+   *
+   * The strip needs `pointer-events: auto` — it MUST receive touch
+   * events so the user can pan horizontally to reveal pills past the
+   * right edge. An earlier `pointer-events: none` (intended to let
+   * canvas drags pass through the gradient backdrop) killed touch
+   * scrolling outright, leaving the bottom row's Time/Clouds and the
+   * top row's Gallery permanently clipped off-screen on a 390px
+   * iPhone. Cost: the gradient-shaded strip area is now mobile
+   * chrome and doesn't pass canvas drags through. Acceptable trade
+   * for keeping every pill reachable. */
   .mock-top-strip,
   .mock-bottom-strip {
     display: flex;
     position: fixed;
     left: 0;
     right: 0;
+    max-width: 100vw;
     z-index: 60;
     flex-direction: row;
     align-items: center;
     gap: 6px;
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    pointer-events: none;
+    /* Allow horizontal pan / disallow vertical so a downward swipe
+     * doesn't trigger pull-to-refresh on iOS Safari. */
+    touch-action: pan-x;
   }
   .mock-top-strip::-webkit-scrollbar,
   .mock-bottom-strip::-webkit-scrollbar { display: none; }
+  /* Direct cluster children and any pill/popover-wrap inside them
+   * must not flex-shrink — otherwise they squish to fit the strip
+   * width instead of overflowing it (which is what enables
+   * horizontal scroll to reveal the off-screen pills). */
   .mock-top-strip > *,
-  .mock-bottom-strip > * { pointer-events: auto; }
+  .mock-bottom-strip > *,
+  .mock-top-strip .mock-cluster > *,
+  .mock-bottom-strip .mock-cluster > * {
+    flex: 0 0 auto;
+  }
+
+  /* The drag-pill tooltip (Lens/DoF/Time/Clouds scrub readout) is
+   * positioned ABOVE the pill via absolute + bottom: calc(100% + …).
+   * With overflow-y: hidden on the strip it would be clipped during a
+   * drag-scrub. The scrub value is already mirrored inside the pill
+   * (.mock-pill-scrub-value), so the tooltip is redundant on mobile —
+   * just hide it. */
+  .mock-bottom-strip .mock-pill-tooltip,
+  .mock-top-strip .mock-pill-tooltip { display: none; }
 
   .mock-top-strip {
     top: 0;
