@@ -535,10 +535,17 @@ export default function useQueue() {
           : snapshotUrl
         if (!isJobLive(job.id)) return
         downloadDataUrl(finalUrl, fname)
+        // Non-AI (raw export) entry. rawSnapshot is identical to the
+        // final image so the Lightbox toolbar hides Raw/Compare (no
+        // diff to surface). prompt + modifiers null since there's no
+        // AI recipe to preserve.
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
+          rawSnapshot: job.snapshot,
+          prompt: null,
+          modifiers: null,
         })
         updateJob(job.id, {
           status: 'done',
@@ -575,10 +582,18 @@ export default function useQueue() {
           : aiResult
         if (!isJobLive(job.id)) return
         downloadDataUrl(finalUrl, fname)
+        // AI render entry. rawSnapshot = pre-AI photogrammetry frame so
+        // the Lightbox can offer the Raw / Compare toolbar. prompt is
+        // the full composed prompt that went to Gemini (including
+        // effect prompts + modifier prompts). modifiers is the active
+        // modifier key list captured at queue-time.
         dispatchGalleryAdd(job.label, fname, finalUrl, {
           batchId: job.batchId,
           batchLabel: job.batchLabel,
           view: job.view,
+          rawSnapshot: job.snapshot,
+          prompt: job.prompt || null,
+          modifiers: job.modifiers || [],
         })
         updateJob(job.id, {
           status: 'done',
@@ -769,11 +784,17 @@ export default function useQueue() {
       const view = await captureCurrentView()
 
       const presetKey = overridePreset !== undefined ? overridePreset : s.aiPreset
+      // Snapshot the active modifier set into the job at queue-time so
+      // it survives until the gallery-add dispatch even if the user
+      // toggles modifiers while the job is in flight. Array form (not
+      // Set) so it persists cleanly through IDB later.
+      const activeModifiers = Array.from(s.aiModifiers || [])
       const baseJob = {
         resolution: s.resolution,
         location,
         apiKey: s.aiKey,
         view,
+        modifiers: activeModifiers,
         // Propagate batch info from the dispatcher (Render sheet sends
         // these when the user picks multiple styles at once so they
         // group as a single batch in the queue list).
@@ -850,6 +871,10 @@ export default function useQueue() {
       if (!rawSnapshot) return
       const location = (settingsRef.current.textFields?.title || '')
       const view = await captureCurrentView()
+      // Snapshot the active modifier set ONCE per batch so every job in
+      // the batch carries the same recipe — even if the user toggles
+      // chips while the batch is mid-flight.
+      const activeModifiers = Array.from(s.aiModifiers || [])
 
       for (const presetKey of presetKeys) {
         const baseJob = {
@@ -857,6 +882,7 @@ export default function useQueue() {
           location,
           apiKey: s.aiKey,
           view,
+          modifiers: activeModifiers,
           batchId,
           batchLabel,
         }

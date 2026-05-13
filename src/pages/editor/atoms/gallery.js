@@ -3,7 +3,12 @@ import { atom } from 'jotai'
 // Loaded gallery entries, oldest-first (matches what the prototype's in-memory
 // `gallery` array looked like after loadGalleryDB hydration — see
 // prototypes/poster-v3-ui.jsx:2060-2079). Each entry:
-//   { id, label, filename, dataUrl, time (Date), batchId, batchLabel, view }
+//   { id, label, filename, dataUrl, time (Date),
+//     batchId, batchLabel, view, isPublic,
+//     rawSnapshot, prompt, modifiers }
+// rawSnapshot/prompt/modifiers are null on legacy entries + non-AI raw
+// exports. Lightbox's Raw / Compare toolbar + prompt panel gate on
+// whether they're populated.
 // Owned by useGalleryData — other consumers read-only.
 export const galleryEntriesAtom = atom([])
 

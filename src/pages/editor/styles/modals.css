@@ -762,6 +762,199 @@
     height: 11px;
   }
 
+  /* ═══════ Lightbox — Render / Raw / Compare toolbar ═══════ */
+  /* Sits centered above the image stage. Only renders when the entry
+   * carries a distinct pre-AI snapshot (gated in Lightbox.jsx). */
+  .lb-toolbar {
+    position: absolute;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    display: inline-flex;
+    gap: 1px;
+    padding: 3px;
+    background: rgba(8, 10, 12, 0.78);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(250, 250, 250, 0.08);
+    border-radius: 999px;
+  }
+  /* Position the toolbar relative to the image column, NOT the full
+   * viewport — same column as the nav arrows + image. */
+  #lightbox { /* augment existing rule */ }
+  @media (max-width: 720px) {
+    .lb-toolbar { top: 12px; }
+  }
+  .lb-toolbar-btn {
+    height: 26px;
+    min-width: 64px;
+    padding: 0 14px;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .lb-toolbar-btn:hover { color: var(--ink); }
+  .lb-toolbar-btn.is-active {
+    background: rgba(155, 229, 127, 0.16);
+    color: var(--accent);
+  }
+
+  /* ═══════ Lightbox — Compare slider ═══════ */
+  /* Container takes the same place as #lb-img in the grid. Two images
+   * stacked at identical size; the top one is clip-path'd to reveal
+   * the bottom on one side of the divider. */
+  .lb-compare {
+    grid-column: 1;
+    grid-row: 1;
+    place-self: center;
+    position: relative;
+    display: inline-block;
+    max-width: calc(100vw - 320px - 120px);
+    max-height: 84vh;
+    border-radius: 4px;
+    border: 3px solid #fff;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+    touch-action: none;
+    user-select: none;
+  }
+  @media (max-width: 720px) {
+    .lb-compare {
+      max-width: 92vw;
+      max-height: 72vh;
+    }
+  }
+  .lb-compare img {
+    display: block;
+    max-width: 100%;
+    max-height: 84vh;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  /* Top layer absolutely positioned over the bottom layer so their
+   * pixels overlap perfectly. clip-path on the top makes the bottom
+   * (raw) show through on one side. */
+  .lb-compare-top {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* clip-path set inline based on pct + orientation */
+  }
+  .lb-compare-bottom {
+    display: block;
+    position: relative;
+  }
+  /* Divider line — 2px white, full height (vertical) or full width
+   * (horizontal). Position driven by inline `left` / `top`. */
+  .lb-compare-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;        /* center the 2px line on the position */
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+    cursor: ew-resize;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .lb-compare[data-orient='horizontal'] .lb-compare-handle {
+    left: 0;
+    right: 0;
+    top: var(--handle-y, 50%);
+    bottom: auto;
+    width: auto;
+    height: 2px;
+    margin-left: 0;
+    margin-top: -1px;
+    cursor: ns-resize;
+  }
+  /* Grip — circular pill at the center of the divider with two
+   * parallel bars hinting at the drag direction. */
+  .lb-compare-grip {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(8, 10, 12, 0.85);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+  .lb-compare-grip svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ═══════ Lightbox — Modifiers chips + Prompt panel ═══════ */
+  .lb-mods-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lb-mods-row-label,
+  .lb-prompt-row-label {
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .lb-mods-row-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .lb-mods-row-chip {
+    padding: 4px 9px;
+    background: rgba(155, 229, 127, 0.10);
+    border: 1px solid rgba(155, 229, 127, 0.30);
+    border-radius: 999px;
+    color: var(--accent);
+    font: 500 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .lb-prompt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lb-prompt-row-body {
+    font: 400 10px/1.5 'JetBrains Mono', monospace;
+    letter-spacing: 0.02em;
+    color: rgba(250, 250, 250, 0.75);
+    white-space: pre-wrap;
+  }
+  .lb-prompt-row-toggle {
+    align-self: flex-start;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    font: 400 9px/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .lb-prompt-row-toggle:hover { color: #c1f1a5; }
+
   /* ═══════ 3D POSTER PREVIEW ═══════ */
   /* Inset from the left so the sidebar stays visible + clickable */
   /* z-index must sit ABOVE the gallery modal (200) and the lightbox (300).

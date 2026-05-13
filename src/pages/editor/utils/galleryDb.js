@@ -101,7 +101,15 @@ function openGalleryDB() {
 }
 
 // Returns entries sorted oldest-first; callers that want newest-first should reverse.
-// Each entry: { id, label, filename, dataUrl, time (Date), batchId, batchLabel, view }
+// Each entry: { id, label, filename, dataUrl, time (Date), batchId, batchLabel,
+//               view, isPublic, rawSnapshot?, prompt?, modifiers? }
+//
+// `rawSnapshot` is the pre-AI photogrammetry frame (a data: URL). Lets the
+// lightbox show the underlying scene via the Raw / Compare toolbar modes.
+// `prompt` is the full composed prompt sent to Gemini for AI renders.
+// `modifiers` is the array of active modifier keys at dispatch time
+// (e.g. ['bustling', 'birds']). All three are null on legacy entries +
+// non-AI (raw export) entries — UI gracefully degrades.
 export async function loadGalleryEntries() {
   try {
     const db = await openGalleryDB()
@@ -131,6 +139,13 @@ export async function loadGalleryEntries() {
         // gallery_entries lands, this maps to is_public; today the flag
         // is local-only and just drives the community page filter.
         isPublic: !!r.isPublic,
+        // Lightbox Raw / Compare toolbar + prompt panel. Null on legacy
+        // entries (saved before this commit) + non-AI entries (raw
+        // exports). UI hides the toolbar / chips / prompt block when
+        // these are null.
+        rawSnapshot: r.rawSnapshot || null,
+        prompt: r.prompt || null,
+        modifiers: Array.isArray(r.modifiers) ? r.modifiers : null,
       }))
       .sort((a, b) => a.time - b.time)
   } catch (e) {
@@ -190,6 +205,11 @@ export async function saveGalleryEntry(item) {
       batchLabel: item.batchLabel || null,
       view: item.view || null,
       isPublic: !!item.isPublic,
+      // Lightbox prompt + Raw / Compare data — see loadGalleryEntries
+      // for shape notes. Null-safe for non-AI / legacy entries.
+      rawSnapshot: item.rawSnapshot || null,
+      prompt: item.prompt || null,
+      modifiers: Array.isArray(item.modifiers) ? item.modifiers : null,
     })
   } catch (e) {
     console.warn('[gallery] IndexedDB save failed:', e)
@@ -209,6 +229,14 @@ export function buildGalleryItem(label, filename, dataUrl, opts = {}) {
     batchId: opts.batchId || null,
     batchLabel: opts.batchLabel || null,
     view: opts.view || null,
+    // Lightbox toolbar + prompt panel data. AI renders carry all three;
+    // non-AI (raw export) entries carry rawSnapshot === dataUrl plus
+    // null prompt + null modifiers. Lightbox.jsx hides Raw/Compare
+    // when rawSnapshot is null OR rawSnapshot === dataUrl (no diff to
+    // show).
+    rawSnapshot: opts.rawSnapshot || null,
+    prompt: opts.prompt || null,
+    modifiers: Array.isArray(opts.modifiers) ? opts.modifiers : null,
   }
 }
 

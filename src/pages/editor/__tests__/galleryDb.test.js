@@ -41,6 +41,32 @@ describe('buildGalleryItem', () => {
     expect('baseImage' in item).toBe(false)
     expect('graphicsJSON' in item).toBe(false)
   })
+
+  it('stores rawSnapshot / prompt / modifiers when provided', () => {
+    const item = buildGalleryItem('label', 'fname', 'data:final', {
+      rawSnapshot: 'data:raw',
+      prompt: 'Re-render this aerial scene as a photoreal daylight cityscape.',
+      modifiers: ['bustling', 'birds'],
+    })
+    expect(item.rawSnapshot).toBe('data:raw')
+    expect(item.prompt).toContain('photoreal daylight')
+    expect(item.modifiers).toEqual(['bustling', 'birds'])
+  })
+
+  it('defaults rawSnapshot / prompt / modifiers to null', () => {
+    const item = buildGalleryItem('label', 'fname', 'data:final')
+    expect(item.rawSnapshot).toBe(null)
+    expect(item.prompt).toBe(null)
+    expect(item.modifiers).toBe(null)
+  })
+
+  it('rejects non-array modifiers (defaults to null)', () => {
+    // A malformed payload (e.g., legacy or hand-edited IDB row) should
+    // not propagate as a non-array — the Lightbox iterates via
+    // Array.isArray gates, but treat the source of truth defensively.
+    const item = buildGalleryItem('l', 'f', 'd', { modifiers: 'people,cars' })
+    expect(item.modifiers).toBe(null)
+  })
 })
 
 describe('buildGalleryEntries', () => {
