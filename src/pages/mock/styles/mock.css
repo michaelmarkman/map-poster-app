@@ -1853,6 +1853,51 @@ body.mock-mounted .mock-cluster--bottom-right {
   text-transform: uppercase;
   color: var(--accent);
 }
+
+/* Collapsible section header — reuses the .mock-menu-section-label
+ * recipe but is actually a button. The whole row is clickable so the
+ * user can hit anywhere from the title to the chevron. */
+.mock-menu-section-toggle {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  /* Override the .mock-menu-section-label padding only on the
+   * horizontal axis — we want the same vertical rhythm but a tiny
+   * negative gutter on the right so the chevron can sit at the edge
+   * without breaking flush-left alignment with the title. */
+}
+.mock-menu-section-toggle:hover {
+  color: var(--ink);
+}
+.mock-menu-section-toggle-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Chevron — fades up on row hover. Rotates 180° when the section is
+ * open so the user reads "down to expand" / "up to collapse". */
+.mock-menu-section-toggle-chev {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.18s ease;
+}
+.mock-menu-section-toggle-chev svg {
+  width: 100%;
+  height: 100%;
+}
+.mock-menu-section-toggle:hover .mock-menu-section-toggle-chev,
+.mock-menu-section-toggle:focus-visible .mock-menu-section-toggle-chev {
+  opacity: 1;
+}
+.mock-menu-section-toggle.is-open .mock-menu-section-toggle-chev {
+  transform: rotate(180deg);
+}
 .mock-menu-capture-style {
   position: relative;
   padding-top: 75%;

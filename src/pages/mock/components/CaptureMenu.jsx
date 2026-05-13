@@ -5,6 +5,8 @@ import {
   aiPromptAtom,
   exportResolutionAtom,
   locationContextAtom,
+  modifiersThemesOpenAtom,
+  modifiersThingsOpenAtom,
   queueAtom,
 } from '../../editor/atoms/sidebar'
 import { galleryEntriesAtom } from '../../editor/atoms/gallery'
@@ -128,6 +130,8 @@ export default function CaptureMenu({ onClose }) {
   const queue = useAtomValue(queueAtom)
   const [aiModifiers, setAiModifiers] = useAtom(aiModifiersAtom)
   const locationContext = useAtomValue(locationContextAtom)
+  const [themesOpen, setThemesOpen] = useAtom(modifiersThemesOpenAtom)
+  const [thingsOpen, setThingsOpen] = useAtom(modifiersThingsOpenAtom)
   const impliedKeys = impliedAtomKeys(aiModifiers)
   const toggleMod = (key) => {
     setAiModifiers((prev) => applyModifierToggle(prev, key))
@@ -291,6 +295,8 @@ export default function CaptureMenu({ onClose }) {
         impliedKeys={impliedKeys}
         context={locationContext}
         onToggle={toggleMod}
+        open={themesOpen}
+        setOpen={setThemesOpen}
       />
       <ModifierSection
         title="Add things"
@@ -299,6 +305,8 @@ export default function CaptureMenu({ onClose }) {
         impliedKeys={impliedKeys}
         context={locationContext}
         onToggle={toggleMod}
+        open={thingsOpen}
+        setOpen={setThingsOpen}
       />
 
       <div className="mock-menu-section-label">
@@ -467,51 +475,78 @@ export default function CaptureMenu({ onClose }) {
 //   - .is-inapplicable  — modifier's appliesTo doesn't match the
 //                          detected locationContext (dimmed; still
 //                          clickable so the user can override)
-function ModifierSection({ title, kind, active, impliedKeys, context, onToggle }) {
+function ModifierSection({ title, kind, active, impliedKeys, context, onToggle, open, setOpen }) {
   const mods = PROMPT_MODIFIERS.filter((m) => m.kind === kind)
   if (mods.length === 0) return null
+  const panelId = `mock-mods-${kind}`
   return (
     <>
-      <div className="mock-menu-section-label">
+      {/* Section header — entire row is the toggle button. The chevron
+       *  on the right is opacity 0 by default; it fades up on hover
+       *  via CSS so the row reads as a static label until the user
+       *  approaches it. aria-expanded + aria-controls wire the chips
+       *  panel to assistive tech. */}
+      <button
+        type="button"
+        className={`mock-menu-section-label mock-menu-section-toggle${open ? ' is-open' : ''}`}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={panelId}
+      >
         <span>{title}</span>
-        {/* Context badge — only the FIRST section renders it so we don't
-         *  duplicate the chip on both Themes + Add things. */}
-        {kind === 'composite' && context && (
-          <span
-            className="mock-menu-modifier-context"
-            title="Auto-detected from the camera location"
-          >
-            {context}
-          </span>
-        )}
-      </div>
-      <div className="mock-menu-capture-mods" role="group" aria-label={title}>
-        {mods.map((m) => {
-          const isActive = active.has(m.key)
-          const isImplied = m.kind === 'atom' && impliedKeys.has(m.key) && !isActive
-          const isInapplicable = context && m.appliesTo !== 'all' && m.appliesTo !== context
-          const cls = [
-            'mock-menu-capture-mod',
-            isActive && 'is-active',
-            isImplied && 'is-implied',
-            isInapplicable && !isActive && !isImplied && 'is-inapplicable',
-          ].filter(Boolean).join(' ')
-          return (
-            <button
-              key={m.key}
-              type="button"
-              className={cls}
-              onClick={() => onToggle(m.key)}
-              aria-pressed={isActive}
-              title={m.appliesTo === 'all'
-                ? m.label
-                : `${m.label} — best for ${m.appliesTo}`}
+        <span className="mock-menu-section-toggle-right">
+          {/* Context badge — only the FIRST section renders it so we don't
+           *  duplicate the chip on both Themes + Add things. */}
+          {kind === 'composite' && context && (
+            <span
+              className="mock-menu-modifier-context"
+              title="Auto-detected from the camera location"
             >
-              {m.label}
-            </button>
-          )
-        })}
-      </div>
+              {context}
+            </span>
+          )}
+          <span className="mock-menu-section-toggle-chev" aria-hidden="true">
+            <svg viewBox="0 0 10 10">
+              <path d="M2.5 4 5 6.5 7.5 4" fill="none" stroke="currentColor"
+                    strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </span>
+      </button>
+      {open && (
+        <div
+          className="mock-menu-capture-mods"
+          id={panelId}
+          role="group"
+          aria-label={title}
+        >
+          {mods.map((m) => {
+            const isActive = active.has(m.key)
+            const isImplied = m.kind === 'atom' && impliedKeys.has(m.key) && !isActive
+            const isInapplicable = context && m.appliesTo !== 'all' && m.appliesTo !== context
+            const cls = [
+              'mock-menu-capture-mod',
+              isActive && 'is-active',
+              isImplied && 'is-implied',
+              isInapplicable && !isActive && !isImplied && 'is-inapplicable',
+            ].filter(Boolean).join(' ')
+            return (
+              <button
+                key={m.key}
+                type="button"
+                className={cls}
+                onClick={() => onToggle(m.key)}
+                aria-pressed={isActive}
+                title={m.appliesTo === 'all'
+                  ? m.label
+                  : `${m.label} — best for ${m.appliesTo}`}
+              >
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </>
   )
 }

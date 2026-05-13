@@ -87,3 +87,11 @@ export const aiModifiersAtom = atom(new Set())
 // 'nature' AND the preset ships a `naturePrompt`. CaptureMenu reads
 // this to dim modifier chips whose `appliesTo` doesn't match.
 export const locationContextAtom = atom(null)
+
+// Persist whether the CaptureMenu's modifier sections are expanded
+// across menu opens. Themes start collapsed (5 dense composites — most
+// users won't reach for them every render), Add-things start expanded
+// (atoms are the primary modifier surface). Mounted via Jotai so the
+// state survives popover unmount + remount.
+export const modifiersThemesOpenAtom = atom(false)
+export const modifiersThingsOpenAtom = atom(true)
