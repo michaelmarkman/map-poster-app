@@ -1685,7 +1685,9 @@ body.mock-mounted .mock-cluster--bottom-right {
  * (was 8px) so 'Resolution' and 'Style' breathe off the segment /
  * category rows below them. */
 .mock-menu-capture .mock-menu-section-label {
-  padding: 14px 0 14px;
+  /* Was 14px top — felt too tight between the Resolution segment and
+   * the Themes label below it. 22px reads as a clear section break. */
+  padding: 22px 0 14px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1877,14 +1879,18 @@ body.mock-mounted .mock-cluster--bottom-right {
   align-items: center;
   gap: 8px;
 }
-/* Chevron — fades up on row hover. Rotates 180° when the section is
- * open so the user reads "down to expand" / "up to collapse". */
+/* Chevron — visibility differs by section state.
+ *   - Collapsed: visible at moderate opacity so the user knows there's
+ *     content to expand. Fully opaque on hover/focus.
+ *   - Open: hidden until hover/focus (the expanded chips below already
+ *     telegraph the open state; the chevron would just be visual noise).
+ * Rotates 180° on open so it reads "down to expand / up to collapse". */
 .mock-menu-section-toggle-chev {
   display: inline-flex;
   width: 12px;
   height: 12px;
   color: var(--ink-soft);
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 0.12s ease, transform 0.18s ease;
 }
 .mock-menu-section-toggle-chev svg {
@@ -1895,8 +1901,15 @@ body.mock-mounted .mock-cluster--bottom-right {
 .mock-menu-section-toggle:focus-visible .mock-menu-section-toggle-chev {
   opacity: 1;
 }
+/* When open, hide the chevron at rest — the expanded chips make the
+ * state obvious. Hover still surfaces it for the affordance. */
 .mock-menu-section-toggle.is-open .mock-menu-section-toggle-chev {
+  opacity: 0;
   transform: rotate(180deg);
+}
+.mock-menu-section-toggle.is-open:hover .mock-menu-section-toggle-chev,
+.mock-menu-section-toggle.is-open:focus-visible .mock-menu-section-toggle-chev {
+  opacity: 1;
 }
 .mock-menu-capture-style {
   position: relative;
