@@ -763,13 +763,23 @@
   }
 
   /* ═══════ Lightbox — Render / Raw / Compare toolbar ═══════ */
-  /* Sits centered above the image stage. Only renders when the entry
-   * carries a distinct pre-AI snapshot (gated in Lightbox.jsx). */
+  /* Centered above the IMAGE STAGE (left grid column), not the full
+   * viewport. Was position: absolute on the lightbox root which left
+   * the toolbar offset by ~160px (half the 320px sidebar) — looked
+   * fine on quick glance but visually drifted off the still it was
+   * meant to sit above.
+   *
+   * Place it in grid-column 1 / grid-row 1 (same cell as #lb-img) and
+   * use justify-self: center + align-self: start to pin it to the
+   * top-center of the image column. z-index keeps it above the
+   * image. Only renders when the entry carries a distinct pre-AI
+   * snapshot (gated in Lightbox.jsx). */
   .lb-toolbar {
-    position: absolute;
-    top: 28px;
-    left: 50%;
-    transform: translateX(-50%);
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+    justify-self: center;
+    margin-top: 28px;
     z-index: 4;
     display: inline-flex;
     gap: 1px;
@@ -780,11 +790,8 @@
     border: 1px solid rgba(250, 250, 250, 0.08);
     border-radius: 999px;
   }
-  /* Position the toolbar relative to the image column, NOT the full
-   * viewport — same column as the nav arrows + image. */
-  #lightbox { /* augment existing rule */ }
   @media (max-width: 720px) {
-    .lb-toolbar { top: 12px; }
+    .lb-toolbar { margin-top: 12px; }
   }
   .lb-toolbar-btn {
     height: 26px;
