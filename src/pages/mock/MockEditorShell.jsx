@@ -151,11 +151,20 @@ export default function MockEditorShell() {
         aria-hidden="true"
       />
 
-      <ClusterTopLeft />
-      <ClusterTopRight />
-      <ClusterBottomLeft />
-      <ClusterBottomMid />
-      <ClusterBottomRight />
+      {/* Strip wrappers are `display: contents` on desktop so the clusters
+       * inside keep their position:fixed corner geometry. At ≤768px the
+       * strips become fixed scrolling rows pinned to the top/bottom edge
+       * with safe-area padding, and the clusters drop position:fixed and
+       * flow inline so the row scrolls horizontally as a single unit. */}
+      <div className="mock-top-strip">
+        <ClusterTopLeft />
+        <ClusterTopRight />
+      </div>
+      <div className="mock-bottom-strip">
+        <ClusterBottomLeft />
+        <ClusterBottomMid />
+        <ClusterBottomRight />
+      </div>
 
       <GalleryModal />
       <Lightbox />
