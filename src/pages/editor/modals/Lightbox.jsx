@@ -9,6 +9,30 @@ import { MODIFIER_BY_KEY } from '../../../data/promptModifiers'
 // sidebar without spilling.
 const PROMPT_PREVIEW_LEN = 120
 
+// Map a numeric w/h aspect to a familiar label. Anything that doesn't
+// match a known ratio (within 1%) falls back to "w.ww:1" rounded to
+// two decimals. Used by the Lightbox meta-list.
+const KNOWN_ASPECTS = [
+  { label: '1:1',  ratio: 1 / 1 },
+  { label: '4:5',  ratio: 4 / 5 },
+  { label: '3:4',  ratio: 3 / 4 },
+  { label: '2:3',  ratio: 2 / 3 },
+  { label: '9:16', ratio: 9 / 16 },
+  { label: '5:4',  ratio: 5 / 4 },
+  { label: '4:3',  ratio: 4 / 3 },
+  { label: '3:2',  ratio: 3 / 2 },
+  { label: '16:9', ratio: 16 / 9 },
+]
+export function aspectLabel(ratio) {
+  if (!Number.isFinite(ratio) || ratio <= 0) return null
+  for (const a of KNOWN_ASPECTS) {
+    if (Math.abs(a.ratio - ratio) / a.ratio < 0.01) return a.label
+  }
+  return ratio >= 1
+    ? `${ratio.toFixed(2)}:1`
+    : `1:${(1 / ratio).toFixed(2)}`
+}
+
 // Ported from prototypes/poster-v3-ui.html (lines 2691-2709) and the handlers
 // around poster-v3-ui.jsx:2767-2998. The prototype used a global `gallery`
 // array indexed by lbIdx; here we hold the entry list + current index in
@@ -314,9 +338,8 @@ export default function Lightbox() {
     : promptText
 
   // Metadata table values, derived from the entry. Each row only
-  // renders if it has data (filename always present; lens/tod from
-  // the saved camera view if available; aspect & resolution would
-  // need encoding into the entry — left as TODOs).
+  // renders if it has data — useQueue's enrichViewWithCaptureContext
+  // populates these on new entries; legacy entries simply skip rows.
   const captured = entry?.time
     ? (typeof entry.time === 'number' ? new Date(entry.time) : entry.time)
     : null
@@ -325,9 +348,18 @@ export default function Lightbox() {
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
       })
     : null
-  const lensMm = entry?.view?.fovMm
-    ? `${Math.round(entry.view.fovMm)}mm`
-    : null
+  // Lens line: focal length + aperture combined into one row so the
+  // user reads it as a single camera setting ("35mm · f/2.8").
+  const fovMm = entry?.view?.fovMm
+  const aperture = entry?.view?.aperture
+  const lensParts = []
+  if (Number.isFinite(fovMm) && fovMm > 0) lensParts.push(`${Math.round(fovMm)}mm`)
+  if (Number.isFinite(aperture) && aperture > 0) {
+    // f/X.Y — one decimal under f/10, integer at and above.
+    lensParts.push(aperture < 10 ? `f/${aperture.toFixed(1)}` : `f/${Math.round(aperture)}`)
+  }
+  const lensStr = lensParts.length > 0 ? lensParts.join(' · ') : null
+
   const todHour = entry?.view?.tod
   const todStr = Number.isFinite(todHour)
     ? (() => {
@@ -338,6 +370,21 @@ export default function Lightbox() {
         return `${h12}:${String(mm).padStart(2, '0')}${ap}`
       })()
     : null
+
+  // Aspect: a decimal ratio (w/h). Show common ones as named labels
+  // (1:1, 3:4, 4:3, 16:9, …) and anything custom as "w.ww:1".
+  const aspect = entry?.view?.aspect
+  const aspectStr = entry?.view?.fillMode
+    ? 'Fill'
+    : (Number.isFinite(aspect) && aspect > 0 ? aspectLabel(aspect) : null)
+
+  // Resolution: multiplier × pixel height (matching the Capture
+  // segmented control). 1×=1080, 2×=2160, 3×=3240, 4×=4320.
+  const resMul = entry?.view?.resolution
+  const RES_PX = { 1: 1080, 2: 2160, 3: 3240, 4: 4320 }
+  const resStr = Number.isFinite(resMul) && RES_PX[resMul]
+    ? `${resMul}× · ${RES_PX[resMul]}px`
+    : (Number.isFinite(resMul) ? `${resMul}×` : null)
 
   return (
     <div
@@ -494,7 +541,7 @@ export default function Lightbox() {
           </button>
         </div>
 
-        {(label || capturedStr || lensMm || todStr) && (
+        {(label || capturedStr || lensStr || todStr || aspectStr || resStr) && (
           <div className="lb-meta-list">
             {label && (
               <div className="lb-meta-row">
@@ -508,10 +555,22 @@ export default function Lightbox() {
                 <span className="lb-meta-val">{capturedStr}</span>
               </div>
             )}
-            {lensMm && (
+            {lensStr && (
               <div className="lb-meta-row">
                 <span className="lb-meta-key">Lens</span>
-                <span className="lb-meta-val">{lensMm}</span>
+                <span className="lb-meta-val">{lensStr}</span>
+              </div>
+            )}
+            {aspectStr && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Aspect</span>
+                <span className="lb-meta-val">{aspectStr}</span>
+              </div>
+            )}
+            {resStr && (
+              <div className="lb-meta-row">
+                <span className="lb-meta-key">Resolution</span>
+                <span className="lb-meta-val">{resStr}</span>
               </div>
             )}
             {todStr && (

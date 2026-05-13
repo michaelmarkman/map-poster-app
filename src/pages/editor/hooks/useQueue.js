@@ -12,8 +12,8 @@ import {
   queueAtom,
   savedViewsAtom,
 } from '../atoms/sidebar'
-import { dofAtom } from '../atoms/scene'
-import { textFieldsAtom } from '../atoms/ui'
+import { dofAtom, timeOfDayAtom } from '../atoms/scene'
+import { aspectRatioAtom, fillModeAtom, textFieldsAtom } from '../atoms/ui'
 import { appendModifierPrompts } from '../../../data/promptModifiers'
 import {
   applyWatermark,
@@ -421,6 +421,12 @@ export default function useQueue() {
   const savedViews = useAtomValue(savedViewsAtom)
   const dof = useAtomValue(dofAtom)
   const textFields = useAtomValue(textFieldsAtom)
+  // Capture-context fields persisted on the gallery entry's `view` so
+  // the Lightbox can show them as meta rows (Time of day, Aperture
+  // alongside Lens, Aspect, Resolution). Read-only through settingsRef.
+  const timeOfDay = useAtomValue(timeOfDayAtom)
+  const aspectRatio = useAtomValue(aspectRatioAtom)
+  const fillMode = useAtomValue(fillModeAtom)
 
   // Latest-settings ref — event listeners capture stale closures otherwise.
   // Writes happen in useEffect (not during render): under React 19 concurrent
@@ -450,6 +456,9 @@ export default function useQueue() {
       savedViews,
       dof,
       textFields,
+      timeOfDay,
+      aspectRatio,
+      fillMode,
     }
   }, [
     aiEnhance,
@@ -463,6 +472,9 @@ export default function useQueue() {
     savedViews,
     dof,
     textFields,
+    timeOfDay,
+    aspectRatio,
+    fillMode,
   ])
 
   // Queue snapshot ref so async processors can read the newest array without
@@ -638,6 +650,26 @@ export default function useQueue() {
       )
     }
 
+    // Merge scene-state and capture-config fields onto the raw camera
+    // view so the Lightbox can render them as meta rows. Scene's
+    // get-camera only returns camera-derived fields (position,
+    // quaternion, lat/lng, altitude, fovMm); tod, aperture, aspect,
+    // resolution come from atom state at the moment of dispatch.
+    function enrichViewWithCaptureContext(camView) {
+      if (!camView) return null
+      const s = settingsRef.current
+      return {
+        ...camView,
+        tod: Number.isFinite(s?.timeOfDay) ? s.timeOfDay : null,
+        aperture: Number.isFinite(s?.dof?.aperture) ? s.dof.aperture : null,
+        // null in fill mode (no aspect ratio enforced) so the Lightbox
+        // can render "Fill" or hide the row.
+        aspect: s?.fillMode ? null : (Number.isFinite(s?.aspectRatio) ? s.aspectRatio : null),
+        fillMode: !!s?.fillMode,
+        resolution: Number.isFinite(s?.resolution) ? s.resolution : null,
+      }
+    }
+
     // Request the current camera state from Scene so we can persist it on a
     // gallery entry. Returns null if Scene's get-camera listener doesn't
     // reply within 300ms (e.g. Scene not mounted). Same pattern as
@@ -645,7 +677,7 @@ export default function useQueue() {
     function captureCurrentView() {
       return new Promise((resolve) => {
         let done = false
-        const finish = (v) => { if (!done) { done = true; resolve(v) } }
+        const finish = (v) => { if (!done) { done = true; resolve(enrichViewWithCaptureContext(v)) } }
         const timer = setTimeout(() => finish(null), 300)
         try {
           window.dispatchEvent(new CustomEvent('get-camera', {
