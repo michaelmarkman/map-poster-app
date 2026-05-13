@@ -1692,7 +1692,16 @@ body.mock-mounted .mock-cluster--bottom-right {
   align-items: baseline;
   justify-content: space-between;
 }
-.mock-menu-capture .mock-menu-section-label:first-of-type {
+/* The label IMMEDIATELY after the head — i.e., 'Resolution' — sits
+ * close to the head already (head has margin-bottom + a bottom
+ * hairline border). Zero its top padding so head→Resolution stays
+ * tight; the 22px rule above governs the spacing between subsequent
+ * sections (Themes, Add things, Style).
+ *
+ * Don't use :first-of-type — it matches by tag type, and the Themes
+ * label is a <button> while Resolution is a <div>, so :first-of-type
+ * picks Themes (first button) instead of Resolution (second div). */
+.mock-menu-capture .mock-menu-capture-head + .mock-menu-section-label {
   padding-top: 0;
 }
 .mock-menu-count {
