@@ -279,6 +279,50 @@ const AI_PRESETS = {
 // thread a ref through every event handler.
 let nextJobId = 1
 
+// Photogrammetry-cleanup instruction. Universal text appended to every
+// AI render when aiCleanArtifactsAtom is on — tells the model that
+// jagged building edges + faceted rooftops are 3D Tiles mesh artifacts,
+// not features. Extracted as a module-scoped const so the Lightbox's
+// segmented-prompt view can reference the exact same string the queue
+// composer uses (one source of truth). Leading space is intentional —
+// joins cleanly when concatenated onto a base prompt.
+export const PHOTOGRAMMETRY_CLEANUP_PROMPT =
+  ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
+
+// Split a composed AI prompt into 4 named parts. Each is null when its
+// gating condition isn't met:
+//   - base       — the preset's stylistic prompt (always present)
+//   - geometry   — photogrammetry-cleanup directive (settings.aiCleanArtifacts)
+//   - depth      — DoF preservation suffix (settings.dof?.aperture > 0)
+//   - modifiers  — appended modifier prompts (settings.aiModifiers has any active)
+//
+// Lives at module scope so the Lightbox's segmented-prompt panel can
+// reproduce + verify the exact composition without spinning up the
+// queue hook. `settings` is a plain object — the queue hook passes
+// settingsRef.current; tests pass a hand-crafted fixture.
+export function buildPromptParts(basePrompt, settings = {}) {
+  const parts = { base: basePrompt, geometry: null, depth: null, modifiers: null }
+  if (settings.aiCleanArtifacts) parts.geometry = PHOTOGRAMMETRY_CLEANUP_PROMPT
+  const dep = dofPromptSuffix(settings.dof?.aperture)
+  if (dep) parts.depth = dep
+  // Diff appendModifierPrompts' output against its input to recover
+  // just the appended text. Reuses the registry's two-pass composer
+  // so the segment text matches what Gemini actually receives.
+  const before = parts.base + (parts.geometry || '') + (parts.depth || '')
+  const after = appendModifierPrompts(before, settings.aiModifiers)
+  if (after !== before) parts.modifiers = after.slice(before.length)
+  return parts
+}
+
+// Concatenate the 4 parts back into the full prompt string. Inverse
+// of buildPromptParts — the invariant is:
+//   joinPromptParts(buildPromptParts(base, s)) === appendEffectPrompts(base)
+//                                                  /* with settings.* */
+export function joinPromptParts(parts) {
+  if (!parts) return ''
+  return parts.base + (parts.geometry || '') + (parts.depth || '') + (parts.modifiers || '')
+}
+
 // DoF prompt suffix — returns '' when DoF is disabled (aperture <= 0,
 // per the dofAtom doc in scene.js). Exported so the unit test pins
 // the gate; this exact regression (missing prompt instruction when
@@ -557,6 +601,7 @@ export default function useQueue() {
           view: job.view,
           rawSnapshot: job.snapshot,
           prompt: null,
+          promptParts: null,
           modifiers: null,
         })
         updateJob(job.id, {
@@ -605,6 +650,11 @@ export default function useQueue() {
           view: job.view,
           rawSnapshot: job.snapshot,
           prompt: job.prompt || null,
+          // promptParts lets the Lightbox break the prompt into 4
+          // colored, hoverable segments (base, geometry, depth,
+          // modifiers). See src/pages/editor/modals/Lightbox.jsx's
+          // SegmentedPrompt for the render path.
+          promptParts: job.promptParts || null,
           modifiers: job.modifiers || [],
         })
         updateJob(job.id, {
@@ -690,45 +740,21 @@ export default function useQueue() {
       })
     }
 
-    // Universal instructions appended to every preset prompt.
+    // Compose the AI prompt for a job. Returns { full, parts }:
+    //   - full   — the string to send to Gemini (base + geometry +
+    //              depth + modifiers, see buildPromptParts).
+    //   - parts  — the same composition broken into 4 named segments
+    //              so the Lightbox can render each with its own color
+    //              + hover tooltip.
     //
-    // 1. Photogrammetry cleanup — the source is a Google 3D Tiles render,
-    //    which means building corners, rooftop edges, and tree silhouettes
-    //    are made of polygon facets that read as jagged, blocky, or
-    //    crumpled at close zoom. Without this instruction the AI faithfully
-    //    reproduces those artifacts as if they were intentional features
-    //    (visible in early renders: woodblock buildings with "wavy"
-    //    corners, watercolor rooftops that look crumpled). Tell the model
-    //    to interpret the source as a 3D-mesh approximation of real
-    //    architecture, not as photographic ground truth.
-    //
-    // 2. DoF preservation — when the user has DoF on, keep the focused
-    //    area sharp and reproduce the OOF blur falloff (otherwise the AI
-    //    "fixes" the blur and the focal plane is lost).
-    //
-    // Mirrors `appendEffectPrompts` in the prototype (poster-v3-ui.jsx:~2291).
-    function appendEffectPrompts(prompt) {
-      let out = prompt
-      // Gate the photogrammetry cleanup on aiCleanArtifactsAtom so users
-      // can flip it off when they actually want the mesh-faithful look
-      // (e.g. low-poly art renders that lean into the source's polygon
-      // character). Default-on; the toggle lives in the Render sheet.
-      if (settingsRef.current.aiCleanArtifacts) {
-        out +=
-          ' The source is a 3D photogrammetry capture from satellite/aerial scanning — building corners, rooftop edges, and tree silhouettes may appear jagged, faceted, blocky, or crumpled due to polygon mesh artifacts. Interpret these as their real-world clean architectural form: straight vertical building corners, flat clean rooftops, smooth straight edges, well-defined silhouettes. Do not faithfully reproduce mesh facets, polygon jaggedness, or blocky distortion — render the architecture as it would actually look in real life, with crisp clean lines.'
-      }
-      // Phase 2.7 retired `dof.on` in favor of "aperture > 0 means on"
-      // (see scene.js — the /app cluster writes aperture=0 to disable).
-      // This gate was missed in that migration, so DoF-preservation
-      // was silently skipped on EVERY render even with DoF on — the AI
-      // happily sharpened the blurred regions. dofPromptSuffix is
-      // module-scoped + exported so the regression test pins the gate.
-      out += dofPromptSuffix(settingsRef.current.dof?.aperture)
-      // Modifier prompts — composites first (gather implies), then
-      // atoms filtered by the implied set. See src/data/promptModifiers.js
-      // for the registry + composition rules.
-      out = appendModifierPrompts(out, settingsRef.current.aiModifiers)
-      return out
+    // Three appended ingredients (each gated, see buildPromptParts):
+    //   1. Photogrammetry cleanup — when aiCleanArtifactsAtom is on.
+    //      Tells the model jagged corners are 3D Tiles mesh artifacts.
+    //   2. DoF preservation — when aperture > 0. Pins the focal plane.
+    //   3. Modifier prompts — composites + atoms from the registry.
+    function composePrompt(basePrompt) {
+      const parts = buildPromptParts(basePrompt, settingsRef.current)
+      return { full: joinPromptParts(parts), parts }
     }
 
     function promptFor(presetKey, fallback) {
@@ -742,9 +768,9 @@ export default function useQueue() {
         // ship naturePrompts so they always get their default text.
         const ctx = settingsRef.current.locationContext
         const base = (ctx === 'nature' && p.naturePrompt) ? p.naturePrompt : p.prompt
-        return appendEffectPrompts(base)
+        return composePrompt(base)
       }
-      return appendEffectPrompts(
+      return composePrompt(
         fallback ||
           // Mirrors AI_PRESETS.realistic — composition-anchored
           // fallback so a queue job with no preset and no custom
@@ -839,15 +865,18 @@ export default function useQueue() {
           ...baseJob,
           label: 'Raw',
           prompt: '',
+          promptParts: null,
           useAI: false,
           snapshot: rawSnapshot,
         })
       } else if (s.aiEnhance && presetKey) {
         const preset = AI_PRESETS[presetKey]
+        const composed = promptFor(presetKey, overridePrompt ?? s.aiPrompt)
         addJob({
           ...baseJob,
           label: preset?.label || presetKey,
-          prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
+          prompt: composed.full,
+          promptParts: composed.parts,
           useAI: true,
           snapshot: rawSnapshot,
           preset: presetKey,
@@ -855,11 +884,12 @@ export default function useQueue() {
       } else {
         const useAI = !!s.aiEnhance
         const label = useAI ? 'Custom' : 'Raw'
-        const prompt = useAI ? appendEffectPrompts(overridePrompt ?? s.aiPrompt) : ''
+        const composed = useAI ? composePrompt(overridePrompt ?? s.aiPrompt) : null
         addJob({
           ...baseJob,
           label,
-          prompt,
+          prompt: composed ? composed.full : '',
+          promptParts: composed ? composed.parts : null,
           useAI,
           snapshot: rawSnapshot,
         })
@@ -923,23 +953,28 @@ export default function useQueue() {
             ...baseJob,
             label: 'Raw',
             prompt: '',
+            promptParts: null,
             useAI: false,
             snapshot: rawSnapshot,
           })
         } else if (presetKey === 'custom') {
+          const composed = composePrompt(overridePrompt ?? s.aiPrompt)
           addJob({
             ...baseJob,
             label: 'Custom',
-            prompt: appendEffectPrompts(overridePrompt ?? s.aiPrompt),
+            prompt: composed.full,
+            promptParts: composed.parts,
             useAI: true,
             snapshot: rawSnapshot,
           })
         } else {
           const preset = AI_PRESETS[presetKey]
+          const composed = promptFor(presetKey, overridePrompt ?? s.aiPrompt)
           addJob({
             ...baseJob,
             label: preset?.label || presetKey,
-            prompt: promptFor(presetKey, overridePrompt ?? s.aiPrompt),
+            prompt: composed.full,
+            promptParts: composed.parts,
             useAI: true,
             snapshot: rawSnapshot,
             preset: presetKey,

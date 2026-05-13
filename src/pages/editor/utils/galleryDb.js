@@ -107,8 +107,11 @@ function openGalleryDB() {
 // `rawSnapshot` is the pre-AI photogrammetry frame (a data: URL). Lets the
 // lightbox show the underlying scene via the Raw / Compare toolbar modes.
 // `prompt` is the full composed prompt sent to Gemini for AI renders.
+// `promptParts` is the same prompt split into 4 named segments:
+//   { base, geometry, depth, modifiers } — each nullable. Lets the
+//   Lightbox render each segment with its own color + hover tooltip.
 // `modifiers` is the array of active modifier keys at dispatch time
-// (e.g. ['bustling', 'birds']). All three are null on legacy entries +
+// (e.g. ['bustling', 'birds']). All four are null on legacy entries +
 // non-AI (raw export) entries — UI gracefully degrades.
 export async function loadGalleryEntries() {
   try {
@@ -145,6 +148,9 @@ export async function loadGalleryEntries() {
         // these are null.
         rawSnapshot: r.rawSnapshot || null,
         prompt: r.prompt || null,
+        promptParts: r.promptParts && typeof r.promptParts === 'object'
+          ? r.promptParts
+          : null,
         modifiers: Array.isArray(r.modifiers) ? r.modifiers : null,
       }))
       .sort((a, b) => a.time - b.time)
@@ -209,6 +215,9 @@ export async function saveGalleryEntry(item) {
       // for shape notes. Null-safe for non-AI / legacy entries.
       rawSnapshot: item.rawSnapshot || null,
       prompt: item.prompt || null,
+      promptParts: item.promptParts && typeof item.promptParts === 'object'
+        ? item.promptParts
+        : null,
       modifiers: Array.isArray(item.modifiers) ? item.modifiers : null,
     })
   } catch (e) {
@@ -229,13 +238,17 @@ export function buildGalleryItem(label, filename, dataUrl, opts = {}) {
     batchId: opts.batchId || null,
     batchLabel: opts.batchLabel || null,
     view: opts.view || null,
-    // Lightbox toolbar + prompt panel data. AI renders carry all three;
+    // Lightbox toolbar + prompt panel data. AI renders carry all four;
     // non-AI (raw export) entries carry rawSnapshot === dataUrl plus
-    // null prompt + null modifiers. Lightbox.jsx hides Raw/Compare
-    // when rawSnapshot is null OR rawSnapshot === dataUrl (no diff to
-    // show).
+    // null prompt / promptParts / modifiers. Lightbox.jsx hides
+    // Raw/Compare when rawSnapshot is null OR rawSnapshot === dataUrl
+    // (no diff to show), and falls back to the unsegmented prompt
+    // display when promptParts is null.
     rawSnapshot: opts.rawSnapshot || null,
     prompt: opts.prompt || null,
+    promptParts: opts.promptParts && typeof opts.promptParts === 'object'
+      ? opts.promptParts
+      : null,
     modifiers: Array.isArray(opts.modifiers) ? opts.modifiers : null,
   }
 }

@@ -33,6 +33,29 @@ export function aspectLabel(ratio) {
     : `1:${(1 / ratio).toFixed(2)}`
 }
 
+// The 4 prompt segments + their hover tooltip copy. Order matters —
+// SegmentedPrompt renders them in this sequence (which matches the
+// order useQueue's joinPromptParts concatenates), so the visible text
+// is identical to the unsegmented entry.prompt string.
+export const PROMPT_PARTS = [
+  {
+    key: 'base',
+    tooltip: 'Base style prompt — the AI preset you picked (Realistic, Vedute, Custom, etc.) plus any nature-variant text when over a landscape.',
+  },
+  {
+    key: 'geometry',
+    tooltip: 'Photogrammetry geometry correction — tells the AI that jagged building edges and faceted rooftops are 3D Tiles mesh artifacts, not features. Toggleable from the Render sheet.',
+  },
+  {
+    key: 'depth',
+    tooltip: "Tilt-shift preservation — keeps the focal plane sharp and reproduces the depth-of-field blur falloff so the AI doesn't flatten your DoF. Active when aperture > 0.",
+  },
+  {
+    key: 'modifiers',
+    tooltip: 'Added elements — modifier chips (People, Bustling, Wild, …) layered on top of the base style. The composer skips atoms already implied by an active composite to avoid double-prompting.',
+  },
+]
+
 // Ported from prototypes/poster-v3-ui.html (lines 2691-2709) and the handlers
 // around poster-v3-ui.jsx:2767-2998. The prototype used a global `gallery`
 // array indexed by lbIdx; here we hold the entry list + current index in
@@ -52,15 +75,24 @@ export default function Lightbox() {
   // user doesn't carry a Compare state into a new image.
   const [viewMode, setViewMode] = useState('render')
   const [showFullPrompt, setShowFullPrompt] = useState(false)
+  // Hovered prompt segment + floating tooltip state. Both reset to
+  // null/empty whenever the entry changes (via the entry-change
+  // effect below). The tooltip lives as a fixed-position element so
+  // it can escape the sidebar's overflow + clipping.
+  const [hoveredPart, setHoveredPart] = useState(null)
+  const [tooltip, setTooltip] = useState(null)  // { text, x, y } | null
 
   const open = modals.lightbox
   const entry = entries[index] || entryFromAtom || null
   const total = entries.length
 
-  // Reset toolbar / prompt-expand state whenever the entry changes.
+  // Reset toolbar / prompt-expand / segment-hover state whenever the
+  // entry changes (next/prev nav).
   useEffect(() => {
     setViewMode('render')
     setShowFullPrompt(false)
+    setHoveredPart(null)
+    setTooltip(null)
   }, [entry?.id])
 
   const closeSelf = useCallback(() => {
@@ -599,12 +631,35 @@ export default function Lightbox() {
 
         {/* Prompt panel — truncated to PROMPT_PREVIEW_LEN chars with an
          *  Expand toggle. Hidden when entry.prompt is null (non-AI /
-         *  legacy entries). */}
+         *  legacy entries). When promptParts is available AND the
+         *  user has expanded, render as colored hoverable segments;
+         *  otherwise show the unsegmented body. */}
         {promptText && (
           <div className="lb-prompt-row">
             <span className="lb-prompt-row-label">Prompt</span>
             <span className="lb-prompt-row-body">
-              {showFullPrompt ? promptText : promptPreview}
+              {showFullPrompt && entry?.promptParts ? (
+                <SegmentedPrompt
+                  parts={entry.promptParts}
+                  hoveredPart={hoveredPart}
+                  onEnter={(key, el) => {
+                    setHoveredPart(key)
+                    const rect = el.getBoundingClientRect()
+                    const tip = PROMPT_PARTS.find((p) => p.key === key)
+                    setTooltip({
+                      text: tip?.tooltip || '',
+                      x: rect.left + rect.width / 2,
+                      y: rect.top,
+                    })
+                  }}
+                  onLeave={() => {
+                    setHoveredPart(null)
+                    setTooltip(null)
+                  }}
+                />
+              ) : (
+                showFullPrompt ? promptText : promptPreview
+              )}
             </span>
             {promptIsLong && (
               <button
@@ -650,6 +705,11 @@ export default function Lightbox() {
           ))}
         </div>
       )}
+      {/* Floating prompt-segment tooltip. Fixed-positioned so it can
+       *  escape the sidebar's overflow + clipping. Mounted at the
+       *  lightbox root so the z-index stack puts it above the sidebar
+       *  glass. */}
+      {tooltip && <PromptTooltip {...tooltip} />}
     </div>
   )
 }
@@ -676,6 +736,65 @@ export function computeSliderPct({ orientation, rect, clientX, clientY }) {
     ? ((clientY - rect.top) / rect.height) * 100
     : ((clientX - rect.left) / rect.width) * 100
   return clampPct(raw)
+}
+
+// SegmentedPrompt — renders the 4 named parts of a composed prompt
+// as separately-colored spans. On hover (or focus), the hovered span
+// flips to its accent color and the other three drop to ~30% opacity,
+// so the eye locks on whichever ingredient the user is reading. The
+// caller owns the hoveredPart state + tooltip placement (the segments
+// just report enter/leave with their DOM ref so the parent can
+// position a floating tooltip above each).
+function SegmentedPrompt({ parts, hoveredPart, onEnter, onLeave }) {
+  return (
+    <>
+      {PROMPT_PARTS.map(({ key }) => {
+        const text = parts[key]
+        if (!text) return null
+        const isActive = hoveredPart === key
+        const isDimmed = hoveredPart && !isActive
+        const cls = [
+          'lb-prompt-part',
+          `lb-prompt-part--${key}`,
+          isActive && 'is-active',
+          isDimmed && 'is-dimmed',
+        ].filter(Boolean).join(' ')
+        return (
+          <span
+            key={key}
+            className={cls}
+            tabIndex={0}
+            onMouseEnter={(e) => onEnter(key, e.currentTarget)}
+            onMouseLeave={onLeave}
+            onFocus={(e) => onEnter(key, e.currentTarget)}
+            onBlur={onLeave}
+          >
+            {text}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+// Fixed-positioned tooltip rendered at the lightbox root so it escapes
+// the sidebar's overflow + clipping. Position is set inline based on
+// the hovered segment's getBoundingClientRect — see Lightbox's
+// onEnter handler.
+function PromptTooltip({ text, x, y }) {
+  return (
+    <div
+      className="lb-prompt-tooltip"
+      role="tooltip"
+      style={{
+        left: x,
+        top: y - 8,
+        transform: 'translate(-50%, -100%)',
+      }}
+    >
+      {text}
+    </div>
+  )
 }
 
 function CompareSlider({ rendered, raw }) {
