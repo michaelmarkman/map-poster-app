@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useAtom, useSetAtom, useAtomValue } from 'jotai'
+import { useAtom, useSetAtom, useAtomValue, useStore } from 'jotai'
 import AccountChip from './AccountChip'
 import PopoverPill from './PopoverPill'
 import SavedViewsPanel from './SavedViewsPanel'
@@ -10,7 +10,7 @@ import {
   timeOfDayAtom,
   todUnlockedAtom,
 } from '../../editor/atoms/scene'
-import { textFieldsAtom } from '../../editor/atoms/ui'
+import { cameraReadoutAtom, textFieldsAtom } from '../../editor/atoms/ui'
 import { savedViewsAtom } from '../../editor/atoms/sidebar'
 import { dispatchFlyTo } from '../../editor/scene/events'
 import { fireToast } from '../../../lib/toast'
@@ -18,6 +18,7 @@ import { getSunTimes } from '../../editor/utils/sun'
 import {
   newSessionToken,
   resolvePlace,
+  reverseGeocodeName,
   searchPlaces,
 } from '../../../lib/geocode'
 
@@ -60,6 +61,18 @@ export default function ClusterTopLeft() {
   // session. Cleared on commit (success / Escape / popover close).
   const sessionTokenRef = useRef(null)
 
+  // Dynamic location label — subscribes to cameraReadoutAtom via the
+  // jotai store and reverse-geocodes the camera's lat/lng when the
+  // user has been still for ~700ms. NOT useAtomValue because the
+  // readout updates at 5Hz — that would re-render the pill 5x/sec
+  // (LEARNINGS 2026-04-17 pin). store.sub keeps subscription work
+  // outside React.
+  const store = useStore()
+  const settleTimerRef = useRef(null)
+  const lastGeocodedKeyRef = useRef(null)
+  const queryRef = useRef('')           // mirror of `query` state for the sub callback
+  const suppressUntilRef = useRef(0)    // timestamp; skip dynamic updates while < now
+
   useEffect(() => {
     const onLocChange = (e) => {
       const name = e?.detail?.shortName || e?.detail?.fullName
@@ -68,6 +81,58 @@ export default function ClusterTopLeft() {
     window.addEventListener('location-changed', onLocChange)
     return () => window.removeEventListener('location-changed', onLocChange)
   }, [])
+
+  // Keep queryRef in lockstep with `query` so the store-sub callback
+  // (which doesn't re-create across renders) always reads the latest.
+  useEffect(() => { queryRef.current = query }, [query])
+
+  // Dynamic location-label updater. Subscribes to cameraReadoutAtom
+  // (which carries lat/lng at ~5Hz post-syncCameraToUI). For each new
+  // readout, debounce 700ms — if the user lingers, reverse-geocode
+  // the lat/lng and update the pill label with the most-specific tag
+  // (neighbourhood / road / amenity). Skip while the user is typing
+  // a search query or just picked a place (3s suppression window).
+  // Skip when the cell hasn't changed since the last fire.
+  useEffect(() => {
+    const SETTLE_MS = 700
+    // 4-decimal-degree cell (~11m) for dedup. The geocode lib's own
+    // LRU cache snaps to ~278m, so most cell changes also hit cache.
+    const cellKey = (lat, lng) => `${lat.toFixed(4)},${lng.toFixed(4)}`
+
+    const handle = () => {
+      if (queryRef.current) return
+      if (Date.now() < suppressUntilRef.current) return
+      const r = store.get(cameraReadoutAtom)
+      if (!Number.isFinite(r?.latitude) || !Number.isFinite(r?.longitude)) return
+      const key = cellKey(r.latitude, r.longitude)
+      if (key === lastGeocodedKeyRef.current) return
+
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+      settleTimerRef.current = setTimeout(async () => {
+        // Re-check gates after the settle delay — user might have
+        // started typing or moved further during the wait.
+        if (queryRef.current) return
+        if (Date.now() < suppressUntilRef.current) return
+        const cur = store.get(cameraReadoutAtom)
+        if (!Number.isFinite(cur?.latitude) || !Number.isFinite(cur?.longitude)) return
+        const curKey = cellKey(cur.latitude, cur.longitude)
+        lastGeocodedKeyRef.current = curKey
+        const name = await reverseGeocodeName(cur.latitude, cur.longitude)
+        if (!name) return
+        // Re-check ONE more time post-async; user could have picked
+        // something while the geocode was in flight.
+        if (queryRef.current) return
+        if (Date.now() < suppressUntilRef.current) return
+        setLocationLabel(shorten(name))
+      }, SETTLE_MS)
+    }
+
+    const unsub = store.sub(cameraReadoutAtom, handle)
+    return () => {
+      unsub()
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+    }
+  }, [store])
 
   const ensureSession = () => {
     if (!sessionTokenRef.current) {
@@ -167,6 +232,12 @@ export default function ClusterTopLeft() {
     }
     clearSession()
     setLocationLabel(shorten(name))
+    // Suppress the dynamic camera-driven label for 3s — long enough
+    // for the flyTo animation to settle. Without this, the
+    // reverse-geocoder would overwrite the user's pick label with
+    // whatever the most-specific tag at the destination resolves to
+    // (often less precise than the Google Places display name).
+    suppressUntilRef.current = Date.now() + 3000
     const oldOffset = longitude / 15
     const newOffset = lng / 15
     const adjusted = ((timeOfDay + (newOffset - oldOffset)) % 24 + 24) % 24

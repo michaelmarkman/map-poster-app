@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { Vector3 } from 'three'
+import { Quaternion, Vector3 } from 'three'
 import { Geodetic } from '@takram/three-geospatial'
 import {
   intersectEarthSphere,
   clampCameraAltitude,
+  syncCameraToUI,
 } from '../utils/camera'
 
 const EARTH_RADIUS = 6378137
@@ -81,6 +82,47 @@ describe('clampCameraAltitude', () => {
     const shallowDelta = new Geodetic().setFromECEF(shallow.position).height - shallowBefore
     const deepDelta = new Geodetic().setFromECEF(deep.position).height - deepBefore
     expect(deepDelta).toBeGreaterThan(shallowDelta)
+  })
+})
+
+describe('syncCameraToUI', () => {
+  // Build a fake camera at a given geodetic position with identity
+  // quaternion + a known fov. Throttle inside syncCameraToUI is
+  // module-state (200ms), so each test calls it after a delay — but
+  // since vitest runs files in fresh workers, the first call in this
+  // describe block goes through cleanly.
+  function makeCamera(lat, lng, alt, fovDeg = 45) {
+    const pos = new Geodetic(lng * Math.PI / 180, lat * Math.PI / 180, alt).toECEF()
+    return {
+      position: new Vector3(pos.x, pos.y, pos.z),
+      quaternion: new Quaternion(),
+      fov: fovDeg,
+    }
+  }
+
+  it('writes latitude + longitude (degrees) in the readout payload', async () => {
+    const camera = makeCamera(40.7484, -73.9857, 500)
+    let readout = null
+    syncCameraToUI(camera, (r) => { readout = r })
+    expect(readout).not.toBeNull()
+    // Lat/lng survive ECEF round-trip with ~1e-6 degree precision.
+    expect(readout.latitude).toBeCloseTo(40.7484, 4)
+    expect(readout.longitude).toBeCloseTo(-73.9857, 4)
+    // And the legacy fields still come through unchanged.
+    expect(readout).toHaveProperty('tilt')
+    expect(readout).toHaveProperty('heading')
+    expect(readout).toHaveProperty('altitude')
+    expect(readout).toHaveProperty('fovMm')
+    // 200ms throttle — wait it out before the next sync call.
+    await new Promise((r) => setTimeout(r, 220))
+  })
+
+  it('correctly converts radians → degrees for a southern-hemisphere point', async () => {
+    const camera = makeCamera(-33.8688, 151.2093, 1000)  // Sydney
+    let readout = null
+    syncCameraToUI(camera, (r) => { readout = r })
+    expect(readout.latitude).toBeCloseTo(-33.8688, 4)
+    expect(readout.longitude).toBeCloseTo(151.2093, 4)
   })
 })
 

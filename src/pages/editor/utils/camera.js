@@ -55,9 +55,10 @@ export function clampCameraAltitude(camera) {
   } catch (e) {}
 }
 
-// Reads live camera geometry and calls `setReadout({tilt, heading, altitude,
-// fovMm})` with current values. Throttled to 5Hz so we don't pay React
-// render cost per frame. Designed to be called from useFrame.
+// Reads live camera geometry and calls
+// `setReadout({tilt, heading, altitude, fovMm, latitude, longitude})`
+// with current values. Throttled to 5Hz so we don't pay React render
+// cost per frame. Designed to be called from useFrame.
 export function syncCameraToUI(camera, setReadout) {
   const now = Date.now()
   if (now - _lastSync < 200) return
@@ -68,6 +69,11 @@ export function syncCameraToUI(camera, setReadout) {
     const geo = new Geodetic().setFromECEF(pos)
     const alt = Math.round(Math.max(0, geo.height))
     _currentAlt = alt
+    // Geodetic stores lat/lng in radians; convert to degrees so the
+    // readout matches the rest of the codebase (latitudeAtom +
+    // longitudeAtom are degrees, geocode helpers expect degrees).
+    const latitude = geo.latitude * 180 / Math.PI
+    const longitude = geo.longitude * 180 / Math.PI
 
     const up = pos.clone().normalize()
     const fwd = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
@@ -89,7 +95,14 @@ export function syncCameraToUI(camera, setReadout) {
     const mm = Math.max(14, Math.min(200, Math.round(12 / Math.tan(camera.fov * Math.PI / 360))))
 
     _suppressSliderInput = true
-    setReadout?.({ tilt: _currentTilt, heading, altitude: alt, fovMm: mm })
+    setReadout?.({
+      tilt: _currentTilt,
+      heading,
+      altitude: alt,
+      fovMm: mm,
+      latitude,
+      longitude,
+    })
     _suppressSliderInput = false
   } catch (e) {}
 }

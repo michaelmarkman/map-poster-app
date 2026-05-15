@@ -23,9 +23,17 @@ export const textFieldsAtom = atom({
 // dispatches 'camera-set' (tilt/heading/altitude) or 'fov-change' (fovMm)
 // which Scene applies to the actual camera; next sync cycle writes the
 // resulting values back here.
+//
+// latitude / longitude (degrees) added so consumers that need the
+// camera's GROUND position — e.g., the search pill's dynamic location
+// label — can subscribe to this single atom instead of polling the
+// `get-camera` event. Updates at the same ~5Hz throttle as the rest of
+// the readout (see syncCameraToUI).
 export const cameraReadoutAtom = atom({
   tilt: 51,
   heading: 67,
   altitude: 472,
   fovMm: 41,
+  latitude: 40.748440,    // matches latitudeAtom default (Empire State)
+  longitude: -73.985664,  // matches longitudeAtom default
 })
