@@ -1,14 +1,5 @@
 import { atom } from 'jotai'
-
-// Mobile detection — same logic as poster-v3-ui.jsx:50-56. Mirrors the
-// prototype so scene defaults line up across both versions.
-const IS_MOBILE = (() => {
-  try {
-    const narrow = window.matchMedia('(max-width: 1024px)').matches
-    const coarse = window.matchMedia('(pointer: coarse)').matches
-    return narrow && coarse
-  } catch (e) { return false }
-})()
+import { IS_MOBILE } from '../../../lib/isMobile'
 
 // Scene atoms — one per field of the legacy `state` object. Scene components
 // read these through the `sceneRef` mirror inside useFrame so 60fps frame

@@ -59,8 +59,9 @@ uniform float highlightStrength;
 
 // Multi-ring disk sampler — concentric rings of samples for smooth bokeh.
 // Desktop: 1 + 8 + 16 + 24 + 32 = 81 samples in 4 rings.
-// Mobile : 1 + 6 + 12 + 18     = 37 samples in 3 rings (saves ~55%
-//          fragment work; still smooth enough at moderate radii).
+// Mobile : 1 + 6 + 6            = 13 samples in 2 rings (saves ~84%
+//          fragment work vs desktop). Per-pixel angle hash + AGX
+//          softening hide banding at the radii a phone runs.
 // Cheap per-pixel hash for angle dithering. One call per fragment, reused
 // across all rings — breaks up the visible ring structure at high blur
 // radii (otherwise you can see faint concentric bands from the fixed
@@ -99,9 +100,13 @@ vec4 ringBlur(vec2 uv, float radius, highp float focalZ, float centerSigned) {
   float angleJitter = dofHash(uv) * 6.2831853;
 
 #ifdef MOBILE_DOF
-  const int RING_COUNTS[3] = int[](6, 12, 18);
-  const float RING_RADII[3] = float[](0.33, 0.66, 1.0);
-  const int RINGS = 3;
+  // 1 + 6 + 6 = 13 samples in 2 rings — wider radial spacing (0.5, 1.0)
+  // compensates for the lower density. The per-pixel angle hash + AGX
+  // softening hide banding at the radii a phone will actually run
+  // (maxBlur capped by aperture).
+  const int RING_COUNTS[2] = int[](6, 6);
+  const float RING_RADII[2] = float[](0.5, 1.0);
+  const int RINGS = 2;
 #else
   const int RING_COUNTS[4] = int[](8, 16, 24, 32);
   const float RING_RADII[4] = float[](0.25, 0.5, 0.75, 1.0);

@@ -3601,99 +3601,266 @@ body.mock-mounted #poster-preview .pp-scene {
   body.mock-mounted .ed-btn:active { background: rgba(255, 255, 255, 0.08); color: #fff; }
 }
 
+/* Strip wrappers — invisible passthroughs on desktop so the corner
+ * clusters keep their existing position:fixed geometry. At ≤768px the
+ * strips light up and become fixed horizontally-scrolling rows pinned
+ * to the top and bottom edges of the viewport. */
+.mock-top-strip,
+.mock-bottom-strip { display: contents; }
+
 @media (max-width: 768px) {
+  /* The whole editor goes full-viewport with 100dvh so the canvas fills
+   * cleanly under iOS Safari's collapsing address bar. Lock body scroll
+   * — the page should never scroll; only the strips and popovers do. */
+  html, body {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   /* Shrink the frame padding so the blur strips don't eat the viewport
    * on a short phone screen. */
   .mock-frame-overlay {
-    --frame-h-padding: clamp(12px, 4vw, 40px);
-    --frame-v-padding: clamp(60px, 12vh, 120px);
+    --frame-h-padding: clamp(8px, 3vw, 32px);
+    --frame-v-padding: clamp(60px, 11vh, 110px);
   }
 
-  /* Safe-area insets on every corner cluster so the pills don't collide
-   * with the notch, Dynamic Island, or home indicator. */
-  .mock-cluster--top-left {
-    top: calc(12px + env(safe-area-inset-top, 0px));
-    left: calc(10px + env(safe-area-inset-left, 0px));
-    gap: 6px;
-  }
-  .mock-cluster--top-right {
-    top: calc(12px + env(safe-area-inset-top, 0px));
-    right: calc(10px + env(safe-area-inset-right, 0px));
-    /* Stack vertically — three pills in a row won't fit next to the
-     * top-mid drag pills on a 390px iPhone. */
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
-  }
-  /* (top-mid cluster retired in Phase 2.7; the focal-length / TOD
-   * scrubbers moved into the top-right ReadoutPill, and the wordmark
-   * lives at the top-center as a non-interactive overlay.) */
-  /* Bottom row: bottom-left (aspect + tools) and bottom-right (Gallery)
-   * share the real bottom of the viewport. bottom-mid (Capture|Render)
-   * gets lifted into a SECOND row above them — on a 390px phone the
-   * three clusters cannot all fit on one line without clipping the
-   * aspect pill (screenshot bug). Two rows cost ~48px of vertical
-   * headroom but keep every pill reachable without scrolling.
+  /* Hide the top-center wordmark — it would land inside the top strip
+   * and collide with the search pill. The brand identity is carried by
+   * the corner brackets in the editor anyway. */
+  .mock-wordmark { display: none; }
+
+  /* ───────── Top / bottom strips ─────────
+   * Single horizontal scrolling row each, pinned to the viewport edges.
    *
-   * bottom-left is allowed to wrap if the user has editor + saved
-   * graphics + hide + preview pills all mounted — it can become a
-   * 2-row cluster in that case; bottom-mid rises further via the
-   * max-height variant when editor mode is active. */
-  .mock-cluster--bottom-left {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    left: calc(10px + env(safe-area-inset-left, 0px));
+   * The strip needs `pointer-events: auto` — it MUST receive touch
+   * events so the user can pan horizontally to reveal pills past the
+   * right edge. An earlier `pointer-events: none` (intended to let
+   * canvas drags pass through the gradient backdrop) killed touch
+   * scrolling outright, leaving the bottom row's Time/Clouds and the
+   * top row's Gallery permanently clipped off-screen on a 390px
+   * iPhone. Cost: the gradient-shaded strip area is now mobile
+   * chrome and doesn't pass canvas drags through. Acceptable trade
+   * for keeping every pill reachable. */
+  .mock-top-strip,
+  .mock-bottom-strip {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    max-width: 100vw;
+    z-index: 60;
+    flex-direction: row;
+    align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
-    /* Reserve room for bottom-right so bottom-left doesn't flow under it. */
-    max-width: calc(58vw - env(safe-area-inset-left, 0px));
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Allow horizontal pan / disallow vertical so a downward swipe
+     * doesn't trigger pull-to-refresh on iOS Safari. */
+    touch-action: pan-x;
   }
-  .mock-cluster--bottom-mid {
-    /* Lifted above the real bottom row. bottom-left wraps to 2 rows when
-     * all four pills are mounted (aspect + Edit + hide + preview) so the
-     * offset has to clear 2 × pill-height + gap. Fine pointer pills are
-     * 36px → 36+6+36+12 = 90px. Coarse-pointer override bumps to 112px
-     * to match 44px pill height. */
-    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  .mock-top-strip::-webkit-scrollbar,
+  .mock-bottom-strip::-webkit-scrollbar { display: none; }
+  /* Direct cluster children and any pill/popover-wrap inside them
+   * must not flex-shrink — otherwise they squish to fit the strip
+   * width instead of overflowing it (which is what enables
+   * horizontal scroll to reveal the off-screen pills). */
+  .mock-top-strip > *,
+  .mock-bottom-strip > *,
+  .mock-top-strip .mock-cluster > *,
+  .mock-bottom-strip .mock-cluster > * {
+    flex: 0 0 auto;
   }
-  .mock-cluster--bottom-right {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    right: calc(10px + env(safe-area-inset-right, 0px));
-    /* Cap so a long "Gallery · 14" label doesn't push into bottom-left. */
-    max-width: 40vw;
+
+  /* The drag-pill tooltip (Lens/DoF/Time/Clouds scrub readout) is
+   * positioned ABOVE the pill via absolute + bottom: calc(100% + …).
+   * With overflow-y: hidden on the strip it would be clipped during a
+   * drag-scrub. The scrub value is already mirrored inside the pill
+   * (.mock-pill-scrub-value), so the tooltip is redundant on mobile —
+   * just hide it. */
+  .mock-bottom-strip .mock-pill-tooltip,
+  .mock-top-strip .mock-pill-tooltip { display: none; }
+
+  .mock-top-strip {
+    top: 0;
+    padding:
+      calc(8px + env(safe-area-inset-top, 0px))
+      calc(10px + env(safe-area-inset-right, 0px))
+      10px
+      calc(10px + env(safe-area-inset-left, 0px));
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.40),
+      rgba(0, 0, 0, 0.18) 60%,
+      transparent
+    );
   }
-  /* Gallery pill — keep the icon + count, drop the "Gallery" word on
-   * phones. The ImageIcon carries the meaning and the count stays
-   * informative. Styled via :has so the normal pill rule stays intact. */
-  .mock-cluster--bottom-right .mock-pill {
+  .mock-bottom-strip {
+    bottom: 0;
+    padding:
+      10px
+      calc(10px + env(safe-area-inset-right, 0px))
+      calc(8px + env(safe-area-inset-bottom, 0px))
+      calc(10px + env(safe-area-inset-left, 0px));
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.40),
+      rgba(0, 0, 0, 0.18) 60%,
+      transparent
+    );
+    /* Centred when content fits, scrollable when it overflows. */
+    justify-content: flex-start;
+  }
+
+  /* Clusters inside the strips drop position:fixed and flow inline.
+   * !important is justified — base rules use specific selectors that
+   * would otherwise win over our @media block. */
+  .mock-top-strip .mock-cluster,
+  .mock-bottom-strip .mock-cluster {
+    position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    max-width: none;
+    flex-wrap: nowrap;
+  }
+  /* Empty bottom-mid still display:none via the base rule. */
+  body.mock-mounted .mock-cluster--bottom-mid { display: none; }
+
+  /* Help pill is hidden in mock at all sizes via the base rule. The
+   * AccountChip + Sign-in chip live at the end of TL, after Views. */
+
+  /* Sign-in / account chip — slimmer on phone so it doesn't crowd the
+   * end of the top strip. */
+  .mock-pill[aria-label^="Sign in"] {
     padding: 8px 12px;
     font-size: 11px;
   }
+  .mock-pill[aria-label^="Sign in"] .mock-pill-label { font-size: 11px; }
 
-  /* Popovers — constrain so they don't spill past the viewport edge. */
-  .mock-popover {
-    min-width: 200px;
-    max-width: calc(100vw - 20px);
-    max-height: calc(100vh - 140px);
-    max-height: calc(100dvh - 140px);
-    overflow-y: auto;
+  /* Search pill — give it a sensible cap so a long location label
+   * doesn't stretch the pill past the viewport. The truncation in
+   * Pill is already in place; we just need to cap the wrap width. */
+  .mock-pill--search { max-width: 60vw; }
+  .mock-pill--search .mock-pill-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  /* Top-right popovers are right-aligned and live under a vertical
-   * column — their auto width can crowd the left edge. Cap at 280. */
-  .mock-cluster--top-right .mock-popover { max-width: min(280px, calc(100vw - 20px)); }
 
-  /* Fabric editor toolbar (top-centered glass pill) — respect safe-area. */
+  /* ───────── Popovers → bottom sheets ─────────
+   * Position:fixed lifts them out of the horizontally-scrolling strip's
+   * overflow context, then we slide them up from the bottom edge so
+   * they read as native mobile sheets. The wrap-prefixed selectors
+   * win over the variant-class width/positioning rules (--help,
+   * --capture, --gallery-preview) that appear later in this file. */
+  .mock-popover-pill-wrap > .mock-popover,
+  .mock-hover-pill-wrap > .mock-popover {
+    position: fixed;
+    left: max(8px, env(safe-area-inset-left, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    top: auto;
+    margin: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    max-height: 72vh;
+    max-height: 72dvh;
+    border-radius: 14px;
+    padding: 14px 14px 16px;
+    box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.55);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    white-space: normal;
+    transform: none;
+    transform-origin: bottom center;
+    animation: mock-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+    z-index: 220;
+  }
+  @keyframes mock-sheet-up {
+    from { transform: translateY(12%); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+
+  /* The drag-pill tooltip (Lens/DoF/Time/Clouds scrub readout) is also
+   * fixed-position above the pill on desktop. On mobile the pill itself
+   * is inside the bottom strip, so the tooltip needs to clear the strip
+   * and sit higher — keep its existing absolute positioning but nudge
+   * up so it doesn't fall behind the gradient overlay. */
+  .mock-pill-tooltip {
+    bottom: calc(100% + 12px);
+  }
+
+  /* Sliders (range inputs) — touch-action: none so vertical page scroll
+   * doesn't fight the horizontal drag. (Page can't scroll on mobile
+   * anyway because of the body:overflow:hidden rule above, but this
+   * also stops mobile Chrome from treating short drags as scroll
+   * intent.) DragPill buttons get the same treatment. */
+  .mock-slider-row input[type='range'],
+  .mock-pill.is-drag {
+    touch-action: none;
+  }
+
+  /* Inputs — 16px+ keeps iOS Safari from zooming on focus. */
+  .mock-search-input,
+  .mock-menu-aspect-custom-input,
+  .rs-input { font-size: 16px; }
+
+  /* Fabric editor toolbar (top-centered glass pill) — respect safe-area
+   * and clear the top strip. */
   body.mock-mounted #editor-toolbar {
-    top: calc(12px + env(safe-area-inset-top, 0px));
+    top: calc(60px + env(safe-area-inset-top, 0px));
+  }
+
+  /* Onboarding card — lift above the bottom strip + safe-area. */
+  .vd-onboard {
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
 
-/* Coarse-pointer overrides — pills get bumped to 44px height globally in
- * the earlier @media (pointer: coarse) block, so on phone + touch the
- * bottom-mid needs to sit higher to clear 2 rows of 44px pills from the
- * wrapped bottom-left cluster. 44 + 6 + 44 + 18 ≈ 112px. */
-@media (max-width: 768px) and (pointer: coarse) {
-  .mock-cluster--bottom-mid {
-    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+/* Portrait phones — push popovers wider, hide the Lens/Clouds labels
+ * inside the drag-pill stack to save horizontal room (the readout
+ * value alone is meaningful at this size). */
+@media (max-width: 480px) {
+  /* Drag-pill stack — hide the label so each scrub pill is just its
+   * value. Saves ~30px per pill and gets all four onto the row
+   * without horizontal scrolling on a 390px iPhone. */
+  .mock-bottom-strip .mock-pill.is-drag .mock-pill-label {
+    display: none;
+  }
+  /* AI Render sheet — bottom-sheet style is taken over by the
+   * 640px breakpoint; here we just make sure the in-sheet typography
+   * doesn't blow out. */
+  .mock-pill { font-size: 11px; }
+  .mock-pill-label { font-size: 10px; }
+  .mock-pill-value { font-size: 11px; }
+}
+
+/* Landscape phones — when the viewport is short the bottom strip eats
+ * too much canvas. Compress its padding so the canvas has more room. */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .mock-top-strip {
+    padding-top: calc(4px + env(safe-area-inset-top, 0px));
+    padding-bottom: 6px;
+  }
+  .mock-bottom-strip {
+    padding-top: 6px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .mock-frame-overlay {
+    --frame-v-padding: clamp(40px, 8vh, 70px);
   }
 }
 
@@ -3725,14 +3892,27 @@ body.mock-mounted #poster-preview .pp-scene {
     white-space: normal;
     line-height: 1.3;
   }
-  /* Guest sign-in chip is a .mock-pill; shrink the label + padding so
-   * the top-right column doesn't push extra-wide on phones. */
-  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] {
-    padding: 8px 12px;
-    font-size: 11px;
+
+  /* New render sheet — escape the right-pin and slide up from the bottom
+   * as a fullscreen sheet, matching the legacy airender layout. */
+  .mock-rs-overlay { justify-content: stretch; }
+  .mock-render-sheet {
+    width: 100%;
+    max-width: none;
+    border-left: 0;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    animation: mock-render-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
   }
-  .mock-cluster--top-right .mock-pill[aria-label^="Sign in"] .mock-pill-label {
-    font-size: 11px;
+  @keyframes mock-render-sheet-up {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .mock-render-sheet .rs-head {
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .mock-render-sheet .rs-footer {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
 
